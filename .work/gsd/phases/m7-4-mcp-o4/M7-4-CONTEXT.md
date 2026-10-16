@@ -37,6 +37,17 @@
 > auto-advance 只覆盖第 2 停的**等待面**（闭环汇报照发，不停等确认），第 3 停
 > （VALIDATION 签核给用户过目）不受站内授权覆盖，仍走人工过目。
 >
+> **plan 修订批（2026-10-13/17，REVIEW F1-F14 落定，orchestrator 已裁）**：
+> D-M7-4-7 机理勘正（F2——poll 超时只封阻塞相、不构成速率限制；忙旋消解本体
+> = 纯 POLLIN 臂 250ms sleep）/ D-M7-4-8 预热 3→**4** 装配点（F5 补
+> startReadOnlyHTTPHost 只读臂）+ 测试语境 env 门（F14，LIGHTAMER_SKIP_LUT_
+> PREHEAT）/ D-M7-4-5 author 真位式消截断二义（F8）/ 红线③ LightamerSidecar
+> carve-out（F1——SidecarHistoryItemRecord 恰两字段镜像 + schemaVersion 10→11
+> bump 已申报，v8/v9/v10 先例链）/ 红线① 计数钉 21→**23** 算术勘正（F3——
+> editing 7→9 → 双域面 = 9+14 = 23，M7-3 H1 家族防复发）。OQ-M7-4-1..10 裁决
+> 值本身零翻案（D-M7-4-8 装配点清单补全 = 裁决值忠实化——只读臂宿主属「无头
+> 宿主 start」面）。修订正本 = 同目录 `M7-4-01-PLAN-REVIEW.md`。
+>
 > **快照改动权（本波显式取权）**：M7-2/M7-3 改动权已用讫；O4 additive 两工具 +
 > apply_params note 参数 → union 27→29 **显式取权**（research §1.5 评估：M7-4
 > 在 M7-5 前串行执行，取权合法；红窗纪律 = 快照触碰只发生在工具落地 commit）。
@@ -112,8 +123,11 @@ MCP2-08..09（:438-439）+ UQ-A2（:459）；对表锚 = Alcedo adjustments 面
 
 - **裁决 = RESEARCH 推荐（①翻转占位）**：`get_history` per-item dict 加
   `"note"`/`"author"` 两键（缺省 .null）；顶层 `author` 占位（:897-900 M7-2
-  注记「M7-4 (MCP2-09) fills this」）翻转为 **position 位 item（最新 kept
-  item）的 author**；pristine/空链 = .null。
+  注记「M7-4 (MCP2-09) fills this」）翻转为 **position 位 item 的 author**
+  （实现式 = `stack.position >= 0 ? stack.items[stack.position].author : null`
+  ——真 position 位 item，与截断无关；无截断时即最新 kept item——修订批 F8
+  消截断二义〔suffix kept 红尾态下两者不是同一 item〕）；pristine/空链
+  = .null。
 - 被否备选：②恒 null 保留占位（占位注记已承诺兑现）③删键（破 pristine 形状
   一致性）。
 
@@ -126,25 +140,36 @@ MCP2-08..09（:438-439）+ UQ-A2（:459）；对表锚 = Alcedo adjustments 面
 - 被否备选：②per-target +1 版本行（Alcedo `e75cf2a` 同构）——挂
   **UPSTREAM-QUEUE 观察项**（预贴态隔离需求实测出现才立项）。
 
-### D-M7-4-7 S1 poll 循环形态 = bounded re-poll 250ms（OQ-M7-4-7）
+### D-M7-4-7 S1 poll 循环形态 = bounded re-poll 250ms + 纯 POLLIN 臂 250ms sleep（OQ-M7-4-7；修订批 F2 措辞勘正——机理以本版为准，RESEARCH §2.2 原句按惯例不改）
 
 - **裁决 = RESEARCH 推荐（①bounded re-poll）**：`armStdioEOFReleaseOnce` poll
   改 `events: POLLIN` + 超时形 `poll(&fds, 1, 250)`；醒后按 `revents` 分流——
   `revents & (POLLHUP|POLLERR)` → `takeStore()?.close()` + `exit(0)`；纯 POLLIN
-  → **只清 `revents`** 续 poll 不消费字节（「清位」指 revents 非 events——措辞
-  在 plan 写实防误读）。真管道 HUP 语义不变（阻塞至事件或 250ms 粒度）；恒可读
-  fd（测试面 dup2 /dev/null）退化 4Hz .utility 低频循环（忙旋消解）；250ms 窗
-  对 12s 活性断言无影响。
+  → **只清 `revents` + sleep 250ms** 续 poll 不消费字节（「清位」指 revents 非
+  events——措辞在 plan 写实防误读）。**机理勘正（REVIEW F2）**：`poll(2)` 的
+  timeout 只封**阻塞相**上界——fd 已就绪（测试面 dup2 /dev/null 恒可读）时
+  `poll(&fds, 1, 250)` **照样立即返回**，超时形本身不构成速率限制；忙旋消解的
+  本体 = **纯 POLLIN 臂的 250ms sleep**（恒可读 fd 上 = 4Hz .utility 帽；真管道
+  数据就绪臂亦睡 250ms——watcher 零字节消费，请求读取线程独占消费，无请求延迟
+  面）。真管道 HUP 语义不变（HUP 到达时下一轮 poll 立即返 HUP → 分流 break，
+  不经 sleep 臂）；250ms 窗对 12s 活性断言无影响。
 - once guard / M1 mode 自守卫 / http 臂不 arm 语义全部零改。
-- 被否备选：②`-1` 阻塞 + 测试面接受自旋（卫生差）。
+- 被否备选：②`-1` 阻塞 + 测试面接受自旋（甲〔sleep 臂〕已消解自旋，乙无残余
+  优势——修订批 F2 后否决理由更新）。
 
 ### D-M7-4-8 S2 裁决 = A 预热 + C 文案（OQ-M7-4-8）
 
 - **裁决 = RESEARCH 推荐（①A+C）**：
   - **A 启动后台预热**：宿主装配点 `Task.detached(priority: .utility) { _ =
-    LutLibraryStore.shared }`（GUI 装配 + 无头 stdio/http 宿主 start 共 3 点，
-    共享一行 helper）——预热完成后 agent 首调即答；启动期 ~50s 后台 CPU
-    （.utility 让位渲染）。
+    LutLibraryStore.shared }`（GUI 装配 + 无头 stdio / http / **只读 http**
+    三宿主 start 共 **4 点**——修订批 F5 补 `startReadOnlyHTTPHost`
+    〔heldByOther 只读臂 :652-708 同服 list_luts〕；共享一行 helper）——预热
+    完成后 agent 首调即答；启动期 ~50s 后台 CPU（.utility 让位渲染）。
+    **测试语境禁用（修订批 F14 落形）**：helper 内 env 门
+    `LIGHTAMER_SKIP_LUT_PREHEAT`（非空即早退）——e2e/仲裁 spawn 的真宿主
+    fixture 注入该 env（McpProjectArbitrationTests spawn 已有 env 注入缝
+    :70-72，成本一行），免每测试进程 50s .utility 解析 + 向真实用户 LUT 根
+    seeding。
   - **C 文案如实化**：`mcp_tool_desc_list_luts` 原位值改——description 注记冷
     首调代价（预热残余窗内首调至多 ~50s，短超时客户端注意重试）。
   - **B 协作化不采**：withTimeout v2 abandon 形是独立语义族专项（~20 工具共
@@ -207,10 +232,17 @@ design 不触该文件——controller 零 diff 门连续第三波兑现；若�
 
 ①union 27→29 **显式取权**（冻结表 +2 行 + apply_params schema note 行两层
 consciously change together + destructive 集 9→10〔paste_adjustments
-destructiveHint〕+ union 外五处计数钉 21→22 显式改 + 残漏 grep；M7-5 禁并行）。
+destructiveHint〕+ union 外五处计数钉 21→**23** 显式改〔editing 7→9 → 双域面
+= 9+14 = **23**——修订批 F3 算术勘正，M7-3 H1 家族防复发〕+ 残漏 grep；
+M7-5 禁并行）。
 ②零新 SPM。③HistoryHash **零 diff**（note/author additive 不入折——负测钉
 死）；HistoryItem 仅 additive optional 两字段（drtRecord/filmRecord 同族先例，
-schemaVersion 零动、tolerant 双向 decode、nil 不编码）。④错误码 16 档封闭表
+tolerant 双向 decode、nil 不编码）；**LightamerSidecar carve-out（修订批
+F1）**：`SidecarHistoryItemRecord` 恰 additive 两字段镜像投影（note/author，
+Keys + init + decode/encodeIfPresent + `item` 重建全链——filmRecord :826-829
+同族镜像形）+ **schemaVersion 10→11 bump 已申报**（sidecar 面增必 bump 先例
+链：v8 aiProvenance / v9 filmRecord / v10 process）——除 carve-out 外
+LightamerSidecar 类型/schemaVersion 零 diff。④错误码 16 档封闭表
 零新增（copy/paste 全走既有码；UQ-A2 复用 BaseNameOccupiedError）。⑤封存面
 零触 + 申报内例外：encodeStage 仅 additive 默认参一处（exclusiveFinalWrite，
 缺省 = 既有调用方零 diff）；ExportQueueContract leg 形零 diff（policy 递缝走
@@ -231,11 +263,11 @@ parentage（`ps -o ppid`）。⑪controller（LibraryProjectController）文件�
 
 ## 晨审推翻点索引（可推翻面速查）
 
-- **D-M7-4-7**：S1 bounded re-poll 250ms 是研究新发现的忙旋消解形（双路
-  ACCEPTANCE 原建议形无此项）——若晨审倾向「-1 阻塞 + 测试面接受自旋」= 改
-  D-M7-4-7 与 plan T1 对应面（e2e 判据不变）。
+- **D-M7-4-7**：S1 bounded re-poll 250ms + 纯 POLLIN 臂 250ms sleep（修订批
+  F2 勘正后的真忙旋消解形——sleep 臂是速率限制本体）——若晨审倾向「-1 阻塞 +
+  测试面接受自旋」= 改 D-M7-4-7 与 plan T1 对应面（e2e 判据不变）。
 - **D-M7-4-8**：S2 新档支线（`McpTimeouts.listLuts` 60s）本波不行使——若晨审
   认为预热窗内首调仍需长窗保护 = 显式行使（新档非改档，须 DECISIONS 申报 +
-  快照/SC 同批）。
+  快照/SC 同批）；预热 4 装配点 + env 门同属本 D 条修订面（修订批 F5/F14）。
 - **D-M7-4-1/2**：库域批量写 / 双形态 targets 若晨审要求提前 = 越出 additive
   面，须重开 research 缺口设计（非本 plan 承载）。

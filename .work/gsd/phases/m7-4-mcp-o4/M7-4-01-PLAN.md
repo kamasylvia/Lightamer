@@ -1,20 +1,20 @@
 ---
 phase: m7-4-mcp-o4
 plan: "M7-4-01"
-title: "MCP O4 跨图批量 + note 归属 + UQ-A2 原子终写单 plan——T1 S1 修复批首项（poll POLLIN + revents 分流 + bounded re-poll 250ms + /tmp/m73_probe 探针迁 evidence + e2e 真断连回归〔12s 活性 + .lalb-wal==0〕+ ⑥/H3③ 措辞校订注记）/ T2 S2 A+C（两臂 launch 预热 3 装配点 + list_luts 文案原位改）+ S3 正臂腿 / T3 O4（AdjustmentTransferCatalog 纯 helper 抽取消二份 + copy_adjustments 只读枚举 + paste_adjustments 批量写 + apply_params note 参 + author=mcp 盖章 + HistoryItem additive note/author + get_history 读面翻转）/ T4 UQ-A2（encodeStage additive exclusiveFinalWrite + tmp 同目录 encode + link() EEXIST + gain-map 同 wrap + $jobNamingCarrier 递缝 + TOCTOU 负测）/ T5 match_color 勘正（目录锚一行 + kind0 腿）/ T6 测试批（union 27→29 全点位显式改本波取权 + 新工具 golden + 既有 27 工具零回归 + MCP2-09 GUI 面 + zh-audit）/ T7 定向轮 + 全套 --all（批准制）+ 红线族 + 收口翻账"
+title: "MCP O4 跨图批量 + note 归属 + UQ-A2 原子终写单 plan——T1 S1 修复批首项（poll POLLIN + revents 分流 + bounded re-poll 250ms + /tmp/m73_probe 探针迁 evidence + e2e 真断连回归〔12s 活性 + .lalb-wal==0〕+ ⑥/H3③ 措辞校订注记）/ T2 S2 A+C（两臂 launch 预热 3 装配点 + list_luts 文案原位改）+ S3 正臂腿 / T3 O4（AdjustmentTransferCatalog 纯 helper 抽取消二份 + copy_adjustments 只读枚举 + paste_adjustments 批量写 + apply_params note 参 + author=mcp 盖章 + HistoryItem additive note/author + SidecarHistoryItemRecord 镜像投影 + schemaVersion 10→11 bump〔review F1〕+ get_history 读面翻转）/ T4 UQ-A2（encodeStage additive exclusiveFinalWrite + tmp 同目录 encode + link() EEXIST + encoder-error 清理腿改道〔review F4〕+ gain-map 同 wrap + $jobNamingCarrier 递缝 + TOCTOU 负测）/ T5 match_color 勘正（目录锚一行 + kind0 腿）/ T6 测试批（union 27→29 全点位显式改本波取权 + 新工具 golden + 既有 27 工具零回归 + MCP2-09 GUI 面 + zh-audit）/ T7 定向轮 + 全套 --all（批准制）+ 红线族 + 收口翻账（plan 修订批 2026-10-13：REVIEW F1-F14 落定——sidecar v11 镜像链 / poll sleep 臂 / 计数 23 / 清理腿改道 / 预热四点+env 门）"
 wave: 1
 depends_on: []
 autonomous: true
 requirements: ["REQUIREMENTS MCP2-08..09（:438-439）+ UQ-A2（:459）→ M7-4 + ROADMAP §M7-4 行", "OQ 裁决正本 = phases/m7-4-mcp-o4/M7-4-CONTEXT.md（D-M7-4-1..10 全按 RESEARCH §7 推荐，站 charter 授权落定，晨审可推翻）", "调研正本 = phases/m7-4-mcp-o4/M7-4-RESEARCH.md（§1 O4 测绘 / §2 S1 / §3 S2 / §4 UQ-A2 / §5 match_color / §6 测试策略；file:line 经 planner 2026-10-13 HEAD 0b34d199 逐点亲核复核吻合——union 外计数钉行号 M7-3 后已漂移，plan 内一律用 fresh 坐标）", "M7-3 挂账单一清单六项 = phases/m7-3-mcp-o2o3/M7-3-VALIDATION.md §挂账（本波 T1/T2/T5 收口①②③⑤ + ⑥ 措辞注记；④ 无动作）", "夜间全自动授权在案（先例 D-07-3-T5-1；晨审可推翻）"]
-success_criteria: "SC 全可机检——T1：armStdioEOFReleaseOnce poll 体 grep 三判据（events: POLLIN 在位 / poll(&fds, 1, 250) 超时形在位 / 分流 revents & (POLLHUP|POLLERR) → break + else 分支只清 fds[0].revents 零消费）+ once guard/M1 自守卫/http 不 arm 三语义零 diff（函数其余行逐行核）+ 探针源迁 evidence（ls phases/m7-4-mcp-o4/evidence/m73-probe/ 含 probe.c/harness.c/harness.sh/e2edrv*）+ e2e 新法绿（spawn 真二进制 --mcp-stdio → initialize → project_create → 关 stdin → exit ≤12s 断言 + .lalb-wal size==0 断言——graceful checkpoint 正面证）+ 定向 App bundle 绿；T2：grep `LutLibraryStore.shared` 预热恰 3 装配点（LightamerApp + startHeadlessStdioHost/startHTTPHost 段，共享 helper 单处定义）+ Task.detached(priority: .utility) 形在位 + mcp_tool_desc_list_luts 原位值改含冷首调句（en+zh 同批）+ McpTimeouts 零 diff + S3 正臂腿绿（heldTargets 非空 → before==nil ∧ after!=nil ∧ store 未变 → typed projectReadOnly）+ 产线逻辑零新增（S3 恰测试文件 diff）；T3：copy_adjustments 注册（readOnlyHint:true / writer 缺省）+ paste_adjustments 注册（requiresWriter:true + destructiveHint:true + targets maxItems 1000 + applyBatch 60s 既有档）+ 双工具 source 双形态 resolveReference 复用（grep MatchColorToolset.resolveReference 调用）+ paste per-target live 硬拒 + probe + membership 前置 + flushForTeardown 写达后方返 + AdjustmentTransferCatalog 纯 helper 抽取（GUI model 委托 + MCP 双消费——grep isAdjustmentTransferable 调用面恰单一函数零第二份排除逻辑）+ HistoryItem 恰 additive 两字段（CodingKeys decodeIfPresent/encodeIfPresent + nil 不编码 + 旧档字节零漂移负测）+ HistoryHash 零 diff（git diff HistoryHash.swift = 空）+ 负测：同编辑态 note/author 有无 → hash 逐位同 + get_history per-item 恰 +2 键 + 顶层 author = 最新 kept item 翻转（pristine .null 负测）+ apply_params additive note 参 + author=mcp 盖章 + label 恒 MCP paste_adjustments / MCP apply_params；T4：encodeStage 签名恰尾追 exclusiveFinalWrite: Bool = false（缺省调用方零 diff 负测——既有 encodeStage 测试面零改全绿）+ exclusive 臂 tmp `.<name>.<uuid>.tmp` 同目录 + link() 晋升（成功 unlink(tmp) / EEXIST → unlink + BaseNameOccupiedError(name:) 复用 / 其它 errno internalError）+ defer 清理零 tmp 残留（glob 断言）+ gain-map 臂同 wrap + queue encode 腿 $jobNamingCarrier.withValue 装配（:489-493 render 腿同形）+ encodeLeg 内读 jobNamingCarrier?.collisionPolicy == .fail 传参 + render 步快照检查保留（diff 面核）+ TOCTOU 负测绿（render → 手工建 destination 文件 → encodeStage(exclusiveFinalWrite:true) → typed 错 + destination 字节不变 + 无 tmp 残留）+ 正向恒等（exclusive ≡ 非 exclusive byte-equal）+ .replace 覆盖仍发生负测 + ExportNamer.swift 零 diff；T5：LightamerApp match_color provider 恰一行目录锚（deletingLastPathComponent 在位）+ 两测试 provider 同形勘正 + kind0 锚腿新法绿（pathKind 0 行 → id 形 resolve == <projectDir>/Media/x.jpg）；T6：union 显式改全点位——冻结表 +2 行（descriptors() 名序）+ 计数 ×4（:249/:299/:327/:479）27→29 + destructive 集 9→10（+ paste_adjustments）+ descriptionKeys +2（:334）+ all27→all29（:219 定义）+ 测试名 Union27→Union29（:244）+ 头注 :20 + message :250/:327 同批 + editing 层（McpRegistrySnapshotTests）apply_params note 行 + copy/paste 两行 + :203 计数钉 21→22 + union 外五钉显式改（McpRegistrySnapshotTests :203 / McpSearchStateToolsetTests :274 / McpHostTests :243/:697 / McpLauncherTests :200——21→22 + message 同批）+ MCP 测试面 `count, 21` / `count == 21` / `all27` 零残漏 grep + 新工具 golden（枚举恒等：GUI pastePayload ≡ Catalog 产物实例集逐参恒等 / 两形态寻址 / greyed 计数 / DRT present / paste per-target 分账 + live 硬拒 + probe held 拒 + membership 拒 + include 子集 + includeDrt=false + mask contentRevision==nil + flush 写达后方返）+ MCP2-09 golden（sidecar 字节 roundtrip + 旧档 tolerant 负测 + hash 不变负测 + per-item 键 + 顶层翻转）+ 既有 27 工具 descriptor 零 diff（除 apply_params 申报内 note 行）+ EditorToolRailView note 副标题（lineLimit(1)）+ author 徽章（nil 无徽章）+ zh-audit --check（+3）与 --self-test 双 PASS；T7：--bundle App+Layers+EXPORT 定向绿 + 全套 --all = TOTAL|3905+ΔN/35/0| 对账闭合（exit 0 / 0 MEMFAIL / 七 bundle 8G 门内 / 批准制标注）+ 红线族逐条机检 PASS + 四台账同批落盘（历史行只追加不改写）"
-estimated_tests: "+21..28（research §6 带 −1〔S2 探针腿改观察证据不入 XCTest——skip 35 口径维持〕：T1 ~2..3〔e2e 活性 + WAL==0（+可选锁腿）〕/ T2 ~1〔S3 正臂〕/ T3 ~14〔copy ~4 + paste ~6 + MCP2-09 ~4〕/ T4 ~4〔§4.3 必做四腿；可选 queue 级/gain-map 腿若行使 +2〕/ T5 ~2〔kind0 锚腿 + provider 勘正随行〕/ T6 union 显式改零新测试；执行时逐任务如实记账，越带申报）"
+success_criteria: "SC 全可机检——T1：armStdioEOFReleaseOnce poll 体 grep 四判据（events: POLLIN 在位 / poll(&fds, 1, 250) 超时形在位 / 分流 revents & (POLLHUP|POLLERR) → break / 纯 POLLIN 臂〔非 HUP〕只清 fds[0].revents + sleep 250ms 续 poll——sleep 在位 = 忙旋消解本体判据〔修订批 F2〕；count==0 超时臂零 sleep 零消费）+ once guard/M1 自守卫/http 不 arm 三语义零 diff（函数其余行逐行核）+ 探针源迁 evidence（ls phases/m7-4-mcp-o4/evidence/m73-probe/ 含 probe.c/harness.c/harness.sh/e2edrv*）+ e2e 新法绿（spawn 真二进制 --mcp-stdio → initialize → project_create → 关 stdin → exit ≤12s 断言 + .lalb-wal size==0 断言——graceful checkpoint 正面证；fixture 注入 LIGHTAMER_SKIP_LUT_PREHEAT=1）+ 定向 App bundle 绿；T2：grep `LutLibraryStore.shared` 预热恰 4 装配点（LightamerApp + startHeadlessStdioHost/startHTTPHost/startReadOnlyHTTPHost 段，共享 helper 单处定义——修订批 F5 补只读臂第四点）+ helper 内 LIGHTAMER_SKIP_LUT_PREHEAT env 门在位 + 仲裁 fixture spawn 注入该 env（修订批 F14）+ Task.detached(priority: .utility) 形在位 + mcp_tool_desc_list_luts 原位值改含冷首调句（en+zh 同批）+ McpTimeouts 零 diff + S3 正臂腿绿（heldTargets 非空 → before==nil ∧ after!=nil ∧ store 未变 → typed projectReadOnly）+ 产线逻辑零新增（S3 恰测试文件 diff）；T3：copy_adjustments 注册（readOnlyHint:true / writer 缺省）+ paste_adjustments 注册（requiresWriter:true + destructiveHint:true + targets maxItems 1000 + 重复 targets = invalidParams 一行 guard〔修订批 F10〕+ applyBatch 60s 既有档）+ 双工具 source 双形态 resolveReference 复用（grep MatchColorToolset.resolveReference 调用）+ paste per-target live 硬拒 + probe + membership 前置 + per-target rejected reason = 固定 token 集（notSessionMember/imageLiveInEditor/unreadableSidecar/internalError——修订批 F7 钉形，DECISIONS 申报）+ flushForTeardown 写达后方返 + AdjustmentTransferCatalog 纯 helper 抽取（GUI model 委托 + MCP 双消费——grep isAdjustmentTransferable 调用面恰单一函数零第二份排除逻辑）+ HistoryItem 恰 additive 两字段（CodingKeys decodeIfPresent/encodeIfPresent + nil 不编码 + 旧档字节零漂移负测）+ **SidecarHistoryItemRecord 镜像投影恰 additive 两字段**（Keys 两 case + init 镜像 + decode/encodeIfPresent + `item` 重建——修订批 F1 全链四件）+ **schemaVersionCurrent 10→11**（SidecarV11Tests 钉 + SidecarV10Tests 既有 FUTURE-version tolerance 法自动前向兼容守卫零改）+ HistoryHash 零 diff（git diff HistoryHash.swift = 空）+ 负测：同编辑态 note/author 有无 → hash 逐位同 + get_history per-item 恰 +2 键 + 顶层 author = position 位 item 翻转（实现式 stack.position>=0 ? items[position].author : null——修订批 F8 真位式；pristine .null 负测）+ apply_params additive note 参 + author=mcp 盖章 + 透传链两签名默认参（commitPaste/composeSegment——修订批 F12）+ label 恒 MCP paste_adjustments / MCP apply_params；T4：encodeStage 签名恰尾追 exclusiveFinalWrite: Bool = false（缺省调用方零 diff 负测——既有 encodeStage 测试面零改全绿）+ exclusive 臂 tmp `.<name>.<uuid>.tmp` 同目录 + link() 晋升（成功 unlink(tmp) / EEXIST → unlink + BaseNameOccupiedError(name:) 复用 / 其它 errno internalError）+ **encoder-error catch 清理腿在 exclusive 臂不触 destination**（修订批 F4——destination 可能是 TOCTOU 窗内他进程文件；tmp 清理归 defer）+ defer 清理零 tmp 残留（glob 断言）+ gain-map 臂同 wrap + queue encode 腿 $jobNamingCarrier.withValue 装配（:489-493 render 腿同形）+ encodeLeg 内读 jobNamingCarrier?.collisionPolicy == .fail 传参 + render 步快照检查保留（diff 面核）+ TOCTOU 负测绿（render → 手工建 destination 文件 → encodeStage(exclusiveFinalWrite:true) → typed 错 + destination 字节不变 + 无 tmp 残留）+ **encoder 失败第五腿**（强制 encoder throw + 预植 destination 字节不变——修订批 F4 测试腿）+ 正向恒等（exclusive ≡ 非 exclusive byte-equal）+ .replace 覆盖仍发生负测 + ExportNamer.swift 零 diff；T5：LightamerApp match_color provider 恰一行目录锚（deletingLastPathComponent 在位）+ 两测试 provider 同形勘正 + kind0 锚腿新法绿（pathKind 0 行 → id 形 resolve == <projectDir>/Media/x.jpg）；T6：union 显式改全点位——冻结表 +2 行（descriptors() 名序）+ 计数 ×4（:249/:299/:327/:479）27→29 + destructive 集 9→10（+ paste_adjustments）+ descriptionKeys +2（:334）+ all27→all29（:219 定义）+ 测试名 Union27→Union29（:244）+ 头注 :20 + message :250/:327 同批 + editing 层（McpRegistrySnapshotTests）apply_params note 行 + copy/paste 两行 + :203 计数钉 21→23 + union 外五钉显式改（McpRegistrySnapshotTests :203 / McpSearchStateToolsetTests :274 / McpHostTests :243/:697 / McpLauncherTests :200——21→23 + message 同批；**算术钉 = editing 7→9 → 双域面 9+14=23，修订批 F3**）+ MCP 测试面 `count, 21` / `count == 21` / `all27` 零残漏 grep + 新工具 golden（枚举恒等：GUI pastePayload ≡ Catalog 产物实例集逐参恒等 / 两形态寻址 / greyed 计数 / DRT present / paste per-target 分账 + reason token 断言 + live 硬拒 + probe held 拒 + membership 拒 + 重复 targets invalidParams 拒 + include 子集 + includeDrt=false + mask contentRevision==nil + flush 写达后方返）+ MCP2-09 golden（**SidecarV11Tests 新文件〔Layers 域〕**：v10-form 旧档 byte-exact 负测 + v11 writer nil note/author = v10 shape 仅 schemaVersion digit 异 + note/author roundtrip byte-faithful + hash 不变负测；SidecarV10Tests 零触——既有 FUTURE-version tolerance 法自动守卫 v11 前向可读 + 旧档 tolerant 负测 + per-item 键 + 顶层翻转〔position 真位 + pristine .null〕）+ 既有 27 工具 descriptor 零 diff（除 apply_params 申报内 note 行）+ EditorToolRailView note 副标题（lineLimit(1)）+ author 徽章（nil 无徽章）+ zh-audit --check（+3）与 --self-test 双 PASS；T7：--bundle App+Layers+EXPORT 定向绿 + 全套 --all = TOTAL|3905+ΔN/35/0| 对账闭合（exit 0 / 0 MEMFAIL / 七 bundle 8G 门内 / 批准制标注）+ 红线族逐条机检 PASS + 四台账同批落盘（历史行只追加不改写）"
+estimated_tests: "+22..29（research §6 带 −1 + 修订批 F4 第五腿 +1：T1 ~2..3〔e2e 活性 + WAL==0（+可选锁腿）〕/ T2 ~1〔S3 正臂〕/ T3 ~14〔copy ~4 + paste ~6 + MCP2-09 ~4——sidecar 面落 SidecarV11Tests 新文件〕/ T4 ~5〔§4.3 必做四腿 + encoder 失败第五腿〔修订批 F4〕；可选 queue 级/gain-map 腿若行使 +2〕/ T5 ~2〔kind0 锚腿 + provider 勘正随行〕/ T6 union 显式改零新测试 + SidecarV11Tests ~4 法入上条 MCP2-09 计；执行时逐任务如实记账，越带申报）"
 test_bundles: [APP, LAYERS, EXPORT]
 baseline: "3905/35/0（M7-3 三路全套同值；其后 9e42c25e〔VALIDATION 签核〕+ 0b34d199〔M7-4 research docs〕两跳 docs-only 基线零漂移；HEAD 0b34d199 planner 2026-10-13 亲核 git log/status——其上仅三处无关 untracked 旧件）"
-expected_all: "3905 + ΔN（对账式；ΔN 预期带 +21..28，执行时按实记账；skip 35 口径维持——本波零 skip 门新测试，S2 观察证据不入 XCTest；第三种 skip 来源 = 逐族差分申报禁静默吸收）"
+expected_all: "3905 + ΔN（对账式；ΔN 预期带 +22..29〔修订批 F4 第五腿 +1 后带移——原 +21..28〕，执行时按实记账；skip 35 口径维持——本波零 skip 门新测试，S2 观察证据不入 XCTest；第三种 skip 来源 = 逐族差分申报禁静默吸收）"
 red_lines:
   - "零新 SPM 依赖（Project.swift dependencies 块零 diff）"
   - "MCP 快照族显式改——本波显式取 union 文件（McpFinalSnapshotTests.swift）改动权（union 27→29；M7-2/M7-3 权已用讫、M7-4 在 M7-5 前串行执行取权合法）：union 全点位显式改 + apply_params schema 两层（editing 域层 + union 层）consciously change together 同批；快照改动全部走「显式改 + DECISIONS 申报」形禁静默；M7-4 持权窗口内禁并行派发 M7-5（orchestrator 编排保证——若误并行派发立即停手上报，禁抢先合并快照表）"
-  - "HistoryHash 零 diff（折叠面零触——note/author additive 不入折，机制证 + 负测双钉）；HistoryItem 仅 additive optional 两字段 note/author（drtRecord/filmRecord 同族先例——decodeIfPresent/encodeIfPresent、nil 不编码、schemaVersion 零动、tolerant 双向；GUI 写腿 author 恒 nil 零 diff）；LightamerSidecar 类型/schemaVersion 零 diff"
+  - "HistoryHash 零 diff（折叠面零触——note/author additive 不入折，机制证 + 负测双钉）；HistoryItem 仅 additive optional 两字段 note/author（drtRecord/filmRecord 同族先例——decodeIfPresent/encodeIfPresent、nil 不编码、tolerant 双向；GUI 写腿 author 恒 nil 零 diff）；LightamerSidecar carve-out（修订批 F1 已申报）：SidecarHistoryItemRecord 恰 additive 两字段镜像投影（note/author——Keys 两 case + init 镜像 + decode/encodeIfPresent + `item` 重建全链，filmRecord :826-829 同族镜像形，encodeIfPresent/decodeIfPresent、nil 不编码）+ schemaVersionCurrent 10→11 bump（sidecar 面增必 bump 先例链：v8 aiProvenance / v9 filmRecord / v10 process；SidecarV11Tests 新文件钉 + SidecarV10Tests 零触）——除 carve-out 外 LightamerSidecar 类型/schemaVersion 零 diff"
   - "错误码 16 档封闭表零新增（McpToolRegistry.swift 零 diff——copy/paste 全走 invalidParams/notSessionMember/projectReadOnly/imageLiveInEditor/serverReadOnly/internalError；UQ-A2 复用 ExportNamer.BaseNameOccupiedError）；McpTimeouts 零新档零改档（applyBatch 60s 既有档消费——D-M7-4-8 新档支线不行使）"
   - "封存面零触 + 申报内例外：encodeStage 仅 additive 默认参一处（exclusiveFinalWrite，缺省 = 既有调用方零 diff——renderedPlane pristineOnly 同族先例）；ExportQueueContract leg 形零 diff（renderLeg/encodeLeg 闭包签名冻结——policy 递缝走 $jobNamingCarrier.withValue wrapper，$jobExifSoftware 同款第四例）；ExportNamer.swift 零 diff；ExportCollisionPolicy 三档枚举零动（.increment 字节冻结 / .replace 保持 plain rename）；六格式导出矩阵（ExportFormatSpec·ImageIOEncoders·WebPEncoder）零触；UI ExportInspectorView 零触；PixelPipe / V50Order / GradeCatalog（NodeOwnershipCatalog）/ Registry / ModuleInstance / Lut3dKernels.metal / DrtRecord / TerminalTailPolicy / DrtTailAssembly / DrtEotf / PipelineDocument / NodeGraphCommand 零 diff；零新 .metal（全域零 diff）"
   - "排除谓词单源红线（AdjustmentTransfer.swift 头注 :25-27 同构延续）：isAdjustmentTransferable 全仓恰单一函数定义——AdjustmentTransferCatalog 抽取 = 枚举/载荷构建纯函数化（GUI model 与 MCP toolset 双消费），零第二份排除逻辑；GUI model 行为零 diff（M2-8 既有 AdjustmentTransferTests 面作守卫）"
@@ -22,33 +22,37 @@ red_lines:
   - "Alcedo GPL 代码/文档文案零复制零翻译——工具名/参数/schema/文案全部自写（6203791/e75cf2a/9f9fc5e/1f12551 只对表命令语义；link() 修法为 POSIX 标准面非 Alcedo 抄写）"
   - "xcstrings = 三新键 mcp_tool_desc_copy_adjustments / mcp_tool_desc_paste_adjustments / editor_history_author_badge 尾块纯插入（历史键字节与顺序零触碰）+ mcp_tool_desc_list_luts 原位值改（en defaultValue + zh 译文同批——非尾块插入，DECISIONS 申报）；UserDefaults 零新键；执行中如需更多键 = 同纪律 + DECISIONS 申报"
   - "\\.runModal( 在 App/Sources 零命中（L057 禁令）；LocalizationValue 插值禁形代码零命中（新键一律 String(localized: 静态键, defaultValue:) 显式形态——禁 String.LocalizationValue(\"prefix_\\(x)\" 插值形，M2-9 F-2 禁令）"
-  - "S1 修复语义钉：once guard / M1 mode 自守卫 / http 臂不 arm / close+exit(0) HUP 体四语义零改——恰改 poll 请求位（events: POLLIN）+ 超时形（250ms）+ revents 分流三点；「清位」只清 revents 绝不清 events 位（措辞在 action 写实）；纯 POLLIN 分支零字节消费（watches HUP without stealing bytes 原意图保持）"
-  - "登记纪律：新测试一律 additive 到既有文件——预期 Project.swift 与 BUNDLE-MAP 零行变更；若执行期必须新建测试文件 = Project.swift 恰一行 + BUNDLE-MAP 恰一行 + tuist generate 恒为该批最后一个动作（L041）+ DECISIONS 申报；构建 caffeinate -dis 包裹；单测 = Scripts/test-direct.sh --bundle <域>；全套 --all orchestrator 批准制（本 plan 标注批准制，执行时 orchestrator 派发 prompt 即批准）+ 8G 门 + MEMFAIL 机检 + 运行中保持监视（AGENTS 资源监控节）；测试宿主清理先核 parentage（ps -o ppid——测试宿主 parent = 脚本进程树，GUI 实例 parent = launchd）"
+  - "S1 修复语义钉：once guard / M1 mode 自守卫 / http 臂不 arm / close+exit(0) HUP 体四语义零改——恰改 poll 请求位（events: POLLIN）+ 超时形（250ms）+ revents 分流三点；分流第③点分支体内含纯 POLLIN 臂 250ms sleep（修订批 F2——忙旋消解本体，第③点分支体组成部分非第四语义点）；「清位」只清 revents 绝不清 events 位（措辞在 action 写实）；纯 POLLIN 分支零字节消费（watches HUP without stealing bytes 原意图保持）"
+  - "登记纪律：新测试优先 additive 到既有文件；SidecarV11Tests.swift 为本批唯一计划内新文件（修订批 F1 v11 钉——Project.swift 恰一行 + BUNDLE-MAP 恰一行〔Layers 域〕+ tuist generate 恒为该批最后一个动作（L041）+ DECISIONS 申报）；除 SidecarV11Tests 外 Project.swift 与 BUNDLE-MAP 零行变更——若执行期另需新建测试文件 = 同款恰一行纪律 + DECISIONS 申报；构建 caffeinate -dis 包裹；单测 = Scripts/test-direct.sh --bundle <域>；全套 --all orchestrator 批准制（本 plan 标注批准制，执行时 orchestrator 派发 prompt 即批准）+ 8G 门 + MEMFAIL 机检 + 运行中保持监视（AGENTS 资源监控节）；测试宿主清理先核 parentage（ps -o ppid——测试宿主 parent = 脚本进程树，GUI 实例 parent = launchd）"
 files_modified:
-  - App/Sources/Lightamer/MCP/McpServerController.swift                              # T1：armStdioEOFReleaseOnce poll 体三点改形（events: POLLIN / poll(&fds,1,250) 超时形 / revents 分流——once guard + M1 自守卫 + close+exit(0) 体零改）。T2：warmLutLibrary() 一行 helper + startHeadlessStdioHost/startHTTPHost 两装配点调用
+  - App/Sources/Lightamer/MCP/McpServerController.swift                              # T1：armStdioEOFReleaseOnce poll 体三点改形（events: POLLIN / poll(&fds,1,250) 超时形 / revents 分流——第③点分支体内含纯 POLLIN 臂 250ms sleep〔修订批 F2 忙旋消解本体〕；once guard + M1 自守卫 + close+exit(0) 体零改）。T2：warmLutLibrary() 一行 helper（内含 LIGHTAMER_SKIP_LUT_PREHEAT env 门〔修订批 F14〕）+ startHeadlessStdioHost(:714)/startHTTPHost(:952)/startReadOnlyHTTPHost(:652) 三装配点调用〔修订批 F5/F6〕
   - App/Sources/Lightamer/UI/LightamerApp.swift                                     # T2：GUI 装配段 warmLutLibrary() 第三装配点。T5：match_color installLibraryProvider return 行恰一行目录锚（url.deletingLastPathComponent()——fix 20997721 先例形）
   - App/Sources/Lightamer/State/AdjustmentTransfer.swift                            # T3：AdjustmentTransferCatalog 纯 helper 抽取（enumerate 快照 + 载荷构建；AdjustmentTransferModel.enumerate/pastePayload 改委托——行为零 diff，M2-8 测试面守卫；头注排除单源句随形更新）
-  - App/Sources/Lightamer/MCP/Tools/EditingToolset.swift                            # T3：copy_adjustments + paste_adjustments 注册与 body（source 双形态 resolveReference 复用 / copy 只读枚举应答 / paste per-target 前置 + SessionBatchApplier.apply 数组腿 .overwrite label "MCP paste_adjustments" + flushForTeardown 写达后方返 + per-target 结果列应答）+ apply_params additive note 参 + 双写工具 author="mcp" 盖章透传
-  - App/Sources/Lightamer/MCP/Tools/SearchStateToolset.swift                        # T3：get_history per-item dict 恰 +2 键（note/author 缺省 .null）+ 顶层 author 占位翻转（position 位 item 的 author——:897-900 占位注记替换为消费体）
+  - App/Sources/Lightamer/MCP/Tools/EditingToolset.swift                            # T3：copy_adjustments + paste_adjustments 注册与 body（source 双形态 resolveReference 复用 / copy 只读枚举应答 / paste per-target 前置 + SessionBatchApplier.apply 数组腿 .overwrite label "MCP paste_adjustments" + flushForTeardown 写达后方返 + per-target 结果列应答〔reason = 固定 token 集：notSessionMember/imageLiveInEditor/unreadableSidecar/internalError——修订批 F7〕+ targets 重复项 invalidParams 一行 guard〔修订批 F10〕+ 双工具 description 含 item-level note 与 append_note 文档级区分句〔修订批 F9〕）+ apply_params additive note 参 + 双写工具 author="mcp" 盖章透传
+  - App/Sources/Lightamer/MCP/Tools/SearchStateToolset.swift                        # T3：get_history per-item dict 恰 +2 键（note/author 缺省 .null）+ 顶层 author 占位翻转（position 位 item 真位式：stack.position >= 0 ? stack.items[stack.position].author : .null——修订批 F8，与截断无关；:897-900 占位注记替换为消费体）
   - App/Sources/Lightamer/UI/Shell/EditorToolRailView.swift                         # T6：historyRow note 副标题（单行截断 caption2）+ author 徽章（"mcp" 徽章文本 + AX label 键；nil 无徽章）
-  - LightamerCore/Sources/Pipe/History/HistoryStack.swift                           # T3：HistoryItem additive note: String? + author: String?（存储 + init 默认参 + CodingKeys decodeIfPresent/encodeIfPresent——drtRecord/filmRecord 同族形；nil 不编码）
+  - LightamerCore/Sources/Pipe/History/HistoryStack.swift                           # T3：HistoryItem additive note: String? + author: String?（存储 + init 默认参 + CodingKeys decodeIfPresent/encodeIfPresent——drtRecord/filmRecord 同族形；nil 不编码）+ commitPaste 签名 additive 默认参透传（修订批 F12——透传链签名之一；缺省 nil = 既有调用方零 diff）
+  - LightamerCore/Sources/Sidecar/LightamerSidecar.swift                            # T3：SidecarHistoryItemRecord 镜像投影恰 additive 两字段（修订批 F1——Keys 两 case + 存储属性 + init 镜像携带 + decodeIfPresent/encodeIfPresent + `item` 重建全链，filmRecord :826-829 同族镜像形；nil 不编码）+ schemaVersionCurrent 10→11 bump（:247 一行；SidecarHistoryItemRecord 头注随形补 v11 注记）
   - LightamerCore/Sources/Pipe/History/PasteSemantics.swift                         # T3：paste additive note/author 默认参透传 HistoryItem（缺省 nil = 既有调用方零 diff）
-  - LightamerCore/Sources/Session/SessionBatchApplier.swift                         # T3：apply additive note/author 默认参 → segment1 compose 透传（缺省 nil = 既有调用方零 diff；M2-8 Copy Adjustments GUI 面零触）
-  - LightamerCore/Sources/Export/ExportRenderer.swift                               # T4：encodeStage 签名恰尾追 exclusiveFinalWrite: Bool = false + exclusive 臂（同目录隐藏 tmp `.<name>.<uuid>.tmp` encode + post-encode 两腿原位跑 + link() 晋升：成功 unlink(tmp) / EEXIST → unlink + BaseNameOccupiedError(name:) / 其它 errno → internalError；defer 清 tmp 零残留）+ gain-map 臂同 wrap（ExportGainMapEncoder destination 形参换 tmp+link）
+  - LightamerCore/Sources/Session/SessionBatchApplier.swift                         # T3：apply additive note/author 默认参 → segment1 compose 透传 + composeSegment 签名 additive 默认参（修订批 F12——透传链签名之二；缺省 nil = 既有调用方零 diff；M2-8 Copy Adjustments GUI 面零触）
+  - LightamerCore/Sources/Export/ExportRenderer.swift                               # T4：encodeStage 签名恰尾追 exclusiveFinalWrite: Bool = false + exclusive 臂（同目录隐藏 tmp `.<name>.<uuid>.tmp` encode + post-encode 两腿原位跑 + link() 晋升：成功 unlink(tmp) / EEXIST → unlink + BaseNameOccupiedError(name:) / 其它 errno → internalError；defer 清 tmp 零残留）+ **encoder-error catch 清理腿改道**（:714-726 catch 内 :724 removeItem(at: destination) 在 exclusiveFinalWrite=true 时不再触 destination——该文件可能是 TOCTOU 窗内他进程的同名物；tmp 清理归 defer 既有兜底〔修订批 F4〕；非 exclusive 臂逐字节原样）+ gain-map 臂同 wrap（ExportGainMapEncoder destination 形参换 tmp+link）
   - LightamerCore/Sources/Export/ExportQueue.swift                                  # T4：encode 腿调用点（:521-528 段）加 $jobNamingCarrier.withValue namingCarrier additive wrapper（:489-493 render 腿同形装配 queued.naming/collisionPolicy/subfolder）+ encodeLeg 内读 jobNamingCarrier?.collisionPolicy == .fail 传 exclusiveFinalWrite: true
   - Resources/Localizable.xcstrings                                                 # T2：mcp_tool_desc_list_luts 原位值改（冷首调代价句）。T3：mcp_tool_desc_copy_adjustments/_paste_adjustments 两新键。T6：editor_history_author_badge 新键（尾块纯插入三键 + 原位改一键）
-  - Tests/LightamerTests/McpProjectArbitrationTests.swift                           # T1：e2e 真断连新法 additive（真二进制 spawn fixture 复用——--mcp-stdio → initialize → project_create → 关 stdin → exit ≤12s + .lalb-wal size==0；可选锁窗腿：持锁期第二 project_open = typed projectReadOnly）
+  - Tests/LightamerTests/McpProjectArbitrationTests.swift                           # T1：e2e 真断连新法 additive（真二进制 spawn fixture 复用——--mcp-stdio → initialize → project_create → 关 stdin → exit ≤12s + .lalb-wal size==0；可选锁窗腿：持锁期第二 project_open = typed projectReadOnly）+ fixture spawn env 注入 LIGHTAMER_SKIP_LUT_PREHEAT=1（修订批 F14——:70-72 env 注入缝一行，spawn 真宿主免 50s 预热解析与真实 LUT 根 seeding）
   - Tests/LightamerTests/McpProjectToolsetTests.swift                               # T2：S3 正臂腿（makeGuiShapedProvider(stub:heldTargets:) 传非空 heldTargets → 差分谓词正臂 typed projectReadOnly 断言——零产线代码）
   - Tests/LightamerTests/AdjustmentTransferTests.swift                              # T6：Catalog golden（同链 → GUI pastePayload 与 Catalog 产物实例集逐参恒等——no-second-copy 机检正面 + mask 纪元重置断言）；T3 期 GUI model 委托零 diff 守卫（既有法全绿）
   - Tests/LightamerTests/McpEditingToolsetTests.swift                               # T6：copy/paste golden additive（两形态寻址 / greyed 计数 / DRT present 面 / paste per-target applied|rejected 分账 + live 硬拒 + probe held 拒 + membership 拒 + include 子集 + includeDrt=false + label 断言 + flush 写达后方返）
-  - Tests/LightamerTests/McpSearchStateToolsetTests.swift                           # T6：get_history per-item 两键 + 顶层 author 翻转 golden（pristine .null 负测）+ :274 计数钉显式改 21→22 + message 同批
-  - Tests/LightamerTests/SidecarV10Tests.swift                                      # T6：HistoryItem note/author roundtrip（sidecar 字节 + nil 不编码负测）+ 旧档 tolerant decode 负测（缺两键旧档读回 nil）+ HistoryHash 不变负测（同编辑态 note/author 有无 → hash 逐位同）——LAYERS 域现行归域
+  - Tests/LightamerTests/McpSearchStateToolsetTests.swift                           # T6：get_history per-item 两键 + 顶层 author 翻转 golden（position 真位 + pristine .null 负测）+ :274 计数钉显式改 21→23 + message 同批
+  - Tests/LightamerTests/SidecarV11Tests.swift                                      # T6（新文件，修订批 F1——v11 面专测，SidecarV10Tests 先例形同构〔三 byte face + hash isolation〕，Layers 域）：v10-form 旧档 byte-exact 负测 + v11 writer nil note/author = v10 shape 仅 schemaVersion digit 异（encodeIfPresent）+ note/author roundtrip byte-faithful + hash 不变负测（同编辑态 note/author 有无 → hash 逐位同）——Project.swift 恰一行 + BUNDLE-MAP 恰一行登记（L041 tuist generate 恒末位）
+  - Tests/LightamerTests/SidecarV10Tests.swift                                      # T6 零触守卫（修订批 F1 联动注记）：既有 FUTURE-version tolerance 法（schemaVersion 11 reads everything）自动守卫 v11 前向可读——零改动全绿即守卫面
   - Tests/LightamerTests/ExportRendererE2ETests.swift                               # T4：TOCTOU 负测（render → 手工建 destination → encodeStage(exclusiveFinalWrite:true) → typed 错 + 字节不变 + 无 tmp 残留 glob）+ 正向恒等（exclusive ≡ 非 exclusive byte-equal）+ .replace 负面守卫
   - Tests/LightamerTests/McpMatchColorToolsetTests.swift                            # T5：:177/:402 两测试 provider 目录锚同形勘正 + kind0 锚腿新法（pathKind 0 行 → id 形 resolve == <projectDir>/Media/x.jpg）
-  - Tests/LightamerTests/McpRegistrySnapshotTests.swift                             # T6：editing 层显式改（apply_params note 行 + copy/paste 两行加入 + :203 计数钉 21→22 + message 同批）——与 union 层 consciously change together
+  - Tests/LightamerTests/McpRegistrySnapshotTests.swift                             # T6：editing 层显式改（apply_params note 行 + copy/paste 两行加入 + :203 计数钉 21→23 + message 同批）——与 union 层 consciously change together
   - Tests/LightamerTests/McpFinalSnapshotTests.swift                                # T6：union 27→29 全点位显式改（冻结表 +2 行 + 计数 ×4 :249/:299/:327/:479 + destructive 9→10 集断言 :255-260 + descriptionKeys +2 :334 + all27→all29 :219 + 测试名 :244 + 头注 :20 + message :250/:327——DECISIONS 申报附点位清单）
-  - Tests/LightamerTests/McpHostTests.swift                                         # T6：:243/:697 计数钉显式改 21→22 + message 同批
-  - Tests/LightamerTests/McpLauncherTests.swift                                     # T6：:200 计数钉显式改 21→22 + message 同批
+  - Tests/LightamerTests/McpHostTests.swift                                         # T6：:243/:697 计数钉显式改 21→23 + message 同批
+  - Tests/LightamerTests/McpLauncherTests.swift                                     # T6：:200 计数钉显式改 21→23 + message 同批
+  - Project.swift                                                                   # T6：SidecarV11Tests.swift 恰一行登记（修订批 F1——Layers 域显式清单；tuist generate 恒为该批最后一个动作 L041）
+  - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt                      # T6：SidecarV11Tests 恰一行（Layers 域——SidecarV10Tests 同位先例形；修订批 F1）
   - .work/gsd/phases/m7-4-mcp-o4/evidence/m73-probe/                                # T1：/tmp/m73_probe 三层探针源迁入（probe.c / harness.c+sh / e2edrv*.c / e2e.sh——小件文本随 T1 commit）
   - .work/gsd/phases/m7-4-mcp-o4/M7-4-01-SUMMARY.md                                 # T7：执行摘要（逐任务 ΔN 记账 + 中间红窗申报〔T3..T6 MCP 两快照红——构建绿门维持〕+ S2 观察证据）
   - .work/gsd/phases/m7-4-mcp-o4/M7-4-01-DECISIONS.md                               # T7：裁定记录（union 显式改点位清单 + destructive 9→10 申报 + list_luts 原位改申报 + UQ-A2 上游分歧申报〔保留 render 快照检查〕+ ⑥/H3③/特殊事项 5 三处措辞校订注记〔M7-3 签核文档不回改〕+ S3/O1 漂移注记维持裁定 + 全拒批诚实应答形 + tmp 命名/清理终形）
@@ -68,6 +72,13 @@ files_modified:
 > 2026-10-13 HEAD `0b34d199` 逐点亲核复核吻合；**union 外计数钉行号 M7-3 后
 > 已漂移**——McpRegistrySnapshotTests :194→:203 / McpHostTests :696→:697 /
 > McpSearchStateToolsetTests :270→:274，plan 内一律用 fresh 坐标）。
+> **修订批（2026-10-13/17，REVIEW F1-F14 落定，orchestrator 已裁）**：本版
+> plan 已并入 review 全部修订——sidecar v11 镜像链（F1）/ poll sleep 臂真
+> 机理（F2）/ 计数 21→23（F3）/ encoder-error 清理腿改道（F4）/ 预热四装
+> 配点（F5）/ **锚坐标勘正：原 T2 action 1 引 `startHeadlessStdioHost :524
+> 段` 与 `startHTTPHost :754 段` 为漂移坐标（真身 :714-754 / :952），原
+> 「fresh 坐标已亲核」申报在此勘误**（F6）——其余 fresh 坐标经本修订批复核
+> 维持；F7-F14 逐条落位见各任务〔修订批〕标注。
 >
 > **裁定权归属钉**：本 plan 无用户裁决分支（O4 双工具 additive + HistoryItem
 > additive 两字段 + UQ-A2 additive 一参 + S1 三点改形——既有工具行为面零变化
@@ -82,7 +93,8 @@ files_modified:
 > add 相关文件，不 push）。
 >
 > **基线**：**3905/35/0**（M7-3 三路全套同值；其后两跳 docs-only 零漂移；HEAD
-> `0b34d199`）。全套预期 `3905+ΔN/35/0|`（ΔN 预期带 +21..28，对账式）。
+> `0b34d199`）。全套预期 `3905+ΔN/35/0|`（ΔN 预期带 +22..29〔修订批 F4 第五
+> 腿 +1 后带移〕，对账式）。
 >
 > **快照改动权**：本波**显式取** union 文件改动权（27→29——M7-2/M7-3 权用讫，
 > M7-4 在 M7-5 前串行执行取权合法，research §1.5）——**M7-5 禁并行**
@@ -106,10 +118,13 @@ plan 承载全部十项；执行面速查：
    +note/author 两键；pristine .null。
 6. **paste 不建版本**（OQ-6）：OVERWRITE epoch 既有语义；per-target 版本化 →
    UPSTREAM-QUEUE。
-7. **S1 = bounded re-poll 250ms**（OQ-7）：POLLIN + 超时形 + revents 分流；
-   恒可读 fd 忙旋消解；HUP/once/M1/http 四语义零改。
-8. **S2 = A 预热 + C 文案**（OQ-8）：3 装配点 .utility 后台预热；list_luts
-   description 冷首调句；**零新超时档**（新档支线不行使）；B → UPSTREAM-QUEUE。
+7. **S1 = bounded re-poll 250ms + 纯 POLLIN 臂 sleep**（OQ-7 / 修订批 F2 真机
+   理）：POLLIN + 超时形 + revents 分流；忙旋消解本体 = 纯 POLLIN 臂 250ms
+   sleep（超时只封阻塞相、不构成速率限制）；HUP/once/M1/http 四语义零改。
+8. **S2 = A 预热 + C 文案**（OQ-8 / 修订批 F5/F14）：**4** 装配点（GUI +
+   stdio + http + 只读 http）.utility 后台预热 + LIGHTAMER_SKIP_LUT_PREHEAT
+   测试语境 env 门；list_luts description 冷首调句；**零新超时档**（新档支
+   线不行使）；B → UPSTREAM-QUEUE。
 9. **UQ-A2 typed 错 = 复用 `BaseNameOccupiedError`**（OQ-9）：link() EEXIST 表
    面一致；render 步快照检查保留（成本门，上游分歧 DECISIONS 申报）。
 10. **includeDrt 默认 true + include 缺省全 transferable**（OQ-10）：GUI「默认
@@ -157,22 +172,32 @@ poll 循环 + break 后 close+exit）；`M7-3-VALIDATION.md` §特殊事项 5（
 `/tmp/m73_probe/`（迁移源——probe.c / harness.c+sh / e2edrv*.c / e2e.sh）。
 
 - **action**：
-  1. **poll 体三点改形**（恰此三点，函数其余逐行零改）：
+  1. **poll 体三点改形**（恰此三点，函数其余逐行零改；第③点分支体含 sleep 臂
+     ——修订批 F2：忙旋消解本体，第③点分支体组成部分非第四语义点）：
      ① `pollfd(fd: STDIN_FILENO, events: 0, revents: 0)` →
      `events: Int16(POLLIN)`（请求位**永不清**——「清位」只清 `revents`，措辞
      写实防误读）；② `poll(&fds, 1, -1)` → `poll(&fds, 1, 250)`（bounded
-     re-poll——恒可读 fd〔测试面 dup2 /dev/null〕退化 4Hz .utility 低频循环，
-     忙旋消解；真管道 HUP 阻塞至事件或 250ms 粒度，12s 活性窗无影响）；
-     ③ 醒后分流保持 `count > 0 ∧ revents & (POLLHUP|POLLERR)` → break（HUP
-     体 close + exit(0) 原样）；`count == 0`（超时）或纯 POLLIN → 只清
-     `fds[0].revents = 0` 续 poll，**零字节消费**（watches HUP without
-     stealing bytes 原意图保持——请求读取线程独占消费）。
+     re-poll——**机理写实〔修订批 F2 勘正〕：timeout 只封阻塞相上界，不构成
+     速率限制**；fd 已就绪时 `poll(..., 250)` 照样立即返回；真管道 HUP 到达时
+     立即返 HUP，250ms 粒度只影响 idle 轮询，12s 活性窗无影响）；③ 醒后分流：
+     `count > 0 ∧ revents & (POLLHUP|POLLERR)` → break（HUP 体 close +
+     exit(0) 原样）；`count == 0`（超时）→ 只清 `fds[0].revents = 0` 续 poll
+     （已付 250ms 等待，零 sleep 零消费）；**纯 POLLIN（count > 0 非 HUP/ERR）
+     → 清 `fds[0].revents = 0` + sleep 250ms**（`try? await Task.sleep(
+     nanoseconds: 250_000_000)`）续 poll——恒可读 fd〔测试面 dup2 /dev/null〕
+     上此臂 = 4Hz .utility 速率帽，**真忙旋消解**（无此臂则恒可读 fd 上 poll
+     就绪即返 = syscall 热旋，超时形对此无效〔修订批 F2〕）；真管道数据就绪
+     臂亦睡 250ms 无害——watcher 零字节消费（watches HUP without stealing
+     bytes 原意图保持，请求读取线程独占消费），无请求延迟面。
   2. **探针源迁 evidence**：`/tmp/m73_probe/{probe.c, harness.c, harness.sh,
      e2edrv*.c, e2e.sh}` → `.work/gsd/phases/m7-4-mcp-o4/evidence/m73-probe/`
      （小件文本随本 commit；文件头各加一行来源注记——M7-3 第二路验收遗产，
      S1 三层复现证据正本）。
   3. **e2e 真断连新法**（McpProjectArbitrationTests additive，APP 域；fixture
-     复用其真二进制 spawn 形）：spawn 产线宿主 `--mcp-stdio` → initialize 握手
+     复用其真二进制 spawn 形 + **spawn env 注入
+     `LIGHTAMER_SKIP_LUT_PREHEAT=1`**〔修订批 F14——:70-72 env 注入缝一行；
+     spawn 真宿主免 50s .utility 预热解析与真实用户 LUT 根 seeding，≤12s 窗
+     内不与断言抢 CPU〕）：spawn 产线宿主 `--mcp-stdio` → initialize 握手
      → `project_create`（临时目录；arm watcher）→ **关 stdin**（真 EOF 断连面
      ——仲裁测试 `child.terminate()` SIGTERM 从未真跑 HUP，本测试是第一个真
      HUP 腿）→ 断言 **exit ≤12s**（修复前此形 ≥12s 不退 = 已知失败形）→
@@ -186,15 +211,21 @@ poll 循环 + break 后 close+exit）；`M7-3-VALIDATION.md` §特殊事项 5（
      地板、stdio = watcher 惰性）；不对称变为「stdio graceful / http
      kernel-floor」的**真实**差异（不再是「都惰性」的措辞高估）；dup2 卫生修
      后**仍必要且更 load-bearing**（无 dup2 测试宿主真 stdin 关闭即 exit(0)
-     自噬；有 dup2 + 250ms bounded re-poll = 4Hz 循环不自噬不忙旋）。
+     自噬；有 dup2 + 纯 POLLIN 臂 250ms sleep = 4Hz 速率帽循环不自噬不忙旋
+     ——**修订批 F2 措辞按真机理改写**：『bounded re-poll 超时形本身消解忙旋』
+     为假命题〔poll 就绪即返，超时只封阻塞相〕，sleep 臂才是速率限制本体；
+     DECISIONS 注记采用本真机理表述）。
   5. 构建绿机检 + `--bundle App` 定向绿（e2e 新法 + 既有 MCP 面全绿——MCP
      快照零触，本任务无红窗）。
 - **验收标准（机检）**：
   - 构建绿；`git diff App/Sources/Lightamer/MCP/McpServerController.swift` 逐
-    hunk 核 = poll 体恰三点（events 位 / 超时 250 / 分流清位面），once guard
+    hunk 核 = poll 体恰三点（events 位 / 超时 250 / 分流清位面 + 纯 POLLIN 臂
+    sleep——第③点分支体内），once guard
     + M1 自守卫 + eofArmDone/eofArmLock + close+exit(0) 体零触。
   - grep：`events: Int16(POLLIN)` 在位；`poll(&fds, 1, 250)` 在位；
-    `POLLHUP) | Int16(POLLERR)` 分流在位；`exit(0)` 恰原位一处。
+    `POLLHUP) | Int16(POLLERR)` 分流在位；纯 POLLIN 臂 `Task.sleep`（250ms）
+    在位〔修订批 F2 忙旋消解本体判据〕；`exit(0)` 恰原位一处。
+  - e2e fixture spawn env 行 `LIGHTAMER_SKIP_LUT_PREHEAT` 在位可 grep。
   - `ls .work/gsd/phases/m7-4-mcp-o4/evidence/m73-probe/` 含 probe.c +
     harness.c + harness.sh + e2edrv*.c（迁移完整）；`/tmp/m73_probe` 原件留存
     不删（迁非移）。
@@ -214,12 +245,22 @@ poll 循环 + break 后 close+exit）；`M7-3-VALIDATION.md` §特殊事项 5（
 
 - **action**：
   1. **A 预热**：McpServerController 加内部一行 helper（如
-     `static func warmLutLibrary() { Task.detached(priority: .utility) { _ =
-     LutLibraryStore.shared } }`——fire-and-forget；swift_once 幂等底层，多调
-     无害）+ **恰 3 装配点调用**：`startHeadlessStdioHost`（:524 段宿主启动
-     处）/ `startHTTPHost`（:754 段）/ GUI 装配段（LightamerApp 内嵌 MCP
-     context 装配同段）。预热窗内到达的首调仍阻塞 swift_once（至多 ~50s）=
-     概率性收窄至启动邻域——description 句如实覆盖。
+     `static func warmLutLibrary() { guard ProcessInfo.processInfo
+     .environment["LIGHTAMER_SKIP_LUT_PREHEAT"] == nil else { return };
+     Task.detached(priority: .utility) { _ = LutLibraryStore.shared } }`
+     ——fire-and-forget；swift_once 幂等底层，多调无害；**env 门 = 修订批
+     F14 测试语境禁用**：e2e/仲裁 spawn 的真宿主注入该 env 后零预热 CPU、零
+     真实 LUT 根 seeding 副作用〔env 直读先例 = startReadOnlyHTTPHost :688
+     DEBUG 块 ProcessInfo 环境读；helper 非 view body，无注入式约束〕）+
+     **恰 4 装配点调用**（修订批 F5 补只读臂）：`startHeadlessStdioHost`
+     （:714 起——**修订批 F6 勘正：原 :524 段为漂移坐标**）/ `startHTTPHost`
+     （:952 起——**原 :754 恰是 stdio 宿主收尾括号，勘正**）/
+     `startReadOnlyHTTPHost`（:652-708 段——heldByOther 只读臂同样服
+     list_luts，漏此点则只读臂 agent 首调仍 50s）/ GUI 装配段（LightamerApp
+     内嵌 MCP context 装配同段——经 `startEmbeddedServer → startHTTPHost`
+     已被第二点传递覆盖，保留为 LUT 面板收益点，冗余无害）。预热窗内到达的
+     首调仍阻塞 swift_once（至多 ~50s）= 概率性收窄至启动邻域——description
+     句如实覆盖。
   2. **C 文案**：`mcp_tool_desc_list_luts` **原位值改**（en defaultValue + zh
      译文同批）——追加冷首调代价句（首次调用在库预热完成前至多 ~50s；短超时
      客户端建议重试）。非尾块插入 = DECISIONS 申报形。
@@ -233,9 +274,12 @@ poll 循环 + break 后 close+exit）；`M7-3-VALIDATION.md` §特殊事项 5（
   4. 构建绿机检 + grep 结构核（golden 面零新增——S3 腿即测试，随本 commit 绿
      门）。
 - **验收标准（机检）**：
-  - 构建绿；grep：`warmLutLibrary` 恰一处定义 + 恰三调用点（stdio/http/GUI）；
+  - 构建绿；grep：`warmLutLibrary` 恰一处定义 + 恰四调用点（stdio/http/只读
+    http/GUI）+ `LIGHTAMER_SKIP_LUT_PREHEAT` env 门在 helper 内恰一处；
     `Task.detached(priority: .utility)` 在 helper 内；`McpTimeouts` 文件零
     diff（新档支线不行使机检）。
+  - 仲裁 fixture spawn env 注入行可 grep（`LIGHTAMER_SKIP_LUT_PREHEAT`——
+    T1 commit 已落位面复核，非 T2 增量）——修订批 F14 测试语境禁用兑现判据。
   - `git diff Resources/Localizable.xcstrings` 逐 hunk 核 = 恰 list_luts 原位
     一处（历史键字节与顺序零触碰）。
   - S3 正臂腿绿（--bundle App 定向含之）；断言文本含三 clause（before==nil /
@@ -256,6 +300,12 @@ enumerate :241-265 / pastePayload :302-324 / mask 纪元重置 :311-313）；
 （register 面——双工具注册落此）；`SearchStateToolset.swift` :860-905（get_history 顶层 payload + :897-900 author 占位）+ :930-945（per-item dict）；
 `HistoryStack.swift` :61-185 + :131-133（CodingKeys 现九键）；
 `HistoryHash.swift` :37-130（折叠面——item 元数据不入折机制证）；
+`LightamerSidecar.swift` :799-871（`SidecarHistoryItemRecord` 镜像投影全链
+〔Keys/init/decode/encode/`item` 重建——**HistoryItem runtime Codable 不是
+sidecar 编码路径**，HistoryStack.swift :57-60 头注明言 sidecar 经镜像投影；
+T3 note/author 持久化面正本〕+ :247 `schemaVersionCurrent = 10`）；
+`Tests/LightamerTests/SidecarV10Tests.swift`（v10 面专测先例形——三 byte face
++ hash isolation + FUTURE-version tolerance；SidecarV11Tests 同构模板）；
 `SessionBatchApplier.swift` :232-296（apply 三段批 + CarriedDocumentState）；
 `PasteSemantics.swift` :69-100（paste 签名 + UUID recast）；
 `EditorToolRailView.swift` :199-235（historyRow——T6 GUI 面落点预读）。
@@ -271,13 +321,33 @@ enumerate :241-265 / pastePayload :302-324 / mask 纪元重置 :311-313）；
      .enumerate(chain:)`/`pastePayload()`/`setChecked` 等改委托 Catalog（GUI
      行为零 diff——M2-8 既有 AdjustmentTransferTests 全绿作守卫）；头注排除单
      源句随形更新（「panel 与 batch face 共享 Catalog」）。
-  2. **HistoryItem additive 两字段**（HistoryStack.swift）：`note: String?` +
+  2. **HistoryItem additive 两字段 + sidecar 镜像投影 + v11 bump**（修订批
+     F1 三件同批——**无镜像则 note/author 永不落盘永不可读回，消费方全在镜像
+     下游**）：
+     a. **HistoryItem**（HistoryStack.swift）：`note: String?` +
      `author: String?`——存储属性 + init 默认参 `= nil` + CodingKeys 追加两
      case + decodeIfPresent/encodeIfPresent（drtRecord/filmRecord 同族形；
-     **nil 不编码** = 无字段不入 bytes）；schemaVersion 零动；`PasteSemantics
+     **nil 不编码** = 无字段不入 bytes）；`PasteSemantics
      .paste` 与 `SessionBatchApplier.apply` 各加 additive 默认参
-     `note: String? = nil, author: String? = nil` 透传至 HistoryItem（缺省 =
-     既有调用方零 diff——M2-8 GUI Copy Adjustments 面零触）。
+     `note: String? = nil, author: String? = nil` 透传至 HistoryItem，**透传
+     链签名同步**：`commitPaste`（HistoryStack.swift）与 `composeSegment`
+     （SessionBatchApplier.swift）各加同名默认参（修订批 F12——链 = apply →
+     composeSegment → paste → commitPaste → HistoryItem.init，缺省 = 既有调用
+     方零 diff——M2-8 GUI Copy Adjustments 面零触）。
+     b. **SidecarHistoryItemRecord 镜像**（LightamerSidecar.swift :799-871，
+     恰 additive 两字段）：`Keys` 枚举追加 `note`/`author` 两 case + 存储属性
+     `private var note: String?` / `author: String?` + `init(_:)` 镜像携带
+     （`note = item.note; author = item.author`）+ `init(from:)` 追加
+     `decodeIfPresent` 两行 + `encode(to:)` 追加 `encodeIfPresent` 两行 +
+     `item` 重建追加两实参（filmRecord :826-829 同族镜像形逐件对齐；**init
+     不携带则写丢、`item` 不还原则读丢——四件缺一即死脸**）；头注随形补 v11
+     注记。
+     c. **schemaVersionCurrent 10→11**（:247 一行；sidecar 面增必 bump 先例
+     链 = v8 aiProvenance / v9 filmRecord / v10 process，orchestrator 已裁
+     bump）；11 写档被旧版读 = 既有 tolerant degrade 面（LightamerSidecar
+     :98 注记既有行为）；SidecarV10Tests 既有 FUTURE-version tolerance 法
+     （「schemaVersion 11 reads everything」）自动转正为 v11 前向兼容守卫，
+     零改动。
   3. **copy_adjustments**（EditingToolset.register additive）：descriptor 零
      入参外仅 `source`（string 必填）+ `readOnlyHint: true` + writer 缺省 +
      超时 `McpTimeouts.list`；body = source 双形态 resolveReference（库 id
@@ -291,7 +361,9 @@ enumerate :241-265 / pastePayload :302-324 / mask 纪元重置 :311-313）；
   4. **paste_adjustments**（register additive）：`requiresWriter: true` +
      `destructiveHint: true` + 超时 `McpTimeouts.applyBatch`；schema =
      `source`（string 必填）/ `targets`（array of string，**maxItems 1000**，
-     必填）/ `note`（string，minLength 1，optional）/ `include`（array of
+     必填；**重复项 = invalidParams 拒绝**〔修订批 F10——`Set(targets).count
+     != targets.count` 一行 guard；显式 > 隐式，静默去重会掩盖调用方 bug〕）/
+     `note`（string，minLength 1，optional）/ `include`（array of
      string = instanceId 列表，optional，缺省全 transferable）/
      `includeDrt`（bool，默认 true）/ `version`（string，optional，缺省
      active）。body = gate（McpRenderGate 串行）外框 → per-target 前置**全部
@@ -309,20 +381,34 @@ enumerate :241-265 / pastePayload :302-324 / mask 纪元重置 :311-313）；
      paste_adjustments")` → **flushForTeardown 写达后方返**（apply_params
      :676-678 同款——agent 下一步 get_history/render_preview 读到新状态无
      drain race）。应答 = per-target 结果列 `{targets: [{relPath, status:
-     applied|rejected(reason)}], appliedCount, note, author}`；全拒批 =
-     appliedCount=0 诚实应答非 throw（reason 列自解释——DECISIONS 钉形）；
-     compose/claim 未落 = internalError 兜底（apply_params 同形）。
+     applied|rejected(reason)}], appliedCount, note, author}`；**reason =
+     固定 token 集**（修订批 F7 钉形，DECISIONS 申报）：前置拒 = 
+     `notSessionMember` / `imageLiveInEditor`（typed 直映）；compose 失败行
+     （源链/目标 sidecar 读不开）= `unreadableSidecar`；claim 回滚与其它未落
+     = `internalError` 兜底（apply_params 同形）——token 是应答 JSON 字符串
+     非 16 档封闭表错误码，零新增表面；全拒批 =
+     appliedCount=0 诚实应答非 throw（reason 列自解释）。
+     **live source 滞后申报（修订批 F11）**：source 为 GUI 正在编辑的图时走
+     盘上 sidecar（≤2s debounce 滞后于 live 态）——与 GUI Copy Adjustments
+     dialog 同姿势（dialog 同读盘），target 有 live 硬拒、source 无对称面 =
+     申报面非缺陷面（DECISIONS 一句申报）。
   5. **apply_params note 参 + 双工具盖章**：apply_params schema 恰 +`note`
      属性（string，minLength 1，optional）+ body 透传；两写工具 commit 恒
      `author: "mcp"`（固定 token）；note 缺省 = 无字段不入 bytes。
   6. **get_history 读面**（SearchStateToolset）：per-item dict 恰 +2 键
      `"note"`/`"author"`（item 字段缺省 .null）；顶层 `"author"` 占位（:897-900
-     注记段）翻转为 **position 位 item（最新 kept item）的 author**（缺省
-     .null；pristine/空链 .null）——占位注释随消费体替换。
+     注记段）翻转为 **position 位 item 的 author**——**实现式钉死（修订批
+     F8）**：`stack.position >= 0 ? stack.items[stack.position].author :
+     null`（真 position 位 item，与截断无关；截断保 suffix 的红尾态下
+     position 位 ≠ 最新 kept item，括注「无截断时即最新 kept item」）；缺省
+     .null；pristine/空链 .null——占位注释随消费体替换。
   7. **xcstrings 两新键**：`mcp_tool_desc_copy_adjustments` /
      `mcp_tool_desc_paste_adjustments` 尾块纯插入（zh-only 形——description 含
      requiresWriter/destructive 语义句 + source 双形态句 + paste 预算边界句
-     ≤1000 targets）。
+     ≤1000 targets + **note 层级区分句**〔修订批 F9——两工具 description 各加
+     一句「note = item-level edit note，distinct from the document-level note
+     set via append_note」，消 document 级 metadata note 与 per-item
+     HistoryItem.note 同名二义〕）。
   8. 构建绿机检 + grep 结构核（golden 随 T6；本任务 gate = 构建绿——App bundle
      快照红窗自本任务起，见风险第 1 条）。
 - **验收标准（机检）**：
@@ -331,10 +417,18 @@ enumerate :241-265 / pastePayload :302-324 / mask 纪元重置 :311-313）；
     `readOnlyHint: true` 在 copy_adjustments；`maxItems.*1000` 在 paste
     schema；`McpTimeouts.applyBatch` 消费点在 paste body；`"MCP
     paste_adjustments"` label 在位；`author.*"mcp"` 盖章在双写工具 body；
-    `flushForTeardown` 在 paste body（写达后方返）。
+    `flushForTeardown` 在 paste body（写达后方返）；`unreadableSidecar`
+    reason token 在位（修订批 F7）。
   - `git diff LightamerCore/Sources/Pipe/History/HistoryHash.swift` = 零 diff
     （折叠面零触）；`git diff .../HistoryStack.swift` 逐 hunk 核 = 恰两字段 +
-    init 默认参 + CodingKeys 两 case。
+    init 默认参 + CodingKeys 两 case + commitPaste 默认参（修订批 F12）；
+    `git diff .../SessionBatchApplier.swift` 逐 hunk 核含 composeSegment
+    默认参（修订批 F12 透传链第二签名）。
+  - `git diff LightamerCore/Sources/Sidecar/LightamerSidecar.swift` 逐 hunk 核
+    = 恰 carve-out 申报面（修订批 F1）：SidecarHistoryItemRecord Keys 两 case
+    + 存储属性两 + init 镜像两行 + decodeIfPresent 两行 + encodeIfPresent 两
+    行 + `item` 重建两实参 + schemaVersionCurrent 一行 + 头注——**此外
+    LightamerSidecar 零触**（红线③ carve-out 机检面）。
   - `git diff App/Sources/Lightamer/MCP/McpToolRegistry.swift` = 零 diff（错
     误码/超时封闭表零触）。
   - 既有 apply_params/SessionBatchApplier 调用方零 diff（缺省参 = 编译零改；
@@ -370,8 +464,15 @@ encodeLeg 体）；`ExportNamer.swift` :30-40/:110-140（BaseNameOccupiedError �
      **EEXIST** → `unlink(tmp)` + `throw
      ExportNamer.BaseNameOccupiedError(name: destPath.lastPathComponent)`（复
      用既有 typed，OQ-M7-4-9）；其它 errno → `internalError` 形（16 档封闭表
-     零新增）；**defer 清 tmp**（任何 throw 路径零残留——现「throw cleans
-     pre-rename residue」纪律延伸到 tmp 形）。`.replace`/缺省路径保持 plain
+     零新增；exFAT 等不支持硬链接卷的 EOPNOTSUPP/ENOSYS 亦落此兜底——行为
+     变化 DECISIONS 申报〔修订批 F13〕）；**defer 清 tmp**（任何 throw 路径零
+     残留——现「throw cleans pre-rename residue」纪律延伸到 tmp 形）；
+     **encoder-error catch 清理腿改道**（修订批 F4——:714-726 catch 内 :724
+     `removeItem(at: destination)` 现语义在 exclusive 臂下会删 TOCTOU 窗内
+     他进程建的同名文件 = 本特性要防的事故经错误路径复现）：exclusive
+     FinalWrite=true 时该腿不再触 destination（此时 destination 尚未由本 job
+     写过，removal 只可能误伤他进程文件；tmp 半成品清理归 defer 既有兜底）；
+     非 exclusive 臂逐字节原样。`.replace`/缺省路径保持 plain
      rename（覆盖语义原样，负测钉住不误伤）。
   2. **gain-map 臂同 wrap**：`ExportGainMapEncoder.encode` 的 destination 形参
      喂 tmp + 同款 link 晋升（其 post-encode 腿本就跳过——早退面直包即可）；
@@ -385,7 +486,8 @@ encodeLeg 体）；`ExportNamer.swift` :30-40/:110-140（BaseNameOccupiedError �
      签名零 diff**（闭包形 `(StageOutput, ExportVariant) throws -> URL` 不
      动）；直连 renderStage+encodeStage 的测试/E2E 调用方显式传参（缺省 nil
      carrier = false = 既有行为逐字节）。
-  4. **测试四腿**（ExportRendererE2ETests additive，EXPORT 域；§4.3 必做）：
+  4. **测试五腿**（ExportRendererE2ETests additive，EXPORT 域；§4.3 必做四腿
+     + 修订批 F4 第五腿）：
      ①**TOCTOU 负测**——renderStage（destination 已落 StageOutput）→ **手工在
      destination 建文件**（确定性交错注入）→ `encodeStage(exclusiveFinalWrite:
      true)` → 断言 typed `BaseNameOccupiedError` + **destination 字节不变**
@@ -394,21 +496,27 @@ encodeLeg 体）；`ExportNamer.swift` :30-40/:110-140（BaseNameOccupiedError �
      （exclusive 只改晋升方式不改产物）；③**`.replace` 负面守卫**——目标存在
      + replace 档（exclusiveFinalWrite=false 路径）→ 覆盖仍发生；④
      **`.increment` 字节冻结**——既有 E2E increment face 全绿即守卫（零新增
-     法）。可选腿（时间盒）：queue 级腿（.fail job + 占名快照空集 + encode 前
+     法）；⑤**encoder 失败清理腿改道腿**（修订批 F4）——强制 encoder throw
+     （构造 unsupported 位深或不满足编码前置的 variant）+
+     exclusiveFinalWrite=true + 预植 destination 文件 → 断言 throw 上浮 +
+     **预植 destination 字节不变**（清理腿未触 destination）+ 无 tmp 残留
+     （defer 兜底 glob 断言）。可选腿（时间盒）：queue 级腿（.fail job + 占名快照空集 + encode 前
      真建文件 → job typed fail 无覆盖——wrapper 递缝成立证）/ gain-map 变体
      （同形①）。
   5. 构建绿机检 + `--bundle EXPORT` 定向绿。
 - **验收标准（机检）**：
   - 构建绿；`git diff LightamerCore/Sources/Export/ExportNamer.swift` = 零
     diff；`git diff .../ExportRenderer.swift` 逐 hunk 核 = 恰签名尾追 + tmp/
-    link/defer 段 + gain-map wrap 段（步 9 `.fail` 快照门 :633-637 零触——
+    link/defer 段 + **catch 清理腿改道段**（exclusive 臂下不触 destination
+    〔修订批 F4〕）+ gain-map wrap 段（步 9 `.fail` 快照门 :633-637 零触——
     render 快照检查保留机检）；`git diff .../ExportQueue.swift` 逐 hunk 核 =
     恰 encode 腿 wrapper 层 + encodeLeg 读点（leg 闭包签名零 diff）。
   - grep：`exclusiveFinalWrite` 在 encodeStage 签名恰一处（缺省 false）+
     queue encodeLeg 读点一处；`link(` 在 exclusive 晋升处；`BaseNameOccupiedError`
     复用（零新 typed case——McpToolRegistry/Core 错误表零 diff）。
-  - 四腿绿（--bundle EXPORT 定向含之）；TOCTOU 负测断言三件（typed 错 / 字节
-    不变 / 无 tmp 残留）可 grep。
+  - 五腿绿（--bundle EXPORT 定向含之）；TOCTOU 负测断言三件（typed 错 / 字节
+    不变 / 无 tmp 残留）可 grep；第五腿两断言（encoder throw 后 destination
+    字节不变 + 无 tmp 残留）可 grep。
 - **commit**: `fix(m7-4): make the FAIL collision tier reject on final write via link`
 
 ## T5 — match_color provider projectDirectory 勘正（M7-3 挂账⑤ + M7-2 挂账⑤）
@@ -459,7 +567,8 @@ encodeLeg 体）；`ExportNamer.swift` :30-40/:110-140（BaseNameOccupiedError �
 :479 directTools 计数——union 显式改全点位 fresh 坐标）；`McpRegistrySnapshotTests.swift`
 （:150-165 editing 冻结表行区 + :203 计数钉）；`McpSearchStateToolsetTests.swift`
 :274（钉）+ `McpHostTests.swift` :243/:697（钉）+ `McpLauncherTests.swift` :200
-（钉）；`SidecarV10Tests.swift`（roundtrip/drift 先例形）；`EditorToolRailView.swift`
+（钉）；`SidecarV10Tests.swift`（v10 面专测先例形——SidecarV11Tests 同构模板；
+其 FUTURE-version tolerance 法 = v11 前向兼容既有守卫，零触）；`EditorToolRailView.swift`
 :199-235（historyRow 落点）。
 
 - **action**：
@@ -473,10 +582,13 @@ encodeLeg 体）；`ExportNamer.swift` :30-40/:110-140（BaseNameOccupiedError �
      点位清单。
   2. **editing 层显式改**（McpRegistrySnapshotTests）：apply_params schema 行
      （note）+ copy_adjustments/paste_adjustments 两行加入（editing 7→9）+
-     **:203 计数钉显式改**（21→22 + message 同批）——与 union 层同批。
+     **:203 计数钉显式改**（21→**23** + message 同批——**算术钉（修订批 F3，
+     M7-3 H1 家族防复发）：面 = editing 9 + culling 14 = 23；非 22（+1 惯性
+     套写单工具先例之误）**）——与 union 层同批。
   3. **union 外五钉显式改**（F-1 家族防复发，M7-3 五钉教训清单形）：`McpRegistrySnapshotTests :203`（上条）/ `McpSearchStateToolsetTests :274` /
      `McpHostTests :243` / `McpHostTests :697` / `McpLauncherTests :200`——
-     21→22 + message 同批（「M7-4 copy/paste joined」句式）。
+     21→**23** + message 同批（「M7-4 copy/paste joined」句式；五钉全部计
+     editing+culling 双域面 = 9+14 = 23，逐钉算术同上）。
   4. **残漏 grep 收口**：全仓 MCP 测试面 `count, 21` / `count == 21` /
      `all27` 零命中（防第六处）；「27-tool」注释形态随手清（清单内文件）。
   5. **O4 golden**（McpEditingToolsetTests additive + AdjustmentTransferTests
@@ -484,17 +596,27 @@ encodeLeg 体）；`ExportNamer.swift` :30-40/:110-140（BaseNameOccupiedError �
      `AdjustmentTransferCatalog` 产物实例集逐参恒等——no-second-copy 红线机
      检正面）+ mask 纪元重置断言（贴后 `contentRevision == nil`）+ 两形态寻址
      （库 id kind0 行 + session relPath）+ greyed 计数 + DRT present/eligible
-     面 + paste per-target applied|rejected 分账 + live 硬拒 + probe held 拒
-     （projectReadOnly 携 holder summary）+ membership 拒 + include 子集 +
+     面 + paste per-target applied|rejected 分账（**rejected reason token
+     断言**〔修订批 F7——notSessionMember/imageLiveInEditor 直映 +
+     unreadableSidecar 构造腿〕）+ live 硬拒 + probe held 拒
+     （projectReadOnly 携 holder summary）+ membership 拒 + **重复 targets
+     invalidParams 拒**（修订批 F10）+ include 子集 +
      includeDrt=false（DRT 行不随）+ label `"MCP paste_adjustments"` 进
      HistoryItem + flush 写达后方返（apply 后立即 readDocument 断言新态）。
-  6. **MCP2-09 golden**（SidecarV10Tests additive〔LAYERS 域〕+
-     McpSearchStateToolsetTests additive）：note/author roundtrip（sidecar
-     字节——写读恒等）+ **nil 不编码负测**（缺省 commit 旧档字节零漂移）+ 旧
-     档 tolerant decode 负测（缺两键旧档读回 note/author == nil）+
-     **HistoryHash 不变负测**（同编辑态 note/author 有无 → hash 逐位同）+
-     get_history per-item 两键 + 顶层 author 翻转（pristine .null / 盖章后
-     = "mcp"）。
+  6. **MCP2-09 golden**（**SidecarV11Tests 新文件〔Layers 域，修订批 F1——
+     Project.swift/BUNDLE-MAP 各恰一行 + tuist generate 恒末位〕** +
+     McpSearchStateToolsetTests additive）：V11 文件四法（SidecarV10Tests 先
+     例形同构——三 byte face + hash isolation）：①v10-form 旧档 byte-exact
+     负测（无 note/author 键的 v10 档 decode + re-encode 逐字节同，唯
+     schemaVersion digit 面）②v11 writer nil note/author = v10 shape 仅
+     schemaVersion digit 异（encodeIfPresent——nil 不编码 byte face）③
+     note/author roundtrip byte-faithful ④**HistoryHash 不变负测**（同编辑态
+     note/author 有无 → hash 逐位同）；**SidecarV10Tests 零触**（其既有
+     FUTURE-version tolerance 法自动守卫 v11 前向可读——零改动全绿即守卫）；
+     旧档 tolerant decode 负测（缺两键旧档读回 note/author == nil，V11 ①内
+     携带）；get_history per-item 两键 + 顶层 author 翻转（**position 真位式
+     断言**〔修订批 F8——含截断态构造：position 位 ≠ 最新 kept item 的红尾
+     fixture 一腿〕/ pristine .null / 盖章后 = "mcp"）。
   7. **GUI 面**（EditorToolRailView）：historyRow = note 副标题（caption2 单行
      截断，nil 不占位）+ author 徽章（`"mcp"` 徽章文本 + AX label =
      `editor_history_author_badge` 键；nil 无徽章）；xcstrings 第三新键尾块
@@ -508,7 +630,8 @@ encodeLeg 体）；`ExportNamer.swift` :30-40/:110-140（BaseNameOccupiedError �
      （source keys +3 对账：两 desc + 一徽章键；list_luts 原位改不入计）+
      `--self-test` PASS。
 - **验收标准（机检）**：`--bundle App` 全绿（红窗闭合点）+ `--bundle Layers`
-  全绿（SidecarV10 新法）；快照显式改申报在 DECISIONS（点位清单附）；残漏
+  全绿（**SidecarV11 新法**；SidecarV10 既有法全绿零改 = v11 前向兼容守卫面）；
+  快照显式改申报在 DECISIONS（点位清单附）；残漏
   grep 零命中；既有 27 工具零 diff 面核；zh-audit 双 PASS。
 - **commit**: `test(m7-4): pin the o4 goldens and grow the union snapshot to 29`
 
@@ -527,17 +650,29 @@ encodeLeg 体）；`ExportNamer.swift` :30-40/:110-140（BaseNameOccupiedError �
   3. **红线族机检**（front-matter `red_lines` 逐条亲跑）：零新 SPM / `.metal`
      全域零 diff / 封存面逐件零 diff（含申报内例外面核：encodeStage 恰一参/
      ExportQueueContract leg 形零 diff/ExportNamer 零 diff）/
-     HistoryHash.swift 零 diff / McpToolRegistry.swift 零 diff / McpTimeouts
+     HistoryHash.swift 零 diff / **LightamerSidecar carve-out 面核**（修订批
+     F1——恰 SidecarHistoryItemRecord 两字段镜像 + v11 bump 申报面，此外零
+     触）/ McpToolRegistry.swift 零 diff / McpTimeouts
      零 diff / controller 文件零 diff / isAdjustmentTransferable 单函数 grep /
      xcstrings 恰三尾块插入 + 一原位改 / UserDefaults 零新键 / runModal 零
      命中 / LocalizationValue 插值禁形零命中 / Project.swift 与 BUNDLE-MAP
-     零行变更核（或申报内恰行）。
+     恰 SidecarV11Tests 各一行（申报内）——其余零变更核。
   4. **SUMMARY + DECISIONS**：逐任务 ΔN 记账 + union 显式改点位清单 +
      destructive 9→10 申报 + list_luts 原位改申报 + UQ-A2 上游分歧申报（保留
      render 快照检查 = 成本门）+ **⑥/H3③/特殊事项 5 三处措辞校订注记**（M7-3
-     签核文档不回改——T1 action 4 需求在此兑现）+ S3/O1 漂移注记维持裁定 +
-     全拒批诚实应答形 + tmp 命名/清理终形 + S2 预热观察证据（e2e/验收轮实测
-     冷窗收敛记录，非门值）+ 中间红窗处置申报。
+     签核文档不回改——T1 action 4 需求在此兑现，**按修订批 F2 真机理表述**）
+     + S3/O1 漂移注记维持裁定 +
+     全拒批诚实应答形 + **per-target reason 固定 token 集钉形**（修订批
+     F7——notSessionMember/imageLiveInEditor/unreadableSidecar/internalError）
+     + **paste source live 读盘 ≤2s 滞后姿势申报**（修订批 F11——GUI dialog
+     同姿势，非缺陷面）+ **targets 重复项 invalidParams 拒绝形申报**（修订批
+     F10）+ tmp 命名/清理终形 + **encoder-error 清理腿改道申报**（修订批
+     F4——exclusive 臂 destination 不可触 + defer 兜底）+ **exFAT/无硬链接卷
+     EOPNOTSUPP → internalError 行为变化申报**（修订批 F13——.fail 档在不支
+     持硬链接的外置卷从可导出翻渲染后必败；EOPNOTSUPP 降级回 plain rename
+     不入本波，挂 UPSTREAM-QUEUE 可选项）+ S2 预热观察证据（e2e/验收轮实测
+     冷窗收敛记录，非门值）+ **预热 env 门申报**（修订批 F14——
+     LIGHTAMER_SKIP_LUT_PREHEAT 形 + fixture 注入清单）+ 中间红窗处置申报。
   5. **翻账**：REQUIREMENTS MCP2-08..09 + UQ-A2 → Delivered（M7-4 commit 指
      针）；AGENTS「M7-4 架构增量」节；TODO（M7-4 条目 + 挂账①②③⑤⑥收口 +
      FIX2③ 第三波维持）；GOAL-STATE 续接点（M7-4 收口 → next = M7-5，**union
@@ -553,7 +688,8 @@ encodeLeg 体）；`ExportNamer.swift` :30-40/:110-140（BaseNameOccupiedError �
 ## 风险与回退
 
 - **快照红窗（T3..T6 App bundle 中间态，已申报）**：copy/paste 注册自 T3 起
-  union/editing 两层快照红（计数 27≠29 + 21≠22）至 T6 显式改收口；**每任务
+  union/editing 两层快照红（计数 27≠29 + 21≠**23**〔修订批 F3 算术勘正——
+  实际双域面 9+14=23〕）至 T6 显式改收口；**每任务
   gate = 构建绿 + 定向非 App bundle 绿（T1 App〔无红窗——快照零触〕/ T4
   EXPORT）**；T6 `--bundle App` 为红窗闭合点；T7 全套轮终证。**禁为凑绿在
   T3-T5 提前改快照**（显式改集中 T6 一批 = 全点位亲核审计面）。
@@ -568,15 +704,22 @@ encodeLeg 体）；`ExportNamer.swift` :30-40/:110-140（BaseNameOccupiedError �
   重建时序）→ M2-8 既有 AdjustmentTransferTests 全绿门 + T6 枚举恒等 golden
   双门抓；违例 = 回注 T3 修复。
 - **UQ-A2 tmp 残留**：任何 throw 路径 defer 清 tmp——断言 glob 零残留钉死；
-  link() 在 APFS 外卷语义（本项目导出目录皆本地卷）不做特殊分支，其它 errno
-  internalError 兜底。
+  encoder-error catch 腿在 exclusive 臂不触 destination（修订批 F4——防删
+  TOCTOU 窗内他进程文件）；link() 在不支持硬链接的卷（exFAT 等——**含本工作
+  区所在 /Volumes/UNITEK 类外置卷**〔修订批 F13 论据修正：原「皆本地卷」论据
+  与实情有隙〕）EOPNOTSUPP/ENOSYS → internalError 兜底 = .fail 档在该类卷从
+  「可导出」翻「渲染满成本后必败」——行为变化 DECISIONS 申报，不做特殊分支
+  （EOPNOTSUPP 降级回 plain rename 并 log 挂 UPSTREAM-QUEUE 可选项，勿静默）。
 - **destructiveHint 语义**：paste_adjustments destructiveHint:true → destructive
   集 9→10——M2-9 Export 页冲突档/UI 零联动面（MCP 注解纯描述面）；若 checker
   判「overwrite 粘贴非 destructive」→ 降 readOnly 级注解 = 快照集断言同步
   改，DECISIONS 申报（不静默）。
-- **预热副作用**：3 装配点 .utility 后台 ~50s CPU——GUI 机与启动工作并发实测
-  无感面待走查（S2 观察证据）；测试面 replaceShared 注入小 store 不受扰（预
-  热只触 shared getter）。
+- **预热副作用**：4 装配点 .utility 后台 ~50s CPU——GUI 机与启动工作并发实测
+  无感面待走查（S2 观察证据）；**测试语境经 LIGHTAMER_SKIP_LUT_PREHEAT env
+  门禁用（修订批 F14）**——e2e/仲裁 spawn 真宿主 fixture 注入（免 ≤12s 窗内
+  CPU 竞争 + 免真实用户 LUT 根 seeding）；App bundle in-process 单测零预热面
+  （XCTest 宿主不跑 @main，GUI 装配段不执行——env 门只是 spawn 面的纵深防
+  线）；测试面 replaceShared 注入小 store 不受扰（预热只触 shared getter）。
 - **T6 大批量测试后置**（orchestrator 指定分批内在风险）：T3-T5 码面缺陷在
   T6 才暴露 → 回注对应任务修复（fix commit + T6 重跑），禁为凑绿放宽断言；
   golden 任一不恒等 = 停手归因。
@@ -598,34 +741,50 @@ encodeLeg 体）；`ExportNamer.swift` :30-40/:110-140（BaseNameOccupiedError �
 2. **OQ 兑现核**：D-M7-4-1..10 逐条对任务面——①targets session 域 + maxItems
    1000（T3 schema）②双形态 resolveReference 复用（T3 + grep 调用点）③无状
    态双动词 + 无 tasks 面（T3——grep 剪贴板/服务端态零命中）④author="mcp" 固
-   定 + GUI 写腿零 diff（T3——grep 盖章点 + GUI 面零触）⑤顶层 author 翻转 +
-   pristine .null（T3 + T6 golden）⑥零版本面（T3——versions 面零触 grep）⑦
-   bounded re-poll 三点改形 + 四语义零改（T1——diff 逐 hunk 核）⑧预热 3 点 +
-   零新档（T2——grep warmLutLibrary + McpTimeouts 零 diff）⑨BaseNameOccupiedError
+   定 + GUI 写腿零 diff（T3——grep 盖章点 + GUI 面零触）⑤顶层 author 翻转（**position 真位式**〔修订批 F8〕）+ pristine .null（T3 +
+   T6 golden 含截断态构造腿）⑥零版本面（T3——versions 面零触 grep）⑦
+   bounded re-poll 三点改形 + **纯 POLLIN 臂 sleep**〔修订批 F2〕+ 四语义零改
+   （T1——diff 逐 hunk 核）⑧预热 **4 点** + env 门〔修订批 F5/F14〕+
+   零新档（T2——grep warmLutLibrary + LIGHTAMER_SKIP_LUT_PREHEAT +
+   McpTimeouts 零 diff）⑨BaseNameOccupiedError
    复用 + render 快照保留（T4——diff 面核 :633-637 零触）⑩includeDrt 默认
    true + include 缺省全贴（T3 schema + golden）。
 3. **快照族纪律**：union 显式改全点位（fresh 坐标清单：计数 ×4 :249/:299/:327/
    :479 + destructive 集 :255-260 + descriptionKeys :334 + all27→all29 :219 +
    测试名 :244 + 头注 :20 + message :250/:327）+ editing 层（apply_params note
    行 + 两新行 + :203 钉）+ **union 外五钉显式改**（:203〔同文件连带〕/:274/
-   :243/:697/:200——M7-3 后行号漂移，fresh 坐标已亲核）+ 残漏 grep（`count,
+   :243/:697/:200——M7-3 后行号漂移，fresh 坐标已亲核；**目标值 21→23 = 
+   editing 9 + culling 14〔修订批 F3 算术钉——五钉执行后逐钉复算面验 23，
+   22 = M7-3 H1 家族惯性值禁再犯〕**）+ 残漏 grep（`count,
    21` / `count == 21` / `all27` 零命中）+ DECISIONS 点位清单申报；
    「本波显式取权 + M7-5 禁并行」在 plan 头注与红线双写。
 4. **单源红线**：isAdjustmentTransferable 全仓恰单一函数定义（grep 机检）；
    Catalog 双消费形（GUI model 委托 + MCP toolset 直调——零复制形）；mask 纪
    元重置在 Catalog buildPayload 恰一处（:311-313 逻辑搬迁非复制）。
-5. **S1 修复语义钉**：恰三点改形（events 位 / 250ms / revents 分流）——once
+5. **S1 修复语义钉**：恰三点改形（events 位 / 250ms / revents 分流 + 第③点
+   分支体内纯 POLLIN 臂 250ms sleep〔修订批 F2——忙旋消解本体，在位判据
+   grep Task.sleep〕）——once
    guard + M1 自守卫 + close+exit(0) + http 不 arm 四语义零改（diff 逐 hunk
    核）；「清位 = revents 非 events」在 action 与断言双写实；e2e 两断言（≤12s
-   + wal==0）为修复核心判据（kill 形不可能产生 wal==0 = graceful 正面证）。
-6. **HistoryItem additive 面**：恰两字段 + init 默认参 + decodeIfPresent/
-   encodeIfPresent + nil 不编码（diff 逐 hunk 核）；HistoryHash.swift 零 diff
+   + wal==0）为修复核心判据（kill 形不可能产生 wal==0 = graceful 正面证）；
+   DECISIONS 措辞校订注记须按 F2 真机理（sleep 臂 = 速率限制本体，超时形非）。
+6. **HistoryItem additive + sidecar 镜像面（修订批 F1 扩）**：HistoryItem 恰
+   两字段 + init 默认参 + decodeIfPresent/
+   encodeIfPresent + nil 不编码（diff 逐 hunk 核）+ **SidecarHistoryItemRecord
+   镜像四件全链**（Keys/init/decode/encode/`item` 重建——五件缺一即死脸：
+   init 不携带则写丢、`item` 不还则读丢）+ **schemaVersionCurrent 10→11**（v8/
+   v9/v10 先例链 + SidecarV11Tests 四法钉 + SidecarV10Tests 零触守卫面）；
+   HistoryHash.swift 零 diff
    + 负测（同态有无 note/author → hash 逐位同）；旧档字节零漂移负测；GUI 写
-   腿零 diff（author 恒 nil）；schemaVersion 零动。
+   腿零 diff（author 恒 nil）；透传链两签名（commitPaste/composeSegment〔修订
+   批 F12〕）默认参在位。
 7. **UQ-A2 缝纪律**：encodeStage 恰 additive 一参（缺省调用方零 diff——既有
    EXPORT 测试面零改全绿）；ExportQueueContract leg 形零 diff（wrapper 递缝非
    签名改）；ExportNamer 零 diff + render 快照门零触；gain-map 臂同 wrap；tmp
-   defer 清理 + glob 断言；BaseNameOccupiedError 复用（错误表零 diff）。
+   defer 清理 + glob 断言；**encoder-error catch 清理腿在 exclusive 臂不触
+   destination + 第五腿（强制 encoder 失败 + 预植 destination 字节不变）**
+   〔修订批 F4——checker 须独立全走查 ExportRenderer.swift catch/清理路径有
+   无第二处 destination 触点〕；BaseNameOccupiedError 复用（错误表零 diff）。
 8. **SC 可机检性**：每条 SC 有命令级判据（byte-equal / grep / 计数断言 / 对账
    行 / 定向 bundle 绿），非「目测」；expected_all 对账式非死数；skip 35 构成
    声明条款在 T7。
