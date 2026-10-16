@@ -845,3 +845,11 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **根因**：DerivedData 内 appex 产物残留历史真实证书签名（同族环境债 = M5-2 perf.md §事故 4 / D-09-04-D9 Release 直启重签不达）；增量构建的校验序与重签序跨 target 交错，陈旧签名先被 Validate 读中。
 - **对策**：对两个 appex 盘上 `codesign --force --sign - <appex>`（`codesign -dv` 验 `Signature=adhoc`）→ 增量重跑 build-for-testing 即绿；无需全清 DerivedData。判别信号 = ValidateEmbeddedBinary 报文里的 Embedded/Parent Certificate 对照行。
 - **适用**：一切 ad-hoc Manual 签名构建（本项目 CI/本地全套轮同参）；同类「build 图序与签名态赛跑」问题先查盘上实际签名（`codesign -dv`），不动源码。
+
+## L082（2026-10-16）— GUI churn 测量纪律：遮态读数无效，frontmost + 环符号双验 + 静默相哨兵（M7-1 定罪批三轮教训提炼）
+- **背景**：FIX2（修复批 II）→ M7-1 执行批 → M7-1 独立复核三轮，同一伪象反复咬人：FIX2 时代全部「饿死」判据（C1×3 + C2×4 + E×3 十轮 transcript）被 M7-1 复核批证据级 dissolved——全部落遮挡/发射静默窗伪象，D-6 修法路线（壳减树/窗拆）据此被误立项又误停手。
+- **现象**：①裸直启（未激活）或窗口被遮挡时 CPU 读 0.0%、探针「环死」；②「饿死样本」里 `makeMainMenu` 等环符号只有个位数 hits；③编辑器面摘段探针轮「环饿死 0.0-0.1%」，实为 AX 腿未生效根本没进编辑器面（transcript `phase=library` 全程）；④c2-long-sample（263/789/1850 满速活环）被记作「28% AppKit 残底噪」。
+- **根因**：①macOS 对 SwiftUI scene graph 更新做**窗口可见性门控**——遮挡态环被压 0 是正常行为非环死，裸直启进程窗未激活同样命中；②sample call graph 的「N hits」是**最大单支计数**非符号总量（grep 行数 vs 跨行求和跨量纲，差两个数量级）；③遮挡静默相有**双相结构**（发射 2 tick → 静默 0-90s → 复燃沿 ~60/s），复燃沿样本常被误读为「残底噪」。
+- **对策**（churn/探针类批次强制）：①**frontmost 先行**——一切 CPU/sample/transcript 读数前 System Events `set frontmost`（裸直启 + 未激活 = 隐性遮态）；②**双验**——CPU 读数 + 环符号**总量**（跨行求和）同采，活态带（空载 26-36% / 编辑器 80-100%）与 0.0% 完全分离，可见窗语境读到 ≈0.0% 即伪象哨兵，读数后即时对带复核；③**静默相哨兵**——「2 tick 发射 → 长静默 → 复燃沿」transcript 形 = 遮挡签名，勿把复燃沿样本当底噪；④**面机检**——涉编辑器面的 AX 腿探针必须先断言 transcript `phase=editor` 再采数；⑤「N hits」表述必须注明 grep 行数还是计数总和。
+- **适用**：一切 GUI churn/layout-loop/性能探针走查与验收（FIX2 判别探针族、churn 复测、资源监控采样）；任何「CPU 归零 = 缺陷消失」结论在过本纪律四道门之前不得入账。
+- **来源**：`phases/m7-1-shell/M7-1-HALT-REVIEW.md`（§1.2 符号总量 / §2.1 双相结构 / §2.2 三实验 / §4 纪律六条）+ `phases/m7-1-shell/M7-1-VALIDATION.md` §特殊事项 2。
