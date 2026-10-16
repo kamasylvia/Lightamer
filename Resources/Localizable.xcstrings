@@ -8316,7 +8316,7 @@
         "zh": {
           "stringUnit": {
             "state": "translated",
-            "value": "渲染一个会话内图像的「已保存」编辑态（盘上 sidecar）并以内联 JPEG（base64）返回。预览是 sRGB 编码的「编辑态」——无 yiyin 印框/水印，也不是 GUI 的 EDR 显示域。它反映最近一次已保存的编辑：GUI 保存的编辑约有 2s debounce。界限：longEdge 1...2048（默认 1024），quality 1...90（默认 85）；更大尺寸或需要落盘文件请用 export_image。typed 失败：renderFailed、renderTimeout（30s）、notSessionMember、invalidParams。只读宿主错误：serverReadOnly。"
+            "value": "渲染一个会话内图像的「已保存」编辑态（盘上 sidecar）并以内联 JPEG（base64）返回。预览是 sRGB 编码的「编辑态」——无 yiyin 印框/水印，也不是 GUI 的 EDR 显示域。它反映最近一次已保存的编辑：GUI 保存的编辑约有 2s debounce。界限：longEdge 1...2048（默认 1024），quality 1...90（默认 85）；更大尺寸或需要落盘文件请用 export_image。region（可选，归一化 0..1 的 {x,y,w,h}）在渲染之后对「渲染输出画面」（orientation 已归一）裁剪——与 longEdge 解耦；与 get_detail_crop（源细节检视：绝对像素 ROI、原生分辨率）不同，region 是渲染观感 ROI。compare（enum none|root，默认 root）随调用附带无编辑原图渲染供 before/after 对比回路：内容顺序 [current, root, text]——summary JSON 在最后。两臂共享同一 region 与同一 30s 窗口。载荷预算：每臂 1024/q85 约 1.5MB（双臂约 3MB；2048/q90 帽下双臂约 11MB——typed 帽在位，无自动降档；compare:none 可减半）。typed 失败：renderFailed、renderTimeout（30s）、notSessionMember、invalidParams、roiOutOfBounds。只读宿主错误：serverReadOnly。"
           }
         }
       }
@@ -32579,6 +32579,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本服务器状态的一次性快照，六字段组：project（打开的 .lalb——路径 / 只读立场）、workspace（图库集合面：过滤 / 选择 / 当前图）、editor（活文档：图 URL / 有无编辑）、control（单写者锁 verdict + 写调用计数）、tasks（导出队列计数）与 server（服务器名/版本、host 模式、只读立场）。宿主看不到的字段为 null（如无头宿主的 workspace/editor/tasks；无 --project 旗标时 project）。这是一次性快照——字段不保证调用间一致；本面从不写盘。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_list_luts" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出已安装的 LUT 库（只读、扁平清单——v1 无分组过滤）：每个 LUT 含 key、文件名、内容 hash、is1D、晶格 size、可选 title/subdirectory 与已记忆的创作编码对。key 即寻址值：作为 lut3d 模块 params `lutName` 的新写入寻址键传入。libraryRoot 是 key 相对的库根。只读、无状态，除 internalError 外无错误。"
           }
         }
       }

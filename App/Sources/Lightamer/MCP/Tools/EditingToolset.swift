@@ -160,6 +160,51 @@ enum EditingToolset {
                 .text(try IopCatalog.catalogJSON(defaultFace: seams.defaultFace))
             })
         await registry.register(
+            listLutsDescriptor, requiresWriter: false,
+            handler: { _ in
+                // M7-3 (MCP2-05): the LUT library read face — the lut3d
+                // module's library projection, list_iops 同族 (the
+                // parameter-catalog family). LutLibraryStore.shared direct
+                // read (the IOP-layer public singleton; the editing seams
+                // need no new face). The in-memory projection under the
+                // McpTimeouts.list window (a rescan is never triggered —
+                // the tool projects the in-memory registry only).
+                try await McpCullingToolset.withTimeout(
+                    McpTimeouts.list,
+                    McpToolError.internalError("list_luts timed out")
+                ) {
+                    let store = LutLibraryStore.shared
+                    let keys = store.installedNames
+                    let luts: [McpJSON] = keys.map { key in
+                        var dict: [String: McpJSON] = [:]
+                        let entry = store.entry(named: key)
+                        dict["key"] = .string(key)
+                        dict["name"] = .string(entry?.name ?? key)
+                        dict["hash"] = .string(entry?.hash ?? "")
+                        dict["is1D"] = .bool(entry?.is1D ?? false)
+                        dict["size"] = .int(entry?.size ?? 0)
+                        if let title = entry?.title { dict["title"] = .string(title) }
+                        if let subdirectory = entry?.subdirectory {
+                            dict["subdirectory"] = .string(subdirectory)
+                        }
+                        if let remembered = entry?.rememberedEncodings {
+                            dict["rememberedEncodings"] = .object([
+                                "input": .string(remembered.input.rawValue),
+                                "output": .string(remembered.output.rawValue),
+                            ])
+                        }
+                        return .object(dict)
+                    }
+                    let payload = McpJSON.object([
+                        "libraryRoot": .string(store.lutsDirectory.path),
+                        "total": .int(keys.count),
+                        "luts": .array(luts),
+                    ])
+                    return McpToolOutput(
+                        [.text(McpJSONSerialization.text(from: payload))])
+                }
+            })
+        await registry.register(
             exportImageDescriptor, requiresWriter: true,
             handler: { arguments in
                 try await exportImageBody(arguments: arguments, seams: seams)
@@ -279,6 +324,22 @@ enum EditingToolset {
                 + "module's real Codable schema at call time — this catalog is the "
                 + "runtime key REFERENCE that keeps that validation predictable. "
                 + "Read-only, stateless, no errors beyond internalError.")),
+        inputSchemaJSON: #"{"type":"object","properties":{},"required":[]}"#,
+        readOnlyHint: true)
+
+    /// M7-3 (MCP2-05): the LUT library read face — zero-input, read-only.
+    /// The `key` IS the lut3d module params `lutName` addressing key for
+    /// NEW writes (KD-1: root-relative POSIX).
+    private static let listLutsDescriptor = McpToolDescriptor(
+        name: "list_luts",
+        description: String(localized: "mcp_tool_desc_list_luts", defaultValue: String.LocalizationValue(
+                    "List the installed LUT library (READ-ONLY, flat list — no group "
+                + "filtering in v1): per LUT the key, file name, content hash, "
+                + "is1D, lattice size, optional title/subdirectory and the "
+                + "remembered authoring-encoding pair. The key is the ADDRESSING "
+                + "value: pass it as the lut3d module's params `lutName` for NEW "
+                + "writes. libraryRoot is the library root the keys are relative "
+                + "to. Read-only, stateless, no errors beyond internalError.")),
         inputSchemaJSON: #"{"type":"object","properties":{},"required":[]}"#,
         readOnlyHint: true)
 
@@ -778,17 +839,30 @@ enum EditingToolset {
             McpToolDescriptor(
                 name: "render_preview",
                 description: String(localized: "mcp_tool_desc_render_preview", defaultValue: String.LocalizationValue(
-                                    "Render an open-session image's SAVED edit state (the disk sidecar) "
-                        + "and return it as an inline JPEG image (base64). The preview is "
-                        + "the sRGB-encoded EDIT state — no yiyin frame/watermark, and NOT "
-                        + "the GUI's EDR display domain. It reflects the last SAVED edit: "
-                        + "edits saved by the GUI carry a ~2s debounce. Bounds: longEdge "
-                        + "1...2048 (default 1024), quality 1...90 (default 85); for "
-                        + "anything larger or for files on disk use export_image. Fails "
-                        + "typed: renderFailed, renderTimeout (30s), notSessionMember, "
-                        + "invalidParams. Errors for read-only hosts: serverReadOnly.")),
+                                    "Render an open-session image's SAVED edit state "
+                        + "(the disk sidecar) and return it as an inline JPEG image "
+                        + "(base64). The preview is the sRGB-encoded EDIT state — no "
+                        + "yiyin frame/watermark, and NOT the GUI's EDR display domain. "
+                        + "It reflects the last SAVED edit: edits saved by the GUI carry "
+                        + "a ~2s debounce. Bounds: longEdge 1...2048 (default 1024), "
+                        + "quality 1...90 (default 85); for anything larger or for files "
+                        + "on disk use export_image. region (optional, normalized 0..1 "
+                        + "{x,y,w,h}) crops the RENDERED output frame (orientation "
+                        + "already normalized) AFTER the render — decoupled from "
+                        + "longEdge; unlike get_detail_crop (the source-detail "
+                        + "inspection: an absolute-pixel ROI at NATIVE resolution), "
+                        + "region is a rendered-appearance ROI. compare (enum none|root, "
+                        + "DEFAULT root) rides the pristine (edit-free) render along for "
+                        + "the before/after loop: the content order is [current, root, "
+                        + "text] — the summary JSON rides last. Both arms share the same "
+                        + "region rect and the same 30s window. Payload budget: each arm "
+                        + "≈1.5MB at 1024/q85 (dual-arm ≈3MB; the 2048/q90 cap dual-arm "
+                        + "≈11MB — the typed cap holds, there is NO automatic downgrade; "
+                        + "pass compare:none to halve). Fails typed: renderFailed, "
+                        + "renderTimeout (30s), notSessionMember, invalidParams, "
+                        + "roiOutOfBounds. Errors for read-only hosts: serverReadOnly.")),
                 inputSchemaJSON:
-                    #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"longEdge":{"type":"integer","minimum":1,"maximum":2048,"default":1024,"description":"Output long edge in px (rendered in-pipe at this size)"},"quality":{"type":"integer","minimum":1,"maximum":90,"default":85,"description":"JPEG quality (percent)"},"region":{"type":"object","properties":{"x":{"type":"number","minimum":0,"maximum":1},"y":{"type":"number","minimum":0,"maximum":1},"w":{"type":"number","exclusiveMinimum":0,"maximum":1},"h":{"type":"number","exclusiveMinimum":0,"maximum":1}},"required":["x","y","w","h"],"description":"Normalized 0..1 ROI {x,y,w,h} relative to the RENDERED output frame (orientation already normalized); cropped after the render, decoupled from longEdge"}},"required":["relPath"]}"#,
+                    #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"longEdge":{"type":"integer","minimum":1,"maximum":2048,"default":1024,"description":"Output long edge in px (rendered in-pipe at this size)"},"quality":{"type":"integer","minimum":1,"maximum":90,"default":85,"description":"JPEG quality (percent)"},"region":{"type":"object","properties":{"x":{"type":"number","minimum":0,"maximum":1},"y":{"type":"number","minimum":0,"maximum":1},"w":{"type":"number","exclusiveMinimum":0,"maximum":1},"h":{"type":"number","exclusiveMinimum":0,"maximum":1}},"required":["x","y","w","h"],"description":"Normalized 0..1 ROI {x,y,w,h} relative to the RENDERED output frame (orientation already normalized); cropped after the render, decoupled from longEdge"},"compare":{"type":"string","enum":["none","root"],"default":"root","description":"none = the edited image only; root (default) = the pristine (edit-free) image rides along for the before/after loop"}},"required":["relPath"]}"#,
                 readOnlyHint: true
             ),
             handler: { arguments in
@@ -809,12 +883,14 @@ enum EditingToolset {
                         "quality > \(previewMaxQuality) — the inline preview cap is 90 "
                         + "(D7); use export_image for quality-critical output")
                 let region = try PreviewRegion.decode(arguments["region"])
+                let compare = try PreviewCompare.decode(arguments["compare"])
                 let member = try await resolveMember(relPath: relPath, seams: seams)
 
                 return try await seams.gate.withRenderGate {
                     try await renderPreviewBody(
                         imageURL: member.imageURL, longEdge: longEdge,
-                        quality: quality, region: region, seams: seams)
+                        quality: quality, region: region, compare: compare,
+                        seams: seams)
                 }
             })
     }
@@ -886,48 +962,117 @@ enum EditingToolset {
             }
             return CGRect(x: px, y: py, width: pw, height: ph)
         }
+
+        /// The region crop of one rendered frame (the shared arm leg — the
+        /// SAME rect rides both arms, Alcedo 同构). The cropping-nil
+        /// renderFailed here is the bail-out, never the spec.
+        static func cropped(_ image: CGImage, region: PreviewRegion) throws -> CGImage {
+            let rect = try region.croppingPixelRect(of: image)
+            guard let cropped = image.cropping(to: rect) else {
+                throw McpToolError.renderFailed("region crop failed")
+            }
+            return cropped
+        }
+    }
+
+    /// The compare arm (D-M7-3-3): enum none|root, DEFAULT root — the
+    /// feedback loop's semantics IS the comparison, so a bare call carries
+    /// the pristine arm along; `none` is the explicit payload-saving form
+    /// (the pre-M7-3 single-image face, byte-identical).
+    enum PreviewCompare: String, Sendable {
+        case none
+        case root
+
+        static func decode(_ value: McpJSON?) throws -> PreviewCompare {
+            guard let value, !value.isNull else { return .root }
+            guard let raw = value.stringValue,
+                let decoded = PreviewCompare(rawValue: raw)
+            else {
+                throw McpToolError.invalidParams(
+                    "compare must be one of none|root (default root — the "
+                        + "pristine arm rides along for the before/after loop)")
+            }
+            return decoded
+        }
     }
 
     /// The render body (INSIDE the gate): bounded wait → renderedPlane →
     /// CGImage → region crop → JPEG → base64. Typed failures, never the QL
     /// embedded-preview fallback (the MCP face has no preview to lie with).
-    /// (M7-3 T3 extends this body with the compare:root dual arm.)
+    /// M7-3 T3 (OQ-M7-3-3/OQ-M7-3-5): compare:root runs the SAME boundedWait
+    /// window TWICE — the edited arm first, the pristine arm second, each a
+    /// full renderedPlane decode-to-quantize pass (no shared decode) — and
+    /// returns [current, root, text] with the summary JSON last.
     private static func renderPreviewBody(
         imageURL: URL, longEdge: Int, quality: Int,
-        region: PreviewRegion?, seams: Seams
+        region: PreviewRegion?, compare: PreviewCompare,
+        seams: Seams
     ) async throws -> McpToolOutput {
         let seconds = seams.renderTimeoutOverride
             ?? durationSeconds(McpTimeouts.renderAndCrop)
         do {
-            let base64 = try await QuickLookRenderer.boundedWait(seconds: seconds) {
+            let output = try await QuickLookRenderer.boundedWait(seconds: seconds) {
                 guard let metal = await seams.metal() else {
                     throw McpToolError.renderFailed("renderer unavailable on this host")
                 }
                 let registry = await seams.modules()
+                // The edited arm (the pre-M7-3 face verbatim).
                 let rendered = try await QuickLookRenderer.renderedPlane(
                     imageURL: imageURL, targetLongEdge: longEdge,
                     metal: metal, registry: registry, decodeLeg: seams.decodeLeg)
-                var image = try QuickLookRenderer.image(from: rendered)
+                var currentImage = try QuickLookRenderer.image(from: rendered)
                 if let region {
-                    // The M2 rule: the zero-area frame is invalidParams inside
-                    // croppingPixelRect — the cropping-nil renderFailed here is
-                    // the bail-out, never the spec.
-                    let rect = try region.croppingPixelRect(of: image)
-                    guard let cropped = image.cropping(to: rect) else {
-                        throw McpToolError.renderFailed(
-                            "region crop failed for '\(imageURL.lastPathComponent)'")
-                    }
-                    image = cropped
+                    currentImage = try PreviewRegion.cropped(currentImage, region: region)
                 }
-                guard let jpeg = Self.encodeJPEG(image, quality: Double(quality) / 100.0),
-                    !jpeg.isEmpty
+                guard let currentJPEG = Self.encodeJPEG(
+                        currentImage, quality: Double(quality) / 100.0),
+                    !currentJPEG.isEmpty
                 else {
                     throw McpToolError.renderFailed(
                         "JPEG encode failed for '\(imageURL.lastPathComponent)'")
                 }
-                return jpeg.base64EncodedString()
+                var contents: [McpToolOutput.Content] = [
+                    .imageBase64(currentJPEG.base64EncodedString(),
+                                 mimeType: "image/jpeg")
+                ]
+
+                // The pristine arm (the D-M7-3-3 default): the SAME renderer
+                // verbatim with the pristine-only flag, its OWN decode.
+                if compare == .root {
+                    let pristine = try await QuickLookRenderer.renderedPlane(
+                        imageURL: imageURL, targetLongEdge: longEdge,
+                        metal: metal, registry: registry,
+                        decodeLeg: seams.decodeLeg, pristineOnly: true)
+                    var rootImage = try QuickLookRenderer.image(from: pristine)
+                    if let region {
+                        rootImage = try PreviewRegion.cropped(rootImage, region: region)
+                    }
+                    guard let rootJPEG = Self.encodeJPEG(
+                            rootImage, quality: Double(quality) / 100.0),
+                        !rootJPEG.isEmpty
+                    else {
+                        throw McpToolError.renderFailed(
+                            "JPEG encode failed for the pristine arm of "
+                                + "'\(imageURL.lastPathComponent)'")
+                    }
+                    contents.append(
+                        .imageBase64(rootJPEG.base64EncodedString(),
+                                     mimeType: "image/jpeg"))
+                    contents.append(.text(McpJSONSerialization.text(from: .object([
+                        "current": .object([
+                            "width": .int(currentImage.width),
+                            "height": .int(currentImage.height),
+                        ]),
+                        "root": .object([
+                            "width": .int(rootImage.width),
+                            "height": .int(rootImage.height),
+                        ]),
+                        "compare": .string("root"),
+                    ]))))
+                }
+                return McpToolOutput(contents)
             }
-            return McpToolOutput([.imageBase64(base64, mimeType: "image/jpeg")])
+            return output
         } catch let timeout as QuickLookRenderer.RenderTimeout {
             throw McpToolError.renderTimeout(
                 "render exceeded the \(timeout.seconds)s bounded wait for "
