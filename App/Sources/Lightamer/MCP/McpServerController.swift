@@ -167,7 +167,8 @@ enum McpServerController {
     /// Readers: the search/state seams (library / semantic / fulltext /
     /// liveState) and the project context's library seam — every read is
     /// per-call, so a runtime switch is visible to the NEXT call.
-    private final class HeadlessProjectBox: @unchecked Sendable {
+    /// Internal (the box-sensitive tests reset it directly).
+    final class HeadlessProjectBox: @unchecked Sendable {
         struct Snapshot: Sendable {
             var store: ProjectFileStore?
             var url: URL?
@@ -200,7 +201,9 @@ enum McpServerController {
         }
     }
 
-    nonisolated(unsafe) private static let headlessProjectBox = HeadlessProjectBox()
+    /// Internal (not private): the box is PROCESS-global — the in-process
+    /// arbitration tests reset it at start (order independence).
+    nonisolated(unsafe) static let headlessProjectBox = HeadlessProjectBox()
 
     /// The headless search/state context (M7-2-01 T1 action 5 + T3; M7-3 T4
     /// box form): every data face reads the CURRENT-PROJECT BOX per call —
@@ -405,7 +408,9 @@ enum McpServerController {
     }
 
     private static let eofArmLock = NSLock()
-    nonisolated(unsafe) private static var eofArmDone = false
+    /// The once-guard state (internal for the M1 executable judgment: the
+    /// http-mode runtime-open test asserts this NEVER flips).
+    nonisolated(unsafe) static var eofArmDone = false
 
     /// Runs the headless server for `mode` and parks the process forever
     /// (stdio: the transport reads stdin from its own task; the entry point

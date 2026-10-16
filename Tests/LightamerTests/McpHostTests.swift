@@ -213,8 +213,8 @@ final class McpHostTests: XCTestCase {
     // MARK: - T4: the Streamable HTTP leg
 
     /// A no-session editing/culling assembly — the shipped headless shape
-    /// (Plan 14-4: every host assembles the closed 20-tool face — M5-1-03
-/// added match_color to the editing domain).
+    /// (Plan 14-4: every host assembles the closed face — M5-1-03
+/// added match_color to the editing domain; M7-3 added list_luts).
     private var headlessEditing: EditingToolset.Seams {
         get async {
             await McpServerController.makeEditingSeams(session: { nil })
@@ -240,7 +240,7 @@ final class McpHostTests: XCTestCase {
             "the initialize echo pins the protocol revision")
 
         let (tools, _) = try await clientActor.listTools()
-        XCTAssertEqual(tools.count, 20, "the closed 20-tool face rides every host")
+        XCTAssertEqual(tools.count, 21, "the closed face rides every host (M7-3 list_luts in editing)")
         XCTAssertFalse(
             tools.contains { $0.name == "ping" || $0.name == "count_images" },
             "the 14-1 probe face is retired")
@@ -463,7 +463,7 @@ final class McpHostTests: XCTestCase {
     /// host shape): it must hold the writer lock yet NEVER write the
     /// endpoint json, and the piped three-step handshake (initialize →
     /// notifications/initialized → tools/list) answers with the CLOSED
-    /// 20-tool face (Plan 14-4 retired the probe pair; M5-1-03 added
+    /// 21-tool face (Plan 14-4 retired the probe pair; M5-1-03 added
 /// match_color to the editing domain).
     func testStdioHostHelloRoundTripHoldsLockWritesNoJSON() async throws {
         let process = Process()
@@ -665,7 +665,8 @@ final class McpHostTests: XCTestCase {
     /// stdio (a real subprocess), Streamable HTTP (SDK client over the NIO
     /// leg) and InMemory (in-process) — all produce IDENTICAL tool results.
     /// Plan 14-4: the canonical call is the final `list_iops` tool over the
-    /// closed 20-tool face (the probe pair retired; M5-1-03 match_color joined).
+    /// closed 21-tool face (the probe pair retired; M5-1-03 match_color joined,
+    /// M7-3 list_luts).
     func testHelloConformanceAcrossThreeHostForms() async throws {
         // THREE FORMS, ONE KERNEL, IDENTICAL RESULTS:
         //   HTTP      → this test (SDK client ↔ the NIO leg, live host)
@@ -693,7 +694,7 @@ final class McpHostTests: XCTestCase {
         await httpClient.disconnect()
         await httpHandle.stop()
 
-        XCTAssertEqual(httpTools.count, 20, "HTTP tools/list — the closed face")
+        XCTAssertEqual(httpTools.count, 21, "HTTP tools/list — the closed face (M7-3 list_luts)")
         XCTAssertFalse(
             httpTools.contains { $0 == "ping" || $0 == "count_images" },
             "no probe tool rides any host")

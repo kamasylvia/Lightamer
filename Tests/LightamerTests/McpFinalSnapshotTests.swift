@@ -12,14 +12,19 @@ import XCTest
 // joined the editing domain — the freeze grew to 20 (all19 → all20).
 // M7-2-01 (the union snapshot conscious change): the search/state domain
 // (3 read-only tools) joined as a THIRD domain — the freeze is the
-// 23-tool set, all20 → all23 (this file holds the M7-2..M7-5 serial
+// the 23-tool set (all20 → the 23-set; this file holds the M7-2..M7-5 serial
 // snapshot-edit right; the per-domain snapshot files stay untouched).
+// M7-3-01 (the union snapshot conscious change, THIS file's edit right
+// exercised): list_luts joined the editing domain (6→7) and the project
+// domain (3 tools) opened as the FOURTH domain — the freeze is the
+// 27-tool set (the 23-set → all27, one deliberate edit).
 //
 // Snapshot layers (all must consciously change together):
-//   - the editing domain (6)      → McpRegistrySnapshotTests (14-2)
+//   - the editing domain (7)      → McpRegistrySnapshotTests (14-2)
 //   - the culling domain (14)     → McpCullingToolsetTests (14-3)
 //   - the search/state domain (3) → McpSearchStateToolsetTests (M7-2)
-//   - THE UNION (23)              → this file (the final freeze)
+//   - the project domain (3)      → McpProjectToolsetTests (M7-3)
+//   - THE UNION (27)              → this file (the final freeze)
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class McpFinalSnapshotTests: XCTestCase {
@@ -58,7 +63,14 @@ final class McpFinalSnapshotTests: XCTestCase {
             name: "render_preview",
             description: "snapshot",
             inputSchemaJSON:
-                #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"longEdge":{"type":"integer","minimum":1,"maximum":2048,"default":1024,"description":"Output long edge in px (rendered in-pipe at this size)"},"quality":{"type":"integer","minimum":1,"maximum":90,"default":85,"description":"JPEG quality (percent)"}},"required":["relPath"]}"#,
+                #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"longEdge":{"type":"integer","minimum":1,"maximum":2048,"default":1024,"description":"Output long edge in px (rendered in-pipe at this size)"},"quality":{"type":"integer","minimum":1,"maximum":90,"default":85,"description":"JPEG quality (percent)"},"region":{"type":"object","properties":{"x":{"type":"number","minimum":0,"maximum":1},"y":{"type":"number","minimum":0,"maximum":1},"w":{"type":"number","exclusiveMinimum":0,"maximum":1},"h":{"type":"number","exclusiveMinimum":0,"maximum":1}},"required":["x","y","w","h"],"description":"Normalized 0..1 ROI {x,y,w,h} relative to the RENDERED output frame (orientation already normalized); cropped after the render, decoupled from longEdge"},"compare":{"type":"string","enum":["none","root"],"default":"root","description":"none = the edited image only; root (default) = the pristine (edit-free) image rides along for the before/after loop"}},"required":["relPath"]}"#,
+            readOnlyHint: true),
+        McpToolDescriptor(
+            // M7-3 (MCP2-05): list_luts joins the editing domain (6→7,
+            // D-M7-3-4 — this domain snapshot edits consciously).
+            name: "list_luts",
+            description: "snapshot",
+            inputSchemaJSON: #"{"type":"object","properties":{},"required":[]}"#,
             readOnlyHint: true),
         McpToolDescriptor(
             name: "match_color",
@@ -181,8 +193,31 @@ final class McpFinalSnapshotTests: XCTestCase {
             readOnlyHint: true),
     ]
 
-    static var all23: [McpToolDescriptor] {
-        editingTools + cullingTools + searchStateTools
+    /// M7-3-01: the FOURTH domain — the project family (their schemas
+    /// byte-equal the registration source in ProjectToolset.swift; the
+    /// open/create pair rides requiresWriter at the register call site,
+    /// list_versions is readOnlyHint).
+    static let projectTools: [McpToolDescriptor] = [
+        McpToolDescriptor(
+            name: "list_versions",
+            description: "snapshot",
+            inputSchemaJSON:
+                #"{"type":"object","properties":{"image":{"type":"string","description":"A library image id (digits) or an open-session relPath"},"includeItems":{"type":"boolean","default":false,"description":"Attach each version's own item list (capped at the 500 NEWEST; the truncated flag rides per version)"}},"required":["image"]}"#,
+            readOnlyHint: true),
+        McpToolDescriptor(
+            name: "project_create",
+            description: "snapshot",
+            inputSchemaJSON:
+                #"{"type":"object","properties":{"folder":{"type":"string","description":"An EXISTING directory the package is created in"},"name":{"type":"string","minLength":1,"description":"The package name (folder/<name>.lalb; no path separators / colons / leading dots)"}},"required":["folder","name"]}"#),
+        McpToolDescriptor(
+            name: "project_open",
+            description: "snapshot",
+            inputSchemaJSON:
+                #"{"type":"object","properties":{"path":{"type":"string","description":"The absolute path of the .lalb package to open"}},"required":["path"]}"#),
+    ]
+
+    static var all27: [McpToolDescriptor] {
+        editingTools + cullingTools + searchStateTools + projectTools
     }
 
     // MARK: - The assembly
@@ -193,21 +228,30 @@ final class McpFinalSnapshotTests: XCTestCase {
                 session: { nil }, metal: { nil }, modules: { ModuleRegistry() },
                 gate: McpRenderGate(), liveImageURL: { nil }),
             culling: McpServerController.makeCullingContext(session: { nil }),
-            // M7-2-01: without the context the union stays at 20 forever —
-            // the all-nil fixture context registers the three tools (the
-            // registration consumes no provider; only handler calls do).
-            searchState: McpSearchStateContext())
+            // M7-2-01: without the context the union stays short of the
+            // search/state domain — the all-nil fixture context registers
+            // the three tools (the registration consumes no provider; only
+            // handler calls do).
+            searchState: McpSearchStateContext(),
+            // M7-3-01: same discipline for the project domain — the all-nil
+            // fixture context registers the three project tools (27 is
+            // unreachable without this argument).
+            project: McpProjectContext())
     }
 
-    /// THE final freeze: every host assembles exactly these 23 descriptors —
+    /// THE final freeze: every host assembles exactly these 27 descriptors —
     /// names, VERBATIM inputSchema JSON and the §A annotation column.
-    func testFinalSnapshotUnion23Verbatim() async throws {
+    func testFinalSnapshotUnion27Verbatim() async throws {
         let registry = await makeUnionRegistry()
         try await McpRegistrySnapshotTests.assertSnapshot(
-            registry: registry, expected: Self.all23)
+            registry: registry, expected: Self.all27)
         let descriptors = await registry.descriptors()
-        XCTAssertEqual(descriptors.count, 23, "D3: the final count is 23 (M7-2-01 search/state joined)")
-        // §A annotations at a glance: exactly 9 destructive tools, 11 read.
+        XCTAssertEqual(descriptors.count, 27,
+                       "D3: the final count is 27 (M7-3-01: list_luts 6→7 + "
+                           + "the project domain joined)")
+        // §A annotations at a glance: exactly 9 destructive tools — the §A
+        // write face + match_color; the remainder are read-only or
+        // non-destructive state-changing (project_open/project_create).
         let destructive = descriptors.filter { $0.destructiveHint == true }.map(\.name)
         XCTAssertEqual(
             Set(destructive),
@@ -216,9 +260,9 @@ final class McpFinalSnapshotTests: XCTestCase {
             "the write face is the §A destructive column + match_color (M5-1-03)")
     }
 
-    /// Domain consistency: the editing-only and culling-only assemblies are
-    /// DISJOINT and their union is exactly the final face (the 14-2/14-3
-    /// per-domain snapshots compose into this freeze with no overlap).
+    /// Domain consistency: the per-domain assemblies are DISJOINT and their
+    /// union is exactly the final face (the 14-2/14-3/M7-2/M7-3 per-domain
+    /// snapshots compose into this freeze with no overlap).
     func testDomainSnapshotsComposeIntoTheUnion() async throws {
         let editing = EditingToolset.Seams(
             session: { nil }, metal: { nil }, modules: { ModuleRegistry() },
@@ -228,22 +272,31 @@ final class McpFinalSnapshotTests: XCTestCase {
             culling: McpServerController.makeCullingContext(session: { nil }))
         let searchStateOnly = await McpServerController.makeRegistry(
             searchState: McpSearchStateContext())
+        let projectOnly = await McpServerController.makeRegistry(
+            project: McpProjectContext())
         let union = await makeUnionRegistry()
         let e = await editingOnly.descriptors().map(\.name)
         let c = await cullingOnly.descriptors().map(\.name)
         let s = await searchStateOnly.descriptors().map(\.name)
+        let p = await projectOnly.descriptors().map(\.name)
         let u = await union.descriptors().map(\.name)
         XCTAssertEqual(Set(e), Set(Self.editingTools.map(\.name)))
         XCTAssertEqual(Set(c), Set(Self.cullingTools.map(\.name)))
         XCTAssertEqual(Set(s), Set(Self.searchStateTools.map(\.name)))
+        XCTAssertEqual(Set(p), Set(Self.projectTools.map(\.name)))
         XCTAssertTrue(Set(e).isDisjoint(with: Set(c)), "no tool rides two domains")
         XCTAssertTrue(Set(e).isDisjoint(with: Set(s)), "no tool rides two domains")
         XCTAssertTrue(Set(c).isDisjoint(with: Set(s)), "no tool rides two domains")
+        XCTAssertTrue(Set(e).isDisjoint(with: Set(p)), "no tool rides two domains")
+        XCTAssertTrue(Set(c).isDisjoint(with: Set(p)), "no tool rides two domains")
+        XCTAssertTrue(Set(s).isDisjoint(with: Set(p)), "no tool rides two domains")
         // The search/state tools ride a NEW domain (not folded into an
         // existing one — the M5-1-03 match_color precedent folded INTO
-        // editing; M7-2 opened its own layer).
-        XCTAssertEqual(Set(u), Set(e).union(Set(c)).union(Set(s)))
-        XCTAssertEqual(u.count, 23)
+        // editing; M7-2 opened its own layer); M7-3 opened the project
+        // layer the same way.
+        XCTAssertEqual(
+            Set(u), Set(e).union(Set(c)).union(Set(s)).union(Set(p)))
+        XCTAssertEqual(u.count, 27)
     }
 
     /// The whitelist negative: a 21st tool does NOT exist. `match_color` WAS
@@ -271,7 +324,7 @@ final class McpFinalSnapshotTests: XCTestCase {
             }
         }
         let tools = try await client.listTools().tools
-        XCTAssertEqual(tools.count, 23, "no 24th tool rides the list either")
+        XCTAssertEqual(tools.count, 27, "no 28th tool rides the list either")
     }
 
     // MARK: - zh/en description keys (D-14-CONTEXT-3②: the L025 face)
@@ -302,6 +355,10 @@ final class McpFinalSnapshotTests: XCTestCase {
         "search_photos": "mcp_tool_desc_search_photos",
         "get_history": "mcp_tool_desc_get_history",
         "get_state": "mcp_tool_desc_get_state",
+        "list_luts": "mcp_tool_desc_list_luts",
+        "project_open": "mcp_tool_desc_project_open",
+        "project_create": "mcp_tool_desc_project_create",
+        "list_versions": "mcp_tool_desc_list_versions",
     ]
 
     /// Every final tool has a zh description key with a non-empty value AND
@@ -409,7 +466,8 @@ final class McpFinalSnapshotTests: XCTestCase {
             gate: McpRenderGate(), liveImageURL: { nil })
         let handle = try await McpServerController.startHTTPHost(
             paths: paths, editing: seams, culling: context,
-            searchState: McpSearchStateContext())
+            searchState: McpSearchStateContext(),
+            project: McpProjectContext())
         defer { Task { await handle.stop() } }
 
         // ── Entry 1: the DIRECT SDK client (already inside the cap). ──
@@ -418,7 +476,7 @@ final class McpFinalSnapshotTests: XCTestCase {
         let direct = MCP.Client(name: "direct-entry", version: "0.0.1")
         try await direct.connect(transport: directTransport)
         let directTools = try await direct.listTools().tools.map(\.name)
-        XCTAssertEqual(directTools.count, 23, "the direct entry sees the full face")
+        XCTAssertEqual(directTools.count, 27, "the direct entry sees the full face")
 
         // ── Entry 2: the LAUNCHER pulls the sentinel agent. ──
         let script = Self.agentScript(agentDir: agentDir.path)

@@ -720,6 +720,7 @@ LIB	10	ProjectLockTests.swift
 APP	19	ProjectReadOnlyFaceTests.swift
 APP	9	McpProjectArbitrationTests.swift
 APP	8	McpProjectReadOnlyErrorTests.swift
+APP	14	McpProjectToolsetTests.swift	# M7-3-01 T5 增行(2026-10-17):project 域快照层 + 锁仲裁 fixture + list_versions/region/compare/list_luts golden
 IOPP	4	ColormatchResolverBoxTests.swift
 
 # M6-2-01 增行记录（2026-10-16 执行期，checker E2 测试登记纪律）：新测试文件随各自任务
