@@ -135,3 +135,14 @@ MIT OR Apache-2.0（任选其一）——**代码级移植合法**（与 darktab
 ## 六、裁决记录（用户回批 2026-10-11）
 
 **OQ-LC-1..6 全部按推荐采纳**：①MCP-09-A 按「单写者锁 + 活实例转发」立项 ②ALCE-03 解冻（先 spike AVFoundation auxiliary 原生路，LightCraft 实现兜底）③引入 per-photo process version（M5 TRACK/Mertens 落地后 iop 调参概率升高，越早越省）④AI 分割蒙版先零成本 spike Apple VNGenerateForegroundInstanceMask，达标即收 ⑤图库功能包 stacks + auto-stack 优先（smart albums 次之，挑片视图/watched folders 挂账）⑥ALCEDO-FEATURE-MAP 升维 ID 化 parity 清单 + CI 对账（作为 M6 对标里程碑第一个 plan）。立项站点随 M5 后续站/M6 charter 排布。
+
+## 七、2026-10-16 增量登记（`a82a001d..0da998f2`，+43）
+
+> 夜间同步批：fetch 经 SSH 显式 URL（origin HTTPS 走本机死代理 127.0.0.1:10809，绕开）；
+> 上游历史重写仓惯例 `reset --hard 0da998f2`。主体 = batch 39/40 整合 + 四个功能面：
+
+- `c78b457c` **LR-VIEW-ZOOM 软打样 1:1 zoom window**：软打样 1:1 渲染放大窗，1:1 像素与导出做等值测试。借鉴候选：**是**——软打样我方未立项；立项时「1:1 像素 == 导出」验收形态直接取用（UQ-L2）。
+- `cb8b797c` **KEY-SLIDER-RESET 滑杆双击重置**（#1436）：名称/滑块双击回默认值。借鉴候选：**是**——SwiftUI Slider 无原生支持需自实现；yiyin 面板与我方 iop 面板通用 UX。
+- `ab64e9a5` **KEY-SLIDER-SCRUB 滑杆值横扫**：拖值左右扫动调参。借鉴候选：**是**——与上件合为一个滑杆 UX 小件（UQ-L1）。
+- `0242a75b` + `f625c74c` **Faces 网络整体 GPU 化（wgpu）**：整网卷积 GPU + 批处理 + CPU-only 开关 + 限速 GPU 使用。借鉴候选：方法论级——人脸检测不在范围；「GPU 批处理 + CPU 回退 + pacing」模式对 M2AI 推理 worker 一次参考即弃。
+- 其余 ~35：batch 39/40 整合（brush Shift-click 直线笔画 `e5c6e17b`、PERF-SYNC 目录清单直读 `540a281c`、格鲁吉亚语 i18n、parity 清单文档维护、CI font pin `fd9d045c`、clippy 1.99 修复 `76f12dca`）——无独立借鉴面；brush Shift-click 直线登记为蒙版笔刷 UX 小注记（我方笔刷若建，Shift-click 直线是 Lightroom 惯例）。

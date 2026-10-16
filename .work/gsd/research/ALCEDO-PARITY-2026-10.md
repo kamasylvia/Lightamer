@@ -107,4 +107,31 @@
   本文件为其续批。stable-ID 对账正本仍 = `docs/parity-checklist.md`（FEAT- 体系）。
 - 上游 automation plan：`docs/roadmap/alcedo_studio/automation/cli_mcp_automation_plan.md`
   （AU1–AU14，source revision `f03ece5df`）。
-- 本地仓状态：main = `7052355`，origin/main 同步，工作树干净。
+- 本地仓状态：main = `6024386`（2026-10-16 ff，见 §五），工作树干净。
+
+## 五、2026-10-16 增量（`7052355..6024386`，+19）
+
+> 夜间同步批：SSH fetch（HTTPS 代理死）→ 干净树 ff-only，`7052355..6024386` 零冲突。
+> 上游 2026-10-14..10-15：**v0.3.3 发布**（`457d6d8` release notes + 版本号）+ 2 主干 commit。
+> 主题面收敛——无新特性叙事，全部为自动化面收尾杂务 + 导出/呈现缺陷修复。
+
+### 逐 commit 判定
+
+| 上游锚 | 交付 | 判定 | 依据 |
+|---|---|---|---|
+| `36db9a8` | export ICC：macOS 嵌入 γ2.2/2.4 自建 profile + **预览层改挂导出同款 profile**。根因 = CG named space 无纯幂曲线（此前导出被 ITUR_709/sRGB 代理曲线顶替，预览标 SRGB 却报精确匹配，#391） | **已有（导出半）+ 入队候选（预览半）** | 导出嵌入：我方 L053 `DrtOutputColorSpace` SDR 幂臂自建 ICC v4 字节，同判同解且更早。预览标注：我方 DRT-SDR 层挂 `CGColorSpace(calibratedRGBWhitePoint:...)` 近似（EditorMTKView `drtLayerColorSpace`，srgbPiecewise 更以 2.2 幂近似分段曲线），导出文件却携 ICC v4——**正是上游此修的失配类**。候选 = 层 colorspace 改 `CGColorSpace(iccProfileData:)` 挂导出同款字节 + ColorSync 解码等值测试；小件，UQ-A1 |
+| `6203791` | FAIL 冲突档一步原子不覆盖：`renameatx_np(RENAME_EXCL)` / `renameat2(NOREPLACE)` / `link()+unlink()`，exists() 预检移除（TOCTOU） | **入队候选** | 我方 `.fail` = occupiedNames 快照检查（ExportNamer.destinationURL）+ 编码器直写目标路径——快照与落盘之间他进程建文件即被覆盖，同款 TOCTOU。候选 = FAIL 档终写改排他晋升（tmp 编码 + `link()` EEXIST 拒绝 + unlink）；小件，UQ-A2 |
+| `fedbc9c` | 窗口最小化即拒帧、还原续渲（自研 presenter sink 在最小化时 map 写目标 5s 挂死 + 还原后无人重渲，首帧被拒即会话 Failed） | **注记（不立项）** | 架构差：Alcedo 自研 sink 多槽仲裁有「consumer off 无界等待」结构缺陷；我方 MTKView/CAMetalLayer 标准呈链无此形态。观察项：最小化期间长导出 → 还原首帧正确性，入 GUI 走查清单即可 |
+| `1f12551` | 自动化输出不覆盖：library.thumbnail(s)/render.preview 排他创建（NewOnly），失败清理自建文件 | **注记（不立项，纪律挂未来面）** | 我方 MCP 面无 thumbnail/preview 生成命令；「排他创建 + 失败清理自建物」纪律入 UPSTREAM-QUEUE 未来面节，MCP 扩面时吸收 |
+| `c1a66b4` | session-prune 只删自家陈旧会话记录，不动其它文件 | 注记 | 我方 `.lra`/`.lalb` 无 prune 面；将来若建，「只删自家记录」由 sidecar 隔离设计天然满足 |
+| `cbba564` | background-tasks agent 会话卡片随任务列表滚动 | 注记 | Alcedo agent GUI 专属 |
+| `ace755e` | `alcedo-cli --version` 打印版本 | 注记 | CLI 壳未立项；若建照抄旗标惯例（入 UPSTREAM-QUEUE 未来面节） |
+| `829832d` + `6024386` | Dawn（WebGPU）submodule 移除 + 构建残留清理 | 注记 | Alcedo 第三方构建卫生，与我方无关 |
+| `457d6d8` + `34025e1` | v0.3.3 release notes + 版本面 | 注记 | docs |
+| `560f9f6` | gitignore 本地 docs examples | 注记 | 无关 |
+| `ee381a8` `a8ea591` `55676d1` `c6d44e2` `acb6e49` `5a92008` `3aa854b` | 上表各项的 merge commit | — | 不单独判定 |
+
+### 分布汇总
+
+**已有 1**（`36db9a8` 导出嵌入半，L053 先行）；**入队 2**（UQ-A1 预览层同 profile 标注、UQ-A2 FAIL 原子不覆盖终写——均小件，落 `research/UPSTREAM-QUEUE.md`）；**不立项/注记 16**（含 merge 与未来面纪律两条）。无新 REQUIREMENTS ID。
+
