@@ -27,6 +27,7 @@ files_modified:
   - App/Sources/Lightamer/MCP/Tools/SearchStateToolset.swift   # T1-T3 新建：McpSearchStateContext（全 provider closure，optional 缝缺省 nil；library provider = ProjectFileStore + projectDirectory——E-1 修法甲，LibraryStore 按需公开 init 派生）+ 三工具 registerAll（search_photos/get_history/get_state，readOnlyHint:true）+ kind 判别纯函数 + EXIF 窄投影两段走法/CLIP/全文三路由 + 双地址制解析（digits→LibraryStore.image+ImageLinker / relPath→sessionPair）
   - App/Sources/Lightamer/MCP/McpToolRegistry.swift            # T2：McpToolError additive modelUnavailable(String)（code/message 两 switch 补臂，15→16）；registry 其余零改
   - App/Sources/Lightamer/MCP/McpServerController.swift        # T1：makeRegistry 第三参数 searchState:（缺省 nil）+ startHTTPHost/startHeadlessStdioHost/startReadOnlyHTTPHost/startEmbeddedIfPreferenceEnabled 四缝 additive 参数透传 + EmbeddedState box searchState 字段（startEmbeddedServer on-leg 同路透传——F-4① 第五缝）+ 无头臂 headless searchState 装配（library seam = headlessProjectStore 直携）；T4：runHeadlessArbitrated heldByOther 臂 emitConnectGuidance 后 openReadOnly()（失败 = nil seam + log 降级，禁 exit）+ 只读 http face DEBUG 门控独立文件名 per-test discovery（F-2 甲，Release 零触）——connect-guidance 双通道与 stdio EOF 腿零改
+  - App/Sources/Lightamer/MCP/McpEndpointFile.swift            # T4：discovery 写读 additive 变体（writeReadOnly/readReadOnly 或 paths 变体——独立文件名 mcp-endpoint-readonly.json；既有 write/read 与 mcp-endpoint.json 语义零改——R-1，checker 批补申报；禁在 McpServerController 内二写 discovery 逻辑）
   - App/Sources/Lightamer/UI/LightamerApp.swift                # T1：GUI 装配点（:1331-1374 同段）构造 McpSearchStateContext（library/sessionPair/semanticStore/semantic/fulltext/liveState/projectWriteProbe——@Observable 态全部闭包内 MainActor.run hop）传 startEmbeddedIfPreferenceEnabled
   - Resources/Localizable.xcstrings                            # T1：三新键尾块纯插入（描述文案 = 三工具语义边界，search_photos 含 library-vs-session 双域分界句）
   - Tests/LightamerTests/McpSearchStateToolsetTests.swift      # T5 新建：域快照层（3 工具 verbatim + 计数 23）+ parity golden 三臂 + get_history/get_state golden + typed 错误臂 + McpToolError 16 值穷举 + 只读豁免面（writeCallCount 零计 / writerCheck:false 不拒 / probe 不触）
@@ -196,7 +197,7 @@ plan 承载全部九项；执行面速查：
   封闭表 / :276-345 register/call/writer gate / :198-216 McpTimeouts）
 - `App/Sources/Lightamer/MCP/McpServerController.swift`（:242-345
   runHeadlessArbitrated 双臂 / :376-470 只读 http face + stdio host +
-  makeRegistry / :571-587 writeCallCount 面）
+  makeRegistry / :571-588 writeCallCount 面）
 - `App/Sources/Lightamer/Library/LibrarySearchModel.swift`（:100-244 三腿
   provider 形与 provider 接线正本——McpSearchStateContext 闭包签名同源）
 
@@ -229,8 +230,8 @@ startEmbeddedServer on-leg——F-4① 第五缝正本）；`LibrarySearchModel.
      ProjectFileStore，provider 直携；`LibraryStore` 需要处（get_history
      digits 臂 `LibraryStore.image(id:)`）由 toolset 用公开
      `LibraryStore(store:)` init 现场派生——GUI 装配点 LightamerApp
-     :1362-1371 match_color provider 已演示派生形；**不加 LibraryStore
-     accessor**（零 Core diff）**）/ `sessionPair`（get_history relPath
+     :1362-1371 match_color provider 已演示派生形；不加 LibraryStore
+     accessor（零 Core diff））/ `sessionPair`（get_history relPath
      臂）/ `semanticStore` / `semantic` / `fulltext`
      （`AIDescriptionService.imageIDs` 查询缝，
      LibrarySearchModel fulltextProvider 同形）/ `liveState`（get_state
@@ -303,8 +304,9 @@ startEmbeddedServer on-leg——F-4① 第五缝正本）；`LibrarySearchModel.
 ## T2 — `search_photos` 三路由 + `modelUnavailable` 错误臂
 
 > **单源红线（RESEARCH §0.1）**：EXIF 腿 = `ExifSearchParser.parse` →
-> `LibraryQueries.searchPage`（FilterSQL `.library` 域，`stackMode: .flat`
-> MCP 先例）；CLIP 腿 = `SemanticEngine.search`；全文腿 =
+> `LibraryQueries.searchPage` + `searchNullTail`（两段走法两查询皆既有
+> 单源——FilterSQL `.library` 域，`stackMode: .flat` MCP 先例）；CLIP 腿 =
+> `SemanticEngine.search`；全文腿 =
 > `AIDescriptionService.imageIDs`——**无第二 SQL/检索面**（FilterSQL 头注
 > 「no second SQL face may exist」直接覆盖本工具）。
 
@@ -321,7 +323,10 @@ startEmbeddedServer on-leg——F-4① 第五缝正本）；`LibrarySearchModel.
      `mode` enum `exif|clip|fulltext` 默认 `exif`；`limit` 1..500（EXIF
      默认 200 / CLIP 帽 256 / 全文帽 500）；`cursor`（EXIF 臂 only，
      opaque token——**PhotoProjection.Cursor 同形 base64 + sortedKeys
-     JSON，payload 加 `segment` 字段（main|nullTail）+ sort 键 + 方向 +
+     JSON，payload 加 `segment` 字段（main|nullTail，**缺失 = typed
+     `invalidParams` 拒——跨工具 token（list_photos 传入 search_photos）
+     静默接受 = 语义混淆，cursor 是 OUR token，PhotoProjection decode
+     garbage 同纪律（R-3，checker 批钉）**）+ sort 键 + 方向 +
      anchor（E-2 两段走法；sort 键嵌入白拿换键失效负测，:198-270 先例
      形）**）；`sort`（EXIF 臂 only，`{key, ascending}` 白名单
      五键 filename/rating/captureDate/iso/focalLength，**默认显式钉
@@ -335,7 +340,13 @@ startEmbeddedServer on-leg——F-4① 第五缝正本）；`LibrarySearchModel.
      LibraryQueries :231-236）→ 主段耗尽（返回行数 < limit）→
      `nextCursor` **翻段**（token `segment = nullTail`、anchor = nil）→
      **尾段 `searchNullTail`**（NULL tier 独立查询，:239-256——五个 sort
-     键全可空故尾段对五键全合法）；尾段亦尽 = 无 `nextCursor`。与
+     键全可空故尾段对五键全合法）；尾段亦尽 = 无 `nextCursor`。
+     **尾段续页 anchor 手搭（R-2，checker 批钉）**：`.anchor(of:key:)`
+     对 NULL-key 行返 nil（LibraryQueries :89 guard），尾段续页 cursor
+     的 anchor = `LibraryPageAnchor(keyValue: .int(nil),
+     imagePath: last.imagePath)`（keyValue 未用，image_path 唯一 seek——
+     LibraryGridModel `advanceTail` :296-300 注记正本同款）；翻段首尾页
+     anchor=nil 不受此涉。与
      LibraryGridModel 两段走法（:5-13/:88-91 Segment{main, nullTail}）
      一一对应。窄投影九字段（CONTEXT
      D-M7-2-3——列映射以 `images` 表实存列为准，无列支撑字段如实缺席，
@@ -472,7 +483,9 @@ startEmbeddedServer on-leg——F-4① 第五缝正本）；`LibrarySearchModel.
 - **验收标准（机检）**：
   - 构建绿；`git diff` 逐 hunk 核 = 恰 heldByOther 臂一处插入 + 透传 +
     只读 face DEBUG discovery 写（action 5，`#if DEBUG` 分支——Release
-    路径零 diff）；connect-guidance 发射面/stdio EOF 腿/writer 臂零 diff。
+    路径零 diff）+ McpEndpointFile additive 变体两缝（write/read 与
+    `mcp-endpoint.json` 既有语义零改——R-1）；connect-guidance 发射面/
+    stdio EOF 腿/writer 臂零 diff。
   - 只读臂「search_photos 照常服务」经 action 5 端口通道亲调工具断言
     成功面（双进程锁 fixture 下；T5/SC 判据同源）。
   - `McpProjectArbitrationTests` 序列 A/B 零 diff 绿（T6 定向轮亲跑；
@@ -600,7 +613,8 @@ fixture 先例）。
 - **T5 大批量测试后置**（orchestrator 指定分批的内在风险）：T1-T4 码面
   缺陷在 T5 才暴露 → T5 发现码面缺陷 = 回注对应任务修复（fix commit +
   T5 重跑），禁为凑绿放宽断言；parity golden 三臂任一不恒等 = 停手归因
-  （单源链断裂嫌疑——查是否绕过 parse/searchPage/imageIDs 直连）。
+  （单源链断裂嫌疑——查是否绕过 parse/searchPage/searchNullTail/
+  imageIDs 直连）。
 - **CLIP 贴线超时**（万级库 vDSP 扫）：10s 档实测超时 → DECISIONS 申报
   升 `thumbnailsAndContact` 20s 档（唯一许可路径）；禁静默改档或加新档。
 - **F-2 甲 DEBUG discovery 写的碰撞面**：只读 face 独立文件名
