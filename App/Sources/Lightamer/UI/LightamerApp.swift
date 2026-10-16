@@ -1369,9 +1369,122 @@ internal struct LightamerApp: App {
                             return (LibraryStore(store: store), url)
                         }
                     }
+                    // M7-2-01 (T1 action 4): the search/state context — every
+                    // seam a provider closure, all @Observable reads inside a
+                    // MainActor.run hop (the handler never touches an
+                    // @Observable type). library carries the ProjectFileStore
+                    // directly (E-1: the three route single sources all take
+                    // one); writeCallCount rides the embedded handle (F-4②);
+                    // the workspace face assembles from the app-level state
+                    // objects — the per-window LibraryPhaseState (filter /
+                    // selectedIDs) is not visible from this assembly point,
+                    // those fields render null (the honest absent face,
+                    // DECISIONS).
+                    let searchStateContext = McpSearchStateContext(
+                        library: { [libraryProjects] in
+                            await MainActor.run {
+                                guard let store = libraryProjects.projectStore,
+                                    let url = libraryProjects.projectURL
+                                else { return nil }
+                                return (store: store, projectDirectory: url)
+                            }
+                        },
+                        sessionPair: { [sessionIndexController] in
+                            await MainActor.run {
+                                sessionIndexController.currentSession
+                            }
+                        },
+                        semanticStore: { [libraryProjects] in
+                            await MainActor.run {
+                                libraryProjects.projectStore.map {
+                                    SemanticStore(store: $0)
+                                }
+                            }
+                        },
+                        semantic: {
+                            await AIInferenceService.shared.semanticSearcher()
+                        },
+                        fulltext: { [libraryProjects] query in
+                            guard let store = await MainActor.run(body: {
+                                libraryProjects.projectStore
+                            }) else {
+                                throw McpToolError.notSessionMember(
+                                    "no open project — open a .lalb first")
+                            }
+                            return try await AIDescriptionService.imageIDs(
+                                matching: query, store: store)
+                        },
+                        liveState: { [pipeCoordinator, editorState, exportState,
+                                     sessionIndexController] in
+                            // The @Observable reads + the queue actor call
+                            // compose the workspace/editor/tasks faces here
+                            // (MainActor hops inside; the tool handler only
+                            // ever sees the returned value snapshot).
+                            let editor: McpJSON = await MainActor.run {
+                                .object([
+                                    "liveImageURL": pipeCoordinator.liveImageURL
+                                        .map { .string($0.path) } ?? .null,
+                                    "documentURL": editorState.loadedImageURL
+                                        .map { .string($0.path) } ?? .null,
+                                    "hasEdits":
+                                        .bool(editorState.history.position >= 0),
+                                ])
+                            }
+                            let sessionRoot: String? = await MainActor.run {
+                                sessionIndexController.currentSession?.root.path
+                            }
+                            let tasks: McpJSON?
+                            if let queue = await MainActor.run(body: {
+                                exportState.queue
+                            }) {
+                                let jobs = await queue.snapshots()
+                                var counts: [String: Int] = [:]
+                                for job in jobs {
+                                    switch job.state {
+                                    case .pending:
+                                        counts["pending", default: 0] += 1
+                                    case .rendering, .encoding:
+                                        counts["active", default: 0] += 1
+                                    case .done:
+                                        counts["done", default: 0] += 1
+                                    case .failed:
+                                        counts["failed", default: 0] += 1
+                                    case .cancelled:
+                                        counts["cancelled", default: 0] += 1
+                                    }
+                                }
+                                counts["total"] = jobs.count
+                                var object: [String: McpJSON] = [:]
+                                for (key, value) in counts {
+                                    object[key] = .int(value)
+                                }
+                                tasks = .object(object)
+                            } else {
+                                tasks = nil
+                            }
+                            let workspace: McpJSON = .object([
+                                // The per-window LibraryPhaseState (filter /
+                                // selectedIDs / editorPhase.currentImageID)
+                                // is not visible from this app-level
+                                // assembly — those fields stay null (the
+                                // honest absent face, DECISIONS).
+                                "currentSessionRoot": sessionRoot
+                                    .map { .string($0) } ?? .null,
+                                "filterSummary": .null,
+                                "selectedCount": .null,
+                            ])
+                            return McpSearchStateLiveSnapshot(
+                                workspace: workspace, editor: editor,
+                                tasks: tasks)
+                        },
+                        projectWriteProbe: projectWriteProbe,
+                        writeCallCount: {
+                            await McpServerController.embeddedWriteCallCount()
+                        })
                     await McpServerController.startEmbeddedIfPreferenceEnabled(
                         editing: editingSeams,
-                        culling: cullingContext)
+                        culling: cullingContext,
+                        searchState: searchStateContext)
                 }
                 // Plan M2-2-2: the project/import minimal faces (OQ-1 A +
                 // OQ-4/OQ-11 切分线 — dialog + progress here, the complete

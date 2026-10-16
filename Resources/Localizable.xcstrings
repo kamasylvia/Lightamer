@@ -32552,6 +32552,36 @@
           }
         }
       }
+    },
+    "mcp_tool_desc_search_photos" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在当前打开的图库（.lalb 项目）中检索照片——`list_photos` 寻址的是打开的会话，两者从不混用。每次调用对全库求值（无会话过滤叠加态）。mode：exif（缺省）用与 GUI 搜索框相同的语法解析查询——普通词走 EXIF 文本索引，结构化 token（iso800、f/2.8、2024-06..2024-08）走类型化列；clip 用本地 CLIP 模型嵌入查询并按 cosine 分数降序返回近邻；fulltext 走 AI 理解全文索引（caption/tags/scene）按 bm25 rank 序返回。分页仅存在于 mode=exif：把 `nextCursor` 作为 `cursor` 回传（短页即结尾；cursor 只对签发它的同一 sort 与本工具有效）。sort 是 {key: filename|rating|captureDate|iso|focalLength, ascending}（缺省 filename 升序）；cursor/sort 在 clip/fulltext 模式被拒绝（有界 top-K，不分页）。行携带窄投影（imageID、imagePath——项目相对 path-kind 形，寻址请用 imageID——filename、dir、captureDate、rating、flag、colorLabel、hasEdits）；缩略图走 get_thumbnails。错误：notSessionMember（无打开项目——先打开一个 .lalb）、invalidParams（空查询、未识别 token、坏 cursor/sort）、modelUnavailable（语义模型未就绪）。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_get_history" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读取一张图的编辑历史（只读——无 undo/redo 动词；本面从不写盘）：非破坏性编辑日志（参数编辑、图层结构编辑、粘贴纪元、文档级显示变换与胶片编辑）、版本列表元数据、活跃版本，以及元数据面（note/keywords/rating/flag/colorLabel）。image：库内图片 id（纯数字）或会话内 relPath（match_color 同款寻址）。items 缺省为摘要形（id/label/timestamp/kind/layerScope）；includeParams=true 逐项附加 params。列表截取最新端 500 条帽（itemCount 恒真值总数——截断可检出，保留最新端）。author 为保留字段，现阶段恒 null。完整版本链（每个版本自己的 item 列表）不在本面内。错误：notSessionMember（图片不可寻址 / 无打开项目）、invalidParams。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_get_state" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本服务器状态的一次性快照，六字段组：project（打开的 .lalb——路径 / 只读立场）、workspace（图库集合面：过滤 / 选择 / 当前图）、editor（活文档：图 URL / 有无编辑）、control（单写者锁 verdict + 写调用计数）、tasks（导出队列计数）与 server（服务器名/版本、host 模式、只读立场）。宿主看不到的字段为 null（如无头宿主的 workspace/editor/tasks；无 --project 旗标时 project）。这是一次性快照——字段不保证调用间一致；本面从不写盘。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
