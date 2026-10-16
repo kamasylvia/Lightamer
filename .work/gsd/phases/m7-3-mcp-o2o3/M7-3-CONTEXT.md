@@ -59,8 +59,13 @@ project_commands.cpp / version_commands.cpp 只读对表——GPL 零复制）�
     .openProject/createProject`（Alcedo 同构：automation 寄宿 GUI；controller
     是开项目单源，零新路径）；conflict 对话框即仲裁 UI——`openProject` 对
     heldByOther **不 throw**（publishConflict :150-166 亲核），工具应答判别
-    = 调用后 `projectStore == nil ∧ pendingConflict != nil` → typed
-    `projectReadOnly(holder)`（「对话框已发布、等用户裁决」的诚实应答）；
+    = **before/after 差分**（`pendingConflict` 调用前 nil ∧ 调用后非 nil ∧
+    `projectStore` 未变化）→ typed `projectReadOnly(holder)`（「对话框已
+    发布、等用户裁决」的诚实应答；评审修订：原「调用后 projectStore ==
+    nil ∧ pendingConflict != nil」单点式有两洞——已持项目 + held 目标误报
+    成功、stale pendingConflict 反向误报；GUI 臂 held 目标另加
+    `SingleWriterLock.probeLockAvailable` 无持有预检——held 直接 typed 拒
+    不调 openProject，**一次 agent 调用不得掀用户正开项目**）；
     判别缝在 context provider 闭包内完成，工具体零 controller 类型引用
     （F-6 源隔离纪律延续）。**controller 文件本身零 diff**（provider 闭包
     外部装配——FIX2③ import coalescer 两枚维持 M7-4 挂账，本波不触其尾部）。
@@ -149,6 +154,14 @@ project_commands.cpp / version_commands.cpp 只读对表——GPL 零复制）�
   grep 机检）。
 - 不补 = 进程退出 kernel 释放地板（M6-1 语义允许但丢 checkpoint 优雅面）——
   DECISIONS 申报偏离；本裁决采补。
+- **评审修订钉全（M1/H3③）**：arm 门控机制 = provider 闭包在
+  `runHeadless(mode:)` / `runHeadlessArbitrated(mode:)` 的 mode 可见作用域
+  内构造（mode 捕获进 provider/context——provider 签名不带 mode）+
+  `armStdioEOFReleaseOnce()` 内部自守卫 `mode == .stdio`（双保险——防
+  http daemon stdin 已闭时无门控 poll 立即 POLLHUP → close + exit(0) =
+  首次 open 成功即整 daemon 退出）；**偏离面补句：http 运行时开项目 =
+  进程退出 kernel 地板，checkpoint 优雅面仅 stdio**（http 臂不 arm 语义
+  正本不变，申报面钉全）。
 - 被否备选：不 arm（丢优雅 checkpoint）。
 
 ### D-M7-3-8 `list_versions` seam = ProjectToolset 自携同形两 seam（OQ-M7-3-8）
@@ -160,7 +173,14 @@ project_commands.cpp / version_commands.cpp 只读对表——GPL 零复制）�
   实例）。
 - 寻址 = `get_history` 双地址制 verbatim 复用（digits 库 id 经
   `LibraryStore.image(id:)` + ImageLinker / open-session relPath；
-  `resolveImageURL` :951-998 同构直调——零新寻址面）。
+  寻址核心抽 internal 共享 helper——`(image, libraryProvider,
+  sessionPairProvider)` 签名（评审修订：原「`resolveImageURL` :951-998
+  同构直调」按字面不可达——该函数 private static 且第二参吃
+  `McpSearchStateContext`，OQ-8 禁 ProjectToolset 消费之；共享抽取 =
+  行为零变的纯抽取，SearchStateToolset 传 context 两 seam、
+  ProjectToolset 传自携同形两 seam，零新寻址逻辑、禁复制形；
+  helper 只搬 searchState 现逻辑，禁顺手动 match_color provider——
+  锚病在案、M7-4 路由）。
 - **单源声明**：sidecar `readDocument`（`ExportRenderer.readDocument`
   :783 既有读缝）唯一真相——**不读 `.lalb` version_ref 投影**（投影 ≠ 真相，
   M2-8 KD-3；读了 = 双真相禁令违例）。version_ref 在本工具零角色。
@@ -194,10 +214,18 @@ project_commands.cpp / version_commands.cpp 只读对表——GPL 零复制）�
 捕获值**（`projectURL`/`isWriter` 闭包捕获）——运行时 open/create 后
 `get_state.project`/`server` 面会说谎。本波必修：liveState 改读**当前项目
 盒**（carrier + 可变 currentURL 小盒，per-call 重取）——盒空 = 现状
-no-project null 面逐字节（零 diff），盒持 = 真值；无 `--project` stdio 臂
-（:254 现 bare `McpSearchStateContext()`）同批换盒读 closure 形（open 前
+no-project null 面逐字节（零 diff），盒持 = 真值；**启动捕获退役范围 =
+liveState + library seam 的 projectDirectory 锚（:194
+`projectURL.deletingLastPathComponent()` 改盒读）**——运行时切换后
+PathKind 0 项目相对行解析锚随盒换项目（锚捕旧目录 = 静默解析错文件，
+fix `20997721` 同族第二实例——H2）；无 `--project` 两臂（stdio
+:254-256 **和 http :263-267**——裸 `McpSearchStateContext()` 亲验恰两处）
+同批换盒读 closure 形（open 前
 library/fulltext seam 读空盒 = nil = typed `notSessionMember` 与今日 bare
-context 行为逐字节同；open 后即时活——零额外接线）。F-AC-2 probe 透传
+context 行为逐字节同；open 后即时活——零额外接线）；**生产宿主调用点
+全清单传 project provider**（runHeadless :254/:263 /
+runHeadlessArbitrated :378/:390/:410——不传 = 该宿主 project 三工具静默
+缺席，违双宿主红线「tools never disappear」——H3）。F-AC-2 probe 透传
 （`makeHeadlessSearchState` 加 `projectWriteProbe` 默认参 + :374 调用点传
 既有 probe）同缝落——headless `get_state.control.lock` = verdict 真值。
 
@@ -245,3 +273,23 @@ schema 零改；LightamerSidecar/HistoryStack/PixelPipe/ExportQueueContract
 ⑧xcstrings 4 新键尾块纯插入 + render_preview 原位改 + zh-audit 双 PASS；
 UserDefaults 零新键。⑨`--all` 全套轮批准制 + 8G 门 + MEMFAIL 机检 + 运行中
 保持监视；测试宿主清理先核 parentage。
+
+---
+
+## 评审修订注记（2026-10-17 fixer 批）
+
+`M7-3-01-PLAN-REVIEW.md`（4 高 / 3 中 / 4 低，总评「须修后放行」）修订批
+已落 plan 文本；本文件同步修订四处实现级细节（**OQ 裁决本身零重开，
+D-M7-3-1..10 生效值不变**）：D-M7-3-1 判别缝谓词改 before/after 差分 +
+held 目标 probeLockAvailable 预检（H4）；D-M7-3-7 补 arm mode 自守卫
++ http 无 EOF 腿偏离句（M1/H3③）；D-M7-3-8「resolveImageURL 同构直调」
+改共享寻址 helper 抽取形（M3——原句按字面不可达，private + 吃
+searchState context）；「get_state 联动改形」节补 no-project http 臂
++ 生产宿主调用点清单 + :194 projectDirectory 锚退役（H3/H2）。
+
+**键数勘误（L1）**：pristine payload（SearchStateToolset :833-846）亲点
+= **12 键**（image/position/itemCount/items/versions/activeVersionID/
+note/keywords/rating/flag/colorLabel/author），加 truncated = **13**——
+plan SC/T1/files_modified 三处「十三键→十四键」已改「十二键→十三键」；
+`M7-2-VALIDATION.md` §③ 同写「十三键」系源头同错，属历史签核文档不回改，
+以本注记为准。SC grep 判据（truncated 恰一行）不受影响。
