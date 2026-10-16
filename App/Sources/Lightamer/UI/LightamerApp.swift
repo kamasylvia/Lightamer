@@ -1415,11 +1415,30 @@ internal struct LightamerApp: App {
                                 matching: query, store: store)
                         },
                         liveState: { [pipeCoordinator, editorState, exportState,
-                                     sessionIndexController] in
+                                     sessionIndexController, libraryProjects] in
                             // The @Observable reads + the queue actor call
-                            // compose the workspace/editor/tasks faces here
-                            // (MainActor hops inside; the tool handler only
-                            // ever sees the returned value snapshot).
+                            // compose the project/workspace/editor/tasks/
+                            // server faces here (MainActor hops inside; the
+                            // tool handler only ever sees the returned
+                            // value snapshot).
+                            let readOnly = await MainActor.run {
+                                libraryProjects.isReadOnly
+                            }
+                            let projectPath: String? = await MainActor.run {
+                                libraryProjects.projectURL?.path
+                            }
+                            let project: McpJSON
+                            if let projectPath {
+                                project = .object([
+                                    "path": .string(projectPath),
+                                    "readOnly": .bool(readOnly),
+                                ])
+                            } else {
+                                project = .object([
+                                    "path": .null,
+                                    "readOnly": .null,
+                                ])
+                            }
                             let editor: McpJSON = await MainActor.run {
                                 .object([
                                     "liveImageURL": pipeCoordinator.liveImageURL
@@ -1462,6 +1481,14 @@ internal struct LightamerApp: App {
                             } else {
                                 tasks = nil
                             }
+                            let server: McpJSON = .object([
+                                "name": .string(
+                                    McpServerController.serverName),
+                                "version": .string(
+                                    McpServerController.serverVersion),
+                                "hostMode": .string("embedded"),
+                                "readOnly": .bool(readOnly),
+                            ])
                             let workspace: McpJSON = .object([
                                 // The per-window LibraryPhaseState (filter /
                                 // selectedIDs / editorPhase.currentImageID)
@@ -1474,8 +1501,8 @@ internal struct LightamerApp: App {
                                 "selectedCount": .null,
                             ])
                             return McpSearchStateLiveSnapshot(
-                                workspace: workspace, editor: editor,
-                                tasks: tasks)
+                                project: project, workspace: workspace,
+                                editor: editor, tasks: tasks, server: server)
                         },
                         projectWriteProbe: projectWriteProbe,
                         writeCallCount: {
