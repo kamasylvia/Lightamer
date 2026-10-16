@@ -69,6 +69,10 @@ final class McpProjectArbitrationTests: XCTestCase {
             Bundle.main.executableURL, "test host binary missing")
         var environment = ProcessInfo.processInfo.environment
         environment["LIGHTAMER_MCP_ENDPOINT_DIR"] = endpointDirectory.path
+        // F14 (M7-4-01): spawn-time LUT preheat opt-out — the real-host
+        // fixture must not pay the ~50s .utility parse (nor seed the real
+        // user LUT root) inside the e2e windows.
+        environment["LIGHTAMER_SKIP_LUT_PREHEAT"] = "1"
         process.environment = environment
         process.arguments = arguments
         let stdout = Pipe()
@@ -433,5 +437,102 @@ final class McpProjectArbitrationTests: XCTestCase {
         XCTAssertTrue(
             stdoutBytes.isEmpty,
             "the legacy body emits nothing unprompted on stdout")
+    }
+
+    // MARK: - S1 e2e (M7-4-01 T1): the REAL EOF disconnect face
+
+    /// The first REAL stdin-EOF disconnect leg (the arbitration spawns use
+    /// SIGTERM — `child.terminate()` — which never drives the watcher's
+    /// POLLHUP path). Drive: spawn the production host `--mcp-stdio` →
+    /// initialize → `project_create` (the runtime open arms the EOF
+    /// watcher) → close the pipe's WRITE end (the agent-disconnect face)
+    /// → the host must exit ≤12s (the pre-fix events:0 form never woke —
+    /// the process parked forever holding the flock) and the close-riding
+    /// TRUNCATE checkpoint must leave `.lalb-wal` EMPTY (size == 0 — a
+    /// killed process cannot produce this state, so it is the graceful
+    /// checkpoint face's positive evidence).
+    func testStdioDisconnectReleasesProjectGracefullyE2E() async throws {
+        let packageName = "EofRelease"
+        let packageURL = tempDirectory.appendingPathComponent(
+            packageName + ".lalb")
+        let (child, stdout, _) = try makeChild(arguments: ["--mcp-stdio"])
+
+        // The handshake (line-delimited JSON-RPC over the stdin/stdout
+        // pipes — the same face the real agents drive).
+        let stdin = try XCTUnwrap(
+            child.standardInput as? Pipe, "the child stdin must be a pipe")
+        func send(_ line: String) {
+            stdin.fileHandleForWriting.write(Data((line + "\n").utf8))
+        }
+        send(#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"m74-e2e","version":"0"}}}"#)
+        _ = try XCTUnwrap(stdout.firstLine(), "the initialize reply")
+        send(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
+        send(#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"project_create","arguments":{"folder":"\#(tempDirectory.path)","name":"\#(packageName)"}}}"#)
+
+        // Wait (bounded) for the create reply: the runtime open is done
+        // and the EOF watcher is armed once this returns.
+        var createReplied = false
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline, !createReplied {
+            let chunk = stdout.drainAvailable(maxWait: 0.5)
+            guard let text = String(data: chunk, encoding: .utf8) else { break }
+            for line in text.components(separatedBy: "\n") {
+                guard let object = try? JSONSerialization.jsonObject(
+                    with: Data(line.utf8)) as? [String: Any]
+                else { continue }
+                if (object["id"] as? Int) == 2 {
+                    XCTAssertNil(
+                        object["error"], "project_create must succeed: \(line)")
+                    createReplied = true
+                }
+            }
+        }
+        XCTAssertTrue(
+            createReplied, "the project_create reply never arrived (10s)")
+
+        // The lock-semantics side note (the optional leg): while the child
+        // holds the freshly created package, a second open from HERE is
+        // the typed heldByOther refusal.
+        let sidecar = ProjectFileStore(at: packageURL)
+        do {
+            _ = try await sidecar.open(role: .headless)
+            XCTFail("the child must hold the project lock after create")
+        } catch let error as LibraryError {
+            guard case .projectHeldByOther = error else {
+                return XCTFail("wrong typed error: \(error)")
+            }
+        }
+
+        // THE DISCONNECT: close the sole write end = the real EOF face
+        // (the watcher's poll must wake POLLHUP → close + exit(0)).
+        stdin.fileHandleForWriting.closeFile()
+        let disconnectAt = Date()
+        while Date() < disconnectAt.addingTimeInterval(12), child.isRunning {
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        XCTAssertFalse(
+            child.isRunning,
+            "the stdio host must exit ≤12s after stdin EOF (the S1 fix — "
+                + "the events:0 poll form never woke and the process parked "
+                + "holding the flock)")
+        child.waitUntilExit()
+        XCTAssertEqual(
+            child.terminationStatus, 0,
+            "the graceful-release exit is exit(0) (not a crash)")
+
+        // The checkpoint face: the watcher's close rides the FORCED TRUNCATE
+        // checkpoint — the WAL must be empty (a killed process leaves pages
+        // behind, so size == 0 is positive evidence of the graceful face).
+        let walURL = packageURL.deletingPathExtension()
+            .appendingPathExtension("lalb-wal")
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: walURL.path),
+            "the WAL file must survive the clean close on this platform")
+        let walSize = try FileManager.default.attributesOfItem(
+            atPath: walURL.path)[.size] as? Int
+        XCTAssertEqual(
+            walSize, 0,
+            "the graceful checkpoint must leave .lalb-wal EMPTY (size == 0) — "
+                + "a killed process cannot produce this state")
     }
 }

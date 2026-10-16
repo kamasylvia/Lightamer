@@ -393,14 +393,33 @@ enum McpServerController {
         guard !eofArmDone else { return }
         eofArmDone = true
         Task.detached(priority: .utility) {
-            var fds = [pollfd(fd: STDIN_FILENO, events: 0, revents: 0)]
+            // POLLIN must be REQUESTED (events): a macOS pipe write-end
+            // close never wakes an events:0 poll, so the pre-M7-4 form
+            // never fired. The timeout only bounds the blocked phase —
+            // on an always-readable fd poll returns immediately — so the
+            // rate limiter lives in the pure-POLLIN arm's sleep below.
+            var fds = [pollfd(fd: STDIN_FILENO, events: Int16(POLLIN), revents: 0)]
             while true {
-                let count = poll(&fds, 1, -1)
+                let count = poll(&fds, 1, 250)
                 if count > 0,
                     fds[0].revents & (Int16(POLLHUP) | Int16(POLLERR)) != 0 {
                     break
                 }
+                // Clearing only revents (never the events request bit):
+                // the watcher watches HUP without stealing bytes — the
+                // request-read thread owns consumption.
                 fds[0].revents = 0
+                if count > 0 {
+                    // Pure POLLIN on an always-readable fd (dup2'd
+                    // /dev/null in test hosts): poll returns ready on
+                    // every iteration, so sleep to cap this watcher at
+                    // ~4 Hz instead of a syscall spin. A real pipe with
+                    // readable data also lands here and merely delays
+                    // the next HUP check by ≤250ms — zero bytes are
+                    // consumed and the request thread is unaffected.
+                    try? await Task.sleep(nanoseconds: 250_000_000)
+                }
+                // count == 0: the 250ms wait was already paid — loop.
             }
             try? await McpServerController.headlessProjectBox.takeStore()?.close()
             exit(0)
