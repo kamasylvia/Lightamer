@@ -1380,8 +1380,15 @@ internal struct LightamerApp: App {
                     // selectedIDs) is not visible from this assembly point,
                     // those fields render null (the honest absent face,
                     // DECISIONS).
-                    let searchStateContext = McpSearchStateContext(
-                        library: { [libraryProjects] in
+                    // M7-3 T4 (OQ-8): the library/sessionPair closures are
+                    // lifted into ONE pair of local variables — the SAME
+                    // closure values ride BOTH contexts (the search/state
+                    // context and the project context), provider logic is
+                    // never duplicated.
+                    let librarySeam:
+                        @Sendable () async -> (
+                            store: ProjectFileStore, projectDirectory: URL
+                        )? = { [libraryProjects] in
                             await MainActor.run {
                                 guard let store = libraryProjects.projectStore,
                                     let url = libraryProjects.projectURL
@@ -1396,12 +1403,18 @@ internal struct LightamerApp: App {
                                 return (store: store,
                                         projectDirectory: url.deletingLastPathComponent())
                             }
-                        },
-                        sessionPair: { [sessionIndexController] in
+                        }
+                    let sessionPairSeam:
+                        @Sendable () async -> (
+                            store: SessionIndexStore, root: URL
+                        )? = { [sessionIndexController] in
                             await MainActor.run {
                                 sessionIndexController.currentSession
                             }
-                        },
+                        }
+                    let searchStateContext = McpSearchStateContext(
+                        library: librarySeam,
+                        sessionPair: sessionPairSeam,
                         semanticStore: { [libraryProjects] in
                             await MainActor.run {
                                 libraryProjects.projectStore.map {
@@ -1516,10 +1529,74 @@ internal struct LightamerApp: App {
                         writeCallCount: {
                             await McpServerController.embeddedWriteCallCount()
                         })
+                    // M7-3 T4: the GUI-embedded project context (D-M7-3-1
+                    // GUI arm) — the controller-hop providers with the
+                    // held-target pre-check BEFORE openProject (a held
+                    // target never touches the controller: one agent call
+                    // must not displace the user's currently-open project)
+                    // and the before/after conflict DIFF (openProject
+                    // answers a held target by PUBLISHING the dialog, no
+                    // throw — the diff turns that into the typed
+                    // projectReadOnly answer; the before==nil clause keeps
+                    // a stale dialog from反向误报). The controller FILE
+                    // itself stays zero-diff (FIX2③ stays M7-4); the
+                    // promoteRecent face rides the controller's own
+                    // semantics (the D-M7-3-9 asymmetry — DECISIONS).
+                    let projectContext = McpProjectContext(
+                        openProject: { [libraryProjects] url in
+                            let lockURL = url.deletingPathExtension()
+                                .appendingPathExtension("lalb.lock")
+                            guard SingleWriterLock.probeLockAvailable(at: lockURL)
+                            else {
+                                throw McpToolError.projectReadOnly(
+                                    SingleWriterLock.holderSummary(at: lockURL))
+                            }
+                            // The MainActor hop (the probe closure's direct
+                            // await 形 — @Observable reads ride MainActor.run
+                            // hops; openProject itself is @MainActor async).
+                            let beforeStore = await MainActor.run {
+                                libraryProjects.projectStore
+                            }
+                            let beforeConflict = await MainActor.run {
+                                libraryProjects.pendingConflict
+                            }
+                            try await libraryProjects.openProject(at: url)
+                            let afterConflict = await MainActor.run {
+                                libraryProjects.pendingConflict
+                            }
+                            let afterStore = await MainActor.run {
+                                libraryProjects.projectStore
+                            }
+                            if beforeConflict == nil,
+                                afterConflict != nil,
+                                // Reference identity (ProjectFileStore is
+                                // a class — the diff clause is "the open
+                                // store did not change").
+                                afterStore === beforeStore {
+                                throw McpToolError.projectReadOnly(
+                                    SingleWriterLock.holderSummary(at: lockURL))
+                            }
+                            return ProjectOpenOutcome(url: url)
+                        },
+                        createProject: { [libraryProjects] url, name in
+                            let lockURL = url.deletingPathExtension()
+                                .appendingPathExtension("lalb.lock")
+                            guard SingleWriterLock.probeLockAvailable(at: lockURL)
+                            else {
+                                throw McpToolError.projectReadOnly(
+                                    SingleWriterLock.holderSummary(at: lockURL))
+                            }
+                            try await libraryProjects.createProject(
+                                at: url, name: name)
+                            return ProjectOpenOutcome(url: url)
+                        },
+                        library: librarySeam,
+                        sessionPair: sessionPairSeam)
                     await McpServerController.startEmbeddedIfPreferenceEnabled(
                         editing: editingSeams,
                         culling: cullingContext,
-                        searchState: searchStateContext)
+                        searchState: searchStateContext,
+                        project: projectContext)
                 }
                 // Plan M2-2-2: the project/import minimal faces (OQ-1 A +
                 // OQ-4/OQ-11 切分线 — dialog + progress here, the complete

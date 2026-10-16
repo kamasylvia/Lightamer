@@ -32592,6 +32592,36 @@
           }
         }
       }
+    },
+    "mcp_tool_desc_project_open" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开一个已有的 .lalb 项目包作为本服务器的项目上下文（需 writer 宿主——只读宿主先在 writer gate 处答 serverReadOnly）。path：.lalb 包的绝对路径；错误路径不动当前项目（先检后开——Alcedo 同构）。已持有的项目先关闭（checkpoint 随 close），随后打开目标；目标被另一实例持有时，typed projectReadOnly 应答携带持有者摘要且当前项目状态诚实（无头臂 close 成功后 open 失败 = 无项目打开的诚实空态——重试 open）。摘要为 {path, name, readOnly, heldByOther}——照片计数走 search_photos/list_photos。错误：invalidParams（缺 path/后缀不对）、projectReadOnly（目标被持有）、internalError（打开 I/O 失败）、serverReadOnly。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_project_create" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建一个 .lalb 项目包并打开为本服务器的项目上下文（需 writer 宿主——只读宿主先在 writer gate 处答 serverReadOnly）。folder：必须已存在的目录路径；name：包名（不得含路径分隔符 / 冒号 / 前导点）。包落在 folder/<name>.lalb；已存在的包拒绝、绝不覆盖。已持有的项目先关闭（checkpoint 随 close）。摘要为 {path, name, readOnly, heldByOther}——照片计数走 search_photos/list_photos。错误：invalidParams（目录不存在 / 名称非法 / 包已存在）、projectReadOnly（目标被持有）、internalError（创建 I/O 失败）、serverReadOnly。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_list_versions" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出一张图 sidecar 文档的版本树（只读——本面从不写盘）：每版本含 id、name、createdAt/updatedAt、active 旗标、链 position/itemCount 真值，includeItems=true 时附各版本自己的条目清单（ACTIVE 版本读文档 history；非活跃版本读其冻结链；每条清单以最新端 500 条为帽并携带逐版本 truncated 旗标——position/itemCount 保持真值，截断可检测）。image：库图像 id（数字）或打开会话的 relPath（get_history 同款寻址）。只读 sidecar 真相——绝不查库侧的版本引用投影（投影 ≠ 真相）。无 sidecar 文档 = pristine 诚实面（versions: []、activeVersionID null——不是错误）。分工：get_history 仍是 ACTIVE 链 + 元数据面（note/keywords/rating）；list_versions 是版本树 + 非活跃链通道。错误：notSessionMember（图不可寻址 / 无打开项目）、invalidParams。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
