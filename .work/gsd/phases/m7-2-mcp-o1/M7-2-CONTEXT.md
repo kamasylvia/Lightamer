@@ -1,5 +1,13 @@
 # M7-2 CONTEXT — MCP O1 检索与状态读（OQ 裁决落定批，2026-10-16）
 
+> **评审修订批（2026-10-16 fixer 批，输入 = `M7-2-01-PLAN-REVIEW.md`）**：
+> 本文件 D-M7-2-3（EXIF 两段走法 + cursor segment 字段 + 默认 sort）/
+> D-M7-2-4（limit 截断语义）/ D-M7-2-6（AIWorkerClientError 族映射补记）/
+> D-M7-2-9（library provider 形改携 ProjectFileStore）四处经评审修订批
+> 同步改写——均为**实现细节级行使**（评审 E-1/E-2/F-3/F-5 修法甲择定），
+> **非裁决重开**：九裁决的方向与归属零变化，改写的只是「生效值」中
+> 交付不出/语义缺口的实现形（先例 V2M E-2 供给面 / F1 失明面）。
+
 > **裁决正本**：OQ-M7-2-1..9 **全部按 `M7-2-RESEARCH.md` §6 推荐落定**（M7 站
 > charter 2026-10-16 授权站内 auto-advance + OQ 全按推荐；先例 M6-3/M6-4）。
 > **晨审可推翻**——推翻 = 用户晨审修订本文件对应 D 条，下游 plan 受影响任务面
@@ -57,13 +65,19 @@ tools/list 快照同批更新 ✓ + 既有 20 工具面零回归 ✓。
 ### D-M7-2-3 分页与结果集（OQ-M7-2-3）
 
 - **裁决 = RESEARCH 推荐（是）**：
-  - **EXIF 臂**：keyset cursor（`PhotoProjection.Cursor` 同形 opaque
-    token）+ 窄投影九字段 `imageID/imagePath/filename/dir/captureDate/
+  - **EXIF 臂**：keyset cursor **两段走法（2026-10-16 评审修订批 E-2
+    修法甲，GUI 同源——`searchPage` 主段〔恒 nullTail:false，只含 sort
+    key 非 NULL 行〕耗尽 → cursor 翻 `segment = nullTail` 走
+    `searchNullTail` NULL 尾段；token = `PhotoProjection.Cursor` 同形
+    base64 JSON + `segment` 字段；`LibraryGridModel` :5-13/:88-91 一一
+    对应）**+ 窄投影九字段 `imageID/imagePath/filename/dir/captureDate/
     rating/flag/colorLabel/hasEdits`（列映射以 `images` 表实存列为准，
     无列支撑字段如实缺席——**禁为此加 schema 面或第二查询面**，
     FilterSQL 头注红线「no second SQL face may exist」）；`limit` 1..500
     默认 200；`sort` 白名单五键 `{key, ascending}`（LibraryQueries.swift
-    :202-205，`scanEpoch` 显式排除）。
+    :202-205，`scanEpoch` 显式排除），**默认显式钉 `{key: "filename",
+    ascending: true}`（GUI 同源——N-3）**；cursor/sort 越臂组合
+    （mode=clip|fulltext 携带）typed 拒（N-4）。
   - **CLIP 臂**：有界 top-K 不分页，帽 256（GUI `semanticHitLimit` 同值，
     LibrarySearchModel.swift:210）；cosine score 降序 + score 字段。
   - **全文臂**：有界 top-K 不分页，帽 500（`AIDescriptionService.imageIDs`
@@ -79,7 +93,11 @@ tools/list 快照同批更新 ✓ + 既有 20 工具面零回归 ✓。
 
 - **裁决 = RESEARCH 推荐（是）**：items 默认 summary（id/label/timestamp/
   kind/layerScope）；`includeParams`（bool 默认 false）开启后逐 item 附
-  params 面 `{opName, enabled, …}`；`limit` 默认全量、最大 500。
+  params 面 `{opName, enabled, …}`；**`limit` = min(全量, 500)，截断
+  保留最新端（position 侧，有效历史优先），itemCount 恒真值总数**
+  （2026-10-16 评审修订批 F-5 一句话钉死——HistoryStack 无 cap，
+  >500 栈上「默认全量」与「最大 500」不能同真；截断可由
+  position/itemCount 检出，保留方向影响 agent 自查序列正确性故显式钉）。
 - **author 字段前向占位**：出参 schema 含 `author?`，v1 恒 null（负测钉死
   ——M7-4 MCP2-09 commit attribution 落地后填充）。
 - **kind 判别纯函数**：`pasteSet != nil → paste`；`drtRecord != nil → drt`；
@@ -107,8 +125,16 @@ tools/list 快照同批更新 ✓ + 既有 20 工具面零回归 ✓。
   `modelUnavailable`；`dimensionMismatch(expected:actual:)` → 亦归
   `modelUnavailable`（模型/资产错配同属「语义运行时对本查询不可用」族
   ——agent 换参数重试无解，message 区分 missing vs mismatched）；
-  语义诚实优于错误码数量最小化。
-- 被否备选：复用 `notSessionMember`/`invalidParams`（语义错位，排障误导）。
+  **`AIWorkerClientError` 四案（workerUnavailable / workerCrashed /
+  workerExhausted / requestFailed）→ 同归 `modelUnavailable`，message
+  携 worker 案名与细节**（2026-10-16 评审修订批 F-3 补记——M2-10-05 后
+  production runner 是 worker 进程，此族不是 SemanticSearchError、
+  adapter 只捕 McpToolError，不映射 = 协议级无码兜底；归
+  modelUnavailable 与本条「语义诚实优于错误码数量最小化」裁定同构，
+  非裁决重开）。
+- 被否备选：复用 `notSessionMember`/`invalidParams`（语义错位，排障误导）；
+  worker 族归 `internalError`（资产/进程缺席映射成我方 bug，排障误导——
+  F-3 评审同款否决）。
 
 ### D-M7-2-7 无头 `--project` 只读臂 = `openReadOnly()` 服务读面（OQ-M7-2-7）
 
@@ -152,13 +178,21 @@ tools/list 快照同批更新 ✓ + 既有 20 工具面零回归 ✓。
   装配点接线）；**`MatchColorToolset.installLibraryProvider` static box
   不泛化复用**（match_color 单工具特例，单例 box 语义不共享）。
 - provider 清单（闭包签名以 GUI 同源装配形为准——LibrarySearchModel
-  provider 三件同形）：`library`（LibraryStore + projectDirectory）/
-  `sessionPair`（get_history relPath 臂）/ `semanticStore`（open 包
-  SemanticStore 读面）/ `semantic`（`AIInferenceService.shared
+  provider 三件同形）：`library`（**ProjectFileStore + projectDirectory
+  ——2026-10-16 评审修订批 E-1 修法甲改写：三路由单源 `LibraryQueries` /
+  `SemanticStore` / `AIDescriptionService.imageIDs` 全吃 ProjectFileStore
+  （三 init 签名亲核），provider 直携；`LibraryStore` 需要处（get_history
+  digits 臂 `LibraryStore.image(id:)`）由 toolset 用公开
+  `LibraryStore(store:)` init 现场派生（LightamerApp :1362-1371
+  match_color provider 派生形）；不加 LibraryStore accessor（零 Core
+  diff）**）/ `sessionPair`（get_history relPath 臂）/ `semanticStore`
+  （open 包 SemanticStore 读面）/ `semantic`（`AIInferenceService.shared
   .semanticSearcher()` 同源，:41）/ `fulltext`（`AIDescriptionService
   .imageIDs` 查询缝）/ `liveState`（get_state workspace/editor/tasks
   快照，MainActor hop inside）/ `projectWriteProbe`（control 面，既有
-  probe 复用）/ `writeCallCount`（server 面，registry 计数装配点注入）。
+  probe 复用）/ `writeCallCount`（server 面，GUI embedded 走
+  `embeddedWriteCallCount()` 同源；headless / 只读 face 无 handle 外露面
+  = null 诚实面——F-4②）。
   optional 缝缺省 nil = 既有构造零 diff + typed 诚实错误臂。
 - 被否备选：复用 match_color static box（单例共享语义混淆）。
 
