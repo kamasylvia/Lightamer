@@ -163,8 +163,44 @@ enum McpServerController {
     /// parks forever; the STORE holds the project lock internally — the
     /// single acquisition point, KD-2; close releases in the EOF leg). Same
     /// `nonisolated(unsafe)` shape as the embedded-state box; the EOF
-    /// watcher's close leg is the only second toucher.
+    /// watcher's close leg is the only second toucher. The read-only arm
+    /// (M7-2-01 T4) parks its `openReadOnly()` store HERE too — the
+    /// search/state library seam reads this carrier on every call.
     private nonisolated(unsafe) static var headlessProjectStore: ProjectFileStore?
+
+    /// The headless search/state context (M7-2-01 T1 action 5): the library
+    /// seam reads the `headlessProjectStore` carrier per call (writer arm
+    /// open; the read-only arm fills it in T4 — the closure needs no
+    /// per-arm variant), the semantic faces derive from the open package
+    /// (the bundled CLIP assets live in the same binary, RESEARCH §4.5),
+    /// liveState is nil (no GUI collection state — the honest nulls). The
+    /// probe/count faces stay unset here: the headless faces have no
+    /// embedded handle (F-4② null honesty) and the host wires the lock
+    /// probe through the editing/culling seams as before.
+    private static func makeHeadlessSearchState(
+        projectURL: URL
+    ) -> McpSearchStateContext {
+        McpSearchStateContext(
+            library: {
+                guard let store = McpServerController.headlessProjectStore
+                else { return nil }
+                return (store: store, projectDirectory: projectURL)
+            },
+            semanticStore: {
+                guard let store = McpServerController.headlessProjectStore
+                else { return nil }
+                return SemanticStore(store: store)
+            },
+            semantic: {
+                await AIInferenceService.shared.semanticSearcher()
+            },
+            fulltext: { query in
+                guard let store = McpServerController.headlessProjectStore
+                else { return [] }
+                return try await AIDescriptionService.imageIDs(
+                    matching: query, store: store)
+            })
+    }
 
     /// Runs the headless server for `mode` and parks the process forever
     /// (stdio: the transport reads stdin from its own task; the entry point
@@ -193,7 +229,9 @@ enum McpServerController {
                 }
                 switch mode {
                 case .stdio:
-                    await startHeadlessStdioHost(paths: McpEndpointPaths.makeDefault())
+                    await startHeadlessStdioHost(
+                        paths: McpEndpointPaths.makeDefault(),
+                        searchState: McpSearchStateContext())
                 case .http:
                     // The headless HTTP daemon: same binding discipline as
                     // the GUI host (writer lock → bind 127.0.0.1 → write the
@@ -203,7 +241,8 @@ enum McpServerController {
                         let handle = try await startHTTPHost(
                             paths: McpEndpointPaths.makeDefault(),
                             editing: await makeEditingSeams(session: { nil }),
-                            culling: makeCullingContext(session: { nil }))
+                            culling: makeCullingContext(session: { nil }),
+                            searchState: McpSearchStateContext())
                         await log(
                             "headless MCP server up (http) on 127.0.0.1:\(handle.port)"
                                 + " — endpoint file \(handle.paths.jsonURL.path)")
@@ -287,10 +326,15 @@ enum McpServerController {
         // M6-1-01 T7 (KD-5): the write-face probe — self-held on the writer
         // arm, the real non-holding probe on the read-only arm.
         let probe = makeProjectWriteProbe(selfHeld: isWriter, lockURL: lockURL)
+        // M7-2-01: the search/state context rides every arm (the closed
+        // 23-tool face is identical across hosts — the read-only arm
+        // currently answers notSessionMember until T4 parks its store).
+        let searchState = makeHeadlessSearchState(projectURL: projectURL)
         switch mode {
         case .stdio:
             await startHeadlessStdioHost(
-                paths: headlessEndpointPaths, projectWriteProbe: probe)
+                paths: headlessEndpointPaths, projectWriteProbe: probe,
+                searchState: searchState)
         case .http:
             if isWriter {
                 // Writer arm: the full legacy http daemon (endpoint lock →
@@ -303,7 +347,8 @@ enum McpServerController {
                     let handle = try await startHTTPHost(
                         paths: headlessEndpointPaths,
                         editing: editing,
-                        culling: culling)
+                        culling: culling,
+                        searchState: searchState)
                     await log(
                         "headless MCP server up (http) on 127.0.0.1:\(handle.port)"
                             + " — endpoint file \(handle.paths.jsonURL.path)")
@@ -320,7 +365,8 @@ enum McpServerController {
                 // (writer-less daemons don't fake-liven the network) keeps
                 // its shape; this is the separate honest read-only face.
                 await startReadOnlyHTTPHost(
-                    paths: headlessEndpointPaths, projectWriteProbe: probe)
+                    paths: headlessEndpointPaths, projectWriteProbe: probe,
+                    searchState: searchState)
             }
         }
     }
@@ -374,13 +420,15 @@ enum McpServerController {
     /// writerCheck false + the T7 project probe when wired).
     private static func startReadOnlyHTTPHost(
         paths: McpEndpointPaths,
-        projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil
+        projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil,
+        searchState: McpSearchStateContext? = nil
     ) async {
         var editing = await makeEditingSeams(session: { nil })
         editing.projectWriteProbe = projectWriteProbe
         var culling = makeCullingContext(session: { nil })
         culling.projectWriteProbe = projectWriteProbe
-        let registry = await makeRegistry(editing: editing, culling: culling)
+        let registry = await makeRegistry(
+            editing: editing, culling: culling, searchState: searchState)
         await registry.setWriterCheck { false }
         let host = McpHTTPHost(
             configuration: .init(host: McpHTTPHost.loopbackHost, port: 0),
@@ -407,7 +455,8 @@ enum McpServerController {
     /// McpHostTests stdio fixtures pin the behavior).
     private static func startHeadlessStdioHost(
         paths: McpEndpointPaths,
-        projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil
+        projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil,
+        searchState: McpSearchStateContext? = nil
     ) async {
         let stderr = FileHandle.standardError
         do {
@@ -431,7 +480,8 @@ enum McpServerController {
             editing.projectWriteProbe = projectWriteProbe
             var culling = makeCullingContext(session: { nil })
             culling.projectWriteProbe = projectWriteProbe
-            let registry = await makeRegistry(editing: editing, culling: culling)
+            let registry = await makeRegistry(
+                editing: editing, culling: culling, searchState: searchState)
             await registry.setWriterCheck { @Sendable in lock != nil }
             let server = await McpAdapters.makeServer(registry: registry)
             try await server.start(transport: StdioTransport())
@@ -446,16 +496,22 @@ enum McpServerController {
     // MARK: - The single kernel (registry assembly)
 
     /// The CLOSED tool face: 6 editing tools (Plan 14-2 + match_color,
-    /// M5-1-03) + 14 culling tools (Plan 14-3) = the frozen 20-tool set
-    /// (research §A; D-14-CONTEXT-3).
+    /// M5-1-03) + 14 culling tools (Plan 14-3) + 3 search/state tools
+    /// (M7-2-01 — all read-only) = the 23-tool set (research §A;
+    /// D-14-CONTEXT-3 + the M7-2 union snapshot conscious change).
     /// The 14-1 probe pair (ping/count_images) retired at 14-4 T1 — a host
-    /// with NEITHER face assembled yields an EMPTY registry (tests assert
+    /// with NO face assembled yields an EMPTY registry (tests assert
     /// the retirement; the whitelist negative rides the snapshot tests).
     /// The closed face is identical across hosts — the dual-host red line:
-    /// even a read-only host lists every tool and fails writes at CALL time.
+    /// even a read-only host lists every tool and fails writes at CALL time
+    /// (searchState non-nil on EVERY host assembly — data-face absence
+    /// answers the typed errors, the tools never disappear).
+    /// `searchState` defaults nil so every existing call site and test
+    /// compiles zero-diff (the 20-tool face).
     static func makeRegistry(
         editing: EditingToolset.Seams? = nil,
-        culling: McpCullingContext? = nil
+        culling: McpCullingContext? = nil,
+        searchState: McpSearchStateContext? = nil
     ) async -> McpToolRegistry {
         let registry = McpToolRegistry()
         if let editing {
@@ -463,6 +519,9 @@ enum McpServerController {
         }
         if let culling {
             await McpCullingToolset.registerAll(on: registry, context: culling)
+        }
+        if let searchState {
+            await McpSearchStateToolset.registerAll(on: registry, context: searchState)
         }
         return registry
     }
@@ -629,7 +688,8 @@ enum McpServerController {
         port: Int = 0,
         exposure: McpExposure = .loopback,
         editing: EditingToolset.Seams? = nil,
-        culling: McpCullingContext? = nil
+        culling: McpCullingContext? = nil,
+        searchState: McpSearchStateContext? = nil
     ) async throws -> HttpHostHandle {
         // The Bearer valve exists ONLY on the non-loopback branch (the
         // loopback default is zero-token by design — the smallest surface).
@@ -662,7 +722,8 @@ enum McpServerController {
             throw McpHostError.underlying("writer-lock acquire failed: \(reason)")
         }
         do {
-            let registry = await makeRegistry(editing: editing, culling: culling)
+            let registry = await makeRegistry(
+                editing: editing, culling: culling, searchState: searchState)
             // The host holds the writer right by construction.
             await registry.setWriterCheck { true }
             let pipeline = bearerToken.map { validationPipelineWithBearer(token: $0) }
@@ -716,13 +777,19 @@ enum McpServerController {
     /// `makeEditingSeams` with its live session + GUI-live judge).
     /// Plan 14-4: the culling face rides the same kernel (`culling`), and
     /// the old probe-only StoreProvider seam is retired.
+    /// M7-2-01: `searchState` rides the SAME box (the F-4① fifth seam) —
+    /// a preference off→on toggle re-assembles from the box, so the three
+    /// search/state tools cannot silently vanish when the user flips MCP
+    /// off and back on within one GUI session.
     static func startEmbeddedIfPreferenceEnabled(
         editing: EditingToolset.Seams?,
-        culling: McpCullingContext?
+        culling: McpCullingContext?,
+        searchState: McpSearchStateContext? = nil
     ) async {
         withEmbeddedState { state in
             state.editing = editing
             state.culling = culling
+            state.searchState = searchState
         }
         guard UserDefaults.standard.bool(forKey: embeddedServerEnabledKey) else { return }
         await startEmbeddedServer()
@@ -737,8 +804,8 @@ enum McpServerController {
     static func startEmbeddedServer() async {
         if withEmbeddedState({ $0.handle != nil }) { return }
         do {
-            let (editing, culling) = withEmbeddedState { state in
-                (state.editing, state.culling)
+            let (editing, culling, searchState) = withEmbeddedState { state in
+                (state.editing, state.culling, state.searchState)
             }
             let exposure: McpExposure =
                 UserDefaults.standard.bool(forKey: lanExposureEnabledKey)
@@ -747,7 +814,8 @@ enum McpServerController {
                 paths: McpEndpointPaths.makeDefault(),
                 exposure: exposure,
                 editing: editing,
-                culling: culling)
+                culling: culling,
+                searchState: searchState)
             let wonRace = withEmbeddedState { state -> Bool in
                 if state.handle == nil {
                     state.handle = handle
@@ -799,6 +867,7 @@ enum McpServerController {
         var handle: HttpHostHandle?
         var editing: EditingToolset.Seams?
         var culling: McpCullingContext?
+        var searchState: McpSearchStateContext?
     }
     nonisolated(unsafe) private static var embeddedState = EmbeddedState()
 
