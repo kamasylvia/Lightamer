@@ -885,6 +885,7 @@ let project = Project(
                 "Tests/LightamerTests/WorkspaceRoutingTests.swift",
                 "Tests/LightamerTests/YiyinSheetSizingTests.swift",
                 "Tests/LightamerTests/ImportCategorySelectorTests.swift",
+                "Tests/LightamerTests/ImportProgressCoalescingTests.swift",
                 "Tests/LightamerTests/ExportCollisionPickerTests.swift",
                 "Tests/LightamerTests/NLMeansDragDowngradeTests.swift",
                 "Tests/LightamerTests/ColorMatchServiceTests.swift",

@@ -237,6 +237,7 @@ APP	7	DrtViewportTests.swift
 APP	7	RasterEditFaceTests.swift
 APP	5	RasterHdrViewportTests.swift
 APP	5	ImportCategorySelectorTests.swift
+APP	3	ImportProgressCoalescingTests.swift
 APP	9	MaskItemSemanticsTests.swift
 APP	9	NodeCanvasGeometryTests.swift
 APP	14	NodesPanelModelTests.swift

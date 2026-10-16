@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import LightamerCore
 import Observation
+import os
 import SwiftUI
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -94,6 +95,24 @@ final class LibraryProjectController {
 
     private let defaultsSuiteName: String?
     private var activeImportService: LightamerCore.ImportService?
+
+    /// FIX2 (T2/D-7): the live run's progress coalescer (nil outside a run).
+    /// Holding it here keeps the drain tasks' target alive for the run's
+    /// duration; cleared at the run tail (the terminal publication).
+    private var importProgressCoalescer: ImportProgressCoalescer?
+
+    /// FIX2 (T2/D-7) completion watchdog channel (diagnostics only — the
+    /// stall's tail pin: a run that never reaches this line has its last
+    /// emission logged instead, and a run that does publishes the outcome).
+    nonisolated private static let importWatchdog = Logger(
+        subsystem: "com.kamasylvia.lightamer", category: "import-watchdog")
+
+    nonisolated private static func seconds(
+        _ start: ContinuousClock.Instant, _ end: ContinuousClock.Instant
+    ) -> String {
+        let (secs, atto) = (end - start).components
+        return String(format: "%.2f", Double(secs) + Double(atto) * 1e-18)
+    }
 
     nonisolated private static func defaults(of suiteName: String?) -> UserDefaults {
         suiteName.flatMap { UserDefaults(suiteName: $0) } ?? .standard
@@ -386,9 +405,23 @@ final class LibraryProjectController {
               importProgress == nil else { return }
         let service = LightamerCore.ImportService(store: store)
         activeImportService = service
-        await service.setProgressHandler { [weak self] snapshot in
-            Task { @MainActor in self?.importProgress = snapshot }
+        // FIX2 (T2/D-7): the per-run delivery coalescer — the handler hands
+        // each snapshot to the coalescer and returns IMMEDIATELY (zero await:
+        // the doc comment's Defect A dependency stays cut); the coalescer
+        // throttles the UI publication to one delivery per window with
+        // latest-wins semantics. Terminal snapshots (.completed/.cancelled)
+        // bypass the window — the onChange consumer (WorkspaceHostView)
+        // finishes the task bar on the run's end, so a swallowed terminal
+        // would hang the bar again. The controller-nil carrier below (the
+        // run tail) is the SECOND terminal carrier and stays a direct write.
+        let coalescer = ImportProgressCoalescer { [weak self] snapshot in
+            self?.importProgress = snapshot
         }
+        importProgressCoalescer = coalescer
+        await service.setProgressHandler { [weak coalescer] snapshot in
+            coalescer?.submit(snapshot)
+        }
+        let startedAt = ContinuousClock.now
         // M2-10-03 (OQ-6-A): the AI legs key on the rows this import ADDS —
         // captured against the pre-import high-water mark. A failed read
         // skips the legs: derived-data bookkeeping never fails an import.
@@ -413,7 +446,18 @@ final class LibraryProjectController {
             lastError = error.localizedDescription
         }
         activeImportService = nil
+        // FIX2 (T2/D-7) completion watchdog: one diagnostic line BEFORE the
+        // terminal publication — if the stall phenotype ever recurs, the log
+        // pins the tail's arrival (or its absence) with the run's shape.
+        // Zero behavior change.
+        do {
+            let elapsed = Self.seconds(startedAt, .now)
+            let lastPhase = String(describing: importProgress?.phase ?? .importing)
+            Self.importWatchdog.info(
+                "import run finished in \(elapsed, privacy: .public)s — last service-side face \(lastPhase, privacy: .public); publishing nil terminal")
+        }
         importProgress = nil
+        importProgressCoalescer = nil
 
         // The AI tail (auto leg first, no prompt; then the labeling mode
         // three-state). Everything here is post-close: the prompt publishes
@@ -670,5 +714,137 @@ struct LibraryWelcomeView: View {
         }
         .padding(40)
         .frame(minWidth: 440)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ImportProgressCoalescer (FIX2 T2/D-7) — the progress-delivery throttle
+// between the ImportService actor's per-file loop and the main-actor UI face.
+//
+// WHY: the service emits one snapshot per file (`emit` awaits the handler
+// INSIDE its actor loop, ImportService.swift:736-738). The pre-FIX2 handler
+// hopped every snapshot to a fresh MainActor task — an O(file-count) main-
+// queue storm that, under the D-6 churn's main-thread pressure, starves the
+// run tail into the minute-scale stall (the D-7 sample: zero import frames
+// + 909 mach_msg main-thread ticks while Media finished landing). The
+// coalescer collapses that storm to ≤1 delivery per window with
+// latest-wins semantics.
+//
+// TWO PINS (the FIX2 plan's M-1):
+// 1. NON-BLOCKING: `submit` is the handler body's whole work — it takes a
+//    lock, stashes the snapshot, schedules a fire-and-forget task and
+//    returns. ZERO await in the handler path: any suspension here would
+//    re-create the actor↔main mutual wait (the runImport doc comment's
+//    Defect A — the previous generation's `await MainActor.run` handler).
+//    The throttle's sleep lives in the scheduled DRAIN task, never in the
+//    handler.
+// 2. ORDER: every DELIVERED snapshot rides the main actor (single-flight
+//    window drain + terminal flush), so the UI sees main-queue FIFO; the
+//    single pending slot makes in-window intermediate snapshots drop while
+//    the LATEST always lands (the ImportTaskAdapter's monotonic clamp stays
+//    as belt-and-braces). Terminal snapshots (.completed/.cancelled) bypass
+//    the window AND supersede any pending interim — the visual tail (the
+//    WorkspaceHostView onChange's nil-finish + the adapter's finish) can
+//    never hang on a dropped terminal.
+// ─────────────────────────────────────────────────────────────────────────────
+
+final class ImportProgressCoalescer: @unchecked Sendable {
+
+    private let lock = NSLock()
+    /// The latest not-yet-delivered snapshot (single slot — newest wins).
+    private var pending: ImportProgress?
+    /// One window-drain task in flight at most (the FIFO pin's guard).
+    private var windowDrainArmed = false
+    /// nil = never delivered (the leading delivery is always immediate).
+    private var lastDelivery: ContinuousClock.Instant?
+    private let interval: Duration
+    private let now: @Sendable () -> ContinuousClock.Instant
+    private let deliver: @MainActor @Sendable (ImportProgress) -> Void
+
+    init(
+        interval: Duration = .milliseconds(100),
+        now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock.now },
+        deliver: @escaping @MainActor @Sendable (ImportProgress) -> Void
+    ) {
+        self.interval = interval
+        self.now = now
+        self.lastDelivery = nil
+        self.deliver = deliver
+    }
+
+    /// The pure window decision (the unit-test seam): a delivery inside the
+    /// open window would coalesce; past the edge it may lead a new window.
+    nonisolated static func isWindowOpen(
+        lastDelivery: ContinuousClock.Instant?,
+        now: ContinuousClock.Instant,
+        interval: Duration
+    ) -> Bool {
+        guard let lastDelivery else { return false }
+        return now < lastDelivery + interval
+    }
+
+    /// The service-side handler body: stash + schedule, never await.
+    func submit(_ snapshot: ImportProgress) {
+        let terminal = snapshot.phase == .completed || snapshot.phase == .cancelled
+        lock.lock()
+        pending = snapshot
+        var arm = false
+        if !terminal, !windowDrainArmed {
+            windowDrainArmed = true
+            arm = true
+        }
+        lock.unlock()
+        if arm {
+            // Leading+trailing throttle: the drain sleeps the REMAINING
+            // window (0 = the leading immediate delivery), then publishes
+            // the latest pending. The sleep rides this fire-and-forget task
+            // — the handler itself never sleeps (pin 1).
+            let remaining = remainingWindow()
+            Task { @MainActor in
+                if remaining > .zero {
+                    try? await Task.sleep(for: remaining)
+                }
+                self.drainWindow()
+            }
+        }
+        if terminal {
+            // Bypass: the terminal lands on the main queue immediately and
+            // supersedes any pending interim (single slot).
+            Task { @MainActor in self.flushTerminal() }
+        }
+    }
+
+    private func remainingWindow() -> Duration {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let lastDelivery,
+            Self.isWindowOpen(
+                lastDelivery: lastDelivery, now: now(), interval: interval)
+        else { return .zero }
+        return (lastDelivery + interval) - now()
+    }
+
+    @MainActor
+    private func drainWindow() {
+        lock.lock()
+        let snapshot = pending
+        pending = nil
+        lastDelivery = now()
+        windowDrainArmed = false
+        lock.unlock()
+        if let snapshot {
+            deliver(snapshot)
+        }
+    }
+
+    @MainActor
+    private func flushTerminal() {
+        lock.lock()
+        let snapshot = pending
+        pending = nil
+        lock.unlock()
+        if let snapshot {
+            deliver(snapshot)
+        }
     }
 }
