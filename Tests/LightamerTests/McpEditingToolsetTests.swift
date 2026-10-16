@@ -1,4 +1,5 @@
 import CoreImage
+import ImageIO
 import XCTest
 import LightamerCore
 import LightamerIOP
@@ -695,5 +696,320 @@ final class McpEditingToolsetTests: XCTestCase {
         } catch let error as McpToolError {
             XCTAssertEqual(error.code, "invalidParams")
         }
+    }
+
+    // MARK: - M7-3 T5: the region/compare/list_luts goldens (ROADMAP §M7-3
+    // acceptance ①)
+
+    /// A render fixture: an indexed session with N members; the FIRST member
+    /// carries a WRITTEN sidecar (exposure 0.25); the decode leg is the
+    /// shared synthetic gradient; the render chain is REAL (a MetalContext).
+    private func makeRenderFixture(memberNames: [String]) async throws
+        -> (root: URL, store: SessionIndexStore, seams: EditingToolset.Seams)
+    {
+        let root = tempDirectory.appendingPathComponent(
+            "render-\(UUID().uuidString)", isDirectory: true)
+        let capture = root.appendingPathComponent("Capture", isDirectory: true)
+        try FileManager.default.createDirectory(at: capture, withIntermediateDirectories: true)
+        var entries: [SessionScanEntry] = []
+        for name in memberNames {
+            let url = capture.appendingPathComponent(name)
+            try Data(repeating: 0xCD, count: 64).write(to: url)
+            entries.append(SessionScanEntry(
+                relPath: "Capture/\(name)",
+                mtime: 0, size: 64))
+        }
+        let store = SessionIndexStore(sessionRoot: root)
+        _ = try await store.openSession(
+            root: root,
+            scan: AsyncStream { continuation in
+                continuation.yield(SessionScanPage(entries: entries))
+                continuation.finish()
+            })
+
+        let metalContext = try MetalContext()
+        try await metalContext.registerDefaultLibrary(in: ExposureKernel.metalBundle)
+        let populated = await populatedModules()
+        let trio = await populated.makeDefaultInstances()
+        var exposureParams = ExposureModule.Params()
+        exposureParams.exposure = 0.25
+        let exposureRecord = ModuleInstance(
+            module: ExposureModule.self, params: exposureParams)
+        let document = LightamerSidecar(
+            imageID: UUID(), decoderVersionUsed: "v8", decodeParamsHash: 0,
+            instances: trio + [exposureRecord],
+            history: HistoryStack(), historyHash: 0)
+        try JSONEncoder().encode(document).write(
+            to: capture
+                .appendingPathComponent(memberNames[0])
+                .appendingPathExtension("lra"))
+        let decoded = Self.syntheticDecoded(width: 800, height: 600)
+        var seams = await makeSeams(session: (store, root), metal: metalContext)
+        seams.decodeLeg = { _ in decoded }
+        return (root, store, seams)
+    }
+
+    /// Calls render_preview and returns the CONTENT array (the dual-arm
+    /// faces need the order).
+    private static func renderPreview(
+        _ registry: McpToolRegistry, relPath: String,
+        extra arguments: [String: McpJSON] = [:]
+    ) async throws -> [McpToolOutput.Content] {
+        var arguments = arguments
+        arguments["relPath"] = .string(relPath)
+        let output = try await registry.call(
+            name: "render_preview", arguments: arguments)
+        return output.content
+    }
+
+    /// Decodes an inline JPEG content face to its CGImage (dimensions
+    /// assertions) — and keeps the bytes for byte-equal judgments.
+    private static func jpegFace(
+        _ content: McpToolOutput.Content, file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> (bytes: Data, image: CGImage) {
+        guard case .imageBase64(let base64, let mime) = content, mime == "image/jpeg"
+        else {
+            XCTFail("expected an inline JPEG face", file: file, line: line)
+            throw McpToolError.internalError("test harness: expected image")
+        }
+        let bytes = try XCTUnwrap(Data(base64Encoded: base64), file: file, line: line)
+        let source = try XCTUnwrap(
+            CGImageSourceCreateWithData(bytes as CFData, nil),
+            file: file, line: line)
+        let image = try XCTUnwrap(
+            CGImageSourceCreateImageAtIndex(source, 0, nil),
+            file: file, line: line)
+        return (bytes, image)
+    }
+
+    /// The region golden (M2): the normalized rect × the rendered pixel
+    /// size, ROUNDED — the crop's pixel frame ≡ the hand computation. The
+    /// 800×600 decode renders 1:1 at longEdge 800.
+    func testRenderPreviewRegionGoldenPixelFrame() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else { throw XCTSkip("no Metal GPU") }
+        let (_, _, seams) = try await makeRenderFixture(
+            memberNames: ["DSC00012.ARW"])
+        let registry = await makeRegistry(seams: seams)
+
+        let contents = try await Self.renderPreview(registry, relPath: "Capture/DSC00012.ARW", extra: [
+            "longEdge": .int(800),
+            "region": .object([
+                "x": .double(0.25), "y": .double(0.5),
+                "w": .double(0.5), "h": .double(0.25),
+            ]),
+            "compare": .string("none"),
+        ])
+        XCTAssertEqual(contents.count, 1)
+        let face = try Self.jpegFace(contents[0])
+        // Hand math: px = 0.25×800 = 200, py = 300, pw = 400, ph = 150.
+        XCTAssertEqual(face.image.width, 400)
+        XCTAssertEqual(face.image.height, 150)
+
+        // The exact x+w==1.0 leg: the FULL-frame rect stays exact (no
+        // round-drift past the bounds → no clamp shrink).
+        let full = try await Self.renderPreview(registry, relPath: "Capture/DSC00012.ARW", extra: [
+            "longEdge": .int(800),
+            "region": .object([
+                "x": .double(0.0), "y": .double(0.0),
+                "w": .double(1.0), "h": .double(1.0),
+            ]),
+            "compare": .string("none"),
+        ])
+        let fullFace = try Self.jpegFace(full[0])
+        XCTAssertEqual(fullFace.image.width, 800)
+        XCTAssertEqual(fullFace.image.height, 600)
+    }
+
+    /// The region rejections (typed, no new codes): zero/negative extent →
+    /// invalidParams; out-of-domain → roiOutOfBounds; a legal normalized
+    /// rect that rounds to a zero-area frame → invalidParams CARRYING the
+    /// normalized values (never the silent renderFailed bail-out).
+    func testRenderPreviewRegionRejections() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else { throw XCTSkip("no Metal GPU") }
+        let (_, _, seams) = try await makeRenderFixture(
+            memberNames: ["DSC00012.ARW"])
+        let registry = await makeRegistry(seams: seams)
+
+        do {
+            _ = try await Self.renderPreview(registry, relPath: "Capture/DSC00012.ARW", extra: [
+                "region": .object([
+                    "x": .double(0.1), "y": .double(0.1),
+                    "w": .double(0.0), "h": .double(0.5),
+                ]),
+            ])
+            XCTFail("w=0 must be invalidParams")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "invalidParams")
+        }
+        do {
+            _ = try await Self.renderPreview(registry, relPath: "Capture/DSC00012.ARW", extra: [
+                "region": .object([
+                    "x": .double(0.8), "y": .double(0.1),
+                    "w": .double(0.5), "h": .double(0.5),
+                ]),
+            ])
+            XCTFail("x+w>1 must be roiOutOfBounds")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "roiOutOfBounds")
+        }
+        do {
+            _ = try await Self.renderPreview(registry, relPath: "Capture/DSC00012.ARW", extra: [
+                "region": .object([
+                    "x": .double(-0.1), "y": .double(0.1),
+                    "w": .double(0.5), "h": .double(0.5),
+                ]),
+            ])
+            XCTFail("a negative coordinate must be roiOutOfBounds")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "roiOutOfBounds")
+        }
+        // The sub-pixel leg (M2): 0.0005×800 = 0.4 → rounds to 0 → the
+        // typed invalidParams carrying the NORMALIZED values.
+        do {
+            _ = try await Self.renderPreview(registry, relPath: "Capture/DSC00012.ARW", extra: [
+                "region": .object([
+                    "x": .double(0.0), "y": .double(0.0),
+                    "w": .double(0.0005), "h": .double(0.0005),
+                ]),
+            ])
+            XCTFail("a zero-area frame must be invalidParams")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "invalidParams")
+            XCTAssertTrue(error.message.contains("0.0005"),
+                          "the normalized values ride the message: \(error.message)")
+        }
+    }
+
+    /// The compare:root golden (D-M7-3-3): the DEFAULT call (no compare
+    /// argument) is the DUAL arm — content [current, root, text] with the
+    /// summary JSON; both planes share the dimensions; the pristine arm is
+    /// byte-equal to the no-sidecar copy's render (the empty-chain-branch
+    /// self-certification through the TOOL face).
+    func testRenderPreviewCompareRootDualArm() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else { throw XCTSkip("no Metal GPU") }
+        let (_, _, seams) = try await makeRenderFixture(
+            memberNames: ["edited.ARW", "pristine.ARW"])
+        let registry = await makeRegistry(seams: seams)
+
+        // The bare call: DEFAULT root → the dual arm.
+        let bare = try await Self.renderPreview(registry, relPath: "Capture/edited.ARW", extra: [
+            "longEdge": .int(256),
+        ])
+        XCTAssertEqual(bare.count, 3, "[current, root, text]")
+        let current = try Self.jpegFace(bare[0])
+        let root = try Self.jpegFace(bare[1])
+        XCTAssertEqual(current.image.width, root.image.width, "both arms share the frame")
+        XCTAssertEqual(current.image.height, root.image.height)
+        guard case .text(let summary) = bare[2] else {
+            return XCTFail("expected the summary text face")
+        }
+        let summaryObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(summary.utf8)) as? [String: Any])
+        XCTAssertEqual(summaryObject["compare"] as? String, "root")
+        let currentFace = try XCTUnwrap(summaryObject["current"] as? [String: Any])
+        XCTAssertEqual(currentFace["width"] as? Int, current.image.width)
+        let rootFace = try XCTUnwrap(summaryObject["root"] as? [String: Any])
+        XCTAssertEqual(rootFace["width"] as? Int, root.image.width)
+
+        // The root arm ≡ the no-sidecar copy's single render (the SAME
+        // empty-chain branch through the tool face — byte-equal JPEGs).
+        let pristineCall = try await Self.renderPreview(
+            registry, relPath: "Capture/pristine.ARW",
+            extra: ["longEdge": .int(256), "compare": .string("none")])
+        XCTAssertEqual(pristineCall.count, 1, "compare:none = the single-image face")
+        let pristineFace = try Self.jpegFace(pristineCall[0])
+        XCTAssertEqual(root.bytes, pristineFace.bytes,
+                       "the root arm ≡ the no-sidecar render (byte-equal)")
+
+        // The default-value identity: explicit compare:root ≡ the bare call.
+        let explicit = try await Self.renderPreview(registry, relPath: "Capture/edited.ARW", extra: [
+            "longEdge": .int(256), "compare": .string("root"),
+        ])
+        XCTAssertEqual(explicit.count, 3)
+        let explicitRoot = try Self.jpegFace(explicit[1])
+        XCTAssertEqual(explicitRoot.bytes, root.bytes, "explicit root ≡ default arm")
+    }
+
+    /// The region rect rides BOTH arms (Alcedo 同构): same rect → both
+    /// frames the same hand-computed crop.
+    func testRenderPreviewRegionAppliesToBothArms() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else { throw XCTSkip("no Metal GPU") }
+        let (_, _, seams) = try await makeRenderFixture(
+            memberNames: ["DSC00012.ARW"])
+        let registry = await makeRegistry(seams: seams)
+        let contents = try await Self.renderPreview(registry, relPath: "Capture/DSC00012.ARW", extra: [
+            "longEdge": .int(800),
+            "region": .object([
+                "x": .double(0.5), "y": .double(0.0),
+                "w": .double(0.5), "h": .double(0.5),
+            ]),
+        ])
+        XCTAssertEqual(contents.count, 3)
+        let current = try Self.jpegFace(contents[0])
+        let root = try Self.jpegFace(contents[1])
+        XCTAssertEqual(current.image.width, 400, "hand math: 0.5×800")
+        XCTAssertEqual(current.image.height, 300)
+        XCTAssertEqual(root.image.width, 400, "the SAME rect on the root arm")
+        XCTAssertEqual(root.image.height, 300)
+    }
+
+    /// The list_luts golden (L4): the seeded temp library → the projection
+    /// ≡ installedNames/entry direct (the single-source identity) PLUS the
+    /// seeded content POSITIVE assertion (known key/name/is1D/size — the
+    /// tool read the store, not a tautology) + the key-form (root-relative
+    /// POSIX) + the libraryRoot echo.
+    func testListLutsGoldenSeededProjection() async throws {
+        let libraryRoot = tempDirectory.appendingPathComponent("LUTs", isDirectory: true)
+        try FileManager.default.createDirectory(at: libraryRoot, withIntermediateDirectories: true)
+        let cube = """
+            TITLE "Golden Cube"
+            LUT_3D_SIZE 2
+            0.0 0.0 0.0
+            1.0 0.0 0.0
+            0.0 1.0 0.0
+            1.0 1.0 0.0
+            0.0 0.0 1.0
+            1.0 1.0 1.0
+            0.0 1.0 1.0
+            1.0 0.0 1.0
+            """
+        try cube.write(
+            to: libraryRoot.appendingPathComponent("golden.cube"), atomically: true,
+            encoding: .utf8)
+        let seeded = LutLibraryStore(directory: libraryRoot)
+        let original = LutLibraryStore.shared
+        LutLibraryStore.replaceShared(seeded)
+        defer { LutLibraryStore.replaceShared(original) }
+
+        let registry = McpToolRegistry()
+        await EditingToolset.register(
+            into: registry,
+            seams: EditingToolset.Seams(
+                session: { nil }, metal: { nil }, modules: { ModuleRegistry() },
+                gate: McpRenderGate(), liveImageURL: { nil }))
+        let output = try await registry.call(name: "list_luts", arguments: [:])
+        guard case .text(let text) = output.content.first else {
+            return XCTFail("expected a text payload")
+        }
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+        XCTAssertEqual(payload["libraryRoot"] as? String, libraryRoot.path)
+        XCTAssertEqual(payload["total"] as? Int, 1)
+        let luts = try XCTUnwrap(payload["luts"] as? [[String: Any]])
+        XCTAssertEqual(luts.count, 1)
+        let row = try XCTUnwrap(luts.first)
+        // The POSITIVE content assertion (the seeded row's known facts).
+        XCTAssertEqual(row["key"] as? String, "golden.cube", "root-relative POSIX key")
+        XCTAssertEqual(row["name"] as? String, "golden.cube")
+        XCTAssertEqual(row["is1D"] as? Bool, false)
+        XCTAssertEqual(row["size"] as? Int, 2)
+        // The identity leg: the projection ≡ the store's own faces.
+        XCTAssertEqual(row["hash"] as? String, seeded.entry(named: "golden.cube")?.hash)
+        let projectedKeys = Set(luts.map { $0["key"] as? String ?? "" })
+        XCTAssertEqual(projectedKeys, Set(seeded.installedNames),
+                       "the projection ≡ installedNames")
+        XCTAssertFalse(
+            row.keys.contains("subdirectory"), "root rows carry no subdirectory")
     }
 }

@@ -13,7 +13,7 @@ import XCTest
 //   - probe    → this file (retires at 14-4 T1 together with the tools)
 //   - editing  → 14-2 fills this file with its expected list
 //   - culling  → 14-3's own McpCullingToolsetTests
-//   - the cross-domain union (the frozen 20-tool closed set) → 14-4 T3
+//   - the cross-domain union (the frozen 27-tool closed set) → 14-4 T3
 //
 // The InMemoryTransport leg (research §RQ-14-1③ test dividend) is the third
 // host form: the SAME registry kernel asserted end-to-end inside one process.
@@ -26,7 +26,7 @@ final class McpRegistrySnapshotTests: XCTestCase {
     /// Asserts one domain's snapshot: the name set, each descriptor's schema
     /// (verbatim JSON) and the annotations hints. `expected` is the full
     /// expected list for the registry under test (domain-scoped registries
-    /// assert their own list; the 14-4 union asserts all 20).
+    /// assert their own list; the 14-4 union asserts all 27).
     static func assertSnapshot(
         registry: McpToolRegistry,
         expected: [McpToolDescriptor],
@@ -152,7 +152,15 @@ final class McpRegistrySnapshotTests: XCTestCase {
                     name: "render_preview",
                     description: "rendered",
                     inputSchemaJSON:
-                        #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"longEdge":{"type":"integer","minimum":1,"maximum":2048,"default":1024,"description":"Output long edge in px (rendered in-pipe at this size)"},"quality":{"type":"integer","minimum":1,"maximum":90,"default":85,"description":"JPEG quality (percent)"}},"required":["relPath"]}"#,
+                        #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"longEdge":{"type":"integer","minimum":1,"maximum":2048,"default":1024,"description":"Output long edge in px (rendered in-pipe at this size)"},"quality":{"type":"integer","minimum":1,"maximum":90,"default":85,"description":"JPEG quality (percent)"},"region":{"type":"object","properties":{"x":{"type":"number","minimum":0,"maximum":1},"y":{"type":"number","minimum":0,"maximum":1},"w":{"type":"number","exclusiveMinimum":0,"maximum":1},"h":{"type":"number","exclusiveMinimum":0,"maximum":1}},"required":["x","y","w","h"],"description":"Normalized 0..1 ROI {x,y,w,h} relative to the RENDERED output frame (orientation already normalized); cropped after the render, decoupled from longEdge"},"compare":{"type":"string","enum":["none","root"],"default":"root","description":"none = the edited image only; root (default) = the pristine (edit-free) image rides along for the before/after loop"}},"required":["relPath"]}"#,
+                    readOnlyHint: true),
+                McpToolDescriptor(
+                    // M7-3 (MCP2-05): list_luts joins the editing domain
+                    // (6→7, D-M7-3-4) — this domain snapshot edits consciously,
+                    // the same batch the union layer edits (M5-1-03 形).
+                    name: "list_luts",
+                    description: "list",
+                    inputSchemaJSON: #"{"type":"object","properties":{},"required":[]}"#,
                     readOnlyHint: true),
                 McpToolDescriptor(
                     name: "export_image",
@@ -175,7 +183,7 @@ final class McpRegistrySnapshotTests: XCTestCase {
 
     /// The 14-1 probe pair (ping/count_images) is retired: a bare kernel
     /// (no editing/culling seams) must expose NO tools at all — the tool
-    /// face is exactly the closed 20-tool set, never a probe residue.
+    /// face is exactly the closed closed-set count, never a probe residue.
     func testProbeFaceRetiredFromBareRegistry() async throws {
         let registry = await makeProbeRegistry()
         let descriptors = await registry.descriptors()
@@ -191,7 +199,10 @@ final class McpRegistrySnapshotTests: XCTestCase {
         let names = await registryWithFaces.descriptors().map(\.name)
         XCTAssertFalse(names.contains("ping"), "ping is retired")
         XCTAssertFalse(names.contains("count_images"), "count_images is retired")
-        XCTAssertEqual(names.count, 20, "the closed face is exactly 20 tools (M5-1-03 match_color joined)")
+        XCTAssertEqual(
+            names.count, 21,
+            "the editing+culling closed face is exactly 21 tools "
+                + "(M7-3 list_luts joined the editing domain): \(names.sorted())")
     }
 
     /// A minimal LOCAL double for the transport-echo tests (the registry

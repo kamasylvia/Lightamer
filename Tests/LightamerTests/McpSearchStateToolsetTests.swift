@@ -12,7 +12,8 @@ import XCTest
 // package:
 //
 //   • the domain snapshot layer (the 3 read-only tools verbatim; the
-//     registry without the searchState seam stays at the 20-tool face)
+//     registry without the searchState seam stays at the editing+culling
+//     face (21 since M7-3's list_luts joined editing)
 //   • the EXIF parity golden: the tool's cursor-chain walk ≡ the GUI
 //     two-segment walk (direct searchPage + searchNullTail concat) — the
 //     fixture MUST carry NULL-key rows (unrated + no-capture-date) and the
@@ -259,7 +260,9 @@ final class McpSearchStateToolsetTests: XCTestCase {
     }
 
     /// The zero-diff negative: WITHOUT the searchState seam the registry is
-    /// byte-identical to the pre-M7-2 20-tool face.
+    /// byte-identical to the pre-M7-2 face grown by list_luts (the editing
+    /// domain's own M7-3 addition) — the negative's semantics ("no new
+    /// domain without its context") is unchanged; the count rides 21.
     func testRegistryWithoutSearchStateStaysAtTwenty() async throws {
         let registry = await McpServerController.makeRegistry(
             editing: EditingToolset.Seams(
@@ -267,7 +270,9 @@ final class McpSearchStateToolsetTests: XCTestCase {
                 gate: McpRenderGate(), liveImageURL: { nil }),
             culling: McpServerController.makeCullingContext(session: { nil }))
         let descriptors = await registry.descriptors()
-        XCTAssertEqual(descriptors.count, 20, "the default seam stays nil = 20")
+        XCTAssertEqual(
+            descriptors.count, 21,
+            "the default seam stays nil = 21 (M7-3 list_luts in editing)")
         XCTAssertFalse(descriptors.contains { $0.name == "search_photos" })
     }
 
@@ -939,6 +944,9 @@ final class McpSearchStateToolsetTests: XCTestCase {
     /// directly (no carrier parked in the test process) must throw
     /// `notSessionMember` with the single-source no-open-project message.
     func testHeadlessFulltextNilCarrierThrowsTyped() async throws {
+        // The box is process-global (an earlier suite's parking test may
+        // have parked) — the nil-carrier judgment needs the empty box.
+        McpServerController.headlessProjectBox.set(.init(store: nil, url: nil, readOnly: false))
         let context = McpServerController.makeHeadlessSearchState(mode: .stdio)
         let fulltext = try XCTUnwrap(context.fulltext)
         do {
