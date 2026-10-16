@@ -942,7 +942,9 @@ enum McpSearchStateToolset {
         ]
     }
 
-    private static func iso8601(_ date: Date) -> String {
+    /// The shared ISO-8601 rendering (internal since M7-3 — ProjectToolset's
+    /// list_versions projection rides the SAME formatter).
+    static func iso8601(_ date: Date) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.string(from: date)
@@ -955,8 +957,31 @@ enum McpSearchStateToolset {
     private static func resolveImageURL(
         _ image: String, context: McpSearchStateContext
     ) async throws -> URL {
+        try await resolveImageURL(
+            image,
+            libraryProvider: context.library,
+            sessionPairProvider: context.sessionPair)
+    }
+
+    /// The SHARED addressing core (M7-3 M3): the exact resolveImageURL
+    /// logic lifted into a seam-parameterized form so ProjectToolset's
+    /// list_versions can ride the SAME two-form resolution —
+    /// SearchStateToolset passes its context's two seams, ProjectToolset
+    /// passes its own same-shape pair (the assembly assigns the ONE closure
+    /// variable to BOTH contexts, OQ-8). Pure extraction: zero behavior
+    /// change, and the match_color provider is deliberately NOT touched
+    /// (its anchor disease is the M7-4 route).
+    static func resolveImageURL(
+        _ image: String,
+        libraryProvider: (@Sendable () async -> (
+            store: ProjectFileStore, projectDirectory: URL
+        )?)?,
+        sessionPairProvider: (@Sendable () async -> (
+            store: SessionIndexStore, root: URL
+        )?)?
+    ) async throws -> URL {
         if let id = Self.libraryImageID(image) {
-            guard let libraryProvider = context.library else {
+            guard let libraryProvider else {
                 throw McpToolError.notSessionMember(
                     "'\(image)' reads as a library image id but no library "
                         + "project is open on the server host — pass an "
@@ -986,12 +1011,12 @@ enum McpSearchStateToolset {
                         + "relink the row in the GUI and retry")
             }
         }
-        guard let pairProvider = context.sessionPair else {
+        guard let sessionPairProvider else {
             throw McpToolError.notSessionMember(
                 "'\(image)' is not addressable — no open session and it "
                     + "does not read as a library image id")
         }
-        guard let (store, root) = await pairProvider() else {
+        guard let (store, root) = await sessionPairProvider() else {
             throw McpToolError.notSessionMember(noOpenProjectMessage)
         }
         guard try await store.fetchRow(relPath: image) != nil else {

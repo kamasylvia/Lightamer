@@ -159,48 +159,76 @@ enum McpServerController {
         }
     }
 
-    /// The headless project store (the writer arm's carrier — the process
-    /// parks forever; the STORE holds the project lock internally — the
-    /// single acquisition point, KD-2; close releases in the EOF leg). Same
-    /// `nonisolated(unsafe)` shape as the embedded-state box; the EOF
-    /// watcher's close leg is the only second toucher. The read-only arm
-    /// (M7-2-01 T4) parks its `openReadOnly()` store HERE too — the
-    /// search/state library seam reads this carrier on every call.
-    private nonisolated(unsafe) static var headlessProjectStore: ProjectFileStore?
+    /// The current-project box (M7-3 T4): the RUNTIME-mutable carrier for
+    /// the headless arms — a lock-guarded (store, url, readOnly) triple
+    /// above the M6-1 launch carrier. Writers: the arbitration seeding
+    /// (launch), the runtime open/create providers (the writer-gate
+    /// -serialized tool face, apply 同款) and the EOF watcher's close leg.
+    /// Readers: the search/state seams (library / semantic / fulltext /
+    /// liveState) and the project context's library seam — every read is
+    /// per-call, so a runtime switch is visible to the NEXT call.
+    private final class HeadlessProjectBox: @unchecked Sendable {
+        struct Snapshot: Sendable {
+            var store: ProjectFileStore?
+            var url: URL?
+            var readOnly: Bool
+        }
 
-    /// The headless search/state context (M7-2-01 T1 action 5 + T3): the
-    /// library seam reads the `headlessProjectStore` carrier per call
-    /// (writer arm open; the read-only arm fills it in T4 — the closure
-    /// needs no per-arm variant), the semantic faces derive from the open
-    /// package (the bundled CLIP assets live in the same binary, RESEARCH
-    /// §4.5), and the liveState face carries the project/server faces the
-    /// handler cannot self-derive (the arbitration outcome IS the project
-    /// truth here — writer path / held stance; the workspace/editor/tasks
-    /// faces stay nil, the honest headless nulls). The probe/count faces
-    /// stay unset: the headless faces have no embedded handle (F-4② null
-    /// honesty) and the host wires the lock probe through the
-    /// editing/culling seams as before.
-    /// F-AC-2 (M7-3): `projectWriteProbe` rides the context so the headless
-    /// `get_state.control.lock` reports the verdict TRUTH (the writer arm's
-    /// self-held writable / the read-only arm's real probe). Default nil =
-    /// every existing construction compiles zero-diff. Internal (not
-    /// private) so the M7-3 tests can exercise the closures in-process.
+        private let lock = NSLock()
+        private var snapshot = Snapshot(store: nil, url: nil, readOnly: false)
+
+        func set(_ snapshot: Snapshot) {
+            lock.lock()
+            defer { lock.unlock() }
+            self.snapshot = snapshot
+        }
+
+        var current: Snapshot {
+            lock.lock()
+            defer { lock.unlock() }
+            return snapshot
+        }
+
+        /// Pops the store (the EOF close leg + the switch leg) — the box
+        /// goes storeless so a close can never double-fire.
+        func takeStore() -> ProjectFileStore? {
+            lock.lock()
+            defer { lock.unlock() }
+            let store = snapshot.store
+            snapshot.store = nil
+            return store
+        }
+    }
+
+    nonisolated(unsafe) private static let headlessProjectBox = HeadlessProjectBox()
+
+    /// The headless search/state context (M7-2-01 T1 action 5 + T3; M7-3 T4
+    /// box form): every data face reads the CURRENT-PROJECT BOX per call —
+    /// the launch-captured projectURL/isWriter spellings are RETIRED (the
+    /// runtime open/create must be visible to the next call; the box-empty
+    /// face is the byte-identical bare-context nulls). The H2 fix rides the
+    /// library seam: the path-kind anchor is the BOX's url (a runtime A→B
+    /// switch re-anchors projectRelative resolution to B — fix `20997721`
+    /// same-family second instance closed). F-AC-2: the probe rides through
+    /// so `get_state.control.lock` reports the verdict truth.
     static func makeHeadlessSearchState(
-        projectURL: URL, isWriter: Bool, mode: LaunchMode,
+        mode: LaunchMode,
         projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil
     ) -> McpSearchStateContext {
         McpSearchStateContext(
             library: {
-                guard let store = McpServerController.headlessProjectStore
+                let snapshot = McpServerController.headlessProjectBox.current
+                guard let store = snapshot.store, let url = snapshot.url
                 else { return nil }
                 // The path-kind anchor is the directory holding the
                 // package (projectRelative rows append to it — the
                 // WorkspaceHostView urlResolver 形).
                 return (store: store,
-                        projectDirectory: projectURL.deletingLastPathComponent())
+                        projectDirectory: url.deletingLastPathComponent())
             },
             semanticStore: {
-                guard let store = McpServerController.headlessProjectStore
+                guard let store = McpServerController.headlessProjectBox
+                    .current.store
                 else { return nil }
                 return SemanticStore(store: store)
             },
@@ -211,7 +239,8 @@ enum McpServerController {
                 // N2-3 (M7-3): the narrow race (the carrier drained between
                 // the library gate and this seam) is the TYPED honest arm —
                 // never a silent empty result (the headnote discipline).
-                guard let store = McpServerController.headlessProjectStore
+                guard let store = McpServerController.headlessProjectBox
+                    .current.store
                 else {
                     throw McpToolError.notSessionMember(
                         McpSearchStateToolset.noOpenProjectMessage)
@@ -219,23 +248,164 @@ enum McpServerController {
                 return try await AIDescriptionService.imageIDs(
                     matching: query, store: store)
             },
-            liveState: {
-                McpSearchStateLiveSnapshot(
+            liveState: { [mode] in
+                // Per-call box read: an empty box answers nil = the
+                // bare-context no-project null face byte-identical; a
+                // holding box answers the arbitration-outcome truth
+                // (path/readOnly/heldByOther derived from the box).
+                let snapshot = McpServerController.headlessProjectBox.current
+                guard let url = snapshot.url else { return nil }
+                return McpSearchStateLiveSnapshot(
                     project: .object([
-                        "path": .string(projectURL.path),
-                        "heldByOther": .bool(!isWriter),
-                        "readOnly": .bool(!isWriter),
+                        "path": .string(url.path),
+                        "heldByOther": .bool(snapshot.readOnly),
+                        "readOnly": .bool(snapshot.readOnly),
                     ]),
                     server: .object([
                         "name": .string(McpServerController.serverName),
                         "version": .string(McpServerController.serverVersion),
                         "hostMode": .string(
                             mode == .stdio ? "stdio" : "http"),
-                        "readOnly": .bool(!isWriter),
+                        "readOnly": .bool(snapshot.readOnly),
                     ]))
             },
             projectWriteProbe: projectWriteProbe)
     }
+
+    /// The headless project context (M7-3 T4, D-M7-3-1 headless arm): the
+    /// Core-direct runtime open/create providers — close-then-open (the
+    /// checkpoint rides close); a failure after a successful close leaves
+    /// the box EMPTY (the honest no-project state, never a half-open — the
+    /// agent retries); a held target is the typed `projectReadOnly`
+    /// carrying the holder summary (`SingleWriterLock.holderSummary`).
+    /// The mode is captured INSIDE the provider closures (M1 — the provider
+    /// signature carries no mode) so the runtime EOF arm's internal
+    /// self-guard can see it.
+    static func makeHeadlessProjectContext(
+        mode: LaunchMode
+    ) -> McpProjectContext {
+        McpProjectContext(
+            openProject: { [mode] url in
+                try await McpServerController.headlessRuntimeOpen(
+                    url, mode: mode)
+            },
+            createProject: { [mode] url, name in
+                try await McpServerController.headlessRuntimeCreate(
+                    url, name, mode: mode)
+            },
+            library: {
+                let snapshot = McpServerController.headlessProjectBox.current
+                guard let store = snapshot.store, let url = snapshot.url
+                else { return nil }
+                return (store: store,
+                        projectDirectory: url.deletingLastPathComponent())
+            })
+        // sessionPair stays nil (the headless face has no open session —
+        // the relPath addressing arm answers the typed notSessionMember,
+        // the same honesty as the search/state face). projectWriteProbe
+        // stays nil (the search/state context carries the real probe; this
+        // is the symmetry face and list_versions never consumes it).
+    }
+
+    /// The runtime-store park + EOF arm tail (the open AND create legs
+    /// share this ONE call site — the launch path is the other arm site;
+    /// the once guard makes the multiplicity harmless).
+    private static func parkRuntimeStore(
+        _ store: ProjectFileStore, at url: URL, mode: LaunchMode
+    ) {
+        headlessProjectBox.set(HeadlessProjectBox.Snapshot(
+            store: store, url: url, readOnly: false))
+        armStdioEOFReleaseOnce(mode: mode)
+    }
+
+    /// The close-then-open leg (D-M7-3-1): the current store's checkpoint
+    /// rides close BEFORE the target opens; a failure leaves the box empty.
+    static func headlessRuntimeOpen(
+        _ url: URL, mode: LaunchMode
+    ) async throws -> ProjectOpenOutcome {
+        await closeCurrentHeadlessProject()
+        let store = ProjectFileStore(at: url)
+        do {
+            _ = try await store.open(role: .headless)
+        } catch let error as LibraryError {
+            if case .projectHeldByOther(let detail) = error {
+                throw McpToolError.projectReadOnly(detail)
+            }
+            // OQ-M7-3-10: the migrate leg rides open(role:) verbatim — a
+            // migrate failure is the internalError bail-out with the
+            // LibraryError detail.
+            throw McpToolError.internalError("\(error)")
+        } catch {
+            throw McpToolError.internalError("\(error)")
+        }
+        parkRuntimeStore(store, at: url, mode: mode)
+        return ProjectOpenOutcome(url: url)
+    }
+
+    /// The create leg: same close-then-open discipline; `create(name:role:)`
+    /// acquires the lock BEFORE any write leg (a held target = the typed
+    /// projectReadOnly; the fresh file is removed by the store on a failed
+    /// fresh-create).
+    static func headlessRuntimeCreate(
+        _ url: URL, _ name: String, mode: LaunchMode
+    ) async throws -> ProjectOpenOutcome {
+        await closeCurrentHeadlessProject()
+        let store = ProjectFileStore(at: url)
+        do {
+            _ = try await store.create(name: name, role: .headless)
+        } catch let error as LibraryError {
+            if case .projectHeldByOther(let detail) = error {
+                throw McpToolError.projectReadOnly(detail)
+            }
+            throw McpToolError.internalError("\(error)")
+        } catch {
+            throw McpToolError.internalError("\(error)")
+        }
+        parkRuntimeStore(store, at: url, mode: mode)
+        return ProjectOpenOutcome(url: url)
+    }
+
+    /// The current store's graceful close (the checkpoint rides close).
+    private static func closeCurrentHeadlessProject() async {
+        if let store = headlessProjectBox.takeStore() {
+            try? await store.close()
+        }
+    }
+
+    /// The stdio EOF graceful-release watcher (M7-3 OQ-7 extraction of the
+    /// M6-1 launch leg): IDEMPOTENT (the static once guard — multiple
+    /// runtime opens arm nothing twice) with the INTERNAL mode self-guard
+    /// (M1 double insurance — the launch path keeps its `if mode ==
+    /// .stdio` gate AND the arm re-checks, so an http daemon whose stdin
+    /// may already be closed can never trip an unguarded poll's instant
+    /// POLLHUP → close + exit on the first runtime open). The watcher body
+    /// reads the CURRENT project box at HUP time — close + exit(0)
+    /// semantics unchanged (the M6-1 checkpoint-graceful face carried to
+    /// the runtime-open path).
+    static func armStdioEOFReleaseOnce(mode: LaunchMode) {
+        // The M1 internal self-guard (http arms never arm).
+        guard mode == .stdio else { return }
+        eofArmLock.lock()
+        defer { eofArmLock.unlock() }
+        guard !eofArmDone else { return }
+        eofArmDone = true
+        Task.detached(priority: .utility) {
+            var fds = [pollfd(fd: STDIN_FILENO, events: 0, revents: 0)]
+            while true {
+                let count = poll(&fds, 1, -1)
+                if count > 0,
+                    fds[0].revents & (Int16(POLLHUP) | Int16(POLLERR)) != 0 {
+                    break
+                }
+                fds[0].revents = 0
+            }
+            try? await McpServerController.headlessProjectBox.takeStore()?.close()
+            exit(0)
+        }
+    }
+
+    private static let eofArmLock = NSLock()
+    nonisolated(unsafe) private static var eofArmDone = false
 
     /// Runs the headless server for `mode` and parks the process forever
     /// (stdio: the transport reads stdin from its own task; the entry point
@@ -266,7 +436,8 @@ enum McpServerController {
                 case .stdio:
                     await startHeadlessStdioHost(
                         paths: McpEndpointPaths.makeDefault(),
-                        searchState: McpSearchStateContext())
+                        searchState: makeHeadlessSearchState(mode: mode),
+                        project: makeHeadlessProjectContext(mode: mode))
                 case .http:
                     // The headless HTTP daemon: same binding discipline as
                     // the GUI host (writer lock → bind 127.0.0.1 → write the
@@ -277,7 +448,8 @@ enum McpServerController {
                             paths: McpEndpointPaths.makeDefault(),
                             editing: await makeEditingSeams(session: { nil }),
                             culling: makeCullingContext(session: { nil }),
-                            searchState: McpSearchStateContext())
+                            searchState: makeHeadlessSearchState(mode: mode),
+                            project: makeHeadlessProjectContext(mode: mode))
                         await log(
                             "headless MCP server up (http) on 127.0.0.1:\(handle.port)"
                                 + " — endpoint file \(handle.paths.jsonURL.path)")
@@ -321,7 +493,8 @@ enum McpServerController {
         let store = ProjectFileStore(at: projectURL)
         do {
             _ = try await store.open(role: .headless)
-            headlessProjectStore = store
+            headlessProjectBox.set(HeadlessProjectBox.Snapshot(
+                store: store, url: projectURL, readOnly: false))
             isWriter = true
             await log("headless project writer arm: \(projectURL.path)")
         } catch let error as LibraryError {
@@ -338,11 +511,18 @@ enum McpServerController {
                 // holder's live endpoint).
                 do {
                     let readOnlyStore = try await store.openReadOnly()
-                    headlessProjectStore = readOnlyStore
+                    headlessProjectBox.set(HeadlessProjectBox.Snapshot(
+                        store: readOnlyStore, url: projectURL, readOnly: true))
                     await log(
                         "headless project read-only arm: serving read faces "
                             + "from \(projectURL.path)")
                 } catch {
+                    // The url/readOnly faces stay seeded (the arbitration
+                    // outcome IS the project truth — the liveState face
+                    // keeps today's shape), the STORE stays empty (the
+                    // data seams answer the typed errors).
+                    headlessProjectBox.set(HeadlessProjectBox.Snapshot(
+                        store: nil, url: projectURL, readOnly: true))
                     await log(
                         "headless project read-only arm: read-only open "
                             + "failed (\(error)) — the search/state tools "
@@ -361,37 +541,25 @@ enum McpServerController {
         // The stdio EOF graceful leg (KD-4, armed only with --project): the
         // agent disconnecting releases the project right best-effort
         // (checkpoint → unlock → exit; process death is the kernel floor).
-        // poll(2) with a zero event mask watches HUP WITHOUT stealing bytes
-        // from the transport's stdin reader.
-        if mode == .stdio {
-            Task.detached(priority: .utility) {
-                var fds = [pollfd(fd: STDIN_FILENO, events: 0, revents: 0)]
-                while true {
-                    let count = poll(&fds, 1, -1)
-                    if count > 0,
-                        fds[0].revents & (Int16(POLLHUP) | Int16(POLLERR)) != 0 {
-                        break
-                    }
-                    fds[0].revents = 0
-                }
-                try? await headlessProjectStore?.close()
-                exit(0)
-            }
-        }
+        // M7-3: the extracted shared arm (once guard + the internal mode
+        // self-guard) — the launch behavior is byte-identical and the
+        // runtime-open path arms the SAME leg through the same function.
+        armStdioEOFReleaseOnce(mode: mode)
         // M6-1-01 T7 (KD-5): the write-face probe — self-held on the writer
         // arm, the real non-holding probe on the read-only arm.
         let probe = makeProjectWriteProbe(selfHeld: isWriter, lockURL: lockURL)
         // M7-2-01: the search/state context rides every arm (the closed
-        // 23-tool face is identical across hosts — the read-only arm
-        // currently answers notSessionMember until T4 parks its store).
+        // face is identical across hosts). M7-3: the project context rides
+        // every host call site too (H3 — tools never disappear; the
+        // read-only host's open/create answer serverReadOnly at the gate).
         let searchState = makeHeadlessSearchState(
-            projectURL: projectURL, isWriter: isWriter, mode: mode,
-            projectWriteProbe: probe)
+            mode: mode, projectWriteProbe: probe)
+        let project = makeHeadlessProjectContext(mode: mode)
         switch mode {
         case .stdio:
             await startHeadlessStdioHost(
                 paths: headlessEndpointPaths, projectWriteProbe: probe,
-                searchState: searchState)
+                searchState: searchState, project: project)
         case .http:
             if isWriter {
                 // Writer arm: the full legacy http daemon (endpoint lock →
@@ -405,7 +573,8 @@ enum McpServerController {
                         paths: headlessEndpointPaths,
                         editing: editing,
                         culling: culling,
-                        searchState: searchState)
+                        searchState: searchState,
+                        project: project)
                     await log(
                         "headless MCP server up (http) on 127.0.0.1:\(handle.port)"
                             + " — endpoint file \(handle.paths.jsonURL.path)")
@@ -423,7 +592,7 @@ enum McpServerController {
                 // its shape; this is the separate honest read-only face.
                 await startReadOnlyHTTPHost(
                     paths: headlessEndpointPaths, projectWriteProbe: probe,
-                    searchState: searchState)
+                    searchState: searchState, project: project)
             }
         }
     }
@@ -478,14 +647,16 @@ enum McpServerController {
     private static func startReadOnlyHTTPHost(
         paths: McpEndpointPaths,
         projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil,
-        searchState: McpSearchStateContext? = nil
+        searchState: McpSearchStateContext? = nil,
+        project: McpProjectContext? = nil
     ) async {
         var editing = await makeEditingSeams(session: { nil })
         editing.projectWriteProbe = projectWriteProbe
         var culling = makeCullingContext(session: { nil })
         culling.projectWriteProbe = projectWriteProbe
         let registry = await makeRegistry(
-            editing: editing, culling: culling, searchState: searchState)
+            editing: editing, culling: culling, searchState: searchState,
+            project: project)
         await registry.setWriterCheck { false }
         let host = McpHTTPHost(
             configuration: .init(host: McpHTTPHost.loopbackHost, port: 0),
@@ -538,7 +709,8 @@ enum McpServerController {
     private static func startHeadlessStdioHost(
         paths: McpEndpointPaths,
         projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil,
-        searchState: McpSearchStateContext? = nil
+        searchState: McpSearchStateContext? = nil,
+        project: McpProjectContext? = nil
     ) async {
         let stderr = FileHandle.standardError
         do {
@@ -563,7 +735,8 @@ enum McpServerController {
             var culling = makeCullingContext(session: { nil })
             culling.projectWriteProbe = projectWriteProbe
             let registry = await makeRegistry(
-                editing: editing, culling: culling, searchState: searchState)
+                editing: editing, culling: culling, searchState: searchState,
+                project: project)
             await registry.setWriterCheck { @Sendable in lock != nil }
             let server = await McpAdapters.makeServer(registry: registry)
             try await server.start(transport: StdioTransport())
@@ -593,7 +766,8 @@ enum McpServerController {
     static func makeRegistry(
         editing: EditingToolset.Seams? = nil,
         culling: McpCullingContext? = nil,
-        searchState: McpSearchStateContext? = nil
+        searchState: McpSearchStateContext? = nil,
+        project: McpProjectContext? = nil
     ) async -> McpToolRegistry {
         let registry = McpToolRegistry()
         if let editing {
@@ -604,6 +778,11 @@ enum McpServerController {
         }
         if let searchState {
             await McpSearchStateToolset.registerAll(on: registry, context: searchState)
+        }
+        if let project {
+            // M7-3 T4: the fourth domain — nil default keeps every existing
+            // construction and test at its pre-M7-3 count (zero-diff).
+            await McpProjectToolset.registerAll(on: registry, context: project)
         }
         return registry
     }
@@ -771,7 +950,8 @@ enum McpServerController {
         exposure: McpExposure = .loopback,
         editing: EditingToolset.Seams? = nil,
         culling: McpCullingContext? = nil,
-        searchState: McpSearchStateContext? = nil
+        searchState: McpSearchStateContext? = nil,
+        project: McpProjectContext? = nil
     ) async throws -> HttpHostHandle {
         // The Bearer valve exists ONLY on the non-loopback branch (the
         // loopback default is zero-token by design — the smallest surface).
@@ -805,7 +985,8 @@ enum McpServerController {
         }
         do {
             let registry = await makeRegistry(
-                editing: editing, culling: culling, searchState: searchState)
+                editing: editing, culling: culling, searchState: searchState,
+                project: project)
             // The host holds the writer right by construction.
             await registry.setWriterCheck { true }
             let pipeline = bearerToken.map { validationPipelineWithBearer(token: $0) }
@@ -866,12 +1047,14 @@ enum McpServerController {
     static func startEmbeddedIfPreferenceEnabled(
         editing: EditingToolset.Seams?,
         culling: McpCullingContext?,
-        searchState: McpSearchStateContext? = nil
+        searchState: McpSearchStateContext? = nil,
+        project: McpProjectContext? = nil
     ) async {
         withEmbeddedState { state in
             state.editing = editing
             state.culling = culling
             state.searchState = searchState
+            state.project = project
         }
         guard UserDefaults.standard.bool(forKey: embeddedServerEnabledKey) else { return }
         await startEmbeddedServer()
@@ -886,8 +1069,8 @@ enum McpServerController {
     static func startEmbeddedServer() async {
         if withEmbeddedState({ $0.handle != nil }) { return }
         do {
-            let (editing, culling, searchState) = withEmbeddedState { state in
-                (state.editing, state.culling, state.searchState)
+            let (editing, culling, searchState, project) = withEmbeddedState { state in
+                (state.editing, state.culling, state.searchState, state.project)
             }
             let exposure: McpExposure =
                 UserDefaults.standard.bool(forKey: lanExposureEnabledKey)
@@ -897,7 +1080,8 @@ enum McpServerController {
                 exposure: exposure,
                 editing: editing,
                 culling: culling,
-                searchState: searchState)
+                searchState: searchState,
+                project: project)
             let wonRace = withEmbeddedState { state -> Bool in
                 if state.handle == nil {
                     state.handle = handle
@@ -950,6 +1134,11 @@ enum McpServerController {
         var editing: EditingToolset.Seams?
         var culling: McpCullingContext?
         var searchState: McpSearchStateContext?
+        /// M7-3 T4 (the F-4① fifth-seam shape, project face): the box
+        /// carries the project context too so an off→on preference toggle
+        /// re-assembles the three project tools (they cannot silently
+        /// vanish across a toggle).
+        var project: McpProjectContext?
     }
     nonisolated(unsafe) private static var embeddedState = EmbeddedState()
 

@@ -916,7 +916,6 @@ final class McpSearchStateToolsetTests: XCTestCase {
     /// self-held writable / held arm the real holder summary).
     func testHeadlessGetStateControlLockRidesTheProbe() async throws {
         let writerContext = McpServerController.makeHeadlessSearchState(
-            projectURL: URL(fileURLWithPath: "/tmp/Probe.lalb"), isWriter: true,
             mode: .stdio, projectWriteProbe: { .writable })
         let writerRegistry = await makeRegistry(context: writerContext)
         let payload = try await Self.callJSON(
@@ -925,7 +924,6 @@ final class McpSearchStateToolsetTests: XCTestCase {
         XCTAssertEqual(control["lock"] as? String, "writable")
 
         let heldContext = McpServerController.makeHeadlessSearchState(
-            projectURL: URL(fileURLWithPath: "/tmp/Probe.lalb"), isWriter: false,
             mode: .stdio,
             projectWriteProbe: { .held(holderSummary: "pid 77", guidance: "g") })
         let heldRegistry = await makeRegistry(context: heldContext)
@@ -941,9 +939,7 @@ final class McpSearchStateToolsetTests: XCTestCase {
     /// directly (no carrier parked in the test process) must throw
     /// `notSessionMember` with the single-source no-open-project message.
     func testHeadlessFulltextNilCarrierThrowsTyped() async throws {
-        let context = McpServerController.makeHeadlessSearchState(
-            projectURL: URL(fileURLWithPath: "/tmp/Unused.lalb"), isWriter: true,
-            mode: .stdio)
+        let context = McpServerController.makeHeadlessSearchState(mode: .stdio)
         let fulltext = try XCTUnwrap(context.fulltext)
         do {
             _ = try await fulltext("beach")
