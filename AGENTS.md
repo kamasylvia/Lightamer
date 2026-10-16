@@ -520,6 +520,7 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 - **键族登记**：`mcp_tool_desc_search_photos`/`_get_history`/`_get_state` 三键（xcstrings 尾块纯插入 zh-only 形；zh-audit 双 PASS）；UserDefaults 零新增。
 - **测试**：`McpSearchStateToolsetTests` 17 法（APP 域，BUNDLE-MAP 一行）：parity golden 三臂（EXIF 双向 + NULL 行翻段可达 / CLIP mock / 全文直调恒等）+ cursor 机制负测族 + 错误臂五件 + worker 族映射 + get_history golden（五 kind + 双载荷 + 截断方向 + pristine）+ get_state 双判据 + 16 值穷举 + 只读豁免面 + 两进程只读臂过线。union 快照显式改全点位 = DECISIONS §1。
 - **ΔN 终值 = +17**（全套 `3877/35/0`——3860 基线 + 17；skip 35 口径维持）。
+- **M7-2 closed（双路验收 VALIDATION signed 2026-10-17）**：签核正本 = `phases/m7-2-mcp-o1/M7-2-VALIDATION.md`（`status: validated` + `nyquist_compliant: true`；夜间授权先例晨审可推翻）；执行链 `9f69775b..8f12ffcc`（7 commits 含 fix `20997721` projectDirectory 目录锚——T5 golden 抓获回注闭环）。**双路独立验收 PASS / 0 error + 2 minor 零实质分歧**（omp 制度路由双 zcode 独立眼替代——第一路重 parity 深审 + stdio 端到端 `M7-2-01-ACCEPTANCE.md`，第二路重五面语义审计 + HTTP 两进程复现 `M7-2-01-ACCEPTANCE-2ND.md`；2 minor = F-AC-1 FilterSQL 快照未交付未申报 + F-AC-2 headless probe 未透传，双路独立确认属实，登记缺口级）；**三路全套同值 `TOTAL|3877/35/0|`**（exit 0 零 MEMFAIL 七 bundle 8G 门内）；端到端证据面 = 真 MCP stdio 23 工具 + HTTP 两进程三证 + EXIF 翻段链 ≡ 独立 SQL 参照（两路独立）。**挂账单一清单六项** = VALIDATION §挂账（①F-AC-1 → M7-3 补快照或追记申报 ②F-AC-2 → M7-3 一行透传或追记 ③N2-1 pristine 补 `truncated` 键 + N2-3 fulltext 窄竞态 typed 抛 + N2-4 requestFailed 显式测试 → M7-3 顺路；N2-2 project 字段不对称 → M7-6 文档句 ④CLIP 10s 贴线待万级库实测 ⑤match_color provider projectDirectory 同病 → M7-4 顺路勘正 ⑥auto 分类器后置 + cursor 跨调用稳定性边界）；next = M7-3（MCP O2+O3，MCP2-04..07）。
 
 ## Architecture
 
