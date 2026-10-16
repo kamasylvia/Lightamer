@@ -346,6 +346,15 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 
 ---
 
+## Milestone 8（FSIM 光谱升维——ROADMAP §Milestone 8 预告块，**charter-pending：M7 收口后正式立项**；轻量 research 正本 = `phases/m8-fsim-spectral/RESEARCH-PRE.md`，2026-10-17 提前排队批〔夜间授权先例 D-07-3-T5-1，晨审可推翻〕；REQUIREMENTS 草案族 = SPEC-01..06）—— 待立项
+
+- [ ] **M8-0 charter（正式立项：phase 表 / SC 门 / 范围红线 / OQ-M8-1..7 裁决）** —— pending（输入 = RESEARCH-PRE §7：核拓扑 process 单源 / tc 表自拟合 / 重积分 3D 表臂 / coupler 模糊场降采样 / 四阶段切分 / FSIM-01c 措辞修订 / UI 无 Alcedo 对标项）
+- [ ] **M8-1 数学核 + probe**（SPEC-01/04：tc 表自拟合〔Jakob-Hanika 数学，GPL 零拷贝〕+ 逐像素 kernel 探针 + perf/内存真值 + coupler 方案裁决数据）
+- [ ] **M8-2 管线集成**（SPEC-02/03/06：sub-run 缝挂光谱核 + solve/bake 光谱域重推导 + process bump〔光谱 = current 臂，密度核冻结 legacy 臂〕+ 冻结 golden + CC BY-SA 谱面消费 + NOTICE 措辞修订）
+- [ ] **M8-3 面板接线 + golden/收口**（SPEC-05：Film 面板平移 + 宽容度 descriptor 换臂 + VALIDATION）
+
+---
+
 ## Milestone 7（Agent 互操作与壳专项——ROADMAP §Milestone 7，2026-10-16 立项：FIX2 收官后接棒；组成 = 四项裁决全按推荐〔用户 2026-10-16 回批〕：①D-6 壳专项〔FIX2-VALIDATION 挂账①，双路同判三选一之①「接受降级 + gate=false 壳减树/窗口内容拆分专项」，research 复审并入专项首步〕②Alcedo CLI+AI 照抄三块全要〔正本 = `research/ALCEDO-CLI-AI-SURVEY.md`；块一 MCP 工具 additive 四波 + 块二 turn-taking 与 M6-1 单写者锁面合并立项；**块三独立 CLI 缓不入 phase**——挂账触发条件 = 外部用户诉求 ∨ MCP launcher 实战受限；AI 面我方超集不设 AI 波〕③UPSTREAM-QUEUE 四候选入块〔UQ-A1→M7-6 / UQ-A2→M7-4 / UQ-L1→M7-6 / UQ-L2 挂面〕④走查遗留〔波 1 屏面四项 + m6-closeout Blocked-Channel 余行 + FIX2 挂账④⑤⑥ + 导入零行间歇复测〕随 D-6 专项修后复走）—— M7-0 ✅ 闭环（charter 批 2026-10-16：五正本落账 = ROADMAP §M7 块 + REQUIREMENTS 五新族（SHELL/MCP2/TURN/SKILLS/UQ）+ STATE M7 段 + 本头部 + GOAL-STATE 续接点；Apple Feedback 报告稿 = `research/APPLE-FB-D6-DRAFT.md`〔提交动作用户手动——Nitro LUT 先例〕）；下一步 = **M7-1 ✅ 闭环（2026-10-16 定罪批 VALIDATION signed——D-6 终局定性〔FIX2 全部饿死证据证据级 dissolved〕+ 缓解 upstream-only 为主 + SHELL 族翻账〔01/03 parked / 02 条件账 / 04 in-flight / 05 改挂功能态常驻走查批〕；正本 = `phases/m7-1-shell/M7-1-VALIDATION.md`）→ M7-2 MCP O1 检索与状态读 research**（输入 = ROADMAP §M7-2 行 + `research/ALCEDO-CLI-AI-SURVEY.md` 块一 O1 工具面 + Phase 14 MCP 20 工具封闭集与 launcher + M2-3 GUI 三段搜索单源〔FilterSQL/ExifSearchParser/SemanticEngine/LabelQueries〕+ M2-2 LibraryQueries + `research/LIGHTCRAFT-NOTES.md` MCP 参考；红线 = 快照 additive 显式改 + M7-2..M7-5 快照串行）。范围红线：块三独立 CLI 不入 phase；UQ-L2 挂面；MCP 20 工具快照族 additive 显式改 + M7-2..M7-5 快照改动串行编排；Alcedo GPL 代码与文档文案零复制零翻译（skill 仓全自写零 taste）；零新 SPM
 
 - [x] **M7-0 立项与站规格** —— ✅ 完成（2026-10-16 charter 批，doc-only 零源码）

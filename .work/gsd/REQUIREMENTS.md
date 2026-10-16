@@ -460,6 +460,17 @@ Deferred to future release. Tracked but not in current roadmap.
 - **UQ-L1**: 滑杆双击重置 + 值横扫 scrub——SwiftUI Slider 无原生支持需自实现（yiyin 面板与 iop 面板通用 UX 小件；上游 LightCraft `cb8b797c`/`ab64e9a5`，MIT/Apache-2.0）—— **→ M7-6**（2026-10-16；UI 小件分插）
 - **UQ-L2**: 软打样 1:1 zoom window + 「1:1 像素 == 导出」等值测试验收形态——**挂面不入波**（软打样未立项；立项时验收形态直接取用；上游 LightCraft `c78b457c`）（2026-10-16 登记，无 phase 指针）
 
+### M8 FSIM Spectral Core (SPEC) — 光谱升维（2026-10-17 M8 预告批登记，草案形态；正式化归 M8-0 charter 批）
+
+来源 = `phases/m8-fsim-spectral/RESEARCH-PRE.md`（dt spektrafilm 模块族读解 + Jakob-Hanika 2019 公开数学 + 我方 film sub-run 缝融合测绘 + M6-2 process 通道对表）。家族正本 = ROADMAP §Milestone 8 预告块（**charter-pending——M7 收口后正式立项**）。许可面 = dt spektrafilm 模块族与 spektrafilm Python 参考仓 GPL-3.0 零复制只读；Jakob-Hanika 论文数学 + BSD 参考方法可用；hanatos2025 表本体 / dt pack 常数集不消费（tc 表自拟合）；CC BY-SA profile verbatim 纪律延续（谱面消费 = 同文件携带，归属义务面不变）。边界精度修正 = FSIM-01c「光谱引擎不可达」收窄为「场景真实 SPD 重放不可达；重建谱上逐波长材料链可达」（RESEARCH-PRE §2）。
+
+- **SPEC-01**（草案）：光谱上采样核——scene-linear Rec2020 → CAT 至胶片参考光源 → xy → tri2quad → tc 系数表（192×192 级，自拟合）→ sigmoid 谱重建 × `log_sensitivity` 积分 = 曝光 → log → DIR coupler → CMY 密度 → dichroic 放大机 × 相纸感光 → 扫描 CMFs → working RGB + OkLCh gamut 压缩；全链逐波长积分预折进构建期 per-sim/per-pair 表（GPU 逐像素无 81 波长循环）—— **→ M8-1/M8-2**（charter 期细化）
+- **SPEC-02**（草案）：CC BY-SA 数据包更新通道——上游 spektrafilm release profile 谱面（`log_sensitivity`/`channel_density`/`base_density` 81 点全消费）新鲜 verbatim 更新流程（NOTICE §1 纪律延续：fresh copy + CHANGELOG 新行 + MANIFEST 对账，永不原地改）—— **→ M8-2**
+- **SPEC-03**（草案）：现密度域核迁移（process version）——光谱核 = 新 `RenderProcess` current 臂（建议 process 2），密度核冻结 legacy 臂；老档渲染零漂移；film sub-run seed 分叉点折模型 tag（M6-2 §3.3 惯例）；`filmRampPlaneHash` 哨兵重钉流程；不设 `FilmRecord.engine` 字段（process 单源推荐）—— **→ M8-2**
+- **SPEC-04**（草案）：perf 预算——100MP 全帧光谱腿 probe 级预算（估 2-4× 现行 film 腿；DIR coupler 模糊场降采样 1/4 res 候选）；tc 表构建 <100ms 级；8G RSS 门机检；probe 批先行（M8-1）定真值 —— **→ M8-1**
+- **SPEC-05**（草案）：UI 对齐——现行 Film 面板平移（材料 picker / Y·M 滑杆 / Solve / 宽容度面板数学零改；descriptor 真链 probe 换臂）；Alcedo 无光谱面无新增对标项；dt upsampling 表选择器 / 带宽自适应控件 v1 不引入（恒自拟合单表）—— **→ M8-3**（「等其落地」= 无对齐对象；Alcedo 胶片模拟 = LUT 面，M3-2 §10 已核）
+- **SPEC-06**（草案）：FSIM-01c 边界措辞精度修订——NOTICE 消费披露行 + README/help 用户可见措辞升格「光谱重建材质模拟（逐波长），非场景光谱重放」；历史文档原文保留（勘误行追加惯例）—— **→ M8-2/M8-3**
+
 ### Editor Workflow Extensions
 
 - **WORK-01**: 标签/收藏夹集合（虚拟文件夹跨 Session）
