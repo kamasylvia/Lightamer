@@ -74,13 +74,23 @@
 diff；Project.swift = 恰 T2 测试一行 + BUNDLE-MAP 一行（tuist generate
 已随批执行恒末位）。
 
-## 5. T5 — 走查复走（执行中；终态落 MANIFEST）
+## 5. T5 — 走查复走（终态；逐行账 = MANIFEST「FIX2-01 T5 走查复走批」节）
 
-- W1：D-6 三铁条 = **Blocked（升级待裁，T1 未过）**；依赖编辑器通道行
-  随之 Blocked。
-- W2（legacy 配方 ⌘⇧O 会话腿）/ W3（D-7 复验 + F-1 现状）/ W4（legacy
-  行）：按 MANIFEST 配方执行，逐行终态见 MANIFEST「FIX2-01 T5」节
-  （本文件不重复记账）。
+- **W1**：D-6 三铁条 = **Blocked-升级**（T1 未过）；V2M-T1-02 + M6C-03/05/
+  06/07 = Blocked-Channel（D-6 维持）；hasImage=nil 疑点记录维持。
+- **W2**：配方前置 Executed（T3 亲证）；D3-01 = Blocked（D-6 churn 域）；
+  **D4-01 = Blocked-Channel（cmd+click 多选旗标判死再证——两次独立通道，
+  对话框从未呈现 → 「快照上移」返工预案不触发，与波 2 追认同裁定）**；
+  D5-01 + 08 + 32/33 = Blocked-Channel。
+- **W3**：D-7 复验 = **Executed（生产链口径：probe 轮 11 中 8 完成态）**；
+  GUI 对话框腿 = Blocked-Channel（open panel 对 /tmp 供件不可达——
+  Spotlight 不索引 /tmp + ⌘⇧G 键盘判死 + §0 家目录禁令）；F-1 现状 =
+  未触达（挂账维持）；零行间歇 Registered 移交。
+- **W4**：pano 16-19 = Blocked（多选死）；栈面 34-38 = Blocked（供件链
+  双断）；40 = Blocked（D-6）。
+- 排除清单 10/12/14/24-31/39 逐行理由注记入 MANIFEST（M-4② 兑现）。
+- **T5 结论**：可走行全走（T3 配方 + D-7 生产链证据）；Blocked 族三源
+  （D-6 / cmd 旗标 / 面板 /tmp）；零行以代码面证据替代屏面判据销账。
 
 ## 6. 移交与上报（orchestrator 决策项）
 
