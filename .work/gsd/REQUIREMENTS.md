@@ -428,9 +428,9 @@ Deferred to future release. Tracked but not in current roadmap.
 
 来源 = `research/ALCEDO-CLI-AI-SURVEY.md` §5 块一（O1-O4 四波切分，用户裁决②「三块全要，块三缓」生效）；形态 = MCP 工具 **additive**——20 工具封闭集快照族显式改（D-14-CONTEXT-3 机制内），每波 tools/list 快照同批更新；全部复用自有单源（FilterSQL / SemanticEngine / adjustment_transfer_service / ExportRenderer / LutLibraryStore），Alcedo GPL 零复制（survey §6：命令语义克隆合法，MCP snake_case 与 Alcedo 点分 JSON-RPC 天然异构）。家族正本 = ROADMAP §Milestone 7（M7-2..M7-4）。
 
-- **MCP2-01**: MCP `search_photos` 检索工具（O1）——EXIF/全文/CLIP 语义三路由对齐 GUI 三段搜索（复用 FilterSQL/SemanticEngine/LabelQueries 单源）；agent 最大单点缺口（现状 = `list_photos` 逐页扫，无检索动词；Alcedo `search.query` 对表）—— **→ M7-2**（2026-10-16）
-- **MCP2-02**: MCP `get_history` 编辑历史只读工具（O1）——编辑序列自查面，含 note/author 读面（与 MCP2-09 归属缝配套；Alcedo `editor.history` 对表）—— **→ M7-2**（2026-10-16）
-- **MCP2-03**: MCP `get_state` 统一状态快照工具（O1）——project/workspace/editor 状态 + control 状态 + 运行中任务一行快照（Alcedo `state.get` 语义同构）—— **→ M7-2**（2026-10-16）
+- **MCP2-01**: MCP `search_photos` 检索工具（O1）——EXIF/全文/CLIP 语义三路由对齐 GUI 三段搜索（复用 FilterSQL/SemanticEngine/AIDescriptionService 单源；2026-10-16 勘误：原文「LabelQueries」系笔误——LabelQueries 是导入期自动打标的查询目录，非搜索路由，标签可检索性由 CLIP 腿 + 全文腿〔AI tags 进 FTS〕承载）；agent 最大单点缺口（现状 = `list_photos` 逐页扫，无检索动词；Alcedo `search.query` 对表）—— **✅ Delivered（M7-2-01，2026-10-16：commit `5a89f07f` 三路由 + `32055308` parity golden 三臂全绿；mode 三枚举默认 exif / EXIF 两段 keyset cursor〔segment 字段〕+ 窄投影九字段 / CLIP 帽 256 全文帽 500 / `modelUnavailable` additive 15→16）**
+- **MCP2-02**: MCP `get_history` 编辑历史只读工具（O1）——编辑序列自查面，含 note/author 读面（author = v1 前向占位恒 null，M7-4 MCP2-09 落地后填充；与 MCP2-09 归属缝配套；Alcedo `editor.history` 对表）—— **✅ Delivered（M7-2-01，2026-10-16：commit `028c6230` 双地址制投影 + 五臂 kind 判别 + versions meta + F-5 截断保留最新端；golden byte-equal）**
+- **MCP2-03**: MCP `get_state` 统一状态快照工具（O1）——project/workspace/editor 状态 + control 状态 + 运行中任务一行快照（Alcedo `state.get` 语义同构；tasks 面 = M2 导出队列计数，merge/pano/AI-worker 不入 v1）—— **✅ Delivered（M7-2-01，2026-10-16：commit `028c6230` 六字段组一次性快照 + MainActor hop 机检双判据；无头臂 typed nulls 契约）**
 - **MCP2-04**: `render_preview` 反馈回路扩展（O2）——`compare:"root"`（原图对比出图）+ `region`（ROI）参数，agent 自评调色的 before/after 闭环（Alcedo `render.preview` 语义对表；survey gap #18 判「高价值」）—— **→ M7-3**（2026-10-16）
 - **MCP2-05**: MCP `list_luts` 工具（O2 小件）——LUT 库清单读面（库面已有 M2-5，工具壳薄；Alcedo `lut.list` 对表）—— **→ M7-3**（2026-10-16）
 - **MCP2-06**: MCP `project_open`/`project_create` 工具（O3）——agent 全流程第一步（Alcedo `project.open/create` 对表；与 M6-1 项目单写者锁面交互 plan 期定）—— **→ M7-3**（2026-10-16）
