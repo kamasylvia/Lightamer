@@ -613,6 +613,15 @@ final class McpSearchStateToolsetTests: XCTestCase {
                 arguments: ["query": .string("beach"), "mode": .string("clip")])
         }
         XCTAssertEqual(exhausted.code, "modelUnavailable")
+        let failedRegistry = await registryFor(AIWorkerClientError.requestFailed("boom"))
+        let failed = try await Self.toolError {
+            _ = try await Self.callJSON(
+                failedRegistry,
+                name: "search_photos",
+                arguments: ["query": .string("beach"), "mode": .string("clip")])
+        }
+        XCTAssertEqual(failed.code, "modelUnavailable",
+                       "the fourth family case closes F-3 (N2-4)")
     }
 
     // MARK: - The fulltext leg (rank identity vs the Core seam)
@@ -813,6 +822,8 @@ final class McpSearchStateToolsetTests: XCTestCase {
         ])
         XCTAssertEqual(payload["position"] as? Int, -1)
         XCTAssertEqual((payload["items"] as? [Any])?.count, 0)
+        XCTAssertEqual(payload["truncated"] as? Bool, false,
+                       "the pristine face carries the shape-consistency key (N2-1)")
         XCTAssertEqual(payload["rating"] as? NSNull, NSNull())
         // The relPath arm with no session open = the typed honest arm.
         let error = try await Self.toolError {
@@ -896,6 +907,54 @@ final class McpSearchStateToolsetTests: XCTestCase {
         XCTAssertEqual(control["writeCallCount"] as? Int, 3)
         let server = try XCTUnwrap(payload["server"] as? [String: Any])
         XCTAssertEqual(server["hostMode"] as? String, "embedded")
+    }
+
+    // MARK: - The headless searchState construction face (M7-3 F-AC-2/N2-3)
+
+    /// F-AC-2: the headless searchState carries the project write probe —
+    /// `get_state.control.lock` is the verdict TRUTH (writer arm
+    /// self-held writable / held arm the real holder summary).
+    func testHeadlessGetStateControlLockRidesTheProbe() async throws {
+        let writerContext = McpServerController.makeHeadlessSearchState(
+            projectURL: URL(fileURLWithPath: "/tmp/Probe.lalb"), isWriter: true,
+            mode: .stdio, projectWriteProbe: { .writable })
+        let writerRegistry = await makeRegistry(context: writerContext)
+        let payload = try await Self.callJSON(
+            writerRegistry, name: "get_state", arguments: [:])
+        let control = try XCTUnwrap(payload["control"] as? [String: Any])
+        XCTAssertEqual(control["lock"] as? String, "writable")
+
+        let heldContext = McpServerController.makeHeadlessSearchState(
+            projectURL: URL(fileURLWithPath: "/tmp/Probe.lalb"), isWriter: false,
+            mode: .stdio,
+            projectWriteProbe: { .held(holderSummary: "pid 77", guidance: "g") })
+        let heldRegistry = await makeRegistry(context: heldContext)
+        let held = try await Self.callJSON(
+            heldRegistry, name: "get_state", arguments: [:])
+        let heldControl = try XCTUnwrap(held["control"] as? [String: Any])
+        XCTAssertEqual(heldControl["lock"] as? String, "held")
+        XCTAssertEqual(heldControl["holder"] as? String, "pid 77")
+    }
+
+    /// N2-3: the nil-carrier fulltext closure is the TYPED honest arm —
+    /// never a silent empty result. Invoking the headless context's closure
+    /// directly (no carrier parked in the test process) must throw
+    /// `notSessionMember` with the single-source no-open-project message.
+    func testHeadlessFulltextNilCarrierThrowsTyped() async throws {
+        let context = McpServerController.makeHeadlessSearchState(
+            projectURL: URL(fileURLWithPath: "/tmp/Unused.lalb"), isWriter: true,
+            mode: .stdio)
+        let fulltext = try XCTUnwrap(context.fulltext)
+        do {
+            _ = try await fulltext("beach")
+            XCTFail("the nil carrier must throw the typed error")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "notSessionMember")
+            XCTAssertTrue(
+                error.message.contains("no open project"),
+                "the message is the noOpenProjectMessage single source: "
+                    + "\(error.message)")
+        }
     }
 
     // MARK: - The McpToolError 16-value exhaustive codes
