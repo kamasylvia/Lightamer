@@ -89,6 +89,82 @@ final class FilterSQLTests: XCTestCase {
         XCTAssertEqual(q.binds, [.double(2.8)])
     }
 
+    /// The library domain shapes (M7-3 F-AC-1 snapshot amendment): the KD-7
+    /// faces pinned verbatim — the `+i.` alias discipline over the package's
+    /// `FROM images i` and the `(1=1)` baseline (a library has no orphan-scan
+    /// semantics). Snapshot method: these pin the CURRENT bytes, they do not
+    /// author new SQL.
+    func testLibraryDomainSnapshots() throws {
+        // rating gte
+        var q = try FilterSQL.translate(
+            group: .init(rules: [.init(field: .rating, op: .gte, value: .int(3))]),
+            domain: .library)
+        XCTAssertEqual(q.whereClause, "(+i.rating >= ?) AND (1=1)")
+        XCTAssertEqual(q.binds, [.int(3)])
+
+        // flag eq
+        q = try FilterSQL.translate(
+            group: .init(rules: [.init(field: .flag, op: .eq, value: .int(1))]),
+            domain: .library)
+        XCTAssertEqual(q.whereClause, "(+i.flag = ?) AND (1=1)")
+        XCTAssertEqual(q.binds, [.int(1)])
+
+        // iso lt
+        q = try FilterSQL.translate(
+            group: .init(rules: [.init(field: .iso, op: .lt, value: .int(800))]),
+            domain: .library)
+        XCTAssertEqual(q.whereClause, "(+i.iso < ?) AND (1=1)")
+        XCTAssertEqual(q.binds, [.int(800)])
+
+        // captureDate gte (epoch double)
+        q = try FilterSQL.translate(
+            group: .init(rules: [
+                .init(field: .captureDate, op: .gte, value: .double(1_700_000_000)),
+            ]),
+            domain: .library)
+        XCTAssertEqual(q.whereClause, "(+i.capture_date >= ?) AND (1=1)")
+        XCTAssertEqual(q.binds, [.double(1_700_000_000)])
+
+        // focalLength between (doubleRange)
+        q = try FilterSQL.translate(
+            group: .init(rules: [
+                .init(field: .focalLength, op: .between,
+                      value: .doubleRange(lower: 24, upper: 70)),
+            ]),
+            domain: .library)
+        XCTAssertEqual(q.whereClause, "(+i.focal_length BETWEEN ? AND ?) AND (1=1)")
+        XCTAssertEqual(q.binds, [.double(24), .double(70)])
+
+        // keywords contains — the materialized `|`-joined column rides the
+        // SESSION four-clause shape over the `+i.` reference (KD-7: no
+        // EXISTS — there is no tags side table in the package).
+        q = try FilterSQL.translate(
+            group: .init(rules: [
+                .init(field: .keywords, op: .contains, value: .text("Nature")),
+            ]),
+            domain: .library)
+        XCTAssertEqual(
+            q.whereClause,
+            "(+i.keywords = ? OR +i.keywords LIKE ? || '|%' ESCAPE '\\' "
+                + "OR +i.keywords LIKE '%|' || ? || '|%' ESCAPE '\\' "
+                + "OR +i.keywords LIKE '%|' || ? ESCAPE '\\') AND (1=1)")
+        XCTAssertEqual(
+            q.binds,
+            [.text("Nature"), .text("Nature"), .text("Nature"), .text("Nature")])
+    }
+
+    /// The library keywords face's exact-equality arm (the materialized
+    /// column's second method — eq consumes no LIKE and no escaping).
+    func testLibraryKeywordsExactSnapshot() throws {
+        let eq = try FilterSQL.translate(
+            group: .init(rules: [
+                .init(field: .keywords, op: .eq, value: .text("Nature")),
+            ]),
+            domain: .library)
+        XCTAssertEqual(eq.whereClause, "(+i.keywords = ?) AND (1=1)")
+        XCTAssertEqual(eq.binds, [.text("Nature")])
+    }
+
     func testKeywordsFourClauseSnapshot() throws {
         // THE four-clause (F3) — verbatim snapshot.
         let q = try FilterSQL.translate(

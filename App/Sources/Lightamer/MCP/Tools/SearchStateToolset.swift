@@ -834,6 +834,10 @@ enum McpSearchStateToolset {
                 "image": .string(image),
                 "position": .int(-1),
                 "itemCount": .int(0),
+                // N2-1 (M7-3): the shape-consistency key — the pristine face
+                // carries the SAME keyset as the normal face (truncation is
+                // vacuously false here; zero schema-semantics change).
+                "truncated": .bool(false),
                 "items": .array([]),
                 "versions": .array([]),
                 "activeVersionID": .null,

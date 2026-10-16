@@ -180,8 +180,14 @@ enum McpServerController {
     /// stay unset: the headless faces have no embedded handle (F-4② null
     /// honesty) and the host wires the lock probe through the
     /// editing/culling seams as before.
-    private static func makeHeadlessSearchState(
-        projectURL: URL, isWriter: Bool, mode: LaunchMode
+    /// F-AC-2 (M7-3): `projectWriteProbe` rides the context so the headless
+    /// `get_state.control.lock` reports the verdict TRUTH (the writer arm's
+    /// self-held writable / the read-only arm's real probe). Default nil =
+    /// every existing construction compiles zero-diff. Internal (not
+    /// private) so the M7-3 tests can exercise the closures in-process.
+    static func makeHeadlessSearchState(
+        projectURL: URL, isWriter: Bool, mode: LaunchMode,
+        projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil
     ) -> McpSearchStateContext {
         McpSearchStateContext(
             library: {
@@ -202,8 +208,14 @@ enum McpServerController {
                 await AIInferenceService.shared.semanticSearcher()
             },
             fulltext: { query in
+                // N2-3 (M7-3): the narrow race (the carrier drained between
+                // the library gate and this seam) is the TYPED honest arm —
+                // never a silent empty result (the headnote discipline).
                 guard let store = McpServerController.headlessProjectStore
-                else { return [] }
+                else {
+                    throw McpToolError.notSessionMember(
+                        McpSearchStateToolset.noOpenProjectMessage)
+                }
                 return try await AIDescriptionService.imageIDs(
                     matching: query, store: store)
             },
@@ -221,7 +233,8 @@ enum McpServerController {
                             mode == .stdio ? "stdio" : "http"),
                         "readOnly": .bool(!isWriter),
                     ]))
-            })
+            },
+            projectWriteProbe: projectWriteProbe)
     }
 
     /// Runs the headless server for `mode` and parks the process forever
@@ -372,7 +385,8 @@ enum McpServerController {
         // 23-tool face is identical across hosts — the read-only arm
         // currently answers notSessionMember until T4 parks its store).
         let searchState = makeHeadlessSearchState(
-            projectURL: projectURL, isWriter: isWriter, mode: mode)
+            projectURL: projectURL, isWriter: isWriter, mode: mode,
+            projectWriteProbe: probe)
         switch mode {
         case .stdio:
             await startHeadlessStdioHost(
