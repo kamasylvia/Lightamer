@@ -377,6 +377,13 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
 
+### M7-1 执行批批注（2026-10-16 夜，停手批——D-6 阈值理论证伪 + 探针协议硬化正本）
+
+- **D-6 "threshold form" 修法理论证伪（停手主因）**：FIX2 C1/C2 饿死读数在今日 HEAD 复现失败——六形态（HEAD 座位/case-B/A+B/C1 纯摘/C2 纯摘/基线）+ 编辑器面 C3 重组全部环活（空载 28-35% 带、编辑器 96%；环符号同族在场 = 决定性判读，CPU 非判读载体）。正本 = `phases/m7-1-shell/M7-1-01-DECISIONS.md` + `gui-acceptance/m7-1/t1-scratch-matrix/MATRIX.md`。零产线 commit、零新 UserDefaults 键；下一步 = 用户晨审定向（硬化协议重跑 FIX2 scratch → 不饿死则脱离树形域）。
+- **探针读数协议（正本，后续批次强制）**：①**可见窗门控**——一切 CPU/sample/transcript 读数前 `set frontmost` 先行；遮挡态读数 ~0%（FIX2 观察#1；FIX2 时代 "CPU 归零" 饿死读数与遮态同形 = 归因候选#1）。②**环符号判读优先于 CPU**——CPU ~29-35% 可为 AppKit 骨架残环；makeMainMenu/updateMainMenu/prependValue/mangled-name 计数才是环存活判据。③带参启动进程（`-la_editor_probe …`）的 pgrep 禁用 `$` 锚尾。④挂账⑥三轮复测配方产出：churn 在场态 3/3 全净（6/6 行、DB=6、0 迟到）= 「churn→grid 迟到」因果的反向旁证（D-FIX2-4 口径维持）。
+- **测试宿主 AX 桥限制（座移类改造必读）**：in-process AX 走查只物化 safeAreaInset 内容；普通 VStack 行内容不物化（含 topBar 等既有行 id——先在行为非回归）。`AXEnhancedUserInterface`/`AXManualAccessibility` priming、NSHostingController/HStack 包裹挂载形均无效。涉 AX 断言的座位迁移需先解断言面适配（详 `.work/gsd/phases/m7-1-shell/M7-1-01-DECISIONS.md` D-M7-1-01-2）。
+- **SPM 解析代理坑**：本机 proxy daemon 未跑时 xcodebuild 包解析（libwebp 子模块 clone）失败——git 全局代理未设而 env proxy 指向 127.0.0.1:10809；配方 = `env -u http_proxy -u HTTP_PROXY -u https_proxy -u HTTPS_PROXY -u ALL_PROXY xcodebuild …`（直连可通）。
+
 ### M3-4 架构增量（2026-10-10，M3-4-01 执行批——FSIM-02 宽容度面板约定正本）
 
 - **精确锚落点（01 T1，obs-6 硬序兑现）**：`solveKnee` exact 形 t = a∓N（M3-3 简化臂 t=C∓N 退役；scene/medium 常数降格 no-film fallback，锚由 resolver 注入）+ optional 化 typed 域守卫（`landingRoomFloor` 1e-3，nil = invalidDemand）+ m≥2 **深膝 bracket 确定性几何扩张**（exact 形 F 严格递增、F'(K*) 有正下界 0.0447..0.3493——旧「F 递减/切点」注释为简化臂病理，已改正；m=8/N=8 根 ≈−60 案例在册）。**§6.4 四行 8 值公开参考向量** = golden 反向钉死正本（文件内独立 solver，产线 ≤1e-8；K_s<K_h 排序门 + 第五行交叉 typed 拒绝 + 域守卫负测）。**简化臂缺陷措辞定版**：m=2 多项式 bracketing 不可行之机理 = 自然域端点同号（fq(0)=+0.90/fq(50)=+6.1e6）+ 增外根 v≈0.125 截胡（真根两侧正常变号）——产线从不解多项式。
