@@ -1386,7 +1386,15 @@ internal struct LightamerApp: App {
                                 guard let store = libraryProjects.projectStore,
                                     let url = libraryProjects.projectURL
                                 else { return nil }
-                                return (store: store, projectDirectory: url)
+                                // The path-kind resolution anchor is the
+                                // DIRECTORY holding the package (the
+                                // WorkspaceHostView urlResolver 形 —
+                                // projectRelative rows append to it; the
+                                // match_color provider's file-URL works
+                                // only because its rows ride the absolute
+                                // kind).
+                                return (store: store,
+                                        projectDirectory: url.deletingLastPathComponent())
                             }
                         },
                         sessionPair: { [sessionIndexController] in
