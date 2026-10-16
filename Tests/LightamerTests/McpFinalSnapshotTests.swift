@@ -9,17 +9,22 @@ import XCTest
 // the canonical table; D-14-CONTEXT-3③: the tool face IS a security face) +
 // the whitelist negative + the SC#7 launcher end-to-end chain with the
 // dual-entry coexistence proof. M5-1-03 (KD-1, checker E3): match_color
-// joined the editing domain — the freeze is the 20-tool set, all19 → all20.
+// joined the editing domain — the freeze grew to 20 (all19 → all20).
+// M7-2-01 (the union snapshot conscious change): the search/state domain
+// (3 read-only tools) joined as a THIRD domain — the freeze is the
+// 23-tool set, all20 → all23 (this file holds the M7-2..M7-5 serial
+// snapshot-edit right; the per-domain snapshot files stay untouched).
 //
-// Snapshot layers (all three must consciously change together):
+// Snapshot layers (all must consciously change together):
 //   - the editing domain (6)      → McpRegistrySnapshotTests (14-2)
 //   - the culling domain (14)     → McpCullingToolsetTests (14-3)
-//   - THE UNION (20)              → this file (the final freeze)
+//   - the search/state domain (3) → McpSearchStateToolsetTests (M7-2)
+//   - THE UNION (23)              → this file (the final freeze)
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class McpFinalSnapshotTests: XCTestCase {
 
-    // MARK: - The frozen 20-tool table (research §A verbatim + M5-1-03)
+    // MARK: - The frozen legacy tables (research §A verbatim + M5-1-03)
 
     /// §A #1 load_image … #4 list_iops, #3 render_preview, #19 export_image
     /// (the 14-2 face; schemas byte-equal the registration source), plus
@@ -152,7 +157,33 @@ final class McpFinalSnapshotTests: XCTestCase {
             destructiveHint: true),
     ]
 
-    static var all20: [McpToolDescriptor] { editingTools + cullingTools }
+    /// M7-2-01: the third domain — three READ-ONLY tools (their schemas
+    /// byte-equal the registration source in SearchStateToolset.swift; the
+    /// descriptions live in the registration site + the zh catalog).
+    static let searchStateTools: [McpToolDescriptor] = [
+        McpToolDescriptor(
+            name: "get_history",
+            description: "snapshot",
+            inputSchemaJSON:
+                #"{"type":"object","properties":{"image":{"type":"string","description":"A library image id (digits) or an open-session relPath"},"includeParams":{"type":"boolean","default":false,"description":"Add the per-item params face"},"limit":{"type":"integer","minimum":1,"maximum":500,"description":"Item cap (default 500); truncation keeps the NEWEST end — position/itemCount stay the true values, so truncation is detectable"}},"required":["image"]}"#,
+            readOnlyHint: true),
+        McpToolDescriptor(
+            name: "get_state",
+            description: "snapshot",
+            inputSchemaJSON:
+                #"{"type":"object","properties":{},"required":[]}"#,
+            readOnlyHint: true),
+        McpToolDescriptor(
+            name: "search_photos",
+            description: "snapshot",
+            inputSchemaJSON:
+                #"{"type":"object","properties":{"query":{"type":"string","minLength":1,"description":"The search query (the EXIF grammar: plain words + structured tokens like iso800, f/2.8, 2024-06..2024-08)"},"mode":{"type":"string","enum":["exif","clip","fulltext"],"default":"exif","description":"The route (default exif)"},"limit":{"type":"integer","minimum":1,"maximum":500,"description":"Rows per call (exif default 200; clip/fulltext caps 256/500)"},"cursor":{"type":"string","description":"Opaque nextCursor token — EXIF mode ONLY (a token is only valid for its issuing sort and this tool)"},"sort":{"type":"object","description":"{key: filename|rating|captureDate|iso|focalLength, ascending: bool} — EXIF mode ONLY; default filename ascending"}},"required":["query"]}"#,
+            readOnlyHint: true),
+    ]
+
+    static var all23: [McpToolDescriptor] {
+        editingTools + cullingTools + searchStateTools
+    }
 
     // MARK: - The assembly
 
@@ -161,17 +192,21 @@ final class McpFinalSnapshotTests: XCTestCase {
             editing: EditingToolset.Seams(
                 session: { nil }, metal: { nil }, modules: { ModuleRegistry() },
                 gate: McpRenderGate(), liveImageURL: { nil }),
-            culling: McpServerController.makeCullingContext(session: { nil }))
+            culling: McpServerController.makeCullingContext(session: { nil }),
+            // M7-2-01: without the context the union stays at 20 forever —
+            // the all-nil fixture context registers the three tools (the
+            // registration consumes no provider; only handler calls do).
+            searchState: McpSearchStateContext())
     }
 
-    /// THE final freeze: every host assembles exactly these 20 descriptors —
+    /// THE final freeze: every host assembles exactly these 23 descriptors —
     /// names, VERBATIM inputSchema JSON and the §A annotation column.
-    func testFinalSnapshotUnion20Verbatim() async throws {
+    func testFinalSnapshotUnion23Verbatim() async throws {
         let registry = await makeUnionRegistry()
         try await McpRegistrySnapshotTests.assertSnapshot(
-            registry: registry, expected: Self.all20)
+            registry: registry, expected: Self.all23)
         let descriptors = await registry.descriptors()
-        XCTAssertEqual(descriptors.count, 20, "D3: the final count is 20 (M5-1-03 match_color joined)")
+        XCTAssertEqual(descriptors.count, 23, "D3: the final count is 23 (M7-2-01 search/state joined)")
         // §A annotations at a glance: exactly 9 destructive tools, 11 read.
         let destructive = descriptors.filter { $0.destructiveHint == true }.map(\.name)
         XCTAssertEqual(
@@ -191,15 +226,24 @@ final class McpFinalSnapshotTests: XCTestCase {
         let editingOnly = await McpServerController.makeRegistry(editing: editing)
         let cullingOnly = await McpServerController.makeRegistry(
             culling: McpServerController.makeCullingContext(session: { nil }))
+        let searchStateOnly = await McpServerController.makeRegistry(
+            searchState: McpSearchStateContext())
         let union = await makeUnionRegistry()
         let e = await editingOnly.descriptors().map(\.name)
         let c = await cullingOnly.descriptors().map(\.name)
+        let s = await searchStateOnly.descriptors().map(\.name)
         let u = await union.descriptors().map(\.name)
         XCTAssertEqual(Set(e), Set(Self.editingTools.map(\.name)))
         XCTAssertEqual(Set(c), Set(Self.cullingTools.map(\.name)))
+        XCTAssertEqual(Set(s), Set(Self.searchStateTools.map(\.name)))
         XCTAssertTrue(Set(e).isDisjoint(with: Set(c)), "no tool rides two domains")
-        XCTAssertEqual(Set(u), Set(e).union(Set(c)))
-        XCTAssertEqual(u.count, 20)
+        XCTAssertTrue(Set(e).isDisjoint(with: Set(s)), "no tool rides two domains")
+        XCTAssertTrue(Set(c).isDisjoint(with: Set(s)), "no tool rides two domains")
+        // The search/state tools ride a NEW domain (not folded into an
+        // existing one — the M5-1-03 match_color precedent folded INTO
+        // editing; M7-2 opened its own layer).
+        XCTAssertEqual(Set(u), Set(e).union(Set(c)).union(Set(s)))
+        XCTAssertEqual(u.count, 23)
     }
 
     /// The whitelist negative: a 21st tool does NOT exist. `match_color` WAS
@@ -227,7 +271,7 @@ final class McpFinalSnapshotTests: XCTestCase {
             }
         }
         let tools = try await client.listTools().tools
-        XCTAssertEqual(tools.count, 20, "no 21st tool rides the list either")
+        XCTAssertEqual(tools.count, 23, "no 24th tool rides the list either")
     }
 
     // MARK: - zh/en description keys (D-14-CONTEXT-3②: the L025 face)
@@ -255,6 +299,9 @@ final class McpFinalSnapshotTests: XCTestCase {
         "list_bursts": "mcp_tool_desc_list_bursts",
         "get_face_regions": "mcp_tool_desc_get_face_regions",
         "match_color": "mcp_tool_desc_match_color",
+        "search_photos": "mcp_tool_desc_search_photos",
+        "get_history": "mcp_tool_desc_get_history",
+        "get_state": "mcp_tool_desc_get_state",
     ]
 
     /// Every final tool has a zh description key with a non-empty value AND
@@ -361,7 +408,8 @@ final class McpFinalSnapshotTests: XCTestCase {
             metal: { nil }, modules: { ModuleRegistry() },
             gate: McpRenderGate(), liveImageURL: { nil })
         let handle = try await McpServerController.startHTTPHost(
-            paths: paths, editing: seams, culling: context)
+            paths: paths, editing: seams, culling: context,
+            searchState: McpSearchStateContext())
         defer { Task { await handle.stop() } }
 
         // ── Entry 1: the DIRECT SDK client (already inside the cap). ──
@@ -370,7 +418,7 @@ final class McpFinalSnapshotTests: XCTestCase {
         let direct = MCP.Client(name: "direct-entry", version: "0.0.1")
         try await direct.connect(transport: directTransport)
         let directTools = try await direct.listTools().tools.map(\.name)
-        XCTAssertEqual(directTools.count, 20, "the direct entry sees the full face")
+        XCTAssertEqual(directTools.count, 23, "the direct entry sees the full face")
 
         // ── Entry 2: the LAUNCHER pulls the sentinel agent. ──
         let script = Self.agentScript(agentDir: agentDir.path)
