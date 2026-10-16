@@ -788,7 +788,7 @@ enum EditingToolset {
                         + "typed: renderFailed, renderTimeout (30s), notSessionMember, "
                         + "invalidParams. Errors for read-only hosts: serverReadOnly.")),
                 inputSchemaJSON:
-                    #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"longEdge":{"type":"integer","minimum":1,"maximum":2048,"default":1024,"description":"Output long edge in px (rendered in-pipe at this size)"},"quality":{"type":"integer","minimum":1,"maximum":90,"default":85,"description":"JPEG quality (percent)"}},"required":["relPath"]}"#,
+                    #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"longEdge":{"type":"integer","minimum":1,"maximum":2048,"default":1024,"description":"Output long edge in px (rendered in-pipe at this size)"},"quality":{"type":"integer","minimum":1,"maximum":90,"default":85,"description":"JPEG quality (percent)"},"region":{"type":"object","properties":{"x":{"type":"number","minimum":0,"maximum":1},"y":{"type":"number","minimum":0,"maximum":1},"w":{"type":"number","exclusiveMinimum":0,"maximum":1},"h":{"type":"number","exclusiveMinimum":0,"maximum":1}},"required":["x","y","w","h"],"description":"Normalized 0..1 ROI {x,y,w,h} relative to the RENDERED output frame (orientation already normalized); cropped after the render, decoupled from longEdge"}},"required":["relPath"]}"#,
                 readOnlyHint: true
             ),
             handler: { arguments in
@@ -808,21 +808,93 @@ enum EditingToolset {
                     overMessage:
                         "quality > \(previewMaxQuality) — the inline preview cap is 90 "
                         + "(D7); use export_image for quality-critical output")
+                let region = try PreviewRegion.decode(arguments["region"])
                 let member = try await resolveMember(relPath: relPath, seams: seams)
 
                 return try await seams.gate.withRenderGate {
                     try await renderPreviewBody(
                         imageURL: member.imageURL, longEdge: longEdge,
-                        quality: quality, seams: seams)
+                        quality: quality, region: region, seams: seams)
                 }
             })
     }
 
+    // MARK: - render_preview parameter faces (M7-3 T2/T3)
+
+    /// The normalized 0..1 ROI (D-M7-3-2): object {x, y, w, h} all double,
+    /// relative to the RENDERED output frame. nil = the parameter is absent
+    /// (the pre-M7-3 single-image behavior, byte-identical).
+    struct PreviewRegion: Equatable, Sendable {
+        var x: Double
+        var y: Double
+        var w: Double
+        var h: Double
+
+        static func decode(_ value: McpJSON?) throws -> PreviewRegion? {
+            guard let value, !value.isNull else { return nil }
+            guard case .object(let members) = value else {
+                throw McpToolError.invalidParams(
+                    "region must be an object {x, y, w, h} normalized 0..1")
+            }
+            func component(_ key: String) throws -> Double {
+                guard let v = members[key]?.doubleValue else {
+                    throw McpToolError.invalidParams(
+                        "region.\(key) (double, normalized 0..1) is required")
+                }
+                return v
+            }
+            let x = try component("x")
+            let y = try component("y")
+            let w = try component("w")
+            let h = try component("h")
+            guard w > 0, h > 0 else {
+                throw McpToolError.invalidParams(
+                    "region needs positive w/h (got w=\(w), h=\(h) on the "
+                        + "normalized 0..1 domain)")
+            }
+            guard x >= 0, y >= 0, x + w <= 1, y + h <= 1 else {
+                throw McpToolError.roiOutOfBounds(
+                    "region (\(x), \(y), \(w), \(h)) is outside the normalized "
+                        + "0..1 domain (x ≥ 0, y ≥ 0, x+w ≤ 1, y+h ≤ 1 — the rect "
+                        + "is relative to the rendered output frame)")
+            }
+            return PreviewRegion(x: x, y: y, w: w, h: h)
+        }
+
+        /// The crop pixel frame (M2 ruling): the normalized rect × the
+        /// rendered plane's pixel size, ROUNDED, then intersected with the
+        /// plane bounds (the round can push an exact x+w==1.0 edge one pixel
+        /// past on non-power-of-two widths). A post-clamp zero-area frame is
+        /// the typed invalidParams CARRYING the normalized values — a legal
+        /// normalized input must never fall into the cropping-nil
+        /// renderFailed fallback silently (detailCrop's renderFailed is the
+        /// bail-out, not the spec).
+        func croppingPixelRect(of image: CGImage) throws -> CGRect {
+            let px = min(max((x * Double(image.width)).rounded(), 0),
+                         Double(image.width))
+            let py = min(max((y * Double(image.height)).rounded(), 0),
+                         Double(image.height))
+            let pw = min((w * Double(image.width)).rounded(),
+                         Double(image.width) - px)
+            let ph = min((h * Double(image.height)).rounded(),
+                         Double(image.height) - py)
+            guard pw >= 1, ph >= 1 else {
+                throw McpToolError.invalidParams(
+                    "region (\(x), \(y), \(w), \(h)) rounds to a zero-area pixel "
+                        + "frame on the \(image.width)×\(image.height) render — "
+                        + "widen the rect")
+            }
+            return CGRect(x: px, y: py, width: pw, height: ph)
+        }
+    }
+
     /// The render body (INSIDE the gate): bounded wait → renderedPlane →
-    /// CGImage → JPEG → base64. Typed failures, never the QL embedded-
-    /// preview fallback (the MCP face has no preview to lie with).
+    /// CGImage → region crop → JPEG → base64. Typed failures, never the QL
+    /// embedded-preview fallback (the MCP face has no preview to lie with).
+    /// (M7-3 T3 extends this body with the compare:root dual arm.)
     private static func renderPreviewBody(
-        imageURL: URL, longEdge: Int, quality: Int, seams: Seams
+        imageURL: URL, longEdge: Int, quality: Int,
+        region: PreviewRegion?, seams: Seams
     ) async throws -> McpToolOutput {
         let seconds = seams.renderTimeoutOverride
             ?? durationSeconds(McpTimeouts.renderAndCrop)
@@ -835,7 +907,18 @@ enum EditingToolset {
                 let rendered = try await QuickLookRenderer.renderedPlane(
                     imageURL: imageURL, targetLongEdge: longEdge,
                     metal: metal, registry: registry, decodeLeg: seams.decodeLeg)
-                let image = try QuickLookRenderer.image(from: rendered)
+                var image = try QuickLookRenderer.image(from: rendered)
+                if let region {
+                    // The M2 rule: the zero-area frame is invalidParams inside
+                    // croppingPixelRect — the cropping-nil renderFailed here is
+                    // the bail-out, never the spec.
+                    let rect = try region.croppingPixelRect(of: image)
+                    guard let cropped = image.cropping(to: rect) else {
+                        throw McpToolError.renderFailed(
+                            "region crop failed for '\(imageURL.lastPathComponent)'")
+                    }
+                    image = cropped
+                }
                 guard let jpeg = Self.encodeJPEG(image, quality: Double(quality) / 100.0),
                     !jpeg.isEmpty
                 else {

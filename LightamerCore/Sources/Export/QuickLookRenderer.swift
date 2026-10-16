@@ -222,7 +222,8 @@ public enum QuickLookRenderer {
         targetLongEdge: Int,
         metal: MetalContext,
         registry: ModuleRegistry,
-        decodeLeg: DecodeLeg?
+        decodeLeg: DecodeLeg?,
+        pristineOnly: Bool = false
     ) async throws -> RenderedPlane {
         // ── 1. decode leg (full frame, once — the export discipline). ─────
         let decoded: DecodedImage
@@ -233,7 +234,13 @@ public enum QuickLookRenderer {
         }
 
         // ── 2. the document (disk sidecar truth; nil = pristine chain). ───
-        let document = ExportRenderer.readDocument(imageURL: imageURL)
+        // M7-3 (OQ-M7-3-5): the pristine-only flag skips the sidecar read —
+        // document nil / records [] / the imageID fallback ride the SAME
+        // empty-chain branch a no-sidecar pristine image takes today, so
+        // the compare:root arm is byte-identical to that path (zero new
+        // render code). Default false = every existing consumer unchanged.
+        let document =
+            pristineOnly ? nil : ExportRenderer.readDocument(imageURL: imageURL)
         let records = document?.instances ?? []
         let imageID = document?.imageID ?? UUID()
 

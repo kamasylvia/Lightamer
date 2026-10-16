@@ -394,4 +394,68 @@ final class QuickLookRendererTests: XCTestCase {
     func testProductionTimeoutConstantMatchesPerfVerdict() {
         XCTAssertEqual(QuickLookRenderer.renderTimeout, 30)
     }
+
+    // MARK: - The pristineOnly additive leg (M7-3 T2, OQ-M7-3-5)
+
+    /// The additive default parameter's identity judgment: a DEFAULT call ≡
+    /// an explicit `pristineOnly: false` call, byte-equal (same fixture,
+    /// same shared synthetic decode — the chain is deterministic).
+    func testRenderedPlaneDefaultMatchesExplicitFalseByteEqual() async throws {
+        let url = tempDirectory.appendingPathComponent("identity.ARW")
+        try Data().write(to: url)
+        // A READABLE sidecar so the non-pristine chain actually engages
+        // (the records ride the decode-independent arm of the renderer).
+        let sample = try repoSample()
+        guard FileManager.default.fileExists(atPath: sample.sidecar.path) else {
+            throw XCTSkip("parity sidecar missing: \(sample.sidecar.path)")
+        }
+        try FileManager.default.copyItem(
+            at: sample.sidecar, to: url.appendingPathExtension("lra"))
+        let decoded = syntheticDecoded(width: 800, height: 600)
+        let decodeLeg: QuickLookRenderer.DecodeLeg = { _ in decoded }
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+
+        let defaulted = try await QuickLookRenderer.renderedPlane(
+            imageURL: url, targetLongEdge: 256,
+            metal: metal, registry: registry, decodeLeg: decodeLeg)
+        let explicit = try await QuickLookRenderer.renderedPlane(
+            imageURL: url, targetLongEdge: 256,
+            metal: metal, registry: registry, decodeLeg: decodeLeg,
+            pristineOnly: false)
+        XCTAssertEqual(defaulted.plane.width, explicit.plane.width)
+        XCTAssertEqual(defaulted.plane.height, explicit.plane.height)
+        XCTAssertEqual(defaulted.plane.data, explicit.plane.data,
+                       "default ≡ explicit pristineOnly:false (the additive default)")
+    }
+
+    /// The empty-chain-branch self-certification: `pristineOnly: true` on a
+    /// sidecar-bearing image ≡ the DEFAULT render of a sidecar-less copy of
+    /// the same image — the same branch, zero new render code.
+    func testRenderedPlanePristineOnlyMatchesNoSidecarCopyByteEqual() async throws {
+        let referenceURL = tempDirectory.appendingPathComponent("reference.ARW")
+        try Data().write(to: referenceURL)
+        let subjectURL = tempDirectory.appendingPathComponent("subject.ARW")
+        try Data().write(to: subjectURL)
+        let sample = try repoSample()
+        guard FileManager.default.fileExists(atPath: sample.sidecar.path) else {
+            throw XCTSkip("parity sidecar missing: \(sample.sidecar.path)")
+        }
+        try FileManager.default.copyItem(
+            at: sample.sidecar, to: subjectURL.appendingPathExtension("lra"))
+        let decoded = syntheticDecoded(width: 800, height: 600)
+        let decodeLeg: QuickLookRenderer.DecodeLeg = { _ in decoded }
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+
+        let reference = try await QuickLookRenderer.renderedPlane(
+            imageURL: referenceURL, targetLongEdge: 256,
+            metal: metal, registry: registry, decodeLeg: decodeLeg)
+        let pristine = try await QuickLookRenderer.renderedPlane(
+            imageURL: subjectURL, targetLongEdge: 256,
+            metal: metal, registry: registry, decodeLeg: decodeLeg,
+            pristineOnly: true)
+        XCTAssertEqual(pristine.plane.width, reference.plane.width)
+        XCTAssertEqual(pristine.plane.height, reference.plane.height)
+        XCTAssertEqual(pristine.plane.data, reference.plane.data,
+                       "pristineOnly:true ≡ the no-sidecar default render (same empty-chain branch)")
+    }
 }
