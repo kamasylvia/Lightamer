@@ -27,10 +27,15 @@ A SwiftUI (macOS 27) app whose scene hosts a Menu with `.commands` can enter a
 **self-sustaining property-graph update loop** under specific view-tree shapes
 (a "heavy" tree: a three-segment content row + `.inspector` split host +
 `safeAreaInset` banners). Once entered, the loop re-evaluates the app/scene
-body graph at roughly 60 Hz indefinitely while **no app-side state ever
+body graph at roughly the display refresh rate (display-cycle-locked,
+~60-120 Hz per display refresh) indefinitely while **no app-side state ever
 changes** — `_printChanges()` reports only `@self` across ~14k re-evaluations
-in a 2-minute window. The UI remains functional (no hang, no crash); the cost
-is a permanent ~34-51% CPU burn (one full core) plus battery drain.
+in a 2-minute window (a follow-up measurement on a 120 Hz ProMotion display
+counted ~21k re-evaluations in ~3 minutes ≈ 119 passes/s — one pass per
+display cycle; the rate follows the display, it is not a fixed 60 Hz). The
+UI remains functional (no hang, no crash); the cost is a permanent ~34-51%
+CPU burn (one full core; up to 98-100% on the editor face after user
+interaction) plus battery drain.
 
 Thread samples show the loop lives entirely in framework code:
 
@@ -87,8 +92,10 @@ invalidation.
 `makeMainMenu → updateMainMenu(updateImmediately:) → invalidateProperties →
 requestUpdate → GraphHost.updatePreferences → graphDidChange` never converges
 for the tree shapes above: each menu update ends by changing the graph, which
-re-triggers menu rebuild. ~60 Hz scene-body re-evaluation with zero app-state
-changes; sustained single-core CPU for as long as the window is visible.
+re-triggers menu rebuild. Display-cycle-locked (~60-120 Hz per display
+refresh) scene-body re-evaluation with zero app-state changes; sustained
+single-core CPU for as long as the window is visible (98-100% measured on
+the editor face after interaction).
 
 ## Additional Notes for Triage
 
