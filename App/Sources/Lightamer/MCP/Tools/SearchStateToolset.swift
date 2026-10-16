@@ -30,23 +30,33 @@ import LightamerCore
 // reused (a single-tool special case, not a shared singleton).
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// The get_state live-face snapshot carrier (D-M7-2-8): the workspace /
-/// editor / tasks object faces the host closure assembles under a
-/// MainActor hop (the @Observable reads stay inside the closure — the
-/// handler never touches an @Observable type, the F-6 grep pins it).
-/// `nil` field = the host cannot see that face → the tool renders JSON
-/// null (the honest absent face).
+/// The get_state live-face snapshot carrier (D-M7-2-8): the object faces
+/// the host closure assembles under a MainActor hop (the @Observable
+/// reads stay inside the closure — the handler never touches an
+/// @Observable type, the F-6 grep pins it). `nil` field = the host cannot
+/// see that face → the tool renders JSON null (the honest absent face).
+/// Per plan T3 action 3, the project face ALSO rides this seam (the GUI
+/// assembles it from the project-controller state; the headless arms from
+/// the arbitration outcome); `server` carries the host-mode and read-only
+/// stance the handler cannot self-derive (the identity name/version is
+/// the handler's own fallback when the face is absent).
 public struct McpSearchStateLiveSnapshot: Sendable, Equatable {
+    public var project: McpJSON?
     public var workspace: McpJSON?
     public var editor: McpJSON?
     public var tasks: McpJSON?
+    public var server: McpJSON?
 
     public init(
-        workspace: McpJSON? = nil, editor: McpJSON? = nil, tasks: McpJSON? = nil
+        project: McpJSON? = nil, workspace: McpJSON? = nil,
+        editor: McpJSON? = nil, tasks: McpJSON? = nil,
+        server: McpJSON? = nil
     ) {
+        self.project = project
         self.workspace = workspace
         self.editor = editor
         self.tasks = tasks
+        self.server = server
     }
 }
 
@@ -214,7 +224,7 @@ enum McpSearchStateToolset {
                             + "face. Errors: notSessionMember (image not addressable "
                             + "/ no open project), invalidParams.")),
                 inputSchemaJSON:
-                    #"{"type":"object","properties":{},"required":[]}"#,
+                    #"{"type":"object","properties":{"image":{"type":"string","description":"A library image id (digits) or an open-session relPath"},"includeParams":{"type":"boolean","default":false,"description":"Add the per-item params face"},"limit":{"type":"integer","minimum":1,"maximum":500,"description":"Item cap (default 500); truncation keeps the NEWEST end — position/itemCount stay the true values, so truncation is detectable"}},"required":["image"]}"#,
                 readOnlyHint: true),
             handler: { arguments in
                 try await McpCullingToolset.withTimeout(
@@ -776,17 +786,279 @@ enum McpSearchStateToolset {
         return string
     }
 
+    // MARK: get_history (MCP2-02) — the read-only sidecar projection
+
+    /// The item-kind classifier (D-M7-2-4, the five-arm pure function).
+    /// Priority = payload specificity: a paste item's `pasteSet` wins over
+    /// a coincident stack payload (the OVERWRITE paste carries the layer
+    /// stack INSIDE the paste epoch — review N-5), then the document-level
+    /// records, then the structure marker, else a param edit.
+    static func historyKind(
+        of item: HistoryStack.HistoryItem
+    ) -> String {
+        if item.pasteSet != nil { return "paste" }
+        if item.drtRecord != nil { return "drt" }
+        if item.filmRecord != nil { return "film" }
+        if item.stackSnapshot != nil { return "structure" }
+        return "param"
+    }
+
+    /// The F-5 cap: the whole history up to 500 items; truncation keeps
+    /// the NEWEST end (the position side — the effective history), while
+    /// `position` and `itemCount` stay the TRUE values, so an agent can
+    /// always detect truncation and self-check its sequence.
+    static let historyItemCap = 500
+
     private static func getHistory(
         _ arguments: [String: McpJSON], context: McpSearchStateContext
     ) async throws -> McpToolOutput {
-        throw McpToolError.internalError(
-            "get_history: the projection body lands in M7-2-01 T3")
+        let image = try requiredString(arguments["image"], name: "image")
+        let includeParams = arguments["includeParams"]?.boolValue ?? false
+        var limit = historyItemCap
+        if let raw = arguments["limit"], raw != .null {
+            guard let value = raw.intValue, value >= 1, value <= historyItemCap
+            else {
+                throw McpToolError.invalidParams(
+                    "limit must be an integer in 1...\(historyItemCap)")
+            }
+            limit = value
+        }
+
+        let imageURL = try await resolveImageURL(image, context: context)
+        // The disk truth (the same read seam the editing face rides);
+        // nil = no readable sidecar = the PRISTINE honest face — not an
+        // error (the plan's position=-1 contract).
+        guard let document = ExportRenderer.readDocument(imageURL: imageURL)
+        else {
+            let payload = McpJSON.object([
+                "image": .string(image),
+                "position": .int(-1),
+                "itemCount": .int(0),
+                "items": .array([]),
+                "versions": .array([]),
+                "activeVersionID": .null,
+                "note": .null,
+                "keywords": .null,
+                "rating": .null,
+                "flag": .null,
+                "colorLabel": .null,
+                "author": .null,
+            ])
+            return .text(McpJSONSerialization.text(from: payload))
+        }
+
+        let stack = document.history
+        let trueCount = stack.items.count
+        // Truncation keeps the NEWEST end (suffix); the red-tail case
+        // (position below the kept window) stays detectable through the
+        // true position/itemCount.
+        let kept = trueCount > limit ? Array(stack.items.suffix(limit)) : stack.items
+        let items = kept.map { item -> McpJSON in
+            var dict: [String: McpJSON] = [
+                "id": .string(item.id.uuidString),
+                "label": .string(item.label),
+                "timestamp": .string(Self.iso8601(item.timestamp)),
+                "kind": .string(historyKind(of: item)),
+                "layerScope": item.layerScope.map { .string($0) } ?? .null,
+            ]
+            if includeParams {
+                dict["params"] = Self.paramsFace(of: item)
+            }
+            return .object(dict)
+        }
+        let versions = (document.versions ?? []).map { record -> McpJSON in
+            .object([
+                "id": .string(record.id.uuidString),
+                "name": .string(record.name),
+                "createdAt": .string(Self.iso8601(record.createdAt)),
+                "updatedAt": .string(Self.iso8601(record.updatedAt)),
+                // chain == nil means ACTIVE (its items live in the
+                // document's history key); the chain items themselves are
+                // M7-3 list_versions' face, never repeated here.
+                "active": .bool(record.chainStack == nil),
+            ])
+        }
+
+        let payload = McpJSON.object([
+            "image": .string(image),
+            "position": .int(stack.position),
+            "itemCount": .int(trueCount),
+            "truncated": .bool(trueCount > kept.count),
+            "items": .array(items),
+            "versions": .array(versions),
+            "activeVersionID": document.activeVersionID.map { .string($0) }
+                ?? .null,
+            "note": document.note.map { .string($0) } ?? .null,
+            "keywords": document.keywords.map {
+                .array($0.map { McpJSON.string($0) })
+            } ?? .null,
+            "rating": document.rating.map { .int($0) } ?? .null,
+            "flag": document.flag.map { .int($0) } ?? .null,
+            "colorLabel": document.colorLabel.map { .int($0) } ?? .null,
+            // M7-4 (MCP2-09 commit attribution) fills this; the read-only
+            // v1 face is the explicit forward placeholder.
+            "author": .null,
+        ])
+        return .text(McpJSONSerialization.text(from: payload))
     }
+
+    /// The includeParams face (D-M7-2-4): param items expose the record's
+    /// identity keys + the canonical params bytes; a paste item exposes
+    /// its record set; the drt/film placeholder snapshots are DROPPED (the
+    /// document-level payload rides dedicated records, not the snapshot
+    /// slot — the HistoryStack scope-marker semantics), so their params
+    /// face is null.
+    private static func paramsFace(
+        of item: HistoryStack.HistoryItem
+    ) -> McpJSON {
+        switch historyKind(of: item) {
+        case "drt", "film":
+            return .null
+        case "paste":
+            let records = (item.pasteSet ?? []).map { record -> McpJSON in
+                .object(recordIdentity(record))
+            }
+            return .object([
+                "records": .array(records),
+            ])
+        default:
+            return .object(recordIdentity(item.snapshot))
+        }
+    }
+
+    private static func recordIdentity(
+        _ record: ModuleInstance
+    ) -> [String: McpJSON] {
+        [
+            "opName": .string(record.opName),
+            "multiPriority": .int(record.multiPriority),
+            "multiName": .string(record.multiName),
+            "enabled": .bool(record.enabled),
+            "paramsBase64": .string(record.paramsData.base64EncodedString()),
+        ]
+    }
+
+    private static func iso8601(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.string(from: date)
+    }
+
+    /// The two-form addressing (the match_color shape): digits → the
+    /// open library row + the linker's path-kind resolution; anything
+    /// else → the open session pair (membership checked). Both arms
+    /// unreachable = the typed `notSessionMember`.
+    private static func resolveImageURL(
+        _ image: String, context: McpSearchStateContext
+    ) async throws -> URL {
+        if let id = Self.libraryImageID(image) {
+            guard let libraryProvider = context.library else {
+                throw McpToolError.notSessionMember(
+                    "'\(image)' reads as a library image id but no library "
+                        + "project is open on the server host — pass an "
+                        + "open-session relPath instead")
+            }
+            guard let library = await libraryProvider() else {
+                throw McpToolError.notSessionMember(noOpenProjectMessage)
+            }
+            let store = LibraryStore(store: library.store)
+            let row: LibraryImage
+            do {
+                row = try await store.image(id: id)
+            } catch {
+                throw McpToolError.notSessionMember(
+                    "library image id \(id) is not a row of the open library")
+            }
+            switch ImageLinker.resolve(
+                imagePath: row.imagePath, pathKind: row.pathKind,
+                volumeUUID: row.volumeUUID,
+                projectDirectory: library.projectDirectory)
+            {
+            case .resolved(let url):
+                return url
+            case .stale(let reason):
+                throw McpToolError.notSessionMember(
+                    "library image id \(id) does not resolve (\(reason)) — "
+                        + "relink the row in the GUI and retry")
+            }
+        }
+        guard let pairProvider = context.sessionPair else {
+            throw McpToolError.notSessionMember(
+                "'\(image)' is not addressable — no open session and it "
+                    + "does not read as a library image id")
+        }
+        guard let (store, root) = await pairProvider() else {
+            throw McpToolError.notSessionMember(noOpenProjectMessage)
+        }
+        guard try await store.fetchRow(relPath: image) != nil else {
+            throw McpToolError.notSessionMember(
+                "'\(image)' is not a member of the open session")
+        }
+        return root.appendingPathComponent(image)
+    }
+
+    /// The digits-only id form (the match_color precedent).
+    private static func libraryImageID(_ reference: String) -> Int64? {
+        guard !reference.isEmpty, reference.allSatisfy(\.isNumber) else {
+            return nil
+        }
+        return Int64(reference)
+    }
+
+    // MARK: get_state (MCP2-03) — the one-shot snapshot
 
     private static func getState(
         _ arguments: [String: McpJSON], context: McpSearchStateContext
     ) async throws -> McpToolOutput {
-        throw McpToolError.internalError(
-            "get_state: the snapshot body lands in M7-2-01 T3")
+        let snapshot = await context.liveState?()
+
+        // The control face: the lock verdict (the SAME probe the write
+        // faces gate on — read as DATA here) + the write-call counter
+        // (nil provider / nil answer = the JSON null honest face —
+        // F-4②: the headless and read-only faces have no exposed handle).
+        var control: [String: McpJSON] = [:]
+        if let probe = context.projectWriteProbe {
+            let verdict = await probe()
+            switch verdict {
+            case .writable:
+                control["lock"] = .string("writable")
+            case .held(let holderSummary, _):
+                control["lock"] = .string("held")
+                control["holder"] = .string(holderSummary)
+            }
+        } else {
+            control["lock"] = .null
+        }
+        let writeCount: McpJSON
+        if let counter = context.writeCallCount {
+            writeCount = await counter().map { McpJSON.int($0) } ?? .null
+        } else {
+            writeCount = .null
+        }
+        control["writeCallCount"] = writeCount
+
+        // The server face: the snapshot's host-derived stance when the
+        // host supplied one; the identity is the handler's own fallback.
+        let server: McpJSON
+        if let face = snapshot?.server {
+            server = face
+        } else {
+            server = .object([
+                "name": .string(McpServerController.serverName),
+                "version": .string(McpServerController.serverVersion),
+                "hostMode": .null,
+                "readOnly": .null,
+            ])
+        }
+
+        let payload = McpJSON.object([
+            "project": snapshot?.project ?? .null,
+            "workspace": snapshot?.workspace ?? .null,
+            "editor": snapshot?.editor ?? .null,
+            "control": .object(control),
+            "tasks": snapshot?.tasks ?? .null,
+            "server": server,
+        ])
+        return .text(McpJSONSerialization.text(from: payload))
     }
 }

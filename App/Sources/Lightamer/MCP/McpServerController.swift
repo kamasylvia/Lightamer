@@ -168,17 +168,20 @@ enum McpServerController {
     /// search/state library seam reads this carrier on every call.
     private nonisolated(unsafe) static var headlessProjectStore: ProjectFileStore?
 
-    /// The headless search/state context (M7-2-01 T1 action 5): the library
-    /// seam reads the `headlessProjectStore` carrier per call (writer arm
-    /// open; the read-only arm fills it in T4 — the closure needs no
-    /// per-arm variant), the semantic faces derive from the open package
-    /// (the bundled CLIP assets live in the same binary, RESEARCH §4.5),
-    /// liveState is nil (no GUI collection state — the honest nulls). The
-    /// probe/count faces stay unset here: the headless faces have no
-    /// embedded handle (F-4② null honesty) and the host wires the lock
-    /// probe through the editing/culling seams as before.
+    /// The headless search/state context (M7-2-01 T1 action 5 + T3): the
+    /// library seam reads the `headlessProjectStore` carrier per call
+    /// (writer arm open; the read-only arm fills it in T4 — the closure
+    /// needs no per-arm variant), the semantic faces derive from the open
+    /// package (the bundled CLIP assets live in the same binary, RESEARCH
+    /// §4.5), and the liveState face carries the project/server faces the
+    /// handler cannot self-derive (the arbitration outcome IS the project
+    /// truth here — writer path / held stance; the workspace/editor/tasks
+    /// faces stay nil, the honest headless nulls). The probe/count faces
+    /// stay unset: the headless faces have no embedded handle (F-4② null
+    /// honesty) and the host wires the lock probe through the
+    /// editing/culling seams as before.
     private static func makeHeadlessSearchState(
-        projectURL: URL
+        projectURL: URL, isWriter: Bool, mode: LaunchMode
     ) -> McpSearchStateContext {
         McpSearchStateContext(
             library: {
@@ -199,6 +202,21 @@ enum McpServerController {
                 else { return [] }
                 return try await AIDescriptionService.imageIDs(
                     matching: query, store: store)
+            },
+            liveState: {
+                McpSearchStateLiveSnapshot(
+                    project: .object([
+                        "path": .string(projectURL.path),
+                        "heldByOther": .bool(!isWriter),
+                        "readOnly": .bool(!isWriter),
+                    ]),
+                    server: .object([
+                        "name": .string(McpServerController.serverName),
+                        "version": .string(McpServerController.serverVersion),
+                        "hostMode": .string(
+                            mode == .stdio ? "stdio" : "http"),
+                        "readOnly": .bool(!isWriter),
+                    ]))
             })
     }
 
@@ -329,7 +347,8 @@ enum McpServerController {
         // M7-2-01: the search/state context rides every arm (the closed
         // 23-tool face is identical across hosts — the read-only arm
         // currently answers notSessionMember until T4 parks its store).
-        let searchState = makeHeadlessSearchState(projectURL: projectURL)
+        let searchState = makeHeadlessSearchState(
+            projectURL: projectURL, isWriter: isWriter, mode: mode)
         switch mode {
         case .stdio:
             await startHeadlessStdioHost(
