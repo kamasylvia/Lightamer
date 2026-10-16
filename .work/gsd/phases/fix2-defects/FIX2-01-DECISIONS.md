@@ -137,6 +137,17 @@ completion 照常发布 / schema+meta 落盘而 images 零行）——pre-T2 的
 （`log show`/`log stream` 对直启进程零回显，权限面）；watchdog 证据 =
 代码面 + R9 失败轮的 tail 执行旁证（progress=nil 即 tail 已过）。
 
+> **勘误（2026-10-16 FIX2 双路验收批补记，原文保留不改写）**：上段
+> 「per-file insert 静默失败」机理标签被双路 DB 法证**证伪**——执行批
+> FAIL 三轮（`B58CAA6A`/`8F4D1DC5`/`AE849F33`）+ 第一路 FAIL 轮
+> （`A8AC64C8`，WAL 626KB read-through = 6 行）的 DB **全部含 6 行**，
+> 插入发生于探针 10s 等窗期间；唯一真零行 DB = `869ED347`（T1 时代异轮
+> 语境）。**真实失效面 = grid 页刷新迟到**（>10s 未反映已落库行；
+> fresh reload 自愈——第二路重开实验 `acc2-a8ac-reopen-grid.png` 6/6
+> 可见）。三腿法证正本 = `FIX2-01-ACCEPTANCE.md` §四.1 +
+> `FIX2-01-ACCEPTANCE-2ND.md` §四；疑 D-6/D-7 同族 main-actor 饥饿面。
+> 独立待研立项以三腿法证为起点，勿再循 insert 路径排查。
+
 ## T3 — D-8 翻案核销登记
 
 **D-FIX2-5 翻案核销（零产线 diff）**：真腿（文件 > 打开会话… ⌘⇧O /

@@ -112,6 +112,18 @@ Tests that need full-size RAW camera samples (~1.2 GB, not distributed
 Golden-reference regeneration against a local darktable build:
 `DT=/path/to/darktable-cli bash input/golden/regenerate.sh`.
 
+## Known issues
+
+- **Editor may spin at high CPU after reopening a project (macOS 27).**
+  On macOS 27.0 a SwiftUI menu/focus update loop (an OS framework issue —
+  your library and edits are unaffected) can leave the editor window
+  churning at high CPU and partly unresponsive after you reopen a recent
+  project. **Workaround:** minimize the Lightamer window or cover it
+  completely with another window — the loop stops and CPU drops to idle
+  immediately. Bring the window back and click once in the film strip;
+  editing resumes normally. A proper fix (reducing the view-tree width /
+  splitting the editor into its own window) is tracked separately.
+
 ## Development artifacts
 
 Internal planning documents live under `.work/` (roadmap, requirements,
