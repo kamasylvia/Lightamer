@@ -399,7 +399,7 @@ Deferred to future release. Tracked but not in current roadmap.
 - **M2GRADE-08**: LUT 作者编码建模——LUT input/output encoding（面板选择器 + 编码随 LMT 生效 + 库内逐 LUT 记忆 + 传递曲线/色域目录，对齐上游 c740f7b 形态）；解决「胶片 LUT 作于 log 域而我方按 working space 直套」的系统性偏差（V2 段，可插队 M2 后期 UI 打磨轮）—— **→ M3-W1 前置**（2026-10-08 V2 立项裁决；「插队 M2 后期」窗口随 M2 收官兑现，FSIM-01 软前置基建）
   - [x] **Delivered（M3-1-01，2026-10-08）**：编码目录 17 条表驱动（scene 11 = camera log 10 + linear working 1 + display 6，KD-1）+ 传递曲线 Float64 正逆函数族（`LutEncodingCatalog` / `LutTransferMath`，公开标准公式，golden = 各标准公开参考值；gamut 矩阵 Bradford 自算非手抄）+ Params additive 编码对（nil = working 直通逐字节保现状，旧档 paramsHash 零漂移专测）+ 宿主侧复合表重烘焙（零新 kernel，Alcedo `Compose` :273 同构方向，LRU 16 + bakeCount 可观测 + stateLock）+ 库内逐 LUT 记忆三层序 + 内置 40 张 seeder 补标 {arri_logc4_awg4, rec709_bt1886}（adoption 路径盖章）+ 面板双 Picker（scene/display 分组 + 记住 Toggle）。**交付注记：新选内置 LUT 的观感变化 = 偏差修正非回归**（补标前 = log 表按线性直套的系统性偏差本体；既有文档按三层序停在旧渲染）。**FSIM-01 软前置交付物 = 目录 + 曲线族即 M3-3 消费面**。测试新增 37（IOPP 31 + LIB 6 + APP 5，口径 = Lut3dEncodingTests.swift 两类 24 + FullChain 2 + LIB 6 + APP 5）+ 既有 LUT 族零 diff 全绿（IOP 471/1/0 逐位基线）。
 - **EXPORT-PRESET-01**: 导出面板命名预设层——格式/质量/位深/sizing/元数据策略/ICC/命名模板整组存具名预设 + Export 页一键套用 + 内置默认与用户预设管理（对齐上游 `7052355` 全选项预设形态；EXIF/ICC/GPS 勾选随预设走）。我方逐项记忆键族（`export.*Quality`/`export.namingTemplates`/`export.lastDirectory`）为数据基座，只加预设层不撞键族 —— **→ V2 站裁量（M7+ 导出打磨批；2026-10-13 夜间维护批登记，评估正本 = `.work/gsd/research/ALCEDO-PARITY-2026-10.md`）**
-- **注记（非需求，2026-10-13 夜间维护批续）**：上游 v0.3.2+主干自动化面（CLI/MCP/共享会话，142 commits `9ce6a24..7052355`）整体 = 我方 Phase 14 + M6-1 已交付能力的同构追认——缺口仅 MCP versions 面（已挂 MCP-09-B，上游 `cd3b4e4` 验证需求 + `from_commit` 先验拒绝细节兑现时取用）与 IopCatalog 覆盖面（既有 extend-additively 纪律内）；agent GUI turn-taking 明确不立项（MCP 编排皮路线维持）。逐项判定与质量参考清单见评估正本。
+- **注记（非需求，2026-10-13 夜间维护批续；**〔2026-10-16 M7 charter 批更新：其中「agent GUI turn-taking 明确不立项」一句被用户 M7 裁决②**反转**——块二 turn-taking 正式立项 = TURN 族 → M7-5，Alcedo AU14 语义移植，与 M6-1 已交付单写者锁面合并（底座复用非等待项）；本注记其余内容（CLI/MCP 同构追认、MCP-09-B versions 面、IopCatalog extend-additively）维持有效，块三独立 CLI 维持不立项并升级为显式挂账（触发条件 = 外部用户诉求 ∨ MCP launcher 实战受限）〕**：上游 v0.3.2+主干自动化面（CLI/MCP/共享会话，142 commits `9ce6a24..7052355`）整体 = 我方 Phase 14 + M6-1 已交付能力的同构追认——缺口仅 MCP versions 面（已挂 MCP-09-B，上游 `cd3b4e4` 验证需求 + `from_commit` 先验拒绝细节兑现时取用）与 IopCatalog 覆盖面（既有 extend-additively 纪律内）；agent GUI turn-taking 明确不立项（MCP 编排皮路线维持）。逐项判定与质量参考清单见评估正本。
 - **注记（非需求，2026-10-07 首批）**：OCIO ACES 2.0 reference forward transform（上游 `8f8e712`）= M2-6 aces-core 移植的交叉验证测试资产机会，规划 parity 测试时取用；图库编辑时间分组（#276）/后台任务岛（#275）= UI parity 参照，不立项。
 
 ### M6 Interop & Library Hardening (M6INT) — LightCraft 六裁决点（2026-10-16 M6 立项批登记）
@@ -413,6 +413,52 @@ Deferred to future release. Tracked but not in current roadmap.
 - **M6INT-03**: AI 分割蒙版原生 spike——对照 Phase 7 AI-01 已交付面（`VNGenerateForegroundInstanceMaskRequest` + tap/scribble/lasso 精修）审计 LightCraft SAM 3 能力集缺口（点击 Object 精修 / Describe 文本选择 / 延迟高分辨率 patch 精修 / Edge 羽化）；原生零模型成本路先试（Vision + M2-10 CLIP 基建），不达标再裁 SAM CoreML（大件，OQ 另裁）—— **→ M6-4 spike**（2026-10-16；裁决④「达标即收」）
   - **兑现注记（2026-10-14/15 M6-4-02 执行批；2026-10-16 验收闭环批翻 validated）**：**Delivered（VALIDATION signed——`phases/m6-4-gallery-stacks/M6-4-VALIDATION.md`，晨审可推翻；spike 五行判定 = 机检轨达标即收）**——hi-res patch 组装（Planner 三 skip 门 + Composer ramp/≤4 帽 + 0.6×/≤1px 双数值门 + `segmentPatch` 单委托 + commit 缝 1s debounce，零新 kernel）+ Edge 羽化 ±100 参数化（正腿 GPU 缝复用 + **负腿 logit-gain 换锚**〔D-01：草案式线性恒等证伪，LightCraft `masks.rs` 原文条款，双路独立数学 ACCEPT〕+ 双羽化防三臂）+ 人物实例入口（`.person` 源族 + 标签合成提取腿 CVReadOnlyPixelBuffer + AIInstanceCatalog 零新类型 + typed noSubject）+ scribble 缝保持不激活（OQ-6）+ livePlane 切层/切图身份比对释放（D-13）；**Describe 文本选择 = 原生不可达收口**（Vision swiftinterface 全扫零文本分割 API，两路独立复核；SAM CoreML 大件挂 V2——charter 裁决⑦，用户裁立项另开独立 phase）；双路独立验收 PASS / 0 error + 0 minor open（3841/24/0 两路亲跑同值；升格建议修批 `b49215bb` 实修——App 816/4/0 负验证）；GUI 轨 M-1..M-4 挂 Manual-Only（VALIDATION 挂账 #2/#3），`gui-acceptance/m6-4/MANIFEST.md` local-only
 - [x] **M6INT-04**: ALCEDO-FEATURE-MAP 升维 ID 化 parity 清单 + CI 对账门（清单引用 id 必须存在 + id 唯一性 + 状态词表机检，`zh-audit --check` 同型）**Delivered**（M6-6：`docs/parity-checklist.md` 134 rows / 12 域 / 六状态词表 + `Scripts/parity-audit.py` 六断言门〔A1-A6 + `--tree-root` 公开树注入缝，`--check` exit 0 uv/裸 python3 双形态〕+ ci.yml `parity` job；首轮 gaps 17 行 ≥10 一次性 AC 过；commit `93a674c8`/`a515b3ff`/`3c7498bc`，验收 `phases/m6-6-feature-parity/M6-6-VALIDATION.md`）〔2026-10-16；裁决⑥；「M6 第一个 plan」编排偏差已按收口段正式登记 = VALIDATION §四.1，互操作先行编排，晨审/用户可随时追认或推翻〕
+
+### M7 Shell Special Project (SHELL) — D-6 defect special project（2026-10-16 M7 立项批登记）
+
+来源 = `phases/fix2-defects/FIX2-VALIDATION.md` §挂账①④⑤⑥（双路同判三选一之①「接受降级 + gate=false 壳减树/窗口内容拆分专项」，用户 2026-10-16 裁决①生效）；定性正本 = `phases/fix2-defects/FIX2-01-DECISIONS.md` D-FIX2-1（H2 = macOS 27 SwiftUI 菜单/焦点更新机制在特定树形〔重树 + `.inspector` 分栏宿主 + 三段内容〕下不收敛——功能态-with-churn，框架共犯无 app 写点）；证据族 = `gui-acceptance/v2m/fix2-probe/`（t1-*/acc*-*/B/C/E 系，local-only）；workaround 已落 README「Known issues」（窗口最小化/完全遮挡即断环，解遮一次点击恢复）。家族正本 = ROADMAP §Milestone 7（M7-1）。
+
+- **SHELL-01**: gate=false 壳减树——`.inspector` 分栏宿主拆解 + safeAreaInset 横幅族入子窗/覆盖层；feature-flag 门控（gate=false = 减树形态默认开，可回切对照验证判别力）—— **→ M7-1**（2026-10-16）
+- **SHELL-02**: 编辑器面独立 NSWindow 路线评估——评估报告先行（与减树交互 / 多窗 state 播撒 / MTKView 迁移成本三面），落地与否 research 环裁决；FIX2 裁定「research 复审并入专项首步」在此兑现 —— **→ M7-1**（2026-10-16）
+- **SHELL-03**: 菜单环燃料面减频——`visibleMenuCommands` 门内 menu 重建频度收窄 + `prependValue` 无去重组合修整；仅减燃料不承诺根治（H2 框架共犯定性）—— **→ M7-1**（2026-10-16）
+- **SHELL-04**: 上游通道——Apple Feedback 提交（报告稿 = `research/APPLE-FB-D6-DRAFT.md`，环签名 sample `t1-menu-loop-sample.txt` / `acc2-d6-editor-sample*.txt` 可附；**提交动作用户手动**——Nitro LUT 先例）+ macOS 27.1 release notes 监测 + 系统更新验证；闭环判据 = FB 案号登记 + 监测节律入 GOAL-STATE 巡检 —— **→ M7-1**（2026-10-16；稿本批已备，提交/监测为持续性义务）
+- **SHELL-05**: 走查专项卷 + 复测波——双路七条观察（第一路三条：churn 可见性门控 / legacy 开菜单态点火 / 菜单环燃料面 + 第二路四条：遮挡断环不复燃 / 点击恢复 / 输入路径分歧 / 菜单点火适用域）+ H2 精确定性措辞 + 五读数全帧行集 + 点击表型 AXPress/cliclick 双通道对照〔FIX2 挂账④〕+ 探针缝 `exit(0)` 兜底〔挂账⑤〕+ **导入零行间歇〔grid 刷新迟到族〕专项修后复测再裁**〔挂账⑥〕+ 波 1 屏面四项（V2M-T1-02/D3-01/D4-01/D5-01）+ m6-closeout Blocked-Channel 余行复走〔V2M-VALIDATION 挂账②硬义务〕—— **→ M7-1**（2026-10-16；复验门判据 = FIX2 判别探针族：~60k 重估 / 菜单环符号 / CPU 硬门三判据）
+
+### M7 MCP Tool Surface Additions (MCP2) — Alcedo CLI+AI 块一四波（2026-10-16 M7 立项批登记）
+
+来源 = `research/ALCEDO-CLI-AI-SURVEY.md` §5 块一（O1-O4 四波切分，用户裁决②「三块全要，块三缓」生效）；形态 = MCP 工具 **additive**——20 工具封闭集快照族显式改（D-14-CONTEXT-3 机制内），每波 tools/list 快照同批更新；全部复用自有单源（FilterSQL / SemanticEngine / adjustment_transfer_service / ExportRenderer / LutLibraryStore），Alcedo GPL 零复制（survey §6：命令语义克隆合法，MCP snake_case 与 Alcedo 点分 JSON-RPC 天然异构）。家族正本 = ROADMAP §Milestone 7（M7-2..M7-4）。
+
+- **MCP2-01**: MCP `search_photos` 检索工具（O1）——EXIF/全文/CLIP 语义三路由对齐 GUI 三段搜索（复用 FilterSQL/SemanticEngine/LabelQueries 单源）；agent 最大单点缺口（现状 = `list_photos` 逐页扫，无检索动词；Alcedo `search.query` 对表）—— **→ M7-2**（2026-10-16）
+- **MCP2-02**: MCP `get_history` 编辑历史只读工具（O1）——编辑序列自查面，含 note/author 读面（与 MCP2-09 归属缝配套；Alcedo `editor.history` 对表）—— **→ M7-2**（2026-10-16）
+- **MCP2-03**: MCP `get_state` 统一状态快照工具（O1）——project/workspace/editor 状态 + control 状态 + 运行中任务一行快照（Alcedo `state.get` 语义同构）—— **→ M7-2**（2026-10-16）
+- **MCP2-04**: `render_preview` 反馈回路扩展（O2）——`compare:"root"`（原图对比出图）+ `region`（ROI）参数，agent 自评调色的 before/after 闭环（Alcedo `render.preview` 语义对表；survey gap #18 判「高价值」）—— **→ M7-3**（2026-10-16）
+- **MCP2-05**: MCP `list_luts` 工具（O2 小件）——LUT 库清单读面（库面已有 M2-5，工具壳薄；Alcedo `lut.list` 对表）—— **→ M7-3**（2026-10-16）
+- **MCP2-06**: MCP `project_open`/`project_create` 工具（O3）——agent 全流程第一步（Alcedo `project.open/create` 对表；与 M6-1 项目单写者锁面交互 plan 期定）—— **→ M7-3**（2026-10-16）
+- **MCP2-07**: MCP `list_versions` 版本只读工具（O3）——M2-8 版本面只读投影（变更类命令视单写者余量二期；Alcedo `versions.list` 对表）—— **→ M7-3**（2026-10-16）
+- **MCP2-08**: MCP `copy_adjustments`/`paste_adjustments` 跨图批量（O4）——agent 批量统一调色核心动词（复用 M2-8 adjustment transfer service + isAdjustmentTransferable 排除面单源；若走后台任务补 `list_tasks`/`wait_task`——Alcedo tasks.wait 语义此时一并引入；Alcedo `adjustments.copy/paste` 对表）—— **→ M7-4**（2026-10-16）
+- **MCP2-09**: 写工具 `note` 字段 + commit attribution 第一步（O4 附带）——apply_params/paste 类工具加 `note` 参数 + 编辑历史记 agent 身份（M2-8 版本/历史面板已有人读面，缺 agent 身份标注缝；Alcedo `editor.set note` + history author 对表）—— **→ M7-4**（2026-10-16）
+
+### M7 GUI Agent Turn-Taking (TURN) — Alcedo AU14 块二（2026-10-16 M7 立项批登记）
+
+来源 = `research/ALCEDO-CLI-AI-SURVEY.md` §5 块二（用户裁决②生效；survey 拟「与 M2-9-A 合并立项」——**MCP-09-A 已由 M6-1 兑现**〔Core `SingleWriterLock` 五态 + `.lalb.lock` + GUI 三选对话框/只读面/guard 家族 + connect 指引〕，合并不再是等待项而是底座复用，本批勘误登记）。家族正本 = ROADMAP §Milestone 7（M7-5）。
+
+- **TURN-01**: control acquire/release/get 工具面——agent 持锁期间 GUI 禁编辑保留浏览（编辑面板/命令面只读化；Alcedo `-32003 control_not_held` / `-32004 control_revoked_by_user` 错误语义同构）—— **→ M7-5**（2026-10-16）
+- **TURN-02**: agent 活动 GUI 可见性——活动卡/task island 对应面（「Agent · <holder> · <命令>」形；落点 = Toast/任务面 + MCP server 面板扩展；Alcedo task island + Cancel = Take control 对表）—— **→ M7-5**（2026-10-16）
+- **TURN-03**: Stop 语义 + 恢复——Stop = Take control + agent 任务钉住 + 逐命令 activity 记录 + Stop 后同 agent re-acquire 可恢复任务（Alcedo AU14 `7e0c9cb` 迭代对表）—— **→ M7-5**（2026-10-16）
+- **TURN-04**: 无头宿主 turn-taking 简化臂——headless/stdio 形态 agent 恒持有（Alcedo null owner → `held: true` 同构）；GUI 选区类工具 headless `not_ready` 语义对表 —— **→ M7-5**（2026-10-16；可与 TURN-01 同 plan）
+
+### M7 Agent Skills Documentation (SKILLS)（2026-10-16 M7 立项批登记）
+
+- **SKILLS-01**: agent 操作 skill 文档仓——对齐 alcedo-skills 形态（会话启动/stdio 配置模板/工具语义边界/错误码表/render_preview 预览语义〔编辑态无印框〕/UI 单位说明；reference 可从 tools/list 快照机检生成，对齐上游 generate_cli_reference.py 思路）；**零 taste 搬运**（Alcedo 同款排除——其文档文案 GPL 禁译禁改，全部自写；taste 留 launcher `{{PROMPT}}` 模板载体）—— **→ M7-6**（2026-10-16）
+
+### Upstream Queue Intake (UQ) — 2026-10-16 M7 charter 批四候选入队（正本 = `research/UPSTREAM-QUEUE.md`）
+
+> 2026-10-16 M7 立项批：UPSTREAM-QUEUE 四候选全部入队立 ID（用户裁决③）；入队后候选区原位标注指向本族。UQ-L2 挂面不入波（软打样未立项）。
+
+- **UQ-A1**: DRT-SDR 预览层 ICC 双曲线失配——预览层 colorspace 改挂导出同款 ICC v4 字节（`CGColorSpace(iccProfileData:)`，L053 自建字节直接复用）+ ColorSync 解码等值测试（上游 Alcedo `36db9a8` 同病同修——preview/文件双曲线解码失配）—— **→ M7-6**（2026-10-16；渲染相关波分插）
+- **UQ-A2**: 导出 FAIL 档终写原子不覆盖——tmp 编码 + `link()` EEXIST 拒晋升 + unlink tmp（ExportCollisionPolicy 快照-落盘 TOCTOU 语义补全；上游 Alcedo `6203791` 同纪律——renameatx_np/renameat2 的 Swift `link()` 排他等价）—— **→ M7-4**（2026-10-16；导出相关波分插）
+- **UQ-L1**: 滑杆双击重置 + 值横扫 scrub——SwiftUI Slider 无原生支持需自实现（yiyin 面板与 iop 面板通用 UX 小件；上游 LightCraft `cb8b797c`/`ab64e9a5`，MIT/Apache-2.0）—— **→ M7-6**（2026-10-16；UI 小件分插）
+- **UQ-L2**: 软打样 1:1 zoom window + 「1:1 像素 == 导出」等值测试验收形态——**挂面不入波**（软打样未立项；立项时验收形态直接取用；上游 LightCraft `c78b457c`）（2026-10-16 登记，无 phase 指针）
 
 ### Editor Workflow Extensions
 
