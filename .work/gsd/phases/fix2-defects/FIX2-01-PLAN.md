@@ -6,7 +6,7 @@ wave: 1
 depends_on: []
 autonomous: true
 requirements: ["修复批 II（用户指令：直到全量修复完成，再执行新特性立项；夜间全自动授权先例 D-07-3-T5-1）", "根因正本 = phases/fix2-defects/FIX2-CONTEXT.md（本批三路亲跑侦查定稿）", "挂账正本 = phases/v2-maintenance/V2M-VALIDATION.md §挂账①②"]
-success_criteria: "SC 全可机检——T1：判别探针 transcript 定罪写点（DECISIONS 记录 view/属性名）+ 断环修法落地 + 重开空载静置 CPU<10%（ps/sample 机检）+ 屏面走查三铁条（重开进编辑器 spin 消失/filmstrip 点击换图出图/截图证据）+ 既有 App 套件零回归；T2：进度投递合流缝单测（若有可纯函数化缝，ΔN=0 合法）+ 导入循环 N 轮完成态发布机检（images 行数=供件数 × N 轮）+ 完成后 CPU 静置回落；T3：legacy 配方走查三步证据（建会话/网格带图/编辑器加载）+ MANIFEST 配方节 + DECISIONS 翻案登记（零产线 diff）；T4：全套 --all = 3857+ΔN 对账闭合（批准制 + 8G 门 + MEMFAIL 机检）+ 红线族机检全过；T5：走查复走四波逐行终态（W1 D-6 铁条 + T1-02/03/05/08 + W2 D3-01/D4-01〔若见 0 按快照上移预案返工〕/D5-01 + W3 D-7 复验 + W4 legacy 行）MANIFEST 逐行记账，Blocked 行如实保持不硬造判定"
+success_criteria: "SC 全可机检——T1：判别探针 transcript 定罪写点（DECISIONS 记录 view/属性名）+ 断环修法落地 + 重开进编辑器静置 CPU<10%（ps/sample 机检；编辑器面硬门 = SC 主判据；10-30% 区间 = 未达标，触发判别探针二轮迭代义务）+ 空载无项目面同口径复测记录（记录口径不设独立硬门；>10% 同触发二轮迭代义务）+ 屏面走查三铁条（重开进编辑器 spin 消失/filmstrip 点击换图出图/截图证据 + 启动即按 ⌘E/⌘W/⌘F/View toggles 显式走查点）+ 既有 App 套件零回归；T2：进度投递合流缝单测（若有可纯函数化缝，ΔN=0 合法）+ 导入循环 N 轮完成态发布机检（images 行数=供件数 × N 轮）+ 完成后 CPU 静置回落；T3：legacy 配方走查三步证据（建会话/网格带图/编辑器加载）+ MANIFEST 配方节 + DECISIONS 翻案登记（零产线 diff）；T4：全套 --all = 3857+ΔN 对账闭合（批准制 + 8G 门 + MEMFAIL 机检）+ 红线族机检全过；T5：走查复走四波逐行终态（W1 D-6 铁条 + T1-02/03/05/08 + W2 D3-01/D4-01〔若见 0 按快照上移预案返工〕/D5-01 + 32/33 + W3 D-7 复验 + W4 legacy 行）MANIFEST 逐行记账，Blocked 行如实保持不硬造判定"
 estimated_tests: "+0..4（T1 回归钉 +0..2〔断环缝可纯函数化才加，视图级 seam ΔN=0 走屏面走查证据——D-3 先例〕/ T2 合流缝 +0..2 / T3 +0；执行时逐任务如实记账）"
 test_bundles: [App]
 baseline: "3857/35/0（V2M 终态；skip 35 = 基线 24 + RAW 供件域漂移 11，环境漂移口径维持，供件备料前不收敛）"
@@ -16,7 +16,7 @@ red_lines:
   - "LightamerIOP/ 全域零 diff；LightamerSidecar.swift 零 diff"
   - "封存面零触（DrtRecord / GradeCatalog / Registry / HistoryStack / V50Order / ExportFormatSpec / ImageIOEncoders / WebPEncoder / ExportQueueContract）"
   - "\\.runModal( 在 App/Sources 零命中（L057 禁令——面板一律 PanelPresentation.begin 缝）"
-  - "LocalizationValue 插值禁形（String.LocalizationValue(\"prefix_\\(x)\")) 代码零命中"
+  - "LocalizationValue 插值禁形代码零命中——机检 grep 须钉插值 regex 形（`String\\.LocalizationValue\\(\"` 开头且串内含 `\\(` 插值；注释行免疫；V2M 评审 :433 → :534 锚漂移勘误：裸 grep 的两处命中 = LightamerApp.swift:2069 doc comment〔豁免锚在案〕+ ExportInspectorView.swift:534 拼接形〔非插形〕，均为已知合法残留不计命中）"
   - "UserDefaults 零新键；xcstrings 零 diff"
   - "Project.swift：无新测试文件则全零 diff；有则 BUNDLE-MAP + Project.swift 同批登记 + tuist generate 恒为该批最后一个动作（L041）"
   - "构建 caffeinate -dis 包裹；单测 = Scripts/test-direct.sh --bundle <域>；全套 --all orchestrator 批准制 + 运行 8G 门 + MEMFAIL 机检（AGENTS 资源监控节）"
@@ -25,13 +25,14 @@ files_modified:
   - App/Sources/Lightamer/UI/ContentView.swift                        # T1 备案口（:205-219 .inspector SystemSplitView 宿主改形——主案消环后 spin 仍现才行使，行使 = DECISIONS 申报 + M3-4-01 T4 挂载语义走查复验）
   - App/Sources/Lightamer/UI/LightamerApp.swift                       # T1 可能触面（Commands 求值缝若坐实为失刷回环一环；T2 完成尾 watchdog OsLog 诊断面；零行为变更）
   - App/Sources/Lightamer/Library/LibraryProjectController.swift      # T2：runImport 进度投递合流（:389-391 逐文件 Task{@MainActor} → 节流合流，完成态恒即时）+ 完成尾 watchdog（:416 前 OsLog）
+  - App/Sources/Lightamer/UI/SessionBrowserView.swift                 # T5 W2 返工 contingency 面（M-6②：D4-01 复验见 0 → 「快照上移」返工触及时才入 diff，可能带新测试行——BUNDLE-MAP + Project.swift 同批登记；未触发则本行零 diff 撤销）
   - Tests/LightamerTests/ImportProgressCoalescingTests.swift          # T2 条件新增（合流节流纯函数缝可抽才加；+0..2 法；不加则本行撤销，ΔN=0 合法）
   - .work/gsd/phases/fix2-defects/FIX2-01-SUMMARY.md                  # T4：执行摘要（逐任务 ΔN 记账 + 探针 transcript 指针 + 走查证据指针）
   - .work/gsd/phases/fix2-defects/FIX2-01-DECISIONS.md                # T4：裁定记录（H1 写点定罪 + 断环形态 / 主案-备案择臂 / T2 合流参数 / D-8 翻案核销）
   - .work/gsd/phases/fix2-defects/FIX2-01-ACCEPTANCE.md               # T5 后追加：走查复走四波 MANIFEST 终态汇总（或独立 gui-acceptance MANIFEST + 指针）
   - AGENTS.md                                                         # T4：「V2-Maintenance 架构增量」节后追加 FIX2 行（失刷源定罪 + 断环范式 + D-8 配方正本 + 终值登记）
   - .work/TODO.md                                                     # T4：D-6/D-7/D-8 登记行翻账（D-8 = 翻案核销口径）
-  - .work/GOAL-STATE.md                                               # T4：续接点翻新（修复批 II closed → 新特性立项待用户定向）
+  - .work/GOAL-STATE.md                                               # T4：续接点写「修复批 II 代码面收口，T5 走查复走批执行中」（M-6：closed 终态不在 T4 落盘——T5 有真实返工臂，先写 closed = 账实倒挂）；T5 末（含返工分支收口）台账 commit 翻终态（修复批 II closed → 新特性立项待用户定向）
 ---
 
 > **夜间全自动授权**（先例 D-07-3-T5-1；晨审可推翻）。根因侦查正本 =
@@ -45,6 +46,14 @@ files_modified:
 > + :384-435）被 churn 饿停（样本零 actor 帧 + 完成尾永不发布）；④D-8 =
 > 走查错腿翻案（打开… 单图腿 ≠ 会话腿；打开会话… ⌘⇧O 全链路亲证可用，
 > probe-20 六图会话 + 0.0% CPU）。
+>
+> **修订版（2026-10-13，吸收 `FIX2-01-PLAN-REVIEW.md` M-1..M-8 + N-1..N-4
+> 注记）**：M-1 T2 handler 非阻塞形 + 保序钉／M-2 H1-b 挂载 priming +
+> phase 重发布双腿 + 探针裁断／M-3 H2 身份保持 + 归因确认 + shell 存活
+> 走查行／M-4 行集补 32/33 + 10/12/14 排除注记／M-5 W2 前置换 T3 legacy
+> 配方（⌘⇧O 会话腿）／M-6 GOAL-STATE closed 移 T5 末 + 返工 contingency
+> 面／M-7 探针两段形（Scene 不可 `_printChanges`）／M-8 CPU 门两处对齐
+> + 10-30% 区间裁定路径。任务序、波次编排与批次治理零改。
 
 # Plan FIX2-01 — 修复批 II（D-6 → D-7 → D-8 → 收口 → 走查复走批）
 
@@ -61,40 +70,82 @@ files_modified:
 `App/Sources/Lightamer/UI/LightamerApp.swift`（:443-489 Commands 求值面 +
 :490-1560 body）；`gui-acceptance/v2m/fix2-probe/sample-idle-face.txt`。
 
-- action 1 **判别探针（/tmp 即弃，零 commit）**：临时 `Self._printChanges()`
-  （或 OsLog signpost 同效形）挂 `WorkspaceHostView.body` /
-  `LightamerApp.body` / `ContentView.body`，Debug 直启空载静置 30s + 重开
-  项目进编辑器 30s，采两段重估流 transcript。产出 = **定罪记录**：哪个
-  view 因哪个属性每帧重估（H1-a onGeometryChange / H1-b focusedSceneValue
-  写-回环 / H1-c 第四写点 / 均不成立 → H2 框架共犯备案口）。
+- action 1 **判别探针（/tmp 即弃，零 commit；两段配方，M-7）**：
+  **View 面** = 临时 `Self._printChanges()` 挂 `WorkspaceHostView.body` +
+  `ContentView.body`；**App/Scene 面** = `_printChanges` 是 View 专属 API、
+  `LightamerApp.body` 是 `some Scene`（LightamerApp.swift:490）照方硬套
+  编译失败——以 OsLog signpost 或手动桩替形（`visibleMenuCommands` 求值
+  计数 + Commands 闭包族 ratingMenuLabel/colorMenuLabel/
+  metadataTextEntryActive 进桩日志）。Debug 直启空载静置 30s + 重开项目
+  进编辑器 30s，采两段重估流 transcript；**transcript 判读规则写明 App
+  环节读什么**（idle 样本亲核显示 App 环节才是 churn 关键读数面：
+  `LightamerApp.body.getter` 闭包族持续重估 = sample-idle-face.txt
+  :263/:315/:351）。产出 = **定罪记录**：哪个 view 因哪个属性每帧重估
+  （H1-a onGeometryChange / H1-b focusedSceneValue 写-回环 / H1-c 第四
+  写点 / 均不成立 → H2 框架共犯备案口）。**顺带裁断（M-2，读数一条零
+  成本）**：对 `.focusedSceneValue` 同引用重写观测下游是否失效——
+  Equatable 载体备案路线的前提 = 框架对同值重写确有去重（未证：D-7
+  样本 :344/:510/:587 只见 setter 在飞、未见去重与否）；读数直接裁定
+  H1-b 走双腿形还是 Equatable 载体形。
 - action 2 **断环修法（按定罪落点，主案优先）**：
   - H1-a：`yiyinSheetDomain` 写点（WorkspaceHostView.swift:220-222）加等值
     早退或改量测时机（sheet 挂载期才量测）——写点不出渲染语义域。
   - H1-b：`.focusedSceneValue(\.lightamerWorkspaceModel, workspace)`（:170）
-    改条件发布——body 直写改 `.onChange(of: workspace.phase)`（或同效任务
-    缝）单次发布，或引入稳定 Equatable 载体使 FocusedValues 去重生效；
-    同缝核查 `WorkspaceModelKey` 侧消费面（LightamerApp.swift:461-472）
-    语义零变（⌘E/⌘W/⌘F/View toggles 全部既有走查行为保持）。
+    改条件发布，**修法形态钉死 = 双腿（M-2）**：①**挂载时一次发布**
+    （`.task`/`.onAppear` priming）+ ②**phase 变更重发布**
+    （`.onChange(of: workspace.phase)` 或同效任务缝）。理由：`onChange`
+    双参形只在变更时触发、不在挂载时触发——若唯一发布点挂在 phase 变更
+    上，窗口打开至首次 phase 翻转之间 `focusedWorkspace` == nil
+    （LightamerApp.swift:461-462），⌘E/⌘W/⌘F/View toggles 启动即置灰 =
+    行为回归。`WorkspaceModel` 非 Equatable（WorkspaceModel.swift
+    :103-104）且 `.focusedSceneValue` 发布的是引用（窗口生命周期内恒同一
+    实例——语义上每次挂载发布一次即可）；**Equatable 载体备案路线仅在
+    action 1 探针裁断「框架对同值重写确有去重」成立后才可选，否则双腿形
+    为准**。同缝核查 `WorkspaceModelKey` 侧消费面（LightamerApp.swift
+    :461-472）语义零变（⌘E/⌘W/⌘F/View toggles 全部既有走查行为保持）。
   - H1-c／第四写点：按定罪点断环（等值守卫 / 写点出渲染路径 / 延迟
     Task 化），形态 DECISIONS 申报。
-  - **备案（H2 或主案消环后 spin 仍现）**：`ContentView.swift:205-219`
+  - **备案（H2 或主案消环后 spin 仍现）**：`ContentView.swift:205-222`
     `.inspector` 宿主改形（页面未激活不挂 SystemSplitView；改形 =
     M3-4-01 T4 挂载语义迁移重验：dismiss 双关 + present no-op + film 页
     分支）——行使时 DECISIONS 申报并加走查行（export 页/film 页挂载 +
-    dismiss 双向）。
+    dismiss 双向）。**形态裁定两铁钉（M-3）**：①**身份保持**——
+    `if pageActive { host.inspector(…) } else { host }` 字面形两侧具体
+    类型不同 → WorkspaceHostView 结构身份随页开/页关翻转 → 壳级 @State
+    （workspace / gridModel / thumbnailBridge / editor 面）整组重置 =
+    开一次 export 页编辑器/图库态清零（比 spin 更重的回归）；所选形必须
+    保持结构身份或证明所选形不翻结构身份（恒挂 `.inspector` 内容空形
+    保不住身份也消不掉 SystemSplitView 宿主——两难本身就是 H2 需要
+    DECISIONS 裁形态的理由）；②**归因确认**——SystemSplitView ←
+    `.inspector` 归因是 grep 排除法推断（NavigationSplitView 仅存
+    legacyBody:249 与 SettingsView，均不在 gate=false 树上）非直接符号
+    证，行使时 DECISIONS 记录归因确认步骤（摘除后 spin 消失的反证 +
+    或符号级证据），防摘错宿主白改一轮。走查行追加：**页开→页关一轮后
+    shell 状态存活**（编辑器 phase/图库网格/选中不丢）。
 - action 3 **回归钉（可纯函数化才加，ΔN=0 合法）**：断环若落在可抽纯函数
   缝（如条件发布的判定函数），+1..2 法入 App bundle（BUNDLE-MAP + 
   Project.swift 同批 + tuist generate 恒末位）；视图级 seam 不可纯函数化
   则 ΔN=0，以屏面走查证据承载（D-3 先例）。
 - action 4 **修复验证三铁条（屏面走查，SC 硬门，非仅单测）**：Debug 直启
   → Open Recent 重开 ≥6 图项目 → 文件 > 进入编辑器 → (1) 静置 30s CPU
-  <10%（`ps`/`sample` 机检，与修前 82-99% 对照）；(2) 编辑器可用：filmstrip
-  点击换图 + 视口出图 + 右栏 mount（三步各一截图）；(3) 空载无项目面静置
-  CPU 同口径复测（churn 源若在壳常挂件，此面应一并回落——一并记录）。
-  证据 = `gui-acceptance/v2m/`（MANIFEST 行 FIX2-D6-01..03）。
+  <10%（`ps`/`sample` 机检，与修前 82-99% 对照；**编辑器面硬门 = SC 主
+  判据**）；(2) 编辑器可用：filmstrip 点击换图 + 视口出图 + 右栏 mount
+  （三步各一截图）+ **启动即按显式走查点（M-2）**：窗口打开后不等首次
+  phase 翻转直接按 ⌘E/⌘W/⌘F/View toggles——命令可用（priming 腿验证，
+  不达标 = H1-b 实现漏挂载发布腿）；(3) 空载无项目面静置 CPU 同口径
+  复测——**记录口径，不设独立硬门（M-8 全篇对齐：SC 与铁条同读作记录
+  义务）**；>10% 时触发判别探针二轮迭代义务（多写点逐个断环后复测）。
+  **区间裁定路径（M-8）**：编辑器面静置落 10-30%（spin 消失但残留）=
+  未达标 → 判别探针二轮迭代义务；二轮后仍 ≥10% 且 spin 已消失 →
+  DECISIONS 申报残余 churn 归因 + 上报 orchestrator 定夺（接受降级 or
+  H2 备案行使评估）；spin 仍现 → H2 备案行使门槛（「主案消环后 spin
+  仍现」不变）。证据 = `gui-acceptance/v2m/`（MANIFEST 行
+  FIX2-D6-01..03）。
 - **AC**：探针 transcript 在案 + 定罪写点有 file:line 锚 + 断环 diff 落
-  定罪点（非盲改）+ 三铁条全过 + 既有 App 定向轮零回归（`--bundle App`
-  全绿）+ 既有三面静置 CPU 机检记录。
+  定罪点（非盲改）+ 探针裁断读数在案（`.focusedSceneValue` 同引用重写
+  下游失效与否——H1-b 路线裁定依据）+ 三铁条全过（含启动即按走查点）+
+  既有 App 定向轮零回归（`--bundle App` 全绿）+ 既有三面静置 CPU 机检
+  记录。
 
 ## T2 — D-7 主 actor 饥饿硬化（合流投递 + watchdog；对表 F-1 不修）
 
@@ -106,9 +157,27 @@ files_modified:
   `Task { @MainActor in self?.importProgress = snapshot }` 改节流合流
   （投递间隔 ≥100ms 或批次尾强制；**完成态与取消态恒即时投递**——
   WorkspaceHostView.swift:309-332 的 onChange 消费面依赖 nil 终态收尾，
-  合流不得吞终态）。纯函数化节流判定可抽则 +1..2 法
+  合流不得吞终态）。**实现两钉（M-1，防按现文实现引入新 D-7 形）**：
+  ①**非阻塞形**——handler 内零 `await`、**禁止 sleep-in-handler**：
+  handler 签名 = `(@Sendable (ImportProgress) async -> Void)`
+  （ImportService.swift:178），`emit` 处 `await progressHandler?(progress)`
+  （:737）——handler 内任何 `await`（如 `Task.sleep` 实现节流窗）都会
+  重新阻塞 ImportService actor 的逐文件循环；被改函数的 doc comment
+  （LibraryProjectController.swift:369-383，Defect A）正是此陷阱正本
+  （前代 `await MainActor.run` 形致 actor↔主线程互等、2/2 复现）。
+  合流实现位 = pending 槽位 + 尾沿调度任务，或主 actor 侧节流（handler
+  立即返回，与 :389-391 现形同族）。②**保序钉**——合流后投递仍走
+  main-queue FIFO（doc comment 「Main-queue FIFO preserves snapshot
+  order」+ adapter 单调钳 belt-and-braces 维持），尾沿投递取**最新**
+  快照单槽去重。**终态双载体语义（执行批知悉，评审 N-4）**：服务侧
+  `ImportProgress.Phase` 有 `.completed`/`.cancelled` 终态快照
+  （ImportService.swift:56-60；importFolder 循环尾 :359-361 发
+  .completed、取消检查点发 .cancelled）与 controller 侧
+  `importProgress = nil` 直写（:416）是**两个终态载体**；视觉收尾唯一
+  依赖 nil（onChange :318-325）——四语义测试的「终态穿透」以两个载体
+  都不被吞为断言面最稳。纯函数化节流判定可抽则 +1..2 法
   （`ImportProgressCoalescingTests`：首投递即时 / 窗内合流 / 尾投递不丢 /
-  终态穿透四语义；BUNDLE-MAP 同批 + tuist generate 恒末位）。
+  终态穿透〔双载体断言〕四语义；BUNDLE-MAP 同批 + tuist generate 恒末位）。
 - action 2 **完成尾 watchdog（诊断面零行为变更）**：`importProgress = nil`
   发布点（:416）前 OsLog 一行（耗时 + outcome 摘要），停滞复发时留痕。
 - action 3 **复验机检**：Debug 直启 → 建项目 → Import Folder（≥6 文件）
@@ -131,6 +200,11 @@ D-8 行；probe-16..20 证据（fix2-probe/）。
 - action 2 **配方固化**：MANIFEST 增「legacy 通道正确配方」节（env 注入 +
   菜单腿 + 供件目录约定），m6-closeout Blocked-Channel 行的复走映射表
   （pano 16-19 / 栈面 34-38 / 40 → W4 波次行）。
+- **证据缺口自愈（评审 N-1 注记）**：CONTEXT 引 probe-8（D-7 本轮未复现
+  的导入完成面）/ probe-14（返回图库）/ probe-16（legacy 菜单面件清单）
+  三图，现证据目录仅 5 png（probe-0/10/11/18/20）——CONTEXT 头「六图」
+  计数与引用不闭合。T3 复走重产 legacy 面证据自愈（probe-16/14 面）；
+  probe-8 涉 D-7 间歇性论证，执行批补采或 DECISIONS 注明缺失原因。
 - action 3 **挂账核销登记**：DECISIONS 记 D-8 翻案（走查错腿 + inert-by-
   design 两事叠加；真腿亲证可用；V2 #4 SESSION-LEGACY-READONLY 无「先修
   通道」前置）；VALIDATION §挂账① D-8 行核销口径入 SUMMARY。
@@ -146,33 +220,72 @@ D-8 行；probe-16..20 证据（fix2-probe/）。
   批准后**跑；运行中保持监视 + 8G 门 + MEMFAIL 机检）——`TOTAL|3857+ΔN/35/0|`
   对账闭合（ΔN 逐任务记账；skip 35 = 环境漂移口径维持）。
 - action 3 台账同批：SUMMARY / DECISIONS / AGENTS FIX2 行 / TODO D-6..D-8
-  翻账 / GOAL-STATE 续接点（§3.1 文档原子同步纪律；历史行只追加不改写）。
+  翻账 / GOAL-STATE 续接点写「**修复批 II 代码面收口，T5 走查复走批执行
+  中**」（M-6：closed 终态**不在 T4 落盘**——T5 W2 有真实返工臂
+  （D4-01 快照上移，返工面 = SessionBrowserView.swift，不在 T1-T4 触码
+  集），返工一旦触发 T4 已写的 closed 续接点即失真；终态翻新移 T5 末，
+  见 T5 收口行）（§3.1 文档原子同步纪律；历史行只追加不改写）。
 - **AC**：对账式 `expected_all` 精确闭合 + 红线族 PASS + 三台账同批落盘。
 
 ## T5 — 走查复走批（T1-T4 全绿后；B 类 computer-use；本 plan 内闭环）
 
 **read_first**：FIX2-CONTEXT.md §四（四波编排表）；`V2M-VALIDATION.md`
 §挂账②；`V2M-01-ACCEPTANCE-2ND.md` §五 E2-1；`V2M-02-ACCEPTANCE.md` §六；
-`gui-acceptance/m6-closeout/MANIFEST.md` 余行集。
+`gui-acceptance/m6-closeout/MANIFEST.md` 余行集（含 :95-100 执行批注记——
+**harness 教训随行（N-2）**：CGEvent 键盘事件全程不进 app〔键盘路径判死，
+一律菜单 AXPress/setValue〕；网格多选可建立但**清选不可靠**〔pano 六张
+混选先例〕；wave-1 又添 CGEvent cmd+click 旗标不生效〔v2m MANIFEST :16〕）。
 
 - 前置口：T1-T4 全绿 + T1 三铁条已过（编辑器通道恢复）；harness = AX +
   CGEvent + screencapture（波 2 已证健康）为主，B 类 computer-use 承担
   交互判据行（用户指令兑现）；通道受阻按「不硬造判定」登记 Blocked 保持。
+  **W2/W4 风险点名（N-2）**：多选判据行（W2 D4-01 ≥2 多选、W4 pano
+  16-19 ≥2 多选）优先 computer-use 通道（输入通道与 AX harness 不同，
+  可能避开旗标问题）；失败则行如实 Blocked（键盘路径一律菜单 AXPress；
+  「不硬造」条款兜底）。
 - **W1**：D-6 修复验证三铁条终态固化（T1 复录）+ V2M-T1-02（D-1 三零消除
   点击：solve 进度态/读数 1s 内/history item + sidecar）+ GUI-M6C-03/05
   （追色 solve 面）+ 06 数值面 + 07 before/after；hasImage=nil 批外疑点
   现状顺带记录（不扩范围）。
 - **W2**：V2M-D3-01（≥4 图 ×N 轮 filmstrip 连点零卡死）+ V2M-D4-01（三
   合并对话框标题计数——**复验仍见 0 → 按「快照上移」预案返工，一轮损失
-  不产假交付**）+ V2M-D5-01（merge 完成 toast zh 文案）+ GUI-M6C-08。
-- **W3**：D-7 复验（= T2 action 3 的走查面固化 + F-1 现状行）。
+  不产假交付**）+ V2M-D5-01（merge 完成 toast zh 文案）+ GUI-M6C-08 +
+  **GUI-M6C-32/33（M-4：无人像 typed toast / 羽化三档——v2m 终表已把
+  m6-closeout 原表 Blocked-Manual〔时间止损〕升格为 Blocked-Channel
+  「AI 蒙版交互在编辑器面；D-6 阻断」，属挂账②「余 Blocked-Channel 行
+  随通道恢复复走」点名面，T1 修复即解锁；判据原文 = `m6-4/MANIFEST.md`
+  M-3/M-4；编辑器面行放 W2 尾，依赖编辑器通道稳定）**。
+- **W2 前置通道勘误（M-5）**：W2 前置 = T1 + W1 + **T3 legacy 配方**——
+  三合并对话框只在 legacy `SessionBrowserView`（SessionBrowserView.swift
+  :161-207 merge 菜单三件 + :282/:307/:343 三 `.sheet(item:)` 对话框 +
+  :446 MergeDialogCount；唯一挂载点 = ContentView.swift:439 **legacyBody
+  内**；gate=false 项目面 Library 视图族 grep 零 merge 菜单入口）。
+  D4-01/D5-01 配方 = **legacy 会话腿**（⌘⇧O 打开文件夹会话 → 网格多选
+  ≥2 → merge 菜单；GUI-M6C-13 先例〔legacy 面 Robertson02 走通〕即此
+  配方）；待合并素材 = 文件夹（会话腿直开），**不经项目面 import**（
+  「经项目面 import」供进的是项目库，SessionBrowserView 浏览的是文件夹
+  会话，两面不通——按旧文执行会在项目面找 merge 动作白走一轮/误记
+  Blocked）。
+- **W3**：D-7 复验（= T2 action 3 的走查面固化 + F-1 现状行；此波的
+  导入供件**经项目面 import**——「项目面 import」对 D-7 复验是对的）。
 - **W4**：legacy 面行（T3 配方）：pano 16-19（合成切片供件）+ 栈面 34-38
   （连拍 auto-stack 供件）+ 40（guided filter 编辑器面）。
-- 不入波（供件/硬件缺座维持）：24/25（HDR 显示器）/26（UltraHDR 样张）/
-  27-31/39（layer 资产/真多人素材族）。
+- 不入波（供件/硬件缺座维持 + **逐行排除理由注记（评审 M-4②；先例条款
+  = V2M-PLANS-REVIEW M-6「静默排除须注记」）**）：24/25（HDR 显示器）/
+  26（UltraHDR 样张）/27-31/39
+  （layer 资产/真多人素材族）+ **10（Registered-obs 观察行无判据——
+  高饱和交越样张未制备，机制面在册非缺陷）/ 12（Executed 1/3——
+  filmstrip 点击行实质由 W2 V2M-D3-01 复走覆盖，余两行被 D-1/D-2 中断
+  未走到）/ 14（deghost 三档对比——简形 sheet 零档位控件，UI 通道仍
+  缺席，与通道修复无关，Blocked-Env 维持）**。
+- **收口（M-6）**：四波终态落 MANIFEST 后，台账 commit 翻 GOAL-STATE
+  终态（「修复批 II closed → 新特性立项待用户定向」——含返工分支收口
+  之后才落；T4 期间续接点只写「T5 执行中」）。
 - **AC**：四波逐行终态入 `gui-acceptance/v2m/` MANIFEST（行 id + 判据 +
-  证据指针）；可走行全 Executed；Blocked 行如实保持；W2 若触发「快照上移」
-  返工 → 返工后复走一轮并 DECISIONS 申报（返工本身即本 plan 范围内）。
+  证据指针）；可走行全 Executed；Blocked 行如实保持；W2 若触发「快照
+  上移」返工 → 返工后复走一轮并 DECISIONS 申报（返工本身即本 plan 范围
+  内；返工触 SessionBrowserView.swift contingency 面时 files_modified
+  届时兑现，front-matter 零失真）。
 
 ## 执行纪律
 
@@ -195,9 +308,15 @@ D-8 行；probe-16..20 证据（fix2-probe/）。
    仅在主案消环后 spin 仍现时行使；checker 须核 DECISIONS 是否记录了
    「主案先行 + 备案行使理由」两段，且 M3-4-01 T4 的 present no-op /
    dismiss 双关语义在改形后保留（film 页挂载回归）。
-3. **T2 合流的终态穿透**：合流节流不得吞 `importProgress = nil` 终态
-   （WorkspaceHostView :309-332 onChange 消费面以此收尾——吞终态 = 进度条
-   永挂 = D-7 换形复发）；测试四语义中「终态穿透」缺位 = 打回。
+3. **T2 合流的终态穿透 + 非阻塞形**：合流节流不得吞终态（**双载体断言**
+   ——`importProgress = nil` 直写 + ImportService `.completed`/`.cancelled`
+   终态快照两个载体都不被吞；WorkspaceHostView :309-332 onChange 消费面
+   以 nil 收尾——吞终态 = 进度条永挂 = D-7 换形复发）；**handler 非阻塞
+   形（M-1 配套钉）**：实现 diff 若出现 handler 内 `await`/sleep-in-
+   handler 形 = 打回（LibraryProjectController.swift:369-383 doc comment
+   陷阱正本；handler 必须立即返回，合流走 pending 槽位/尾沿调度或主
+   actor 侧节流）；保序钉（main-queue FIFO + adapter 单调钳）维持。
+   测试四语义中「终态穿透」缺位 = 打回。
 4. **T3 零码申报**：本任务 `git diff --stat` 若出现任何 Swift/Product 文件
    = 与「零码翻案」申报冲突，须 DECISIONS 说明（真腿翻案失败升级真修是
    唯一合法形态，且须上报记录）。
@@ -210,5 +329,16 @@ D-8 行；probe-16..20 证据（fix2-probe/）。
 7. **skip 口径**：全套对账 skip 恒 35（基线 24 + RAW 供件漂移 11）；
    出现第三种 skip 来源 = 供件/环境新漂移，须逐族差分申报，禁止静默吸收。
 8. **红灯族豁免锚**：LocalizationValue 插值禁形的 :2069 doc comment 豁免
-   锚沿用（V2M-02 在案）；runModal 禁令对 `PanelPresentation.begin` 内部
-   实现不适用（grep 形限 App/Sources 调用点）。
+   锚沿用（V2M-02 在案；锚面再 + ExportInspectorView.swift:534 拼接形
+   〔非插形〕——grep 须走插值 regex 形非裸 grep，见 red_lines 勘误行）；
+   runModal 禁令对 `PanelPresentation.begin` 内部实现不适用（grep 形限
+   App/Sources 调用点）。
+9. **台账时序（M-6 配套钉）**：T4 commit 的 GOAL-STATE 续接点必须是
+   「修复批 II 代码面收口，T5 执行中」而非 closed；closed 终态只允许出现
+   在 T5 末（含返工分支收口）的台账 commit——T4 即写 closed = 账实倒挂，
+   打回。
+10. **T5 行集完备性（M-4/M-5 配套钉）**：MANIFEST 终表须含 GUI-M6C-32/33
+   （W2 尾，判据 = `m6-4/MANIFEST.md` M-3/M-4 原文）+ 不入波清单含
+   10/12/14 逐行排除理由注记；W2 merge 行前置 = T3 legacy 配方（⌘⇧O
+   会话腿，素材 = 文件夹），不得在项目面找 merge 入口（三合并对话框只在
+   legacy SessionBrowserView）。
