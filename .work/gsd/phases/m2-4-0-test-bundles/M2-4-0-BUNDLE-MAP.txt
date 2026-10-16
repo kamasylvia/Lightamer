@@ -200,6 +200,7 @@ APP	18	McpHostTests.swift
 APP	2	GUI22UndoWarmColdTests.swift
 APP	20	McpEditingToolsetTests.swift
 APP	27	McpCullingToolsetTests.swift
+APP	17	McpSearchStateToolsetTests.swift
 APP	3	EditorMetalLegRegressionTests.swift
 APP	5	BeforeAfterTests.swift
 APP	4	BuiltInLutSetTests.swift
@@ -756,3 +757,6 @@ LIB	10	LibraryGridStackTests.swift
 #   APP/App 级——ExportM2PanelModel 是 App 层 @Observable 面板模型）。运行期总数
 #   基线相应上移（对账以各行 method 数为准）。
 APP	4	ExportPresetTests.swift
+# M7-2-1 增行记录（2026-10-16 执行期，checker E2 测试登记纪律）：新测试文件随 T5
+#   commit 登记进 LightamerTestsApp（APP/App 级——MCP 工具面测试与既有 Mcp* 同
+#   bundle）。行内 method 数以终态对账为准。运行期总数基线相应上移。
