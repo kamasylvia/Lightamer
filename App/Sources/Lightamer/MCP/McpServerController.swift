@@ -187,7 +187,11 @@ enum McpServerController {
             library: {
                 guard let store = McpServerController.headlessProjectStore
                 else { return nil }
-                return (store: store, projectDirectory: projectURL)
+                // The path-kind anchor is the directory holding the
+                // package (projectRelative rows append to it — the
+                // WorkspaceHostView urlResolver 形).
+                return (store: store,
+                        projectDirectory: projectURL.deletingLastPathComponent())
             },
             semanticStore: {
                 guard let store = McpServerController.headlessProjectStore
