@@ -6,7 +6,7 @@ wave: 1
 depends_on: []
 autonomous: true
 requirements: ["REQUIREMENTS MCP2-01..03（:431-433，→ M7-2）+ ROADMAP §M7-2 行（验收形态三条：parity golden / 快照同批 / 既有 20 工具零回归）", "OQ 裁决正本 = phases/m7-2-mcp-o1/M7-2-CONTEXT.md（D-M7-2-1..9 全按 RESEARCH §6 推荐，站 charter 授权落定，晨审可推翻）", "调研正本 = phases/m7-2-mcp-o1/M7-2-RESEARCH.md（§2 现状测绘 / §3 三工具语义 / §4 集成缝 / §5 测试策略）", "夜间全自动授权在案（先例 D-07-3-T5-1；晨审可推翻）"]
-success_criteria: "SC 全可机检——T1：makeRegistry 缺第三参（缺省 nil）= 20 descriptor 逐字节零 diff 负测 + 第三参装配 = 恰 3 新工具注册且全 requiresWriter:false / readOnlyHint:true 断言 + 三处宿主装配点（GUI embedded / headless stdio / headless http 双臂）grep 机检在位；T2：parity golden 三臂恒等——EXIF 臂工具输出 id 集与序 ≡ 直调 LibraryQueries.searchPage（同 sort/anchor，同 fixture .lalb）+ ExifSearchParser.parse plan 恒等断言（工具与 GUI 共用 parse 的结构性保证）/ CLIP 臂 mock SemanticSearching 注入下 hit 序与 score 投影恒等（CI 零模型资产）/ 全文臂工具输出 ≡ 直调 AIDescriptionService.imageIDs（rank 序恒等）+ typed 错误臂四件（空 query=invalidParams / 解析错 token=invalidParams / 无开项目=notSessionMember / SemanticSearchError→modelUnavailable）+ description 双域分界句（library vs session）在 schema 快照内；T3：get_history golden byte-equal（fixture sidecar 五种 kind item + versions 三条 + note/keywords）+ includeParams 两档断言 + position=-1 pristine 面 + kind 判别五臂纯函数 + author 恒 null 负测 + get_state 六字段面（无项目 typed nulls 契约 + 每字段至少一活一空臂 + MainActor hop 结构断言〔handler 零直接 @Observable 观测——context provider 闭包内 hop〕）；T4：双进程锁 fixture 下只读臂 search_photos 照常服务（McpHostTests/McpProjectArbitrationTests 先例）+ withWriteBatch 断路器 typed 拒不破 + connect-guidance 序列 A/B 零 diff 绿 + 只读臂零 flock 获取（openReadOnly 锁免语义）；T5：域快照新层（3 工具 name/description/schema verbatim + 计数 23）+ union 快照显式改 20→23（冻结表 +3 行 + 四处计数断言，M5-1-03 先例形）+ 既有 editing(6)/culling(14) 两层快照零 diff + McpToolError 16 值穷举（code 字符串逐案断言）+ 只读工具 writeCallCount 零计与 writerCheck:false 不拒断言 + --bundle APP 全绿；T6：--bundle APP 定向轮绿 + 全套 --all = TOTAL|3860+ΔN/35/0| 对账精确闭合（exit 0 / 0 MEMFAIL / 七 bundle 8G 门内）+ 红线族逐条机检 PASS + zh-audit --check PASS"
+success_criteria: "SC 全可机检——T1：makeRegistry 缺第三参（缺省 nil）= 20 descriptor 逐字节零 diff 负测 + 第三参装配 = 恰 3 新工具注册且全 requiresWriter:false / readOnlyHint:true 断言 + 宿主装配点对账 grep 机检在位（六调用点 / 四缝 + EmbeddedState 内部缝——N-8 清单，F-4①第五缝含 startEmbeddedServer）；T2：parity golden 三臂恒等——EXIF 臂工具输出 id 集与序 ≡ GUI 同源两段走法（直调 searchPage 主段 + searchNullTail NULL 尾段拼接，同 sort/anchor，同 fixture .lalb；fixture 必含 NULL-key 行〔unrated / 无 captureDate〕且断言工具可达——E-2 失明洞修补；cursor token 携 segment 字段）+ ExifSearchParser.parse plan 恒等断言（工具与 GUI 共用 parse 的结构性保证）/ CLIP 臂 mock SemanticSearching 注入下 hit 序与 score 投影恒等（CI 零模型资产）/ 全文臂工具输出 ≡ 直调 AIDescriptionService.imageIDs（rank 序恒等）+ typed 错误臂五件（空 query=invalidParams / 解析错 token=invalidParams / 无开项目=notSessionMember / SemanticSearchError→modelUnavailable / AIWorkerClientError 四案→modelUnavailable message 携 worker 细节〔F-3〕）+ 越臂组合（clip|fulltext 带 cursor/sort）typed 拒负测〔N-4〕+ description 双域分界句（library vs session）在 schema 快照内；T3：get_history golden byte-equal（fixture sidecar 五种 kind item + 双载荷项一例〔N-5〕+ versions 三条 + note/keywords）+ includeParams 两档断言 + limit >帽 截断保留最新端断言〔F-5〕+ position=-1 pristine 面 + kind 判别五臂纯函数 + author 恒 null 负测 + get_state 六字段面（无项目 typed nulls 契约 + 每字段至少一活一空臂 + MainActor hop 机检双判据〔fixture liveState 闭包 dispatchPrecondition 主线程断言 + grep SearchStateToolset 源 @Observable 类型名零直接引用——F-6〕）；T4：双进程锁 fixture 下只读臂 search_photos 照常服务（F-2 甲：DEBUG 门控只读 face 写独立文件名 per-test discovery〔LIGHTAMER_MCP_ENDPOINT_DIR 域，Release 零触〕测试经同族读缝拿端口——registry 级降格备选注记在案，McpHostTests 先例复用）+ withWriteBatch 断路器 typed 拒不破 + connect-guidance 序列 A/B 零 diff 绿 + 只读臂零 flock 获取（openReadOnly 锁免语义）；T5：域快照新层（3 工具 name/description/schema verbatim + 计数 23）+ union 快照显式改 20→23（冻结表 +3 行 + 计数断言 ×4 + 组合代数断言三集合并 + descriptionKeys +3 行对账 + makeUnionRegistry/SC7 startHTTPHost 传 fixture context + 表头注释 + 测试名 Union20→Union23，M5-1-03 先例形——F-1 全点位）+ 既有 editing(6)/culling(14) 两层快照零 diff + McpToolError 16 值穷举（code 字符串逐案断言）+ 只读工具 writeCallCount 零计与 writerCheck:false 不拒断言 + --bundle APP 全绿；T6：--bundle APP 定向轮绿 + 全套 --all = TOTAL|3860+ΔN/35/0| 对账精确闭合（exit 0 / 0 MEMFAIL / 七 bundle 8G 门内）+ 红线族逐条机检 PASS + zh-audit --check PASS"
 estimated_tests: "+12..20（T5 批承载：parity golden 三臂 ~6..8 + get_history/get_state golden ~4..6 + 域快照 ~2 + 注册零 diff/计数负测 ~2 + 错误码穷举/锁豁免 ~2..3；T1-T4 产线码零新测试——机检判据为构建绿 + grep 结构核；执行时逐任务如实记账，越带申报）"
 test_bundles: [APP]
 baseline: "3860/35/0（FIX2 终态三路同值；M7-1 定罪批 ΔN=0 逐值维持；HEAD d08306fd = research docs commit，其上零产线文件——基线未漂移，planner 2026-10-16 亲核 git log/status）"
@@ -24,17 +24,17 @@ red_lines:
   - "Project.swift 恰一行测试登记 + BUNDLE-MAP 恰一行（APP 域）+ tuist generate 恒为该批最后一个动作（L041）"
   - "构建 caffeinate -dis 包裹；单测 = Scripts/test-direct.sh --bundle APP；全套 --all orchestrator 批准制（本 plan 标注批准制，执行时 orchestrator 派发 prompt 即批准）+ 8G 门 + MEMFAIL 机检 + 运行中保持监视（AGENTS 资源监控节）；测试宿主清理先核 parentage（ps -o ppid，M2-7-3 先例）"
 files_modified:
-  - App/Sources/Lightamer/MCP/Tools/SearchStateToolset.swift   # T1-T3 新建：McpSearchStateContext（全 provider closure，optional 缝缺省 nil）+ 三工具 registerAll（search_photos/get_history/get_state，readOnlyHint:true）+ kind 判别纯函数 + EXIF 窄投影/CLIP/全文三路由 + 双地址制解析（digits→LibraryStore.image+ImageLinker / relPath→sessionPair）
+  - App/Sources/Lightamer/MCP/Tools/SearchStateToolset.swift   # T1-T3 新建：McpSearchStateContext（全 provider closure，optional 缝缺省 nil；library provider = ProjectFileStore + projectDirectory——E-1 修法甲，LibraryStore 按需公开 init 派生）+ 三工具 registerAll（search_photos/get_history/get_state，readOnlyHint:true）+ kind 判别纯函数 + EXIF 窄投影两段走法/CLIP/全文三路由 + 双地址制解析（digits→LibraryStore.image+ImageLinker / relPath→sessionPair）
   - App/Sources/Lightamer/MCP/McpToolRegistry.swift            # T2：McpToolError additive modelUnavailable(String)（code/message 两 switch 补臂，15→16）；registry 其余零改
-  - App/Sources/Lightamer/MCP/McpServerController.swift        # T1：makeRegistry 第三参数 searchState:（缺省 nil）+ startHTTPHost/startHeadlessStdioHost/startReadOnlyHTTPHost/startEmbeddedIfPreferenceEnabled 四缝 additive 参数透传 + 无头臂 headless searchState 装配（library seam 由 headlessProjectStore 派生）；T4：runHeadlessArbitrated heldByOther 臂 emitConnectGuidance 后 openReadOnly()（失败 = nil seam + log 降级，禁 exit）——connect-guidance 双通道与 stdio EOF 腿零改
+  - App/Sources/Lightamer/MCP/McpServerController.swift        # T1：makeRegistry 第三参数 searchState:（缺省 nil）+ startHTTPHost/startHeadlessStdioHost/startReadOnlyHTTPHost/startEmbeddedIfPreferenceEnabled 四缝 additive 参数透传 + EmbeddedState box searchState 字段（startEmbeddedServer on-leg 同路透传——F-4① 第五缝）+ 无头臂 headless searchState 装配（library seam = headlessProjectStore 直携）；T4：runHeadlessArbitrated heldByOther 臂 emitConnectGuidance 后 openReadOnly()（失败 = nil seam + log 降级，禁 exit）+ 只读 http face DEBUG 门控独立文件名 per-test discovery（F-2 甲，Release 零触）——connect-guidance 双通道与 stdio EOF 腿零改
   - App/Sources/Lightamer/UI/LightamerApp.swift                # T1：GUI 装配点（:1331-1374 同段）构造 McpSearchStateContext（library/sessionPair/semanticStore/semantic/fulltext/liveState/projectWriteProbe——@Observable 态全部闭包内 MainActor.run hop）传 startEmbeddedIfPreferenceEnabled
   - Resources/Localizable.xcstrings                            # T1：三新键尾块纯插入（描述文案 = 三工具语义边界，search_photos 含 library-vs-session 双域分界句）
   - Tests/LightamerTests/McpSearchStateToolsetTests.swift      # T5 新建：域快照层（3 工具 verbatim + 计数 23）+ parity golden 三臂 + get_history/get_state golden + typed 错误臂 + McpToolError 16 值穷举 + 只读豁免面（writeCallCount 零计 / writerCheck:false 不拒 / probe 不触）
-  - Tests/LightamerTests/McpFinalSnapshotTests.swift           # T5：union 显式改 20→23（冻结表 +3 行〔名序 get_history/get_state/search_photos——descriptors() 名序〕+ 四处计数断言 :169-174/:202/:230/:373 + 表头注释 + 测试名 Union20→Union23，M5-1-03 先例形）
+  - Tests/LightamerTests/McpFinalSnapshotTests.swift           # T5：union 显式改 20→23（冻结表 +3 行〔名序 get_history/get_state/search_photos——descriptors() 名序〕+ 计数断言 :174/:202/:230/:373 + 组合代数 :200 三集合并 + descriptionKeys :237-259 +3 行与 :274 对账 + makeUnionRegistry :159 传 fixture context + SC7 startHTTPHost :363 传 fixture context + 表头注释 :22-27/:226 + 测试名 Union20→Union23，M5-1-03 先例形——F-1 全点位）
   - Project.swift                                              # T5：恰一行测试登记（McpSearchStateToolsetTests.swift → LightamerTestsApp 数组；tuist generate 恒末位）
   - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt # T5：McpSearchStateToolsetTests.swift 增行（APP 域）
   - .work/gsd/phases/m7-2-mcp-o1/M7-2-01-SUMMARY.md            # T6：执行摘要（逐任务 ΔN 记账 + parity golden 判定指针 + 快照显式改申报 + auto 后置挂账登记）
-  - .work/gsd/phases/m7-2-mcp-o1/M7-2-01-DECISIONS.md          # T6：裁定记录（context provider 终形 / 窄投影列映射终值〔images 表实存列核对〕/ CLIP 超时档裁定〔10s 维持或 20s 申报〕/ 只读臂降级形 / 快照显式改申报）
+  - .work/gsd/phases/m7-2-mcp-o1/M7-2-01-DECISIONS.md          # T6：裁定记录（context provider 终形 / 窄投影列映射终值〔images 表实存列核对〕/ CLIP 超时档裁定〔10s 维持或 20s 申报〕/ 只读臂降级形 / 只读臂端口判据通道终形〔F-2 甲/乙〕/ worker 族映射终形〔F-3〕/ 快照显式改申报）
   - AGENTS.md                                                  # T6：「M7-2 架构增量」节（三工具语义 + context seam 形 + modelUnavailable 错误码 + 只读臂 openReadOnly 形 + ΔN 终值）
   - .work/TODO.md                                              # T6：M7-2 条目翻账（auto 分类器后置挂账 + cursor 跨调用稳定性已知边界登记）
   - .work/GOAL-STATE.md                                        # T6：续接点翻新（M7-2 收口 → next = M7-3〔MCP 快照面串行接棒〕）
@@ -42,6 +42,98 @@ files_modified:
 ---
 
 # Plan M7-2-01 — MCP O1 检索与状态读（三工具 additive + 快照同批 + parity golden）
+
+## 评审修订记录（M7-2-01-PLAN-REVIEW，2026-10-16 fixer 批）
+
+> 修订正本输入 = `M7-2-01-PLAN-REVIEW.md`（E-1/E-2 两 error + F-1..F-6
+> 六 minor + N-1..N-8 八注记，file:line 证据全亲核复核）。落位一览：
+>
+> - **E-1（error，修法甲择定）**：`McpSearchStateContext.library` provider
+>   形改携 **ProjectFileStore**——`(store: ProjectFileStore,
+>   projectDirectory: URL)?`（三路由单源 `LibraryQueries` /
+>   `SemanticStore` / `AIDescriptionService.imageIDs` 全吃
+>   ProjectFileStore，亲核三 init 签名成立）；`LibraryStore` 需要处
+>   （get_history digits 臂 `LibraryStore.image(id:)`）由 toolset 用公开
+>   `LibraryStore(store:)` init 现场派生——GUI 装配点 LightamerApp
+>   :1362-1371 match_color provider 已演示派生形。**不加 LibraryStore
+>   accessor**（零 Core diff；files_modified 清单经核对无涉——修订是
+>   plan/CONTEXT 文本级）。CONTEXT D-M7-2-9 provider 清单同步改写。
+> - **E-2（error，修法甲择定）**：EXIF 臂改**两段走法**（GUI 同源
+>   LibraryGridModel :5-13/:88-91）——`searchPage` 主段（恒
+>   nullTail:false，亲核 :231-236）耗尽 → cursor token 翻 `segment =
+>   nullTail`（anchor=nil）走 `searchNullTail` NULL tier（:239-256）；
+>   cursor token（PhotoProjection.Cursor 同形）加 `segment` 字段。parity
+>   golden 对照腿同步改两段拼接（单段对照 = 双腿同盲禁用）+ fixture 必含
+>   NULL-key 行（unrated / 无 captureDate）可达断言。**乙（v1 只服主段
+>   显式降级裁决）不采**——按 plan 自述无用户裁决分支 + C 档门控停等
+>   成本，两段走法是 GUI 同源正形。
+> - **F-1**：union 快照显式改点位补全——四处计数断言之外 + 组合代数
+>   断言（:200 `Set(u) == Set(e).union(Set(c))` 改三集合并——三新工具
+>   入新域非并入既有域）+ `descriptionKeys` 映射表 +3 行与 :274 对账
+>   断言 + `makeUnionRegistry`（:159-160）传 fixture searchState context
+>   + SC7 `startHTTPHost`（:363）传 fixture context + 表头注释
+>   （:22-27/:226）+ 测试名 Union20→Union23。
+> - **F-2（甲择定）**：T4「只读臂 search_photos 照常服务」SC 判据通道 =
+>   DEBUG 门控下只读 http face 也写 discovery 文件——
+>   `LIGHTAMER_MCP_ENDPOINT_DIR` per-test 域内（:115-124
+>   headlessEndpointPaths 同款 `#if DEBUG` 门形），**独立文件名**
+>   （`mcp-endpoint-readonly.json`）不覆 writer 的 `mcp-endpoint.json`
+>   （guidance 真相源零触碰）；Release 路径零触；测试经
+>   `McpEndpointFile` 同族读缝拿端口。registry 级降格（乙）注记为
+>   DECISIONS 申报降级路径；stderr 刮端口（丙）不采。
+> - **F-3**：CLIP 腿 typed 错误臂补第四族——`AIWorkerClientError` 四案
+>   （workerUnavailable / workerCrashed / workerExhausted / requestFailed，
+>   亲核 AIWorkerClient.swift :31-43）→ **归 `modelUnavailable` 族**
+>   （「语义运行时对本查询不可用」语义——与 D-M7-2-6「语义诚实优于
+>   错误码数量最小化」裁定同构；`internalError` 会把资产/进程缺席
+>   误导成我方 bug，排障语义错位），message 携 worker 案名与细节；
+>   T5 补 worker 族映射一法（mock searcher 抛 workerUnavailable →
+>   断言 modelUnavailable 码）。D-M7-2-6 同批补注记（映射规则延伸，
+>   非裁决重开）。
+> - **F-4**：①EmbeddedState **第五缝**钉进 T1——searchState 随 box
+>   存取（`startEmbeddedIfPreferenceEnabled` 存 / `startEmbeddedServer`
+>   on-leg 读出再传 `startHTTPHost` 同路透传，亲核 :721-750），缺 =
+>   GUI 先关后开 MCP 三工具静默缺席；grep 机检点位含
+>   startEmbeddedServer。②T1 action 5「probe/writeCallCount = 既有面
+>   透传」修形——probe = 既有面透传；writeCallCount = GUI embedded 走
+>   `embeddedWriteCallCount()` 同源（:585-588），headless / 只读 face
+>   无 handle 外露面 = **null 诚实面**（server 字段缺席语义），不立项
+>   新 plumbing（无消费者）。
+> - **F-5**：get_history `limit` 语义一句话钉死——**默认 =
+>   min(全量, 500)；截断保留最新端（position 侧，有效历史优先）；
+>   itemCount 恒真值总数**（可检出截断）。T5 golden 补 >帽 截断方向
+>   断言。CONTEXT D-M7-2-4 同步。
+> - **F-6**：MainActor hop 改**机检双判据**——①fixture `liveState`
+>   闭包体内 `dispatchPrecondition(condition: .onQueue(.main))` +
+>   调用计数，get_state 断言「闭包被调且在主线程」；②grep 机检：
+>   SearchStateToolset.swift 源对 WorkspaceModel / PipeCoordinator /
+>   ExportState / LibraryProjectController 类型名零直接引用（handler
+>   只摸 context closure）。
+> - **N-2**：search_photos description 注明无状态语义（"each call
+>   evaluates the query against the full library (no layered session
+>   filter state)"）——落 T2 action 2。
+> - **N-3**：schema 显式钉默认 sort = `{key: "filename", ascending:
+>   true}`（GUI 同源 LibraryGridModel :97）——落 T2 action 1。
+> - **N-4**：cursor/sort 越臂组合（mode=clip|fulltext 携 cursor/sort）
+>   typed 拒入 T2 schema + T5 负测；EXIF token 嵌 sort 键+方向
+>   （PhotoProjection.Cursor 同形）白拿换键失效负测。
+> - **N-5**：T5 golden fixture 五种 item 外加一例双载荷项
+>   （pasteSet+stackSnapshot 并存 → 归 paste 先序显式断言）。
+> - **N-6**：imagePath path-kind 相对语义注明（T2 description 一句）；
+>   窄投影九字段列支撑 / metadata 取数源 / versions meta 亲核 ✓
+>   （「无列支撑字段如实缺席」条款大概率零行使）。
+> - **N-7**：只读 store `close()` 的 `checkpointTruncate` 语义（writer
+>   持 WAL 时 typed 失败 + stdio EOF `try?` 吞 + 进程退出兜底）作 T4
+>   知悉注记——既有 GUI openProjectReadOnly 路径同语义，非本波新增面。
+> - **N-8**：宿主装配点对账形改「六调用点 / 四缝 + EmbeddedState 内部
+>   缝」——front-matter SC + T1 AC 措辞同步。
+> - **N-1**（基线与开关亲核 ✓）：零修订；plan 自述 HEAD `d08306fd` 为
+>   撰写时点，评审批亲核两跳 docs-only 基线未漂移。
+>
+> 修订性质 = plan/CONTEXT 文本级 + 测试点位清单级——**不动任务序
+> （T1-T6）、波次、九裁决归属、files_modified 骨架与量级带**。
+> E-1/E-2 为实现细节级行使（V2M E-2 / F1 家族先例形），属 plan 修订
+> 非裁决重开。
 
 > **夜间全自动授权**（先例 D-07-3-T5-1；晨审可推翻）。裁决正本 =
 > `M7-2-CONTEXT.md`（D-M7-2-1..9 全按 RESEARCH §6 推荐——站 charter 授权
@@ -72,14 +164,17 @@ plan 承载全部九项；执行面速查：
    `get_history` 双地址制（digits 库 id | open-session relPath）、
    `get_state` project 面随装配态。description 双域分界句必带。
 2. **mode = `exif|clip|fulltext` 显式三枚举，默认 `exif`**；auto 后置挂账。
-3. **EXIF keyset cursor + 窄投影九字段；CLIP top-K 帽 256；全文 top-K 帽
+3. **EXIF keyset cursor（两段：main→nullTail，token 携 `segment` 字段——
+   E-2 修订）+ 窄投影九字段；CLIP top-K 帽 256；全文 top-K 帽
    500**；缩略图走 `get_thumbnails` 不内嵌；超时复用 `McpTimeouts.list`（10s）。
 4. **get_history = summary + `includeParams`**（默认 false）；author 前向
    占位 v1 恒 null；kind 判别五臂纯函数（paste/drt/film/structure/param）。
 5. **versions 只 meta**（id/name/createdAt/updatedAt/active）+ activeVersionID；
    完整链归 M7-3 `list_versions`。
 6. **`McpToolError.modelUnavailable` additive 15→16**；`modelUnavailable`
-   与 `dimensionMismatch` 双映射（message 区分 missing/mismatched）。
+   与 `dimensionMismatch` 双映射（message 区分 missing/mismatched）；
+   `AIWorkerClientError` 四案同归该族（message 携 worker 细节——F-3
+   映射规则延伸，非裁决重开）。
 7. **无头只读臂 `openReadOnly()` 服务读面**（锁免 / schema 守卫 / 写断路器
    原样）；失败 = nil seam 降级 + log，禁 exit。
 8. **get_state 六字段组** = project/workspace/editor/control/tasks/server；
@@ -118,7 +213,9 @@ plan 承载全部九项；执行面速查：
 **read_first**：`M7-2-RESEARCH.md` §4.1/§4.2（注册缝 + GUI 装配点）；
 `McpServerController.swift` :456-468（makeRegistry）+ :203-206（无项目
 http 路径）+ :299-323（headless writer http 臂）+ :376-409（只读 http
-face + stdio host）+ :571-587（writeCallCount）；`LibrarySearchModel.swift`
+face + stdio host）+ :571-588（writeCallCount /
+embeddedWriteCallCount）+ :721-750（EmbeddedState box +
+startEmbeddedServer on-leg——F-4① 第五缝正本）；`LibrarySearchModel.swift`
 :100-146（provider 三件形）；`MatchColorToolset.swift` :90-115（static box
 ——**不复用**，对照面）；`EditingToolset.swift` :60-110（Seams struct 体例）。
 
@@ -126,12 +223,20 @@ face + stdio host）+ :571-587（writeCallCount）；`LibrarySearchModel.swift`
   1. **context struct**：新建
      `App/Sources/Lightamer/MCP/Tools/SearchStateToolset.swift`——
      `McpSearchStateContext: Sendable`，全 provider closure 注入（CONTEXT
-     D-M7-2-9 清单）：`library`（`(store: LibraryStore, projectDirectory:
-     URL)?`）/ `sessionPair`（get_history relPath 臂）/ `semanticStore` /
-     `semantic` / `fulltext`（`AIDescriptionService.imageIDs` 查询缝，
+     D-M7-2-9 清单）：`library`（**`(store: ProjectFileStore,
+     projectDirectory: URL)?`——E-1 修法甲：三路由单源 `LibraryQueries` /
+     `SemanticStore` / `AIDescriptionService.imageIDs` 全吃
+     ProjectFileStore，provider 直携；`LibraryStore` 需要处（get_history
+     digits 臂 `LibraryStore.image(id:)`）由 toolset 用公开
+     `LibraryStore(store:)` init 现场派生——GUI 装配点 LightamerApp
+     :1362-1371 match_color provider 已演示派生形；**不加 LibraryStore
+     accessor**（零 Core diff）**）/ `sessionPair`（get_history relPath
+     臂）/ `semanticStore` / `semantic` / `fulltext`
+     （`AIDescriptionService.imageIDs` 查询缝，
      LibrarySearchModel fulltextProvider 同形）/ `liveState`（get_state
      workspace/editor/tasks 快照载体，闭包内 MainActor hop）/ `projectWriteProbe`
-     （control 面，复用既有 probe 形）/ `writeCallCount`（server 面）。
+     （control 面，复用既有 probe 形）/ `writeCallCount`（server 面，
+     F-4② 终形见 action 5）。
      optional 缝缺省 nil = 既有构造零 diff + typed 诚实错误臂
      （notSessionMember / modelUnavailable / null 字段）。
   2. **三工具注册**：`McpSearchStateToolset.registerAll(on:context:)`——
@@ -149,22 +254,34 @@ face + stdio host）+ :571-587（writeCallCount）；`LibrarySearchModel.swift`
      `await McpSearchStateToolset.registerAll(on:context:)`；四宿主缝
      additive 参数透传：`startHTTPHost` / `startHeadlessStdioHost` /
      `startReadOnlyHTTPHost` / `startEmbeddedIfPreferenceEnabled`（缺省
-     nil = 既有签名调用零 diff）。
+     nil = 既有签名调用零 diff）。**EmbeddedState 第五缝（F-4①）**：
+     searchState 随 box 存取——`startEmbeddedIfPreferenceEnabled` 把
+     searchState 与 editing/culling 同批存进 EmbeddedState box，
+     preference toggle on-leg 的 `startEmbeddedServer` 从 box 读出再传
+     `startHTTPHost` 同路透传（亲核 :721-750 既有 editing/culling 形）；
+     缺此缝 = GUI 用户先关后开 MCP 时三工具静默缺席。grep 机检点位含
+     `startEmbeddedServer`。
   4. **GUI 装配**（LightamerApp :1331-1374 同段）：构造 context——
-     library = `libraryProjects.projectStore/projectURL`（MainActor.run
-     hop，MatchColor 装配闭包同形但不走 static box）；sessionPair =
+     library = `libraryProjects.projectStore/projectURL`（ProjectFileStore
+     直携——E-1；MainActor.run hop，MatchColor 装配闭包同形但不走
+     static box）；sessionPair =
      sessionIndexController.currentSession；semantic/fulltext = GUI 同源
      provider 形（AIInferenceService.semanticSearcher / imageIDs 缝）；
      liveState = workspace/editor/exportState 快照闭包；projectWriteProbe
-     复用既有 `projectWriteProbe` 闭包；writeCallCount = registry 计数
-     （装配点已知 registry handle 的注入形，McpServerController :571-587
-     同源）。传 `startEmbeddedIfPreferenceEnabled`。
+     复用既有 `projectWriteProbe` 闭包；writeCallCount = GUI embedded 走
+     `embeddedWriteCallCount()` 同源（McpServerController :585-588）。
+     传 `startEmbeddedIfPreferenceEnabled`。
   5. **无头装配**（runHeadlessArbitrated 两臂 + 无 `--project` 路径）：
-     library seam = `headlessProjectStore` 派生（writer 臂已 open；只读臂
-     T4 接线后同源；nil = typed notSessionMember）；liveState = nil（诚实
-     null）；semantic/semanticStore/fulltext = open 包派生（bundled 资产
-     同 binary 可达，RESEARCH §4.5）；probe/writeCallCount = 既有面透传。
-     stdio EOF 优雅腿与 connect-guidance 双通道**零改**。
+     library seam = `headlessProjectStore` 直携（本就是 ProjectFileStore——
+     E-1 后 provider 形吻合；writer 臂已 open；只读臂 T4 接线后同源；
+     nil = typed notSessionMember）；liveState = nil（诚实 null）；
+     semantic/semanticStore/fulltext = open 包派生（bundled 资产
+     同 binary 可达，RESEARCH §4.5）。**probe/writeCallCount 终形
+     （F-4②）**：probe = 既有面透传；writeCallCount = GUI embedded 走
+     `embeddedWriteCallCount()` 同源，headless / 只读 face 无 handle
+     外露面 = **null 诚实面**（server 字段缺席语义）——不立项新
+     plumbing（无消费者）。stdio EOF 优雅腿与 connect-guidance 双通道
+     **零改**。
   6. **xcstrings 三新键**：`mcp_tool_desc_search_photos` / `_get_history` /
      `_get_state` 尾块纯插入（历史键字节与顺序零触碰）。
   7. 构建绿机检：`caffeinate -dis tuist generate && xcodebuild build`
@@ -175,7 +292,10 @@ face + stdio host）+ :571-587（writeCallCount）；`LibrarySearchModel.swift`
     McpServerController + LightamerApp + xcstrings + 无它）。
   - grep：`makeRegistry` 全部调用点核（缺省 nil 调用保持编译零改）；
     `readOnlyHint: true` ×3 在 SearchStateToolset；`requiresWriter` 在
-    SearchStateToolset 零显式出现（缺省 false）。
+    SearchStateToolset 零显式出现（缺省 false）；宿主装配点对账
+    （N-8 清单形）= 六调用点（LightamerApp :1374 / runHeadless :196/:203 /
+    runHeadlessArbitrated :292/:303/:322）/ 四缝 + EmbeddedState 内部缝
+    （grep 点位含 `startEmbeddedServer`——F-4①）。
   - 既有 MCP 测试面不触（T5 快照零 diff 门预支：本任务不改任何既有测试
     文件）。
 - **commit**: `feat(m7-2): add the search/state toolset skeleton and host wiring`
@@ -190,7 +310,8 @@ face + stdio host）+ :571-587（writeCallCount）；`LibrarySearchModel.swift`
 
 **read_first**：`M7-2-RESEARCH.md` §3.1（工具面提案 + 显式偏离三条）；
 `LibrarySearchModel.swift` :145-244（三分派正本）；`LibraryQueries.swift`
-:202-230（sort 白名单 + searchPage 签名）；`ExifSearchParser.swift` :38-44
+:202-256（sort 白名单 + searchPage/searchNullTail 两查询签名——两段走法
+正本，searchPage 恒 nullTail:false / NULL tier 独立查询）；`ExifSearchParser.swift` :38-44
 （typed 错误）；`SemanticEngine.swift` :40-45/:82（错误 + search 签名）；
 `AIDescriptionService.swift` :146（imageIDs）。
 
@@ -199,15 +320,30 @@ face + stdio host）+ :571-587（writeCallCount）；`LibrarySearchModel.swift`
      typed `invalidParams`——GUI 空串语义是「清过滤」，MCP 面诚实拒绝）；
      `mode` enum `exif|clip|fulltext` 默认 `exif`；`limit` 1..500（EXIF
      默认 200 / CLIP 帽 256 / 全文帽 500）；`cursor`（EXIF 臂 only，
-     opaque token）；`sort`（EXIF 臂 only，`{key, ascending}` 白名单
-     五键 filename/rating/captureDate/iso/focalLength——`scanEpoch` 显式
-     排除 = typed 拒）。
-  2. **EXIF 路由**：parse → plan（`ExifSearchFilter(group:plan:)`）→
-     `searchPage`（`.library` 域 + `.flat`）→ 窄投影九字段（CONTEXT
+     opaque token——**PhotoProjection.Cursor 同形 base64 + sortedKeys
+     JSON，payload 加 `segment` 字段（main|nullTail）+ sort 键 + 方向 +
+     anchor（E-2 两段走法；sort 键嵌入白拿换键失效负测，:198-270 先例
+     形）**）；`sort`（EXIF 臂 only，`{key, ascending}` 白名单
+     五键 filename/rating/captureDate/iso/focalLength，**默认显式钉
+     `{key: "filename", ascending: true}`——GUI 同源 LibraryGridModel
+     :97（N-3）**——`scanEpoch` 显式排除 = typed 拒）。**越臂组合
+     typed 拒（N-4）**：mode=clip|fulltext 携 cursor 或 sort =
+     `invalidParams`（schema 层 + handler 双拒，T5 负测钉）。
+  2. **EXIF 路由（两段走法，GUI 同源——E-2 修法甲）**：parse → plan
+     （`ExifSearchFilter(group:plan:)`）→ **主段 `searchPage`**（`.library`
+     域 + `.flat`；恒 `nullTail: false`，只含 sort key 非 NULL 行——
+     LibraryQueries :231-236）→ 主段耗尽（返回行数 < limit）→
+     `nextCursor` **翻段**（token `segment = nullTail`、anchor = nil）→
+     **尾段 `searchNullTail`**（NULL tier 独立查询，:239-256——五个 sort
+     键全可空故尾段对五键全合法）；尾段亦尽 = 无 `nextCursor`。与
+     LibraryGridModel 两段走法（:5-13/:88-91 Segment{main, nullTail}）
+     一一对应。窄投影九字段（CONTEXT
      D-M7-2-3——列映射以 `images` 表实存列为准，无列支撑字段如实缺席，
-     禁加 schema 面或第二查询面；DECISIONS 登记列映射终值）+
-     `nextCursor`（有下页才携）。sort 键序 + `image_path` tiebreaker
-     单源（searchPage 原样）。
+     禁加 schema 面或第二查询面；DECISIONS 登记列映射终值）。sort 键序 +
+     `image_path` tiebreaker 单源（两段查询原样）。**description 注明
+     （N-2/N-6）**："each call evaluates the query against the full
+     library (no layered session filter state)"（无状态语义诚实）+
+     imagePath = path-kind 相对形（agent 寻址走 imageID）。
   3. **CLIP 路由**：semantic 缝 → `SemanticEngine.search(query, limit≤256,
      in: semanticStore)` → cosine 降序 + `score` 字段；缝缺席/资产缺席 =
      `modelUnavailable`（D-M7-2-6 映射规则——modelUnavailable 与
@@ -217,7 +353,16 @@ face + stdio host）+ :571-587（writeCallCount）；`LibrarySearchModel.swift`
   5. **typed 错误臂**：空 query / 解析错（`unrecognizedToken`/
      `disjointDateRanges` → `invalidParams` 携 token，GUI ErrorFamily
      同构信息进 message）/ 无开项目 → `notSessionMember`（文案 "no open
-     project — open a .lalb first"）/ CLIP 双错 → `modelUnavailable`。
+     project — open a .lalb first"）/ CLIP 双错 → `modelUnavailable` /
+     **`AIWorkerClientError` 四案（workerUnavailable / workerCrashed /
+     workerExhausted / requestFailed）→ 亦归 `modelUnavailable`（F-3——
+     M2-10-05 后 production runner 是 worker 进程，此族不是
+     SemanticSearchError、adapter 只捕 McpToolError，不映射 = 协议级
+     无码兜底，比 GUI 面〔LibrarySearchModel :211-214 catch-all 同型〕
+     排障信息更差；归 modelUnavailable = 「语义运行时对本查询不可用」
+     族语义，message 携 worker 案名与细节——D-M7-2-6 语义诚实裁定同构，
+     DECISIONS 申报终形；`internalError` 备选不采——资产/进程缺席映射成
+     我方 bug 是排障误导）**。
   6. **McpToolError additive**：`modelUnavailable(String)` case——`code`
      switch 补 `"modelUnavailable"` + message 提取 switch 补臂（:61-111
      封闭表 additive 显式改；16 值穷举测试 T5 钉）。
@@ -247,10 +392,14 @@ face + stdio host）+ :571-587（writeCallCount）；`LibrarySearchModel.swift`
 
 - **action**：
   1. **`get_history` schema**：`image`（string 必填——双地址制：digits 库
-     id 经 `LibraryStore.image(id:)` + ImageLinker.resolve 落文件路径；
+     id 经 `LibraryStore.image(id:)`（LibraryStore 由 context 的
+     ProjectFileStore 用公开 `LibraryStore(store:)` init 现场派生——E-1）
+     + ImageLinker.resolve 落文件路径；
      relPath 经 sessionPair 臂；两臂皆不可达 = `notSessionMember`）；
-     `includeParams`（bool 默认 false）；`limit`（items 帽，默认全量、
-     最大 500）。
+     `includeParams`（bool 默认 false）；`limit`（items 帽——**F-5 一句
+     钉死：默认 = min(全量, 500)；截断保留最新端（position 侧，有效历史
+     优先）；itemCount 恒真值总数（截断可由 position/itemCount 检出，
+     保留方向影响 agent 自查序列正确性故显式钉）**）。
   2. **投影**：readDocument → `{position, itemCount, items[]{id, label,
      timestamp, kind, layerScope, params?}, versions[]{id, name, createdAt,
      updatedAt, active}, activeVersionID, note, keywords, rating, flag,
@@ -301,9 +450,31 @@ face + stdio host）+ :571-587（writeCallCount）；`LibrarySearchModel.swift`
      自然覆盖只读 store 释放）。
   4. **flock 语义零改**：openReadOnly 零锁获取（grep + 既有 LIB 只读
      测试面零触佐证）。
+  5. **SC 判据通道（F-2 甲——只读 face 端口发现）**：DEBUG 门控下只读
+     http face 也写 discovery 文件——`LIGHTAMER_MCP_ENDPOINT_DIR`
+     per-test 域内（:115-124 `headlessEndpointPaths` 同款 `#if DEBUG`
+     门形），**独立文件名 `mcp-endpoint-readonly.json`**（不覆 writer 的
+     `mcp-endpoint.json`——heldByOther 场景 writer 文件是 guidance
+     真相源，零覆写）；Release 路径零触（「no discovery json — that
+     file belongs to the writer」:316-323 注记语义在 Release 面原样）；
+     测试父进程经 `McpEndpointFile` 同族读缝拿绑定端口——SC「照常服务」
+     从无可接线判据变为机器可判（评审亲核：先例 McpProjectArbitrationTests
+     序列 A/B 只断言 guidance JSON + 进程驻活、从不过线调工具，
+     McpHostTests HTTP 面全走 in-process handle——两先例均不覆盖本 SC）。
+     registry 级降格（乙：readOnlyMode store + `writerCheck { false }` +
+     search 走通 + 序列 A/B 驻活门照旧，双进程过线保真放弃）为 DECISIONS
+     申报降级路径；stderr 刮端口（丙）不采（弱且脆）。
+- **知悉（N-7 亲核，非本波新增面）**：只读 store `close()` 会跑
+  `checkpointTruncate`（:303-312）——writer 持 WAL 时 typed 失败、stdio
+  EOF 腿 `try?` 吞掉 + 进程退出兜底；writer 空闲且 WAL 已全 checkpoint
+  时 truncate 是 SQLite 语义内安全操作（既有 GUI openProjectReadOnly
+  路径同语义）。
 - **验收标准（机检）**：
-  - 构建绿；`git diff` 逐 hunk 核 = 恰 heldByOther 臂一处插入 + 透传，
-    connect-guidance 发射面/stdio EOF 腿/writer 臂零 diff。
+  - 构建绿；`git diff` 逐 hunk 核 = 恰 heldByOther 臂一处插入 + 透传 +
+    只读 face DEBUG discovery 写（action 5，`#if DEBUG` 分支——Release
+    路径零 diff）；connect-guidance 发射面/stdio EOF 腿/writer 臂零 diff。
+  - 只读臂「search_photos 照常服务」经 action 5 端口通道亲调工具断言
+    成功面（双进程锁 fixture 下；T5/SC 判据同源）。
   - `McpProjectArbitrationTests` 序列 A/B 零 diff 绿（T6 定向轮亲跑；
     本任务构建绿 + 逻辑核预支）。
 - **commit**: `feat(m7-2): serve read-only tools from the headless held-project arm`
@@ -317,16 +488,23 @@ face + stdio host）+ :571-587（writeCallCount）；`LibrarySearchModel.swift`
 > （APP 域）+ `tuist generate` 恒为该批最后一个动作（L041）。
 
 **read_first**：`M7-2-RESEARCH.md` §5（测试策略七条）；`McpFinalSnapshotTests.swift`
-（:22-27 冻结表 + :169-174/:202/:230/:373 四处计数断言——union 显式改
-四处坐标）；`McpRegistrySnapshotTests.swift`（editing 层零触对照）；
+（:22-27 冻结表 + :174/:202/:230/:373 计数断言 + :200 组合代数 +
+:237-259/:274 descriptionKeys 对账 + :159-160 makeUnionRegistry +
+:363 SC7 startHTTPHost——union 显式改全点位见 F-1 清单）；`McpRegistrySnapshotTests.swift`（editing 层零触对照）；
 `FilterSQLTests`（WHERE/bind 快照同型先例）；`McpHostTests`（双进程
 fixture 先例）。
 
 - **action**：
   1. **parity golden 三臂（ROADMAP 验收形态①）**：
-     - EXIF：fixture `.lalb` 上 `search_photos` 输出 id 集与序 ≡ 直调
-       `LibraryQueries.searchPage(filter: ExifSearchFilter(group:plan:))`
-       （同 sort/anchor）；`ExifSearchParser.parse(query)` plan 恒等断言
+     - EXIF：fixture `.lalb` 上 `search_photos` 输出 id 集与序 ≡ **GUI
+       同源两段走法**——直调 `searchPage`（主段）+ `searchNullTail`
+       （尾段）拼接（同 sort/anchor；**对照腿同为两段，单段对照 = 双腿
+       共享 NULL 盲区禁用——E-2**）；**fixture 必含 NULL-key 行**（至少
+       一行 unrated + 一行无 captureDate）且 sort=rating / sort=captureDate
+       两向各断言工具翻段后可达该行（F1 失明洞修补——验收门对 NULL 尾段
+       不再失明）；cursor 翻段链路断言（主段耗尽 → token
+       segment=nullTail → 尾段续走）；越臂组合 typed 拒负测（N-4）；
+       `ExifSearchParser.parse(query)` plan 恒等断言
        （工具与 GUI 共用 parse 的结构性保证）；FilterSQL WHERE/bind 快照
        （FilterSQLTests 同型，可落本文件或既有 FilterSQLTests——落点
        DECISIONS 申报）。
@@ -336,25 +514,44 @@ fixture 先例）。
      - 全文：fixture `ai_understanding(_fts)` 行 → 工具输出 ≡ 直调
        `AIDescriptionService.imageIDs`（rank 序恒等）。
   2. **get_history golden**：fixture sidecar 文档（param/structure/paste/
-     drt/film 五种 item + versions 三条〔一 active 两 chained〕+ note/
-     keywords/rating）→ 投影 JSON byte-equal；`includeParams` 两档；
+     drt/film 五种 item + **双载荷项一例（pasteSet+stackSnapshot 并存 →
+     归 paste 先序显式断言——N-5）** + versions 三条〔一 active 两
+     chained〕+ note/keywords/rating）→ 投影 JSON byte-equal；
+     `includeParams` 两档；**limit >帽 截断方向断言（保留最新端——F-5）**；
      position=-1 pristine 面；kind 判别五臂纯函数直调；author 恒 null
-     负测；limit 帽 500 面。
+     负测。
   3. **get_state golden**：无头无项目 typed nulls 契约（project/workspace/
      editor/tasks null + control/server 活）；context 注入 fixture 后
-     六字段面各臂至少一活一空；MainActor hop 结构断言（handler 零直接
-     @Observable 观测——seam 闭包承载）。
+     六字段面各臂至少一活一空；**MainActor hop 机检双判据（F-6）**——
+     ①fixture `liveState` 闭包体内 `dispatchPrecondition(condition:
+     .onQueue(.main))` + 调用计数，get_state 断言「闭包被调且在主线程」
+     （hop 结构在位的可执行判定）；②grep 机检：SearchStateToolset.swift
+     源对 WorkspaceModel / PipeCoordinator / ExportState /
+     LibraryProjectController 类型名零直接引用（handler 只摸 context
+     closure）。
   4. **快照同批（ROADMAP 验收形态②）**：域快照新层（3 工具 name/
      description/schema verbatim + 域内计数 23 分账）；union 显式改——
-     冻结表 +3 行（名序 get_history/get_state/search_photos）+ 四处计数
-     断言 20→23（:169-174/:202/:230/:373）+ 表头注释 + 测试名
-     Union20→Union23（M5-1-03 先例 19→20 形）——**DECISIONS 申报显式改**。
+     **全点位清单（F-1 补全，McpFinalSnapshotTests.swift 亲核坐标）**：
+     冻结表 +3 行（名序 get_history/get_state/search_photos，:22-27 表头
+     注释同步）+ 计数断言 ×4（:174 descriptors.count / :202 u.count /
+     :230 tools.count / :373 directTools.count，均 20→23）+
+     **组合代数断言（:200）`Set(u) == Set(e).union(Set(c))` 改三集合并
+     （三新工具入新域非并入既有 editing/culling——M5-1-03 先例形不能
+     照抄：match_color 是并入既有域，本波是新域）** +
+     **descriptionKeys 映射表 +3 行（:237-259）+ :274 `Set(key map) ==
+     Set(descriptors.map(\.name))` 对账断言随之过门** +
+     **makeUnionRegistry（:159-160）传 fixture searchState context
+     （不传 = union 恒 20，23 计数永不可达）** + **SC7 startHTTPHost
+     （:363）传 fixture context** + :226 注释行 + 测试名 Union20→
+     Union23（M5-1-03 先例 19→20 形）——**DECISIONS 申报显式改**。
   5. **零回归（ROADMAP 验收形态③）**：既有 editing(6)/culling(14) 两层
      快照零 diff（文件不改、测试原样绿）；`McpHostTests`/
      `McpEditingToolsetTests`/`McpCullingToolsetTests` 全绿；白名单负测
      （未注册名 = internalError）随域快照。
   6. **McpToolError 16 值穷举**：code 字符串逐案断言（15 既有 + 
-     modelUnavailable；穷举 switch 编译期 + 运行期双钉）。
+     modelUnavailable；穷举 switch 编译期 + 运行期双钉）+ **worker 族
+     映射一法（mock searcher 抛 `AIWorkerClientError.workerUnavailable`
+     → 断言映射 modelUnavailable 码与 message 携细节——F-3）**。
   7. **单写者锁只读豁免面**：三工具在 `writerCheck { false }` 下照常
      成功（写类对照 = serverReadOnly 拒）；`writeCallCount` 调用前后
      零增量断言；projectWriteProbe 零触（probe 计数/记录面不加访问）。
@@ -384,7 +581,8 @@ fixture 先例）。
   5. **SUMMARY + DECISIONS**：逐任务 ΔN 记账 + parity golden 判定指针 +
      快照显式改申报 + auto 分类器后置挂账 + cursor 跨调用稳定性已知边界
      （与 list_photos 同风险同口径，不引入 cursor 版本戳）+ 窄投影列映射
-     终值 + CLIP 超时档裁定。
+     终值 + CLIP 超时档裁定 + worker 族映射终形（F-3——modelUnavailable
+     族申报）+ 只读臂端口判据通道终形（F-2——甲落地或乙降格申报）。
   6. **翻账**：REQUIREMENTS MCP2-01..03 → Delivered（M7-2 commit 指针）
      + MCP2-01 行 LabelQueries→AIDescriptionService 勘误（CONTEXT 勘误
      注记兑现）；AGENTS「M7-2 架构增量」节；TODO（M7-2 条目 + 挂账）；
@@ -405,6 +603,11 @@ fixture 先例）。
   （单源链断裂嫌疑——查是否绕过 parse/searchPage/imageIDs 直连）。
 - **CLIP 贴线超时**（万级库 vDSP 扫）：10s 档实测超时 → DECISIONS 申报
   升 `thumbnailsAndContact` 20s 档（唯一许可路径）；禁静默改档或加新档。
+- **F-2 甲 DEBUG discovery 写的碰撞面**：只读 face 独立文件名
+  （`mcp-endpoint-readonly.json`）不覆 writer 的 `mcp-endpoint.json`；
+  per-test 专用 `LIGHTAMER_MCP_ENDPOINT_DIR` 域内 writer/reader 各自
+  文件零碰撞——若执行中发现同目录残读（前一 case 的 readonly 文件），
+  测试侧 case 边界清扫（`remove` 同族缝），不为此改 Release 语义。
 - **只读臂 openReadOnly 失败**（schema 守卫拒旧包）：诚实降级 nil seam
   （三工具 notSessionMember）+ log——禁 exit、禁扩 schema 迁移面
   （迁移归 ProjectFileStore 既有 migrator 域，本波零触）。
@@ -426,22 +629,27 @@ fixture 先例）。
    （search.query/editor.history/state.get）→ 三工具一一对应。
 2. **OQ 兑现核**：D-M7-2-1..9 逐条对任务面——①双域分界句在 description
    （T2 action 1）+ get_history 双地址两臂（T3）②mode 三枚举默认 exif
-   ③CLIP 帽 256/全文帽 500/keyset cursor/窄投影九字段 ④summary+includeParams
+   ③CLIP 帽 256/全文帽 500/EXIF 两段 cursor（segment 字段）/窄投影九字段/
+   默认 sort filename asc ④summary+includeParams + limit 截断保留最新端
    + author 恒 null 负测 ⑤versions meta only（无 chain 字段——schema
    快照核）⑥modelUnavailable additive 两 switch 补臂 + 16 值穷举 +
-   dimensionMismatch 双映射 ⑦只读臂 openReadOnly + 失败降级禁 exit
-   ⑧六字段组 + tasks=M2 导出队列 ⑨context provider 形 + static box
-   零复用（MatchColorToolset 零 diff 核）。
+   dimensionMismatch 双映射 + AIWorkerClientError 族归 modelUnavailable
+   （F-3）⑦只读臂 openReadOnly + 失败降级禁 exit + F-2 甲端口判据通道
+   ⑧六字段组 + tasks=M2 导出队列 ⑨context provider 形（ProjectFileStore
+   直携——E-1）+ static box 零复用（MatchColorToolset 零 diff 核）。
 3. **只读三面结构性不触**：三工具注册零 `requiresWriter: true`；
    registry writer gate 分支（:333-341）零 diff；writeCallCount 只在
    requiresWriter 分支内自增（T5 豁免面测试钉）；projectWriteProbe 在
    SearchStateToolset 内只读引用（get_state control 面），零写面消费。
-4. **快照族纪律**：union 显式改四处计数 + DECISIONS 申报；editing/culling
+4. **快照族纪律**：union 显式改全点位（F-1 清单——计数 ×4 + 组合代数
+   + descriptionKeys + 两处 fixture context + 表头注释 + 测试名）+
+   DECISIONS 申报；editing/culling
    两层快照文件零 diff（`git diff --stat` 核）；域快照新层 verbatim 断言
    形与既有两层同构；「本波持 union 改动权」编排前提在 plan 头注与红线
    双写（M7-3/M7-5 串行）。
 5. **单源红线**：T2 三路由 diff 面核——ExifSearchParser.parse /
-   LibraryQueries.searchPage / SemanticEngine.search / AIDescriptionService
+   LibraryQueries.searchPage + searchNullTail（两段走法两查询皆既有单源）
+   / SemanticEngine.search / AIDescriptionService
    .imageIDs 直调消费，无第二 SQL 面（新 SQL 字符串/新 FTS 查询 grep
    零命中）；窄投影无 schema 面 additions。
 6. **封存面**：HistoryStack/LightamerSidecar/DrtRecord/ExportQueueContract
