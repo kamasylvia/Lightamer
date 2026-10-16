@@ -111,6 +111,13 @@ A macOS-native (Swift 6 + SwiftUI + Metal 3 + Core Image RAW) **Alcedo Studio cl
 
 **边界与纪律**：M7-2..M7-5 各波独立可插（M7-0 后任意序，唯 MCP 快照面改动须串行）；Alcedo Studio GPL-3.0——功能行为/命令语义克隆合法（survey §6 许可边界），**代码与文档文案零复制零翻译**（skill 仓全部自写），MCP snake_case 工具名与 Alcedo 点分 JSON-RPC 天然异构无逐字 copying 面；UQ 件上游锚为 GPL（A1/A2 = Alcedo）/MIT（L1/L2 = LightCraft）——LightCraft 成段移植须 NOTICE 同 commit 登记；FIX2 探针与证据族（`gui-acceptance/v2m/fix2-probe/` local-only）为 M7-1 复验门判据正本，派发令引用 `FIX2-VALIDATION.md` §挂账①④⑤⑥ + `V2M-VALIDATION.md` §挂账②；夜间全自动授权在案（先例 D-07-3-T5-1，晨审可推翻）。
 
+## Milestone 8: FSIM 光谱升维（Spectral Film Core）【2026-10-17 预告立项（**charter-pending——M7 收口后正式 charter**，用户「按推荐」夜间自动批：M8 立项挂账 + M7 先行 + 光谱升维轻量 research 提前排队；授权先例 D-07-3-T5-1，晨审可推翻）；轻量 research 正本 = `phases/m8-fsim-spectral/RESEARCH-PRE.md`；REQUIREMENTS 草案族 = SPEC-01..06】
+
+> 一句话：把 FSIM 材料域从 RGB 密度域染料近似核（M3-3/M3-4 交付）升维为 darktable spektrafilm（2026 native 模块）同级的**逐波长光谱材料链**——scene-linear Rec2020 → CAT 至胶片参考光源 → xy → 光谱上采样（tc 系数表，自拟合 clean-room）→ sigmoid 谱重建 × 胶片感光度积分 → DIR coupler 显影 → dichroic 放大机配光 → 相纸 → 扫描 CMFs → working RGB + OkLCh gamut 压缩；经 M6-2 process version 通道迁移（光谱核 = 新 RenderProcess current 臂，密度核冻结 legacy 臂，老 `.lra` 渲染零漂移）；CC BY-SA profile 谱面（log_sensitivity/channel_density 81 点）从「随文件携带」翻为直接消费面。
+> 边界精度修正（RESEARCH-PRE §2）：FSIM-01c「光谱引擎不可达」收窄为「**场景真实 SPD 重放**不可达」——重建谱上的逐波长材料链可达（dt 生产路径已证）。
+> 许可边界：dt spektrafilm 模块族 + spektrafilm Python 参考仓 = GPL-3.0 只读零拷贝；Jakob-Hanika 2019 论文数学 + BSD 参考方法（rgb2spec / colour-science recovery）可用；hanatos2025 表本体 / dt pack 常数集**不消费**（许可待验 + 域不合）——tc 表自拟合（OQ-M8-2 推荐）；CC BY-SA 资产 verbatim 纪律延续。
+> 状态 = charter-pending：本块为预告非正式 charter；正式立项（phase 表 / SC 门 / 范围红线 / OQ-M8-1..7 裁决）随 M7 收口批落账，输入 = RESEARCH-PRE §7（核拓扑 process 单源 / tc 表自拟合 / 重积分 3D 表臂 / coupler 模糊场降采样 / M8-0..3 四阶段 / 措辞修订 / UI 无 Alcedo 对标项）。
+
 ## Milestone 2: Alcedo V1 — 2026-09-27 重定义【M2-0 细化完成 2026-09-27，待用户签核开工】
 
 > 规格正本 = `.work/gsd/research/ALCEDO-FEATURE-MAP.md`（301 行，HEAD `34241d0b`：UI 逐屏/18 项调整封闭目录含 JSON key 与默认值/节点图命令级语义/蒙版参数/DRT 45 参数/项目文件全 DDL/导出 recipe/AI 侧车）。已交付资产延续：pixelpipe/39 iop/Layers/sidecar/Presets/LUT/Export 队列/MCP server/测试基线（1881/11skip/0fail）。
