@@ -118,11 +118,13 @@ Golden-reference regeneration against a local darktable build:
   On macOS 27.0 a SwiftUI menu/focus update loop (an OS framework issue —
   your library and edits are unaffected) can leave the editor window
   churning at high CPU and partly unresponsive after you reopen a recent
-  project. **Workaround:** minimize the Lightamer window or cover it
-  completely with another window — the loop stops and CPU drops to idle
-  immediately. Bring the window back and click once in the film strip;
-  editing resumes normally. A proper fix (reducing the view-tree width /
-  splitting the editor into its own window) is tracked separately.
+  project. **Workaround:** minimize the Lightamer window, cover it
+  completely with another window, or press ⌘H to hide the app — the loop
+  stops and CPU drops to idle immediately. Bringing the window back to
+  the front resumes editing within about a second — no click needed.
+  A framework-level fix rests with Apple (a Feedback report is prepared
+  for submission); app-side view-tree surgery was evaluated and ruled
+  out — independent reproductions show the loop survives tree reduction.
 
 ## Development artifacts
 
