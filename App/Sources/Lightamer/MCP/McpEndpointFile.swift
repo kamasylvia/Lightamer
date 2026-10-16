@@ -33,6 +33,16 @@ struct McpEndpointPaths: Sendable {
     var lockURL: URL { directory.appendingPathComponent("mcp-endpoint.lock") }
     var jsonURL: URL { directory.appendingPathComponent("mcp-endpoint.json") }
 
+    /// M7-2-01 T4 (F-2 甲): the read-only face's discovery file — a
+    /// DIFFERENT name so a read-only face can never overwrite the writer's
+    /// `mcp-endpoint.json` (that file is the connect-guidance truth: the
+    /// holder's live endpoint). DEBUG test-domain only (the writer gate
+    /// keeps the release semantics); the schema is the SAME
+    /// `McpEndpointInfo` v1.
+    var readonlyJsonURL: URL {
+        directory.appendingPathComponent("mcp-endpoint-readonly.json")
+    }
+
     static func makeDefault() -> McpEndpointPaths {
         // create:false — the URL is built lazily; acquire()/write() create
         // the directory tree when they actually need it.
@@ -143,6 +153,47 @@ enum McpEndpointFile {
     /// rename across volumes or into /tmp is forbidden; the discovery file
     /// must never be observed half-written).
     static func write(_ info: McpEndpointInfo, in paths: McpEndpointPaths) throws {
+        try writePayload(info, to: paths.jsonURL, in: paths)
+    }
+
+    /// M7-2-01 T4 (R-1 additive variant): the read-only face's discovery
+    /// write — SAME payload schema and the SAME atomic promotion, the
+    /// DIFFERENT file (`mcp-endpoint-readonly.json`, DEBUG test-domain
+    /// only at the call site). The writer's `mcp-endpoint.json` semantics
+    /// are byte-identical to before.
+    static func writeReadOnly(
+        _ info: McpEndpointInfo, in paths: McpEndpointPaths
+    ) throws {
+        try writePayload(info, to: paths.readonlyJsonURL, in: paths)
+    }
+
+    static func read(in paths: McpEndpointPaths) -> McpEndpointInfo? {
+        readPayload(at: paths.jsonURL)
+    }
+
+    /// The read-only variant's read face (the test parent's port-discovery
+    /// seam — F-2 甲).
+    static func readReadOnly(in paths: McpEndpointPaths) -> McpEndpointInfo? {
+        readPayload(at: paths.readonlyJsonURL)
+    }
+
+    static func remove(in paths: McpEndpointPaths) {
+        try? FileManager.default.removeItem(at: paths.jsonURL)
+    }
+
+    /// The read-only variant's cleanup (the test-side case-boundary
+    /// sweep — the plan's F-2 collision note).
+    static func removeReadOnly(in paths: McpEndpointPaths) {
+        try? FileManager.default.removeItem(at: paths.readonlyJsonURL)
+    }
+
+    // The shared bodies (ONE atomic-write / read implementation; the two
+    // public name families only differ in the target URL — the discovery
+    // logic is never re-implemented at the call sites).
+
+    private static func writePayload(
+        _ info: McpEndpointInfo, to url: URL, in paths: McpEndpointPaths
+    ) throws {
         let fm = FileManager.default
         if !fm.fileExists(atPath: paths.directory.path) {
             try fm.createDirectory(at: paths.directory, withIntermediateDirectories: true)
@@ -151,25 +202,21 @@ enum McpEndpointFile {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let payload = try encoder.encode(info)
         let tmp = paths.directory.appendingPathComponent(
-            "mcp-endpoint.json.tmp-\(UUID().uuidString)")
+            "\(url.lastPathComponent).tmp-\(UUID().uuidString)")
         try payload.write(to: tmp)
         // The L009-visible promotion: tmp → final name within the SAME
         // directory (an atomic rename from the kernel's point of view).
-        if fm.fileExists(atPath: paths.jsonURL.path) {
-            try fm.removeItem(at: paths.jsonURL)
+        if fm.fileExists(atPath: url.path) {
+            try fm.removeItem(at: url)
         }
-        try fm.moveItem(at: tmp, to: paths.jsonURL)
+        try fm.moveItem(at: tmp, to: url)
     }
 
-    static func read(in paths: McpEndpointPaths) -> McpEndpointInfo? {
-        guard let data = FileManager.default.contents(atPath: paths.jsonURL.path) else {
+    private static func readPayload(at url: URL) -> McpEndpointInfo? {
+        guard let data = FileManager.default.contents(atPath: url.path) else {
             return nil
         }
         return try? JSONDecoder().decode(McpEndpointInfo.self, from: data)
-    }
-
-    static func remove(in paths: McpEndpointPaths) {
-        try? FileManager.default.removeItem(at: paths.jsonURL)
     }
 }
 

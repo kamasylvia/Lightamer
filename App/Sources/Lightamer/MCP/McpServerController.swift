@@ -311,6 +311,26 @@ enum McpServerController {
             if case .projectHeldByOther = error {
                 emitConnectGuidance(mode: mode, lockURL: lockURL)
                 await log("headless project read-only arm: held by another instance")
+                // M7-2-01 T4 (D-M7-2-7): serve the read faces from the held
+                // package — openReadOnly takes NO lock (flock semantics
+                // untouched), guards the schema (stored == current) and
+                // typed-rejects every write leg at withWriteBatch. Failure
+                // = the honest nil-seam degrade (the three search/state
+                // tools answer notSessionMember) + this log — NEVER an
+                // exit (the guidance already pointed the agent at the
+                // holder's live endpoint).
+                do {
+                    let readOnlyStore = try await store.openReadOnly()
+                    headlessProjectStore = readOnlyStore
+                    await log(
+                        "headless project read-only arm: serving read faces "
+                            + "from \(projectURL.path)")
+                } catch {
+                    await log(
+                        "headless project read-only arm: read-only open "
+                            + "failed (\(error)) — the search/state tools "
+                            + "answer notSessionMember")
+                }
             } else {
                 stderr.write(Data(
                     "--project: package open failed: \(error)\n".utf8))
@@ -461,6 +481,31 @@ enum McpServerController {
                 await log(
                     "headless MCP read-only http face up on 127.0.0.1:\(bound)"
                         + " (no discovery file — the writer owns it)")
+                // M7-2-01 T4 (F-2 甲): the SC judgment channel — in the
+                // DEBUG per-test endpoint domain the read-only face writes
+                // its OWN discovery file (`mcp-endpoint-readonly.json`,
+                // never the writer's `mcp-endpoint.json`), so the test
+                // parent can find the bound port and call tools for real
+                // (the arbitration A/B fixtures only assert guidance +
+                // residency; this is the over-the-wire judgment). Release
+                // compiles NONE of this branch — the read-only face keeps
+                // its "no discovery json" release semantics.
+                #if DEBUG
+                if ProcessInfo.processInfo
+                    .environment["LIGHTAMER_MCP_ENDPOINT_DIR"] != nil {
+                    let info = McpEndpointInfo(
+                        schemaVersion: McpEndpointInfo.schemaVersionV1,
+                        transport: McpEndpointInfo.transportStreamableHTTP,
+                        host: McpHTTPHost.loopbackHost,
+                        port: bound,
+                        pid: getpid(),
+                        startedAt: McpEndpointInfo.nowISO8601(),
+                        serverName: serverName,
+                        serverVersion: serverVersion,
+                        auth: McpEndpointInfo.authNone)
+                    try? McpEndpointFile.writeReadOnly(info, in: paths)
+                }
+                #endif
             }
         } catch {
             FileHandle.standardError.write(Data(
