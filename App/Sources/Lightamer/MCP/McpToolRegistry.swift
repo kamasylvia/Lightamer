@@ -74,6 +74,15 @@ public enum McpToolError: Error, Sendable {
     case unknownPreset(String)
     case projectReadOnly(String)
     case internalError(String)
+    /// M7-2-01 (D-M7-2-6): the semantic runtime is unavailable FOR THIS
+    /// QUERY — the bundled CLIP assets are missing/failed to load, the
+    /// model/runner vector widths disagree, or the AI worker process is
+    /// unavailable/crashed/exhausted/request-failed (the F-3 mapping: the
+    /// worker family rides the same code — "the semantic runtime cannot
+    /// serve this query" is the honest family; `internalError` would
+    /// misreport an absent asset/process as our bug). Retrying with
+    /// different parameters cannot help; the message says which leg.
+    case modelUnavailable(String)
 
     /// The stable snake_case code surfaced to MCP clients.
     public var code: String {
@@ -93,6 +102,7 @@ public enum McpToolError: Error, Sendable {
         case .unknownPreset: "unknownPreset"
         case .projectReadOnly: "projectReadOnly"
         case .internalError: "internalError"
+        case .modelUnavailable: "modelUnavailable"
         }
     }
 
@@ -104,7 +114,7 @@ public enum McpToolError: Error, Sendable {
             .renderTimeout(let m), .exportFailed(let m), .invalidFilter(let m),
             .roiOutOfBounds(let m), .keywordContainsSeparator(let m),
             .exportPresetNotApplicable(let m), .unknownPreset(let m),
-            .projectReadOnly(let m), .internalError(let m):
+            .projectReadOnly(let m), .internalError(let m), .modelUnavailable(let m):
             m
         }
     }
