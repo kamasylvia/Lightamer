@@ -219,6 +219,13 @@ final class AgentControlCoordinator {
                 defaultValue: "另一持有者已持有控制权：\(self.holderName)。"))
         }
         let alreadyHeldBySelf = held && self.holderName == holderName
+        // M7-6-01 (obs-3): the entry snapshot — a Stop that happened BEFORE
+        // this acquire is the TURN-03 resume semantics (the same-holder
+        // re-acquire must succeed and clear it below); only a Stop landing
+        // INSIDE this acquire's wait window may refuse. MainActor-isolated:
+        // no suspension sits between the function entry and this line, so
+        // the snapshot IS the entry value.
+        let stoppedAtEntry = stoppedByUser
         if !alreadyHeldBySelf {
             // Wait for the unsealed editor input to seal (the user drag is
             // a seconds-scale norm — an instant refusal would put the agent
@@ -237,6 +244,27 @@ final class AgentControlCoordinator {
                             + "GUI); retry after the input settles")
                 }
                 try? await Task.sleep(for: pollInterval)
+            }
+            // M7-6-01 (obs-3): the post-loop rechecks — the loop condition
+            // can flip in the same poll window as a Stop or a competing
+            // acquire, so the exit alone no longer proves the win.
+            // Revoked: only a Stop inside THIS wait window refuses (the
+            // entry-stopped face is the resume semantics — it falls through
+            // and the success path clears it). The message is the in-loop
+            // arm's same spelling.
+            if stoppedByUser, !stoppedAtEntry {
+                throw McpToolError.controlRevokedByUser(String(
+                    localized: "mcp_error_control_revoked_by_user",
+                    defaultValue: "用户已停止 agent——请停止工作并询问用户如何继续；征得用户同意后再 control_acquire。"))
+            }
+            // Busy: unconditional-safe — reaching here with `held` true and
+            // a different holder can only mean another holder completed its
+            // acquire while this waiter was suspended (the double-hold
+            // window). Same spelling as the entry refusal above.
+            if held, self.holderName != holderName {
+                throw McpToolError.controlBusy(String(
+                    localized: "mcp_error_control_busy",
+                    defaultValue: "另一持有者已持有控制权：\(self.holderName)。"))
             }
         }
         // Success. The resume routing: a re-acquire with the holder the

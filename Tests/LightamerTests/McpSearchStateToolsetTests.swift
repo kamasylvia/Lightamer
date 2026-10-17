@@ -205,6 +205,15 @@ final class McpSearchStateToolsetTests: XCTestCase {
         return results.compactMap { ($0["imageID"] as? Int).map(Int64.init) }
     }
 
+    /// The repo root anchor for the source-scan pins (the
+    /// AgentControlCoordinatorTests repoRoot form).
+    private static func repoRootPath() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // LightamerTests
+            .deletingLastPathComponent()   // Tests
+            .deletingLastPathComponent()   // repo root
+    }
+
     // MARK: - The domain snapshot layer (the fourth snapshot layer)
 
     /// The 3-tool face verbatim (schemas byte-equal the registration
@@ -1024,6 +1033,66 @@ final class McpSearchStateToolsetTests: XCTestCase {
                 "the message is the noOpenProjectMessage single source: "
                     + "\(error.message)")
         }
+    }
+
+    /// M7-6-01 (minor-1): the bare stdio/http arms (the `--mcp-stdio` /
+    /// `--mcp-http` no-project paths in `runHeadless`) now carry the
+    /// headless constant agentControl provider — `get_state.control.agent`
+    /// is the always-held truth, never the null mirror lie (the arbitrated
+    /// arm rode the constant since M7-5; the bare arms join it with the
+    /// SAME spelling).
+    /// (deviation) The plan's literal judgment ("the bare direct call
+    /// `makeHeadlessSearchState(mode: .stdio)` answers a non-nil provider")
+    /// is unreachable without changing the signature DEFAULT (nil) — the
+    /// prescribed fix wires the two runHeadless CALL SITES instead, so the
+    /// direct no-arg call still answers nil by design. The honest
+    /// equivalent: the production-spelling construction asserts the
+    /// provider VALUE, and the source scan proves every
+    /// `makeHeadlessSearchState` call inside `runHeadless` carries the
+    /// constant (no un-wired bare call remains).
+    func testBareHeadlessArmCarriesAgentControlConstant() async throws {
+        let stdio = McpServerController.makeHeadlessSearchState(
+            mode: .stdio,
+            agentControl: { McpControlState.headlessConstant })
+        let stdioProvider = try XCTUnwrap(
+            stdio.agentControl, "the bare stdio arm must carry the provider")
+        let stdioState = await stdioProvider()
+        XCTAssertEqual(stdioState, McpControlState.headlessConstant)
+
+        let http = McpServerController.makeHeadlessSearchState(
+            mode: .http,
+            agentControl: { McpControlState.headlessConstant })
+        let httpProvider = try XCTUnwrap(
+            http.agentControl, "the bare http arm carries it too")
+        let httpState = await httpProvider()
+        XCTAssertEqual(httpState, McpControlState.headlessConstant)
+
+        // The wiring pin (the source-scan precedent form): inside
+        // runHeadless's body every makeHeadlessSearchState call passes the
+        // constant provider — a bare `makeHeadlessSearchState(mode: mode)`
+        // call (no agentControl:) would re-open the null-mirror lie.
+        let source = String(
+            decoding: FileManager.default.contents(
+                atPath: Self.repoRootPath()
+                    .appendingPathComponent(
+                        "App/Sources/Lightamer/MCP/McpServerController.swift")
+                    .path) ?? Data(),
+            as: UTF8.self)
+        let body = try XCTUnwrap(
+            source.range(of: "static func runHeadless(mode: LaunchMode)")
+                .map { source[$0.lowerBound...] },
+            "the runHeadless body must be readable")
+        let runBody = try XCTUnwrap(
+            body.range(of: "static func runHeadlessArbitrated").map {
+                String(body[..<$0.lowerBound])
+            },
+            "the arbitrated section bounds the bare arms")
+        XCTAssertTrue(
+            runBody.contains("agentControl: { McpControlState.headlessConstant }"),
+            "the bare arms pass the constant provider")
+        XCTAssertFalse(
+            runBody.contains("makeHeadlessSearchState(mode: mode)"),
+            "no un-wired bare call remains in runHeadless")
     }
 
     // MARK: - The McpToolError 19-value exhaustive codes

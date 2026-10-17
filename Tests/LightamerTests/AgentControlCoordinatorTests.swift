@@ -338,4 +338,125 @@ final class AgentControlCoordinatorTests: XCTestCase {
         try await coordinator.admit(toolName: "render_preview")
         XCTAssertEqual(handle.snapshot.detail, "render_preview")
     }
+
+    // MARK: - The post-loop rechecks (M7-6-01 obs-3; the provider-trigger
+    // sequencing — deterministic interleave, never a real-poll wait)
+
+    /// The serial poll counter the provider closures drive: the acquire
+    /// wait polls it; a chosen poll number performs the interleaved action
+    /// INLINE (hopping back to the MainActor) before answering false — the
+    /// loop then exits through its CONDITION (never observing the flip
+    /// inside the body), which is exactly the final-window shape the
+    /// recheck must catch.
+    private final class PollTriggerBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var polls = 0
+        private var triggered = false
+        /// The serial poll number (starts at 1).
+        func next() -> Int {
+            lock.lock(); defer { lock.unlock() }
+            polls += 1
+            return polls
+        }
+        /// Arms the trigger exactly once — true on the arming call itself.
+        func armTrigger() -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            if triggered { return false }
+            triggered = true
+            return true
+        }
+        /// True once the trigger has fired (the nested polls answer false).
+        func isTriggered() -> Bool {
+            lock.withLock { triggered }
+        }
+    }
+
+    /// obs-3 variant ①: the Stop lands in the SAME poll window the editor
+    /// input seals — the wait loop exits through its condition (the body
+    /// never observes stoppedByUser) and the POST-LOOP recheck must refuse
+    /// with the typed controlRevokedByUser (the pre-fix shape fell through
+    /// into the success path and silently swallowed the Stop).
+    func testAcquireRefusesRevokedWhenStopLandsInFinalPollWindow() async throws {
+        let coordinator = AgentControlCoordinator(
+            acquireTimeout: .seconds(5), pollInterval: .milliseconds(20))
+        coordinator.configureLiveEditProbe { false }
+        // A prior acquire mints the task — Stop is reachable (the guard
+        // needs held or taskId) while stoppedByUser stays false at the
+        // second acquire's ENTRY (release keeps the stopped flag clear).
+        _ = try await coordinator.acquire("cc")
+        coordinator.release()
+        let box = PollTriggerBox()
+        coordinator.configureLiveEditProbe { [weak coordinator] in
+            guard let coordinator else { return false }
+            let poll = box.next()
+            if poll == 3, box.armTrigger() {
+                // The user Stop lands inside this poll window; the seal
+                // rides the same window — the loop exits via the condition.
+                await MainActor.run { coordinator.stop() }
+                return false
+            }
+            return true
+        }
+        do {
+            _ = try await coordinator.acquire("cc")
+            XCTFail("the in-window Stop must refuse the acquire")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "controlRevokedByUser")
+        }
+        XCTAssertEqual(coordinator.holdsControl, false)
+        XCTAssertEqual(coordinator.currentState().revokedByUser, true,
+                       "the Stop stays armed — the agent must re-acquire")
+    }
+
+    /// obs-3 variant ②: a competing holder completes ITS acquire inside
+    /// the waiter's poll window (the entry busy pre-check saw held ==
+    /// false) — the waiter's post-loop recheck must refuse with the typed
+    /// controlBusy (the pre-fix shape granted a DOUBLE HOLD).
+    func testAcquireRefusesBusyWhenCompetingHolderWinsInWindow() async throws {
+        let coordinator = AgentControlCoordinator(
+            acquireTimeout: .seconds(5), pollInterval: .milliseconds(20))
+        coordinator.configureLiveEditProbe { false }
+        let box = PollTriggerBox()
+        coordinator.configureLiveEditProbe { [weak coordinator] in
+            guard let coordinator else { return false }
+            let poll = box.next()
+            if poll == 3, box.armTrigger() {
+                // The competing holder wins INSIDE this poll window (its
+                // own nested polls answer false through the armed flag).
+                _ = try? await coordinator.acquire("winner")
+                return false
+            }
+            return !box.isTriggered()
+        }
+        do {
+            _ = try await coordinator.acquire("waiter")
+            XCTFail("the post-loop recheck must refuse the double hold")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "controlBusy")
+            XCTAssertTrue(error.message.contains("winner"),
+                          "the busy face carries the winning holder")
+        }
+        XCTAssertEqual(coordinator.holdsControl, true)
+        XCTAssertEqual(coordinator.currentState().holder, "winner",
+                       "exactly one holder — the waiter lost cleanly")
+    }
+
+    /// obs-3 negative (the review-B1 pathology guard): the entry-stopped
+    /// face is the TURN-03 resume semantics — the same-holder re-acquire
+    /// after a Stop must still SUCCEED (an unconditional stoppedByUser
+    /// refusal in the recheck would strand the agent permanently).
+    func testAcquireAfterStopStillResumesForSameHolder() async throws {
+        let coordinator = AgentControlCoordinator(
+            acquireTimeout: .seconds(2), pollInterval: .milliseconds(20))
+        coordinator.configureLiveEditProbe { false }
+        _ = try await coordinator.acquire("cc")
+        let id = coordinator.taskId
+        coordinator.stop()
+        XCTAssertEqual(coordinator.currentState().revokedByUser, true)
+        let resumed = try await coordinator.acquire("cc")
+        XCTAssertEqual(resumed.held, true)
+        XCTAssertEqual(coordinator.taskId, id, "the resume keeps the task id")
+        XCTAssertEqual(coordinator.currentState().revokedByUser, false,
+                       "the successful resume clears the stopped flag")
+    }
 }
