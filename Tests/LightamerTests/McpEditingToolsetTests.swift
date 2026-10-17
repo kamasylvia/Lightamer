@@ -1012,4 +1012,332 @@ final class McpEditingToolsetTests: XCTestCase {
         XCTAssertFalse(
             row.keys.contains("subdirectory"), "root rows carry no subdirectory")
     }
+
+    // MARK: - O4 (M7-4-01, MCP2-08): the copy/paste pair goldens
+
+    /// The transfer fixture: a session with TWO members; the source
+    /// carries a layer-structured sidecar (one Grade layer: an exposure +
+    /// a temperature + the terminal-trio gamma + a masked
+    /// contentRevision 7) + a DRT record. Returns the pieces the legs
+    /// address.
+    private func makeTransferFixture() async throws -> (
+        root: URL, store: SessionIndexStore,
+        sourceRel: String, sourceURL: URL,
+        targetRel: String, targetURL: URL,
+        sourceExposureID: UUID, layerID: UUID
+    ) {
+        // The two-member session (the makeSession shape, both entries in
+        // the ONE scan — the open-time sync face).
+        let root = tempDirectory.appendingPathComponent(
+            "session-\(UUID().uuidString)", isDirectory: true)
+        let capture = root.appendingPathComponent("Capture", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: capture, withIntermediateDirectories: true)
+        let sourceURL = capture.appendingPathComponent("SRC_0001.ARW")
+        try Data(repeating: 0xCD, count: 64).write(to: sourceURL)
+        let targetURL = capture.appendingPathComponent("TGT_0001.ARW")
+        try Data(repeating: 0xEF, count: 32).write(to: targetURL)
+        let store = SessionIndexStore(sessionRoot: root)
+        func entry(_ url: URL, relPath: String, size: Int64) -> SessionScanEntry {
+            SessionScanEntry(
+                relPath: relPath,
+                mtime: (try? url.resourceValues(forKeys: [.contentModificationDateKey])
+                    .contentModificationDate)?.timeIntervalSince1970 ?? 0,
+                size: size)
+        }
+        _ = try await store.openSession(root: root, scan: AsyncStream { continuation in
+            continuation.yield(SessionScanPage(entries: [
+                entry(sourceURL, relPath: "Capture/SRC_0001.ARW", size: 64),
+                entry(targetURL, relPath: "Capture/TGT_0001.ARW", size: 32),
+            ]))
+            continuation.finish()
+        })
+        let session = (root: root, imageURL: sourceURL, store: store)
+
+        // The source sidecar: the M2-8 sourceChain shape (one Grade layer
+        // with a transferable pair + a non-transferable terminal row).
+        let layerID = UUID()
+        var layer = AdjustmentLayer(id: layerID, name: "Warm")
+        let exposure = ModuleInstance(
+            module: ExposureModule.self,
+            params: ExposureModule.Params(exposure: 0.5))
+        layer.chain = [
+            exposure,
+            ModuleInstance(
+                module: TemperatureModule.self,
+                params: TemperatureModule.Params()),
+            ModuleInstance(
+                module: GammaModule.self, params: GammaModule.Params()),
+        ]
+        layer.mask = MaskSpec(
+            drawn: DrawnMaskSpec(forms: [], group: nil), contentRevision: 7)
+        let snapshot = LayerStackSnapshot(layers: [.init(layer)])
+        var history = HistoryStack()
+        let seed = ModuleInstance(
+            module: ExposureModule.self, params: ExposureModule.Params())
+        history.commit(
+            seed, label: "structure", layerScope: EditorStructureScope.marker,
+            stackSnapshot: snapshot)
+        history.commitDrt(
+            record: DrtRecord(), placeholder: seed, label: "drt")
+        let document = LightamerSidecar(
+            imageID: UUID(), decoderVersionUsed: "v8", decodeParamsHash: 0,
+            instances: [], history: history, historyHash: 0)
+        let encoder = JSONEncoder()
+        try encoder.encode(document).write(
+            to: LightamerSidecar.sidecarURL(for: session.imageURL))
+        return (
+            session.root, session.store,
+            "Capture/SRC_0001.ARW", session.imageURL,
+            "Capture/TGT_0001.ARW", targetURL,
+            exposure.id, layerID
+        )
+    }
+
+    private static func jsonOutput(_ output: McpToolOutput) throws -> [String: Any] {
+        guard case .text(let text) = output.content.first else {
+            throw McpToolError.internalError("expected a text payload")
+        }
+        return try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
+            text)
+    }
+
+    /// The COPY face: the enumeration preview answers the source's Grade
+    /// layer with its three items (the terminal trio greyed, VISIBLE) and
+    /// the DRT presence — no state lands anywhere.
+    func testCopyAdjustmentsEnumeratesTheSourceChain() async throws {
+        let fixture = try await makeTransferFixture()
+        let seams = await makeSeams(session: (fixture.store, fixture.root))
+        let registry = await makeRegistry(seams: seams)
+        let payload = try await Self.jsonOutput(try await registry.call(
+            name: "copy_adjustments",
+            arguments: ["source": .string(fixture.sourceRel)]))
+        XCTAssertEqual(payload["source"] as? String, fixture.sourceRel)
+        let grades = try XCTUnwrap(payload["grades"] as? [[String: Any]])
+        XCTAssertEqual(grades.count, 1)
+        let grade = try XCTUnwrap(grades.first)
+        XCTAssertEqual(grade["name"] as? String, "Warm")
+        XCTAssertEqual(grade["chainCount"] as? Int, 3)
+        XCTAssertEqual(grade["transferableCount"] as? Int, 1,
+                       "exposure only (temperature is RAW-decode-owned)")
+        let items = try XCTUnwrap(grade["items"] as? [[String: Any]])
+        XCTAssertEqual(items.count, 3)
+        let byOp = Dictionary(uniqueKeysWithValues: items.map {
+            ($0["opName"] as? String ?? "", $0)
+        })
+        XCTAssertEqual(byOp[ExposureModule.opName]?["transferable"] as? Bool, true)
+        XCTAssertEqual(byOp[ExposureModule.opName]?["instanceId"] as? String,
+                       fixture.sourceExposureID.uuidString)
+        // The greyed face (VISIBLE, never swallowed): temperature rides
+        // the RAW-decode ownership, gamma the terminal trio.
+        XCTAssertEqual(byOp[TemperatureModule.opName]?["transferable"] as? Bool, false)
+        XCTAssertEqual(byOp[GammaModule.opName]?["transferable"] as? Bool, false)
+        let drt = try XCTUnwrap(payload["drt"] as? [String: Any])
+        XCTAssertEqual(drt["present"] as? Bool, true)
+        XCTAssertEqual(drt["eligible"] as? Bool, true)
+        // The library-id form resolves through the same face (the O4
+        // addressing dual form — the provider fixture rides an absolute
+        // row; the kind0 anchor face is T5's leg).
+        let packageURL = tempDirectory.appendingPathComponent("CopyLib.lalb")
+        let fileStore = ProjectFileStore(at: packageURL)
+        _ = try await fileStore.create(name: "CopyLib")
+        let libImage = tempDirectory.appendingPathComponent("lib-src.tif")
+        try Data(repeating: 0xCD, count: 16).write(to: libImage)
+        // A sidecar NEXT TO the library row (copy reads the sidecar).
+        let libDocument = LightamerSidecar(
+            imageID: UUID(), decoderVersionUsed: "v8", decodeParamsHash: 0,
+            instances: [], history: HistoryStack(), historyHash: 0)
+        try JSONEncoder().encode(libDocument).write(
+            to: LightamerSidecar.sidecarURL(for: libImage))
+        let libID = try await LibraryStore(store: fileStore).insertImage(
+            record: LibraryImageRecord(
+                imagePath: libImage.path, pathKind: .absolute))
+        MatchColorToolset.installLibraryProvider {
+            (LibraryStore(store: fileStore),
+             packageURL.deletingLastPathComponent())
+        }
+        let byID = try await Self.jsonOutput(try await registry.call(
+            name: "copy_adjustments",
+            arguments: ["source": .string(String(libID))]))
+        XCTAssertEqual(byID["source"] as? String, String(libID))
+        let libGrades = try XCTUnwrap(byID["grades"] as? [[String: Any]])
+        XCTAssertEqual(libGrades.count, 0, "the empty source answers honestly")
+        MatchColorToolset.installLibraryProvider { nil }
+    }
+
+    /// The PASTE face (happy path): per-target applied ledger, the epoch
+    /// commit carries the label + the note/author stamp, the mask epoch
+    /// resets, and the state reads back from DISK immediately after the
+    /// call (the write-lands-before-return contract).
+    func testPasteAdjustmentsLedgerAppliedWithStampAndEpoch() async throws {
+        let fixture = try await makeTransferFixture()
+        let seams = await makeSeams(session: (fixture.store, fixture.root))
+        let registry = await makeRegistry(seams: seams)
+        let payload = try await Self.jsonOutput(try await registry.call(
+            name: "paste_adjustments",
+            arguments: [
+                "source": .string(fixture.sourceRel),
+                "targets": .array([.string(fixture.targetRel)]),
+                "note": .string("pasted by the agent"),
+            ]))
+        XCTAssertEqual(payload["appliedCount"] as? Int, 1)
+        XCTAssertEqual(payload["author"] as? String, "mcp")
+        XCTAssertEqual(payload["note"] as? String, "pasted by the agent")
+        let rows = try XCTUnwrap(payload["targets"] as? [[String: Any]])
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0]["relPath"] as? String, fixture.targetRel)
+        XCTAssertEqual(rows[0]["status"] as? String, "applied")
+        XCTAssertNil(rows[0]["reason"])
+
+        // The DISK truth, read immediately (no drain race): the epoch
+        // item + the stamp + the mask reset.
+        let target = try Self.sidecarDoc(fixture.targetURL)
+        let top = try XCTUnwrap(target.history.items.last)
+        XCTAssertEqual(top.label, "MCP paste_adjustments")
+        XCTAssertEqual(top.layerScope, HistoryStack.pasteEpochScope)
+        XCTAssertEqual(top.author, "mcp")
+        XCTAssertEqual(top.note, "pasted by the agent")
+        let pasted = try XCTUnwrap(top.pasteSet)
+        XCTAssertTrue(pasted.contains { $0.opName == ExposureModule.opName })
+        let layers = try XCTUnwrap(top.stackSnapshot?.layers)
+        XCTAssertEqual(layers.count, 1)
+        XCTAssertNil(layers[0].mask?.contentRevision,
+                     "the mask epoch resets on paste (KD-3)")
+    }
+
+    /// The live target is a PER-TARGET rejected row (never a skip — the
+    /// MCP face has no interactive layer to hand the image to).
+    func testPasteAdjustmentsLiveTargetIsPerTargetRejected() async throws {
+        let fixture = try await makeTransferFixture()
+        let liveURL = fixture.targetURL
+        let seams = await makeSeams(
+            session: (fixture.store, fixture.root),
+            liveImageURL: { liveURL })
+        let registry = await makeRegistry(seams: seams)
+        let payload = try await Self.jsonOutput(try await registry.call(
+            name: "paste_adjustments",
+            arguments: [
+                "source": .string(fixture.sourceRel),
+                "targets": .array([.string(fixture.targetRel)]),
+            ]))
+        XCTAssertEqual(payload["appliedCount"] as? Int, 0)
+        let rows = try XCTUnwrap(payload["targets"] as? [[String: Any]])
+        XCTAssertEqual(rows[0]["status"] as? String, "rejected")
+        XCTAssertEqual(rows[0]["reason"] as? String, "imageLiveInEditor")
+        // The disk truth untouched.
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: LightamerSidecar.sidecarURL(for: fixture.targetURL).path),
+            "the rejected target keeps its pristine state")
+    }
+
+    /// A non-member target = the per-target notSessionMember row; the
+    /// held project probe = the WHOLE call typed projectReadOnly.
+    func testPasteAdjustmentsMembershipAndProbeArms() async throws {
+        let fixture = try await makeTransferFixture()
+        let seams = await makeSeams(session: (fixture.store, fixture.root))
+        let registry = await makeRegistry(seams: seams)
+        let payload = try await Self.jsonOutput(try await registry.call(
+            name: "paste_adjustments",
+            arguments: [
+                "source": .string(fixture.sourceRel),
+                "targets": .array([.string("Capture/GONE.ARW")]),
+            ]))
+        XCTAssertEqual(payload["appliedCount"] as? Int, 0)
+        let rows = try XCTUnwrap(payload["targets"] as? [[String: Any]])
+        XCTAssertEqual(rows[0]["reason"] as? String, "notSessionMember")
+
+        // The probe arm (whole call).
+        var heldSeams = await makeSeams(session: (fixture.store, fixture.root))
+        heldSeams.projectWriteProbe = { .held(holderSummary: "pid 42", guidance: "g") }
+        let heldRegistry = await makeRegistry(seams: heldSeams)
+        do {
+            _ = try await heldRegistry.call(
+                name: "paste_adjustments",
+                arguments: [
+                    "source": .string(fixture.sourceRel),
+                    "targets": .array([.string(fixture.targetRel)]),
+                ])
+            XCTFail("the held probe must refuse the whole call")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "projectReadOnly")
+        }
+    }
+
+    /// Duplicate targets = typed invalidParams (F10: silent dedup would
+    /// mask a caller bug); the unreadable source = the all-rejected
+    /// ledger with the unreadableSidecar token (F7's fixed set).
+    func testPasteAdjustmentsDuplicateAndUnreadableSourceArms() async throws {
+        let fixture = try await makeTransferFixture()
+        let seams = await makeSeams(session: (fixture.store, fixture.root))
+        let registry = await makeRegistry(seams: seams)
+        do {
+            _ = try await registry.call(
+                name: "paste_adjustments",
+                arguments: [
+                    "source": .string(fixture.sourceRel),
+                    "targets": .array([
+                        .string(fixture.targetRel), .string(fixture.targetRel),
+                    ]),
+                ])
+            XCTFail("duplicate targets must be typed")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "invalidParams")
+        }
+        // The pristine session member (no sidecar) = the honest rejected
+        // ledger, never a throw.
+        // The bare member rides a FRESH session (the two-entry scan face
+        // cannot carry a sidecar-less member twice; a second store with
+        // only the bare row keeps the source fixture untouched).
+        let bareSession = try await makeSession(imageName: "BARE.ARW")
+        let goneRel = "Capture/BARE.ARW"
+        let bareSeams = await makeSeams(session: (bareSession.store, bareSession.root))
+        let bareRegistry = await makeRegistry(seams: bareSeams)
+        let payload = try await Self.jsonOutput(try await bareRegistry.call(
+            name: "paste_adjustments",
+            arguments: [
+                "source": .string(goneRel),
+                "targets": .array([.string(goneRel)]),
+            ]))
+        XCTAssertEqual(payload["appliedCount"] as? Int, 0)
+        let rows = try XCTUnwrap(payload["targets"] as? [[String: Any]])
+        XCTAssertEqual(rows[0]["reason"] as? String, "unreadableSidecar")
+    }
+
+    /// The include subset + the includeDrt opt-out ride the payload build
+    /// (only the whitelisted instance lands; the DRT row drops).
+    func testPasteAdjustmentsIncludeSubsetAndDrtOptOut() async throws {
+        let fixture = try await makeTransferFixture()
+        let seams = await makeSeams(session: (fixture.store, fixture.root))
+        let registry = await makeRegistry(seams: seams)
+        let copy = try await Self.jsonOutput(try await registry.call(
+            name: "copy_adjustments",
+            arguments: ["source": .string(fixture.sourceRel)]))
+        let grades = try XCTUnwrap(copy["grades"] as? [[String: Any]])
+        let items = try XCTUnwrap(grades[0]["items"] as? [[String: Any]])
+        let exposureRow = try XCTUnwrap(
+            items.first { ($0["opName"] as? String) == ExposureModule.opName })
+        let exposureID = try XCTUnwrap(exposureRow["instanceId"] as? String)
+        let payload = try await Self.jsonOutput(try await registry.call(
+            name: "paste_adjustments",
+            arguments: [
+                "source": .string(fixture.sourceRel),
+                "targets": .array([.string(fixture.targetRel)]),
+                "include": .array([.string(exposureID)]),
+                "includeDrt": .bool(false),
+            ]))
+        XCTAssertEqual(payload["appliedCount"] as? Int, 1)
+        let target = try Self.sidecarDoc(fixture.targetURL)
+        let top = try XCTUnwrap(target.history.items.last)
+        let pasted = try XCTUnwrap(top.pasteSet)
+        XCTAssertEqual(pasted.count, 1, "only the whitelisted instance lands")
+        XCTAssertEqual(pasted[0].opName, ExposureModule.opName)
+        // includeDrt=false → the target history carries NO drt item.
+        XCTAssertFalse(
+            target.history.items.contains { $0.drtRecord != nil },
+            "the DRT row must not ride an includeDrt=false paste")
+        // UUID recast: the pasted ids differ from the source instance id.
+        XCTAssertNotEqual(pasted[0].id, fixture.sourceExposureID)
+    }
 }

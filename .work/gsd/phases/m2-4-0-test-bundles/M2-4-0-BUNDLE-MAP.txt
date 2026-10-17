@@ -729,6 +729,12 @@ IOPP	4	ColormatchResolverBoxTests.swift
 #   同位）；ProcessVersionCarrierTests = APP/App 级（SidecarV5Tests 真 load 链同位）。
 #   行内 method 数以终态对账为准。运行期总数基线相应上移（3689 起算，+36 预估）。
 LIB	15	SidecarV10Tests.swift
+
+# M7-4-01 增行记录（2026-10-17 执行期，checker E2 测试登记纪律）：SidecarV11Tests.swift
+#   恰一行随 T6 commit 登记进 LIB（SidecarV10Tests 同位——v11 bump 专测先例忠实形，
+#   plan 文「Layers 域」按 V10 同位读解为 LIB 域）；method 数 5（三 byte face +
+#   HistoryHash 隔离负测 + future-tolerance schemaVersion 12〔CHECKER C1 迁移守卫〕）。
+LIB	5	SidecarV11Tests.swift
 LAYERS	8	RenderProcessSeamTests.swift
 APP	8	ProcessVersionCarrierTests.swift
 

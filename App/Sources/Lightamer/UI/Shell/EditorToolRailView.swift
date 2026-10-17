@@ -200,6 +200,9 @@ struct EditorToolRailView: View {
     }
 
     /// One history row: label + time + the scope-kind icon, tap = jump.
+    /// M7-4-01 (MCP2-09): an item note rides a single-line caption
+    /// subtitle and a non-nil author renders the attribution badge (nil =
+    /// the implicit user, no badge).
     private func historyRow(
         _ row: HistoryRowData, selected: Bool
     ) -> some View {
@@ -213,8 +216,26 @@ struct EditorToolRailView: View {
                 Text(row.item.timestamp, format: .dateTime.hour().minute().second())
                     .font(.caption2)
                     .foregroundStyle(ThemeTokens.textSecondary)
+                if let note = row.item.note, !note.isEmpty {
+                    Text(note)
+                        .font(.caption2)
+                        .foregroundStyle(ThemeTokens.textSecondary)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 2)
+            if let author = row.item.author, !author.isEmpty {
+                Text(author)
+                    .font(.caption2)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(
+                        Capsule().fill(ThemeTokens.textSecondary.opacity(0.14)))
+                    .accessibilityLabel(Text(
+                        String(localized: "editor_history_author_badge",
+                               defaultValue: "Author \(author)")))
+            }
             // The scope kind icon (global rows carry none — KD-2).
             if kind != .global {
                 Image(systemName: kind.symbol)

@@ -16,15 +16,22 @@ import XCTest
 // snapshot-edit right; the per-domain snapshot files stay untouched).
 // M7-3-01 (the union snapshot conscious change, THIS file's edit right
 // exercised): list_luts joined the editing domain (6→7) and the project
-// domain (3 tools) opened as the FOURTH domain — the freeze is the
-// 27-tool set (the 23-set → all27, one deliberate edit).
+// domain (3 tools) opened as the FOURTH domain — the freeze was the
+// 27-tool set then (all29's predecessor identifier, one deliberate
+// edit; 29 since M7-4-01, see below).
+// M7-4-01 (the union snapshot conscious change, THIS file's edit right
+// exercised again): the O4 pair copy_adjustments/paste_adjustments joins
+// the editing domain (7→9) and apply_params gains the item-level note
+// property — the freeze is the 29-tool set (the 27-set → all29, one
+// deliberate edit; the M7-5 handoff note stands — M7-5 stays
+// SERIAL-EXCLUDED while M7-4 holds the right).
 //
 // Snapshot layers (all must consciously change together):
-//   - the editing domain (7)      → McpRegistrySnapshotTests (14-2)
+//   - the editing domain (9)      → McpRegistrySnapshotTests (14-2)
 //   - the culling domain (14)     → McpCullingToolsetTests (14-3)
 //   - the search/state domain (3) → McpSearchStateToolsetTests (M7-2)
 //   - the project domain (3)      → McpProjectToolsetTests (M7-3)
-//   - THE UNION (27)              → this file (the final freeze)
+//   - THE UNION (29)              → this file (the final freeze)
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class McpFinalSnapshotTests: XCTestCase {
@@ -37,11 +44,22 @@ final class McpFinalSnapshotTests: XCTestCase {
     /// frozen table, the count assertions 19→20, NOT an executor side edit).
     static let editingTools: [McpToolDescriptor] = [
         McpToolDescriptor(
+            // M7-4-01: apply_params gains the item-level note property
+            // (MCP2-09 — this schema row edits consciously, the same batch
+            // the editing-layer file edits).
             name: "apply_params",
             description: "snapshot",
             inputSchemaJSON:
-                #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"ops":{"type":"array","minItems":1,"description":"Module-level upserts","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer","default":0},"params":{"type":"object","description":"Partial params JSON overlaid on the instance (keys per list_iops)"},"enabled":{"type":"boolean"},"remove":{"type":"boolean","default":false}},"required":["opName"]}}},"required":["relPath","ops"]}"#,
+                #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"ops":{"type":"array","minItems":1,"description":"Module-level upserts","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer","default":0},"params":{"type":"object","description":"Partial params JSON overlaid on the instance (keys per list_iops)"},"enabled":{"type":"boolean"},"remove":{"type":"boolean","default":false}},"required":["opName"]}},"note":{"type":"string","minLength":1,"description":"ITEM-level edit note attached to the history commit (distinct from the document-level note set via append_note)"}},"required":["relPath","ops"]}"#,
             destructiveHint: true),
+        McpToolDescriptor(
+            // M7-4-01 (MCP2-08): copy_adjustments joins the editing domain
+            // (7→9 — this union snapshot edits consciously; the O4 pair).
+            name: "copy_adjustments",
+            description: "snapshot",
+            inputSchemaJSON:
+                #"{"type":"object","properties":{"source":{"type":"string","description":"A library image id (digits) or an open-session relPath"}},"required":["source"]}"#,
+            readOnlyHint: true),
         McpToolDescriptor(
             name: "export_image",
             description: "snapshot",
@@ -77,6 +95,14 @@ final class McpFinalSnapshotTests: XCTestCase {
             description: "snapshot",
             inputSchemaJSON:
                 #"{"type":"object","properties":{"reference":{"type":"string","description":"Reference image: a library image id (digits) or an open-session relPath"},"targets":{"oneOf":[{"type":"string"},{"type":"array","items":{"type":"string"}}],"maxItems":30,"description":"Target relPath(s) relative to the session root; default = the editor's current image"},"strength":{"type":"number","minimum":0,"maximum":1,"default":1,"description":"The solve/identity blend"},"solver":{"type":"string","enum":["gaussian-ot","reinhard","cdf"],"default":"gaussian-ot"},"attach":{"type":"boolean","default":true,"description":"false = return the params for apply_params instead of writing"}},"required":["reference"]}"#,
+            destructiveHint: true),
+        McpToolDescriptor(
+            // M7-4-01 (MCP2-08): paste_adjustments joins the editing domain
+            // (the O4 pair's write face — destructiveHint rides the set).
+            name: "paste_adjustments",
+            description: "snapshot",
+            inputSchemaJSON:
+                #"{"type":"object","properties":{"source":{"type":"string","description":"A library image id (digits) or an open-session relPath (the copy_adjustments addressing)"},"targets":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":1000,"description":"Open-session relPaths to paste onto"},"note":{"type":"string","minLength":1,"description":"ITEM-level edit note attached to each history commit (distinct from the document-level note set via append_note)"},"include":{"type":"array","items":{"type":"string","format":"uuid"},"description":"instanceId subset from copy_adjustments (default: every transferable instance)"},"includeDrt":{"type":"boolean","default":true,"description":"false drops the source's DRT row"},"version":{"type":"string","description":"A copy_adjustments versions[] id (default: the active chain)"}},"required":["source","targets"]}"#,
             destructiveHint: true),
     ]
 
@@ -216,7 +242,7 @@ final class McpFinalSnapshotTests: XCTestCase {
                 #"{"type":"object","properties":{"path":{"type":"string","description":"The absolute path of the .lalb package to open"}},"required":["path"]}"#),
     ]
 
-    static var all27: [McpToolDescriptor] {
+    static var all29: [McpToolDescriptor] {
         editingTools + cullingTools + searchStateTools + projectTools
     }
 
@@ -241,23 +267,26 @@ final class McpFinalSnapshotTests: XCTestCase {
 
     /// THE final freeze: every host assembles exactly these 27 descriptors —
     /// names, VERBATIM inputSchema JSON and the §A annotation column.
-    func testFinalSnapshotUnion27Verbatim() async throws {
+    func testFinalSnapshotUnion29Verbatim() async throws {
         let registry = await makeUnionRegistry()
         try await McpRegistrySnapshotTests.assertSnapshot(
-            registry: registry, expected: Self.all27)
+            registry: registry, expected: Self.all29)
         let descriptors = await registry.descriptors()
-        XCTAssertEqual(descriptors.count, 27,
-                       "D3: the final count is 27 (M7-3-01: list_luts 6→7 + "
-                           + "the project domain joined)")
-        // §A annotations at a glance: exactly 9 destructive tools — the §A
-        // write face + match_color; the remainder are read-only or
-        // non-destructive state-changing (project_open/project_create).
+        XCTAssertEqual(descriptors.count, 29,
+                       "D3: the final count is 29 (M7-4-01: the O4 pair "
+                           + "joined the editing domain)")
+        // §A annotations at a glance: exactly 10 destructive tools — the §A
+        // write face + match_color + paste_adjustments (M7-4-01); the
+        // remainder are read-only or non-destructive state-changing
+        // (project_open/project_create).
         let destructive = descriptors.filter { $0.destructiveHint == true }.map(\.name)
         XCTAssertEqual(
             Set(destructive),
             ["apply_params", "export_image", "match_color", "set_rating", "set_flag",
-                "set_color_label", "append_note", "set_keywords", "apply_preset"],
-            "the write face is the §A destructive column + match_color (M5-1-03)")
+                "set_color_label", "append_note", "set_keywords", "apply_preset",
+                "paste_adjustments"],
+            "the write face is the §A destructive column + match_color + "
+                + "paste_adjustments (M5-1-03 + M7-4-01)")
     }
 
     /// Domain consistency: the per-domain assemblies are DISJOINT and their
@@ -296,7 +325,7 @@ final class McpFinalSnapshotTests: XCTestCase {
         // layer the same way.
         XCTAssertEqual(
             Set(u), Set(e).union(Set(c)).union(Set(s)).union(Set(p)))
-        XCTAssertEqual(u.count, 27)
+        XCTAssertEqual(u.count, 29, "M7-4-01: the union grew to 29")
     }
 
     /// The whitelist negative: a 21st tool does NOT exist. `match_color` WAS
@@ -324,7 +353,7 @@ final class McpFinalSnapshotTests: XCTestCase {
             }
         }
         let tools = try await client.listTools().tools
-        XCTAssertEqual(tools.count, 27, "no 28th tool rides the list either")
+        XCTAssertEqual(tools.count, 29, "no 30th tool rides the list either")
     }
 
     // MARK: - zh/en description keys (D-14-CONTEXT-3②: the L025 face)
@@ -359,6 +388,8 @@ final class McpFinalSnapshotTests: XCTestCase {
         "project_open": "mcp_tool_desc_project_open",
         "project_create": "mcp_tool_desc_project_create",
         "list_versions": "mcp_tool_desc_list_versions",
+        "copy_adjustments": "mcp_tool_desc_copy_adjustments",
+        "paste_adjustments": "mcp_tool_desc_paste_adjustments",
     ]
 
     /// Every final tool has a zh description key with a non-empty value AND
@@ -476,7 +507,7 @@ final class McpFinalSnapshotTests: XCTestCase {
         let direct = MCP.Client(name: "direct-entry", version: "0.0.1")
         try await direct.connect(transport: directTransport)
         let directTools = try await direct.listTools().tools.map(\.name)
-        XCTAssertEqual(directTools.count, 27, "the direct entry sees the full face")
+        XCTAssertEqual(directTools.count, 29, "the direct entry sees the full face")
 
         // ── Entry 2: the LAUNCHER pulls the sentinel agent. ──
         let script = Self.agentScript(agentDir: agentDir.path)
