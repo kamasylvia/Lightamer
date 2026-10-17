@@ -12,7 +12,7 @@
 | # | 候选 | 上游锚 | 我方缺口 | 规模 | 入队理由 |
 |---|---|---|---|---|---|
 | UQ-A1 | DRT-SDR 预览层 colorspace 改挂导出同款 ICC v4 字节（`CGColorSpace(iccProfileData:)`）+ ColorSync 解码等值测试 | `36db9a8`（#391） | 预览层挂 calibrated-RGB 近似空间（srgbPiecewise 以 2.2 幂近似分段），导出文件携 ICC v4——preview/文件双曲线解码失配，上游实测同病同修 | 小件 | M4-1 色彩收尾批顺路；消除 SDR 幂编码观感差；L053 自建字节直接复用 —— **已入队 2026-10-16 = REQUIREMENTS UQ-A1 → M7-6** |
-| UQ-A2 | 导出 FAIL 档终写原子不覆盖（tmp 编码 + `link()` EEXIST 拒晋升 + unlink tmp） | `6203791` | `.fail` = occupiedNames 快照检查 + 编码器直写——快照与落盘之间他进程建文件即被覆盖（TOCTOU） | 小件 | ExportCollisionPolicy 语义补全；上游以 renameatx_np/renameat2 落地同纪律，Swift 走 `link()` 排他即达 —— **已入队 2026-10-16 = REQUIREMENTS UQ-A2 → M7-4** |
+| UQ-A2 | 导出 FAIL 档终写原子不覆盖（tmp 编码 + `link()` EEXIST 拒晋升 + unlink tmp） | `6203791` | `.fail` = occupiedNames 快照检查 + 编码器直写——快照与落盘之间他进程建文件即被覆盖（TOCTOU） | 小件 | ExportCollisionPolicy 语义补全；上游以 renameatx_np/renameat2 落地同纪律，Swift 走 `link()` 排他即达 —— **✅ 已兑现 2026-10-17（M7-4-01，见文末已兑现节）** |
 
 ### 未来面纪律（对应面立项时吸收，不单独立项）
 
@@ -34,4 +34,13 @@
 
 ## 已兑现
 
-（空——本文件 2026-10-16 新建。）
+- **UQ-A2**（2026-10-17，M7-4-01 `2af9b17d`）：encodeStage additive `exclusiveFinalWrite` + 同目录隐藏 tmp + link() EEXIST → `BaseNameOccupiedError` 复用 + encoder-error 清理腿改道（exclusive 臂 destination 不可触）+ `$jobNamingCarrier` encode 腿递缝；**我方分歧申报 = 保留 render 步快照检查**（成本门非正确性门——与上游 6203791 删 exists() 检查不同构，DECISIONS §3）；exFAT 类卷 EOPNOTSUPP → encodeFailed 兜底（行为变化申报；**EOPNOTSUPP 降级回 plain rename 的可选项在此挂账**——外置卷实测需要时立项，勿静默）。
+
+## 观察项（M7-4-01 挂账兑现，2026-10-17 入队）
+
+| # | 来源 | 内容 | 触发条件 |
+|---|---|---|---|
+| OBS-M7-4-1 | D-M7-4-3 | `list_tasks`/`wait_task` 通用任务 tracker 面（两新工具 + tracker 基建；union 29→31） | 万级目标批实测超 applyBatch 60s 窗才立项 |
+| OBS-M7-4-2 | D-M7-4-6 | paste per-target 版本化（Alcedo `e75cf2a` 同构——预贴态隔离） | 预贴态隔离需求实测出现才立项 |
+| OBS-M7-4-3 | D-M7-4-1 | 库域批量写（`.lalb` claim 面 + sidecar 直写 + 投影刷新缺口设计） | 万级库域批量需求实测出现才立项 |
+| OBS-M7-4-4 | D-M7-4-8 | withTimeout v2 abandon 形语义族专项（~20 工具共用，per-call-site 纪律） | M7-5+ 评估；B 线独立专项 |
