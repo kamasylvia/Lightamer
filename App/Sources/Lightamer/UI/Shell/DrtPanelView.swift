@@ -12,238 +12,71 @@ import SwiftUI
 //
 // Technical proper nouns (method/preset/space/EOTF names) are keyed with the
 // zh value = the English original (OQ-12-A 不译清单).
+//
+// AR-01 T3 (audit M5): the four former `private var` sections are now their
+// own View structs (DrtMethodCard / DrtEncodingGroup / DrtLimitingGroup /
+// DrtPresetGroup — each holds the model class reference and reads narrowly),
+// and the former `State(initialValue:)` init became the house onAppear
+// lazy-build form (the FilmPanelView shape — the ancestor body no longer
+// allocates a throwaway model per evaluation; m11). The `encodingExpanded`
+// disclosure @State moved with its group into DrtEncodingGroup. Behavior
+// preserving: every binding is a line-for-line translation (the D-H1 peak
+// trio's live tick → setDrtLive / drag end → commitDrtEdit untouched).
 // ─────────────────────────────────────────────────────────────────────────────
 
 internal struct DrtPanelView: View {
 
-    @State private var model: DrtPanelModel
-    /// The Color & Encoding disclosure state (expanded by default, KD-2).
-    @State private var encodingExpanded = true
+    private let workspace: WorkspaceModel
+    private let editorState: EditorState
+    private let pipeCoordinator: PipeCoordinator
+
+    @State private var model: DrtPanelModel?
 
     init(
         workspace: WorkspaceModel, editorState: EditorState,
         pipeCoordinator: PipeCoordinator
     ) {
-        _model = State(initialValue: DrtPanelModel(
-            workspace: workspace, editorState: editorState,
-            pipeCoordinator: pipeCoordinator))
+        self.workspace = workspace
+        self.editorState = editorState
+        self.pipeCoordinator = pipeCoordinator
     }
 
     var body: some View {
+        Group {
+            if let model {
+                panelBody(model: model)
+            } else {
+                EmptyView()
+            }
+        }
+        .accessibilityIdentifier("editor.stack.drt.panel")
+        // The house lazy-build form (the FilmPanelView onAppear shape): the
+        // ancestor body no longer allocates a throwaway model per evaluation
+        // (m11); the build is one async execution after appear.
+        .onAppear { model = DrtPanelModel(
+            workspace: workspace, editorState: editorState,
+            pipeCoordinator: pipeCoordinator) }
+    }
+
+    private func panelBody(model: DrtPanelModel) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(model.sections.enumerated()), id: \.element.kind) { _, section in
                 switch section.kind {
                 case .method:
-                    methodCard.padding(.horizontal, 8).padding(.vertical, 4)
+                    DrtMethodCard(model: model)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
                 case .colorEncoding:
-                    encodingGroup.padding(.horizontal, 8).padding(.vertical, 2)
+                    DrtEncodingGroup(model: model)
+                        .padding(.horizontal, 8).padding(.vertical, 2)
                 case .acesLimiting:
-                    limitingGroup.padding(.horizontal, 8).padding(.vertical, 2)
+                    DrtLimitingGroup(model: model)
+                        .padding(.horizontal, 8).padding(.vertical, 2)
                 case .opendrtPresets:
-                    presetGroup.padding(.horizontal, 8).padding(.vertical, 2)
+                    DrtPresetGroup(model: model)
+                        .padding(.horizontal, 8).padding(.vertical, 2)
                 }
             }
         }
-        .accessibilityIdentifier("editor.stack.drt.panel")
-    }
-
-    // MARK: - Method (the always-expanded segmented card)
-
-    private var methodCard: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(String(localized: "drt_section_method", defaultValue: "Method"))
-                .font(.caption)
-                .foregroundStyle(ThemeTokens.textSecondary)
-            Picker(
-                String(localized: "drt_section_method", defaultValue: "Method"),
-                selection: Binding(
-                    get: { model.record.method },
-                    set: { model.setMethod($0) }
-                )
-            ) {
-                Text(String(localized: "drt_method_ac", defaultValue: "ACES 2.0"))
-                    .tag(DrtMethod.aces20)
-                Text(String(localized: "drt_method_opendrt", defaultValue: "OpenDRT"))
-                    .tag(DrtMethod.opendrt)
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("drt.method.picker")
-        }
-    }
-
-    // MARK: - Color & Encoding
-
-    private var encodingGroup: some View {
-        DisclosureGroup(isExpanded: $encodingExpanded) {
-            row(String(localized: "drt_label_encoding_space", defaultValue: "Encoding Space")) {
-                Picker(
-                    String(localized: "drt_label_encoding_space", defaultValue: "Encoding Space"),
-                    selection: Binding(
-                        get: { model.record.encodingSpace },
-                        set: { model.setEncodingSpace($0) }
-                    )
-                ) {
-                    ForEach(DrtEncodingSpace.allCases, id: \.self) { space in
-                        Text(Self.spaceName(space)).tag(space)
-                    }
-                }
-                .labelsHidden()
-                .accessibilityIdentifier("drt.encoding.space")
-            }
-            row(String(localized: "drt_label_encoding_eotf", defaultValue: "Encoding EOTF")) {
-                Picker(
-                    String(localized: "drt_label_encoding_eotf", defaultValue: "Encoding EOTF"),
-                    selection: Binding(
-                        get: { model.record.encodingEotf },
-                        set: { model.setEncodingEotf($0) }
-                    )
-                ) {
-                    // The picker's data source IS the Core legal set — an
-                    // illegal combination is unconstructible from the UI
-                    // (OQ-5-B; the snap faces live in the model, KD-3).
-                    ForEach(model.legalEotfs, id: \.self) { eotf in
-                        Text(Self.eotfName(eotf)).tag(eotf)
-                    }
-                }
-                .labelsHidden()
-                .accessibilityIdentifier("drt.encoding.eotf")
-            }
-            peakRow
-        } label: {
-            Text(String(
-                localized: "drt_section_color_encoding",
-                defaultValue: "Color & Encoding"))
-                .font(.caption)
-                .foregroundStyle(ThemeTokens.textSecondary)
-        }
-        .accessibilityIdentifier("drt.section.encoding")
-    }
-
-    /// Peak Luminance 100–1000, default 100 (FEATURE-MAP §5): the D-H1
-    /// trio — live ticks re-render without items, the drag end commits ONCE.
-    private var peakRow: some View {
-        row(
-            String(localized: "drt_label_peak", defaultValue: "Peak Luminance")
-        ) {
-            HStack {
-                Slider(
-                    value: Binding(
-                        get: { model.record.peakLuminance },
-                        set: { model.setPeakLive($0) }
-                    ),
-                    in: DrtPanelModel.peakRange
-                ) { editing in
-                    if editing {
-                        model.beginPeakDrag()
-                    } else {
-                        model.commitPeak()
-                    }
-                }
-                .accessibilityIdentifier("drt.peak.slider")
-                Text(verbatim: "\(Int(model.record.peakLuminance)) nits")
-                    .font(.caption2)
-                    .monospacedDigit()
-                    .frame(width: 56, alignment: .trailing)
-            }
-        }
-    }
-
-    // MARK: - ACES 2.0 limiting group (method == aces20 only)
-
-    private var limitingGroup: some View {
-        row(String(localized: "drt_label_limiting_space", defaultValue: "Limiting Space")) {
-            Picker(
-                String(localized: "drt_label_limiting_space", defaultValue: "Limiting Space"),
-                selection: Binding(
-                    get: { model.record.limitingSpace },
-                    set: { model.setLimiting($0) }
-                )
-            ) {
-                ForEach(DrtLimitingSpace.allCases, id: \.self) { space in
-                    Text(Self.limitingName(space)).tag(space)
-                }
-            }
-            .labelsHidden()
-            .accessibilityIdentifier("drt.aces.limiting")
-        }
-    }
-
-    // MARK: - OpenDRT preset trio (method == opendrt only)
-
-    private var presetGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            row(String(localized: "drt_label_look", defaultValue: "Look")) {
-                Picker(
-                    String(localized: "drt_label_look", defaultValue: "Look"),
-                    selection: Binding(
-                        get: { DrtLookPreset(rawValue: model.record.lookPreset) ?? .standard },
-                        set: { model.applyLook($0) }
-                    )
-                ) {
-                    ForEach(DrtLookPreset.allCases, id: \.self) { look in
-                        Text(Self.presetName(look.rawValue)).tag(look)
-                    }
-                }
-                .labelsHidden()
-                .accessibilityIdentifier("drt.preset.look")
-            }
-            if model.isCustomLook {
-                Text(String(localized: "drt_look_custom", defaultValue: "Custom"))
-                    .font(.caption2)
-                    .foregroundStyle(ThemeTokens.textSecondary)
-                    .padding(.horizontal, 10)
-                    .accessibilityIdentifier("drt.preset.custom")
-            }
-            row(String(localized: "drt_label_tonescale", defaultValue: "Tonescale")) {
-                Picker(
-                    String(localized: "drt_label_tonescale", defaultValue: "Tonescale"),
-                    selection: Binding(
-                        get: {
-                            DrtTonescalePreset(rawValue: model.record.tonescalePreset)
-                                ?? .useLookPreset
-                        },
-                        set: { model.applyTonescale($0) }
-                    )
-                ) {
-                    ForEach(DrtTonescalePreset.allCases, id: \.self) { ts in
-                        Text(Self.presetName(ts.rawValue)).tag(ts)
-                    }
-                }
-                .labelsHidden()
-                .accessibilityIdentifier("drt.preset.tonescale")
-            }
-            row(String(localized: "drt_label_creative_white", defaultValue: "Creative White")) {
-                Picker(
-                    String(localized: "drt_label_creative_white", defaultValue: "Creative White"),
-                    selection: Binding(
-                        get: {
-                            DrtCreativeWhite(rawValue: model.record.creativeWhite)
-                                ?? .useLookPreset
-                        },
-                        set: { model.applyCreativeWhite($0) }
-                    )
-                ) {
-                    ForEach(DrtCreativeWhite.allCases, id: \.self) { white in
-                        Text(Self.presetName(white.rawValue)).tag(white)
-                    }
-                }
-                .labelsHidden()
-                .accessibilityIdentifier("drt.preset.white")
-            }
-        }
-    }
-
-    // MARK: - Shared row shell (the groupShell row shape)
-
-    private func row(_ label: String, @ViewBuilder content: () -> some View) -> some View {
-        HStack {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(ThemeTokens.textSecondary)
-                .frame(width: 110, alignment: .leading)
-            content()
-        }
-        .padding(.vertical, 2)
     }
 
     // MARK: - Display names (technical proper nouns: zh = the English form)
@@ -309,5 +142,249 @@ internal struct DrtPanelView: View {
         default:
             raw.capitalized
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The four section structs (AR-01 T3 / audit M5) — the FEATURE-MAP §5 rows as
+// independent invalidation boundaries, plus the shared row shell.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The Method segmented card (the always-expanded section).
+private struct DrtMethodCard: View {
+
+    let model: DrtPanelModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(String(localized: "drt_section_method", defaultValue: "Method"))
+                .font(.caption)
+                .foregroundStyle(ThemeTokens.textSecondary)
+            Picker(
+                String(localized: "drt_section_method", defaultValue: "Method"),
+                selection: Binding(
+                    get: { model.record.method },
+                    set: { model.setMethod($0) }
+                )
+            ) {
+                Text(String(localized: "drt_method_ac", defaultValue: "ACES 2.0"))
+                    .tag(DrtMethod.aces20)
+                Text(String(localized: "drt_method_opendrt", defaultValue: "OpenDRT"))
+                    .tag(DrtMethod.opendrt)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("drt.method.picker")
+        }
+    }
+}
+
+/// Color & Encoding (the disclosure section, expanded by default KD-2):
+/// the six-space menu, the EOTF picker (the Core legal subset) and the Peak
+/// slider (the D-H1 trio). The disclosure @State lives HERE, with its group.
+private struct DrtEncodingGroup: View {
+
+    let model: DrtPanelModel
+    /// The Color & Encoding disclosure state (expanded by default, KD-2).
+    @State private var encodingExpanded = true
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $encodingExpanded) {
+            row(String(localized: "drt_label_encoding_space", defaultValue: "Encoding Space")) {
+                Picker(
+                    String(localized: "drt_label_encoding_space", defaultValue: "Encoding Space"),
+                    selection: Binding(
+                        get: { model.record.encodingSpace },
+                        set: { model.setEncodingSpace($0) }
+                    )
+                ) {
+                    ForEach(DrtEncodingSpace.allCases, id: \.self) { space in
+                        Text(DrtPanelView.spaceName(space)).tag(space)
+                    }
+                }
+                .labelsHidden()
+                .accessibilityIdentifier("drt.encoding.space")
+            }
+            row(String(localized: "drt_label_encoding_eotf", defaultValue: "Encoding EOTF")) {
+                Picker(
+                    String(localized: "drt_label_encoding_eotf", defaultValue: "Encoding EOTF"),
+                    selection: Binding(
+                        get: { model.record.encodingEotf },
+                        set: { model.setEncodingEotf($0) }
+                    )
+                ) {
+                    // The picker's data source IS the Core legal set — an
+                    // illegal combination is unconstructible from the UI
+                    // (OQ-5-B; the snap faces live in the model, KD-3).
+                    ForEach(model.legalEotfs, id: \.self) { eotf in
+                        Text(DrtPanelView.eotfName(eotf)).tag(eotf)
+                    }
+                }
+                .labelsHidden()
+                .accessibilityIdentifier("drt.encoding.eotf")
+            }
+            peakRow
+        } label: {
+            Text(String(
+                localized: "drt_section_color_encoding",
+                defaultValue: "Color & Encoding"))
+                .font(.caption)
+                .foregroundStyle(ThemeTokens.textSecondary)
+        }
+        .accessibilityIdentifier("drt.section.encoding")
+    }
+
+    /// Peak Luminance 100–1000, default 100 (FEATURE-MAP §5): the D-H1
+    /// trio — live ticks re-render without items, the drag end commits ONCE.
+    private var peakRow: some View {
+        row(
+            String(localized: "drt_label_peak", defaultValue: "Peak Luminance")
+        ) {
+            HStack {
+                Slider(
+                    value: Binding(
+                        get: { model.record.peakLuminance },
+                        set: { model.setPeakLive($0) }
+                    ),
+                    in: DrtPanelModel.peakRange
+                ) { editing in
+                    if editing {
+                        model.beginPeakDrag()
+                    } else {
+                        model.commitPeak()
+                    }
+                }
+                .accessibilityIdentifier("drt.peak.slider")
+                Text(verbatim: "\(Int(model.record.peakLuminance)) nits")
+                    .font(.caption2)
+                    .monospacedDigit()
+                    .frame(width: 56, alignment: .trailing)
+            }
+        }
+    }
+
+    private func row(_ label: String, @ViewBuilder content: () -> some View) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(ThemeTokens.textSecondary)
+                .frame(width: 110, alignment: .leading)
+            content()
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+/// The ACES 2.0 limiting group (method == aces20 only).
+private struct DrtLimitingGroup: View {
+
+    let model: DrtPanelModel
+
+    var body: some View {
+        row(String(localized: "drt_label_limiting_space", defaultValue: "Limiting Space")) {
+            Picker(
+                String(localized: "drt_label_limiting_space", defaultValue: "Limiting Space"),
+                selection: Binding(
+                    get: { model.record.limitingSpace },
+                    set: { model.setLimiting($0) }
+                )
+            ) {
+                ForEach(DrtLimitingSpace.allCases, id: \.self) { space in
+                    Text(DrtPanelView.limitingName(space)).tag(space)
+                }
+            }
+            .labelsHidden()
+            .accessibilityIdentifier("drt.aces.limiting")
+        }
+    }
+
+    private func row(_ label: String, @ViewBuilder content: () -> some View) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(ThemeTokens.textSecondary)
+                .frame(width: 110, alignment: .leading)
+            content()
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+/// The OpenDRT preset trio (method == opendrt only).
+private struct DrtPresetGroup: View {
+
+    let model: DrtPanelModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            row(String(localized: "drt_label_look", defaultValue: "Look")) {
+                Picker(
+                    String(localized: "drt_label_look", defaultValue: "Look"),
+                    selection: Binding(
+                        get: { DrtLookPreset(rawValue: model.record.lookPreset) ?? .standard },
+                        set: { model.applyLook($0) }
+                    )
+                ) {
+                    ForEach(DrtLookPreset.allCases, id: \.self) { look in
+                        Text(DrtPanelView.presetName(look.rawValue)).tag(look)
+                    }
+                }
+                .labelsHidden()
+                .accessibilityIdentifier("drt.preset.look")
+            }
+            if model.isCustomLook {
+                Text(String(localized: "drt_look_custom", defaultValue: "Custom"))
+                    .font(.caption2)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+                    .padding(.horizontal, 10)
+                    .accessibilityIdentifier("drt.preset.custom")
+            }
+            row(String(localized: "drt_label_tonescale", defaultValue: "Tonescale")) {
+                Picker(
+                    String(localized: "drt_label_tonescale", defaultValue: "Tonescale"),
+                    selection: Binding(
+                        get: {
+                            DrtTonescalePreset(rawValue: model.record.tonescalePreset)
+                                ?? .useLookPreset
+                        },
+                        set: { model.applyTonescale($0) }
+                    )
+                ) {
+                    ForEach(DrtTonescalePreset.allCases, id: \.self) { ts in
+                        Text(DrtPanelView.presetName(ts.rawValue)).tag(ts)
+                    }
+                }
+                .labelsHidden()
+                .accessibilityIdentifier("drt.preset.tonescale")
+            }
+            row(String(localized: "drt_label_creative_white", defaultValue: "Creative White")) {
+                Picker(
+                    String(localized: "drt_label_creative_white", defaultValue: "Creative White"),
+                    selection: Binding(
+                        get: {
+                            DrtCreativeWhite(rawValue: model.record.creativeWhite)
+                                ?? .useLookPreset
+                        },
+                        set: { model.applyCreativeWhite($0) }
+                    )
+                ) {
+                    ForEach(DrtCreativeWhite.allCases, id: \.self) { white in
+                        Text(DrtPanelView.presetName(white.rawValue)).tag(white)
+                    }
+                }
+                .labelsHidden()
+                .accessibilityIdentifier("drt.preset.white")
+            }
+        }
+    }
+
+    private func row(_ label: String, @ViewBuilder content: () -> some View) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(ThemeTokens.textSecondary)
+                .frame(width: 110, alignment: .leading)
+            content()
+        }
+        .padding(.vertical, 2)
     }
 }

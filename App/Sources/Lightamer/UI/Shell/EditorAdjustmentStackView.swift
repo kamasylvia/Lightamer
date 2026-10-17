@@ -52,6 +52,10 @@ struct EditorAdjustmentStackView: View {
     /// groups default EXPANDED (the IA face stays scannable); the compat/
     /// advanced folds default collapsed (the D6 收纳 posture).
     @State private var groupExpanded: [PanelGroup: Bool] = [:]
+    /// o9 (AR-01 T3): the cached routed-page edit session + its scope key
+    /// (re-armed at the scope write point — see pageEditSession below).
+    @State private var pageSession: InspectorEditSession?
+    @State private var pageSessionScope: UUID?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -92,6 +96,28 @@ struct EditorAdjustmentStackView: View {
             selectedTab = route
             editingState.pendingTabRoute = nil
         }
+        // o9 (AR-01 T3): the routed page's edit session is re-armed HERE —
+        // at the layer-scope write point — instead of being re-allocated on
+        // every body evaluation (the wrapper is stateless besides the weak
+        // coordinator + the scope, so the cached reference is semantically
+        // identical; the pipeCoordinator env is the app-root singleton).
+        .onChange(of: activeLayerID) { _, scope in
+            pageSession = InspectorEditSession(
+                coordinator: pipeCoordinator, layerScope: scope)
+            pageSessionScope = scope
+        }
+    }
+
+    /// The routed page's edit session, cached on the layer scope (o9 —
+    /// see the onChange re-arm above). A scope change that raced ahead of
+    /// the onChange tick falls through to the constructor (one allocation
+    /// per scope change, not per body evaluation).
+    private var pageEditSession: InspectorEditSession {
+        let scope = activeLayerID
+        if let session = pageSession, pageSessionScope == scope {
+            return session
+        }
+        return InspectorEditSession(coordinator: pipeCoordinator, layerScope: scope)
     }
 
     // MARK: - The tab rail (the Alcedo seven-tab sequence)
@@ -132,8 +158,7 @@ struct EditorAdjustmentStackView: View {
 
     @ViewBuilder
     private func pageContent(_ tab: EditorTabRoute) -> some View {
-        let session = InspectorEditSession(
-            coordinator: pipeCoordinator, layerScope: activeLayerID)
+        let session = pageEditSession
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 0) {
                 switch EditorTabRoutingTable.specialContent(for: tab) {

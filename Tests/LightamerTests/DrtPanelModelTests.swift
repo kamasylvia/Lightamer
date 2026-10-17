@@ -233,6 +233,36 @@ final class DrtPanelModelTests: XCTestCase {
         XCTAssertTrue(model.hasImage)
     }
 
+    /// AR-01 T3 (m2② memo, hit leg): repeated reads over an unchanged
+    /// record answer the memo — the value must stay semantically identical
+    /// to the direct judgment (the record value IS the cache key, so a hit
+    /// cannot diverge; this pins that contract against future key drift).
+    func testCustomLookMemoHitStaysSemanticallyIdentical() async throws {
+        try await loadGradient()
+        let first = model.isCustomLook
+        let second = model.isCustomLook
+        XCTAssertEqual(first, second, "the memo hit must be stable")
+        XCTAssertEqual(
+            first, DrtPresets.isCustomLook(model.record),
+            "the memo hit must equal the direct judgment on the same record")
+    }
+
+    /// AR-01 T3 (m2② memo, refresh leg): a record change IS the key miss —
+    /// the memo recomputes (named → custom → named across two foreign
+    /// record swaps, the undo/redo-shaped traffic).
+    func testCustomLookMemoRefreshesOnRecordChange() async throws {
+        try await loadGradient()
+        XCTAssertFalse(model.isCustomLook, "pristine = the standard snapshot")
+
+        var tweaked = DrtRecord()
+        tweaked.parameters.tnCon = 1.9
+        workspace.setSessionDrtRecord(tweaked, for: coordinator.liveImageURL!)
+        XCTAssertTrue(model.isCustomLook, "the changed record must miss the memo")
+
+        workspace.setSessionDrtRecord(DrtRecord(), for: coordinator.liveImageURL!)
+        XCTAssertFalse(model.isCustomLook, "the revert must miss the memo again")
+    }
+
     // MARK: - 6: peak clamp + the live/commit window
 
     func testPeakClampedAndLiveWindowCommitsOnce() async throws {

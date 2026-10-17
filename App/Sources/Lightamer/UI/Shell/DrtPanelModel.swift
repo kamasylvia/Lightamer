@@ -87,9 +87,31 @@ final class DrtPanelModel {
 
     /// The derived custom judgment (OQ-2-A): the 53 params match no
     /// built-in look snapshot → custom. Display value only — never stored.
+    ///
+    /// m2② (AR-01 T3): memoized on the RECORD VALUE itself (an
+    /// `@ObservationIgnored` stored pair — no commit-path hook, the KD-3
+    /// read chain is untouched). Cost basis (the F-3 evidence): the naive
+    /// "cache key = record.stableHash()" shape is a pseudo-optimization —
+    /// one stableHash serializes ~65 floats to sorted-keys JSON + FNV over
+    /// the bytes, strictly more than the cached comparison itself. The
+    /// value-keyed memo instead pays ONE `DrtRecord ==` per read (≈65 field
+    /// compares) against `DrtPresets.isCustomLook`'s up-to-7×53 compares
+    /// (the custom record is the all-presets worst case) — strictly cheaper
+    /// on the hit path, and the record change IS the key miss (recompute),
+    /// so invalidation needs no write-point hook.
     var isCustomLook: Bool {
-        DrtPresets.isCustomLook(record)
+        let r = record
+        if let memo = customLookMemo, memo.record == r {
+            return memo.isCustom
+        }
+        let isCustom = DrtPresets.isCustomLook(r)
+        customLookMemo = (record: r, isCustom: isCustom)
+        return isCustom
     }
+
+    /// The m2② memo (the record value IS the cache key — see isCustomLook).
+    @ObservationIgnored private var customLookMemo:
+        (record: DrtRecord, isCustom: Bool)?
 
     // MARK: - The structure descriptor (FEATURE-MAP §5, machine-checkable)
 

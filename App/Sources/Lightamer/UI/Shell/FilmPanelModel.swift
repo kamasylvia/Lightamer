@@ -114,6 +114,13 @@ final class FilmPanelModel {
     /// gain with the EV trim). Computed through the production solve (the
     /// cache consult is value-invisible); a nil store / unbound pair
     /// answers nil (the readout hides).
+    ///
+    /// m2① errata note (audit-repair RESEARCH §4, zero code): the solve is
+    /// NOT a per-tick full solve — `FilmRuntimeSolve.solve` consults
+    /// `FilmSolveCache.shared.autoSolution(for:)` internally
+    /// (LightamerCore/Sources/Pipe/Film/FilmTailPolicy.swift:629); the
+    /// per-tick residual is the cache key computation + the dictionary hit
+    /// + two `store.profile(id:)` reads. No further caching here.
     var solveReadout: (magentaCC: Double, yellowCC: Double, gain: Double)? {
         guard let coordinator = pipeCoordinator,
             let store = coordinator.filmMaterialStore,
@@ -327,22 +334,53 @@ final class FilmPanelModel {
     /// add face lands it in a LAYER — the grade envelope's host — so the
     /// layer chains are the primary residence). The host layer id rides
     /// along: the edit session routes layer-scoped (the 06-05 dual-track).
+    ///
+    /// m2③ (AR-01 T3): the layer-leg scan is memoized and REFRESHED at the
+    /// model's write faces (addPlacement / commitPlacement /
+    /// tickPlacementRecord / resetPlacementSide / stepM), with a live-truth
+    /// VALIDATION on every read as the master guard — the validation reads
+    /// the same observable faces the rescan would (the coordinator registry
+    /// + `editorState.adjustmentLayer(id:)`), so the dependency registration
+    /// is preserved (no stale UI: an undo/redo or a foreign edit fails the
+    /// validation and forces the full rescan). Hit-path cost basis (the
+    /// F-3 evidence): one `adjustmentLayer(id:)` jump + one chain
+    /// first-where + one `ModuleInstance ==` — strictly below the rescan's
+    /// `compactMap` array allocation + the front-of-stack layer walk. The
+    /// base-chain leg stays un-memoized (the registry probe is already a
+    /// dictionary hit — memoizing it would add overhead, not remove it).
     var placementTarget: (instance: ModuleInstance, layerID: UUID?)? {
         guard let coordinator = pipeCoordinator else { return nil }
         if let instance = coordinator.instanceRecord(opName: FilmPlacementModule.opName) {
+            placementTargetMemo = nil
             return (instance, nil)
         }
+        if let memo = placementTargetMemo,
+            let layerID = memo.layerID,
+            let layer = editorState?.adjustmentLayer(id: layerID),
+            let found = layer.chain.first(
+                where: { $0.opName == FilmPlacementModule.opName }),
+            found == memo.instance {
+            return (instance: memo.instance, layerID: memo.layerID)
+        }
+        placementTargetMemo = nil
         let layers = editorState?.layerStack?.adjustmentLayers.compactMap {
             $0 as? AdjustmentLayer
         } ?? []
         for layer in layers {
             if let instance = layer.chain.first(
                 where: { $0.opName == FilmPlacementModule.opName }) {
-                return (instance, layer.id)
+                let target = (instance: instance, layerID: layer.id)
+                placementTargetMemo = target
+                return target
             }
         }
         return nil
     }
+
+    /// The m2③ layer-leg memo (the write-point refresh + read validation —
+    /// see placementTarget).
+    @ObservationIgnored private var placementTargetMemo:
+        (instance: ModuleInstance, layerID: UUID?)?
 
     /// The placement edit session (the M2-5 provider shape, routed to the
     /// host layer when the record lives in a layer chain).
@@ -359,6 +397,7 @@ final class FilmPanelModel {
     @discardableResult
     func addPlacement() -> ModuleInstance? {
         guard let editorState else { return nil }
+        placementTargetMemo = nil  // m2③: write-point refresh
         let layerID: UUID
         if let top = editorState.layerStack?.adjustmentLayers.last {
             layerID = top.id
@@ -383,6 +422,7 @@ final class FilmPanelModel {
     /// the resolver's validity faces are the panel's ONLY write gate —
     /// rule ② refusal names a slider in the view, no silent clamp.
     func commitPlacement(nH: Double, nS: Double, m: Float) -> PlacementResolveOutcome {
+        placementTargetMemo = nil  // m2③: write-point refresh
         switch PlacementResolver.resolve(
             anchors: placementAnchors, nH: nH, nS: nS, m: m) {
         case .failure(let rejection):
@@ -433,6 +473,7 @@ final class FilmPanelModel {
     private func tickPlacementRecord(
         _ mutate: (inout FilmPlacementModule.Params) -> Void
     ) {
+        placementTargetMemo = nil  // m2③: write-point refresh
         guard let target = placementTarget else { return }
         var params = placementParams ?? FilmPlacementModule.Params()
         mutate(&params)
@@ -480,6 +521,7 @@ final class FilmPanelModel {
 
     /// The double-click reset (one side to the OFF identity).
     func resetPlacementSide(highlights: Bool) {
+        placementTargetMemo = nil  // m2③: write-point refresh
         guard let target = placementTarget else { return }
         var params = placementParams ?? FilmPlacementModule.Params()
         if highlights {
@@ -513,6 +555,7 @@ final class FilmPanelModel {
     /// at the new order — the m≥3 crossing is the expected physics and
     /// names its slider through the typed refusal).
     func stepM(_ m: Float) {
+        placementTargetMemo = nil  // m2③: write-point refresh
         guard let target = placementTarget else { return }
         let clamped = FilmPlacementModule.clamped(
             FilmPlacementModule.Params(
