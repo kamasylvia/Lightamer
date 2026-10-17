@@ -44,3 +44,4 @@
 | OBS-M7-4-2 | D-M7-4-6 | paste per-target 版本化（Alcedo `e75cf2a` 同构——预贴态隔离） | 预贴态隔离需求实测出现才立项 |
 | OBS-M7-4-3 | D-M7-4-1 | 库域批量写（`.lalb` claim 面 + sidecar 直写 + 投影刷新缺口设计） | 万级库域批量需求实测出现才立项 |
 | OBS-M7-4-4 | D-M7-4-8 | withTimeout v2 abandon 形语义族专项（~20 工具共用，per-call-site 纪律） | M7-5+ 评估；B 线独立专项 |
+| OBS-M7-4-5 | M7-4-01-ACCEPTANCE-2ND minor-3（VALIDATION §挂账②） | paste 段3 drain 写失败不进应答——`appliedRelPaths` ENQUEUE 后即全量填充〔语义 = composed+claimed〕，`flushForTeardown` drain 失败仅 log；MCP paste 应答在 drain 失败路径仍报 `applied`，「写达后方返」契约对 agent 单步视角失真（heal leg 最终一致但单步不可见；非本批引入——apply_params M7-3 同姿势 + 段3 语义 M6-09-04 writer 既有设计） | MCP 后续波 touching paste/apply_params 写应答面时诚实化（applied 语义诚实化〔改名/注记 composed+claimed〕或 drain 失败回传 failedRelPaths），勿顺手修 |
