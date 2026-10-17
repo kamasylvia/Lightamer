@@ -772,3 +772,4 @@ APP	4	ExportPresetTests.swift
 #   面与既有 Mcp*/App 面同 bundle）。行内 method 数以终态对账为准。运行期总数基线相应上移。
 APP	15	McpControlToolsetTests.swift
 APP	10	AgentControlCoordinatorTests.swift
+APP	3	EditorPreviewColorSpaceTests.swift
