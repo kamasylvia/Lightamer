@@ -244,7 +244,15 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     ///     permanently absent + every existing key byte-identical).
     ///   • nil process face keeps the key ABSENT — the v9 byte shape
     ///     survives untouched (SidecarV10Tests pins the three byte faces).
-    public static let schemaVersionCurrent = 10
+    /// v11 (M7-4-01, MCP2-09): the per-item `note`/`author` mirror face on
+    /// `SidecarHistoryItemRecord` — additive + decodeIfPresent/
+    /// encodeIfPresent, nil keys stay ABSENT (a nil face writes the v10
+    /// byte shape with the version digit bumped — SidecarV11Tests pins
+    /// the three byte faces + the hash isolation + the future tolerance).
+    /// The bump follows the persisted-face precedent chain: v8
+    /// aiProvenance / v9 filmRecord / v10 process — a persisted-face
+    /// addition bumps.
+    public static let schemaVersionCurrent = 11
 
     /// On-disk schema version of this document.
     public var schemaVersion: Int
@@ -802,6 +810,7 @@ internal struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
         case id, snapshot, label, timestamp, layerScope, stackSnapshot, pasteSet
         case drtRecord
         case filmRecord
+        case note, author
     }
 
     var item: HistoryStack.HistoryItem {
@@ -811,7 +820,9 @@ internal struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
             stackSnapshot: stackSnapshot?.snapshot,
             pasteSet: pasteSet?.map(\.instance),
             drtRecord: drtRecord,
-            filmRecord: filmRecord
+            filmRecord: filmRecord,
+            note: note,
+            author: author
         )
     }
 
@@ -827,6 +838,14 @@ internal struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
     /// twin, additive + decodeIfPresent/encodeIfPresent (pre-M3-3-01
     /// documents decode unchanged; nil is omitted on write).
     private var filmRecord: FilmRecord?
+    /// M7-4-01 (MCP2-09, the v11 face): the per-item note + author token —
+    /// the `note`/`author` mirror twin, additive +
+    /// decodeIfPresent/encodeIfPresent (pre-M7-4 documents decode
+    /// unchanged; nil is omitted on write). `schemaVersionCurrent` bumps
+    /// 10 → 11 with this face (the v8 aiProvenance / v9 filmRecord /
+    /// v10 process precedent chain — a persisted-face addition bumps).
+    private var note: String?
+    private var author: String?
 
     init(_ item: HistoryStack.HistoryItem) {
         id = item.id
@@ -838,6 +857,8 @@ internal struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
         pasteSet = item.pasteSet?.map(SidecarInstanceRecord.init)
         drtRecord = item.drtRecord
         filmRecord = item.filmRecord
+        note = item.note
+        author = item.author
     }
 
     init(from decoder: Decoder) throws {
@@ -854,6 +875,8 @@ internal struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
         drtRecord = try container.decodeIfPresent(DrtRecord.self, forKey: .drtRecord)
         filmRecord = try container.decodeIfPresent(
             FilmRecord.self, forKey: .filmRecord)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+        author = try container.decodeIfPresent(String.self, forKey: .author)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -867,6 +890,8 @@ internal struct SidecarHistoryItemRecord: Codable, Sendable, Equatable {
         try container.encodeIfPresent(pasteSet, forKey: .pasteSet)
         try container.encodeIfPresent(drtRecord, forKey: .drtRecord)
         try container.encodeIfPresent(filmRecord, forKey: .filmRecord)
+        try container.encodeIfPresent(note, forKey: .note)
+        try container.encodeIfPresent(author, forKey: .author)
     }
 }
 

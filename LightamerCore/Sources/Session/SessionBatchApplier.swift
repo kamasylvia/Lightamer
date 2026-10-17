@@ -111,7 +111,9 @@ public enum SessionBatchApplier {
         seed: [ModuleInstance],
         selection: Set<PastePayload.InstanceKey>? = nil,
         timestamp: Date = Date(),
-        label: String
+        label: String,
+        note: String? = nil,
+        author: String? = nil
     ) -> (composed: [(relPath: String, document: LightamerSidecar)], skippedLive: [String], failed: [String]) {
         var composed: [(String, LightamerSidecar)] = []
         var skipped: [String] = []
@@ -177,7 +179,8 @@ public enum SessionBatchApplier {
                 targetHistory: targetHistory,
                 targetInstances: targetInstances,
                 payload: payload, mode: mode, seed: seed,
-                selection: selection, timestamp: timestamp, label: label)
+                selection: selection, timestamp: timestamp, label: label,
+                note: note, author: author)
             else {
                 // An empty effective payload pastes nothing (dt posture).
                 skipped.append(relPath)
@@ -241,12 +244,14 @@ public enum SessionBatchApplier {
         writer: BatchSidecarWriter?,
         timestamp: Date = Date(),
         label: String,
+        note: String? = nil,
+        author: String? = nil,
         progress: (@Sendable (_ completed: Int, _ total: Int) -> Void)? = nil
     ) async -> BatchApplyOutcome {
         let segment1 = composeSegment(
             root: root, relPaths: relPaths, skipRelPaths: liveRelPaths,
             payload: payload, mode: mode, seed: seed, selection: selection,
-            timestamp: timestamp, label: label)
+            timestamp: timestamp, label: label, note: note, author: author)
 
         guard !segment1.composed.isEmpty else {
             return BatchApplyOutcome(

@@ -91,7 +91,9 @@ public enum PasteSemantics {
         seed: [ModuleInstance],
         selection: Set<PastePayload.InstanceKey>? = nil,
         timestamp: Date = Date(),
-        label: String = "Paste Adjustments"
+        label: String = "Paste Adjustments",
+        note: String? = nil,
+        author: String? = nil
     ) -> PasteComposeResult? {
         // Partial: the checked subset first (an empty selection no-ops).
         let effectivePayload =
@@ -147,7 +149,8 @@ public enum PasteSemantics {
             history.commitPaste(
                 records: recast, label: label, timestamp: timestamp,
                 scope: HistoryStack.pasteEpochScope,
-                stackSnapshot: effectivePayload.layerStack?.snapshot)
+                stackSnapshot: effectivePayload.layerStack?.snapshot,
+                note: note, author: author)
             // The「默认种子 + 载荷实例」base: seed ∪ oldBase (the seed
             // records shadowed by the OLD effective set come back — undo
             // to the pre-paste top then re-projects them byte-exactly).
@@ -170,7 +173,8 @@ public enum PasteSemantics {
             // ONE paste item (commitPaste owns the append + redo-tail
             // truncation). scope nil = a merge paste (normal global item).
             history.commitPaste(
-                records: recast, label: label, timestamp: timestamp, scope: nil)
+                records: recast, label: label, timestamp: timestamp, scope: nil,
+                note: note, author: author)
             // Merge keeps the target's base INTACT (undo-safe: the base
             // never loses a record; forward state resolves payload/base
             // tuple collisions in favor of the history-owned payload).

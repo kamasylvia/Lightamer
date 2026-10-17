@@ -123,14 +123,28 @@ public struct HistoryStack: Codable, Sendable, Equatable {
         /// projection.
         public var filmRecord: FilmRecord?
 
+        /// Plan M7-4-01 (MCP2-09): the per-item edit NOTE (free text, the
+        /// write-face tools' optional `note` parameter) and the commit
+        /// AUTHOR token (`"mcp"` for MCP writes; nil = the implicit GUI
+        /// user — Alcedo's default-user omission form). Additive optionals
+        /// on the 06-01 precedent (decodeIfPresent — pre-M7-4 documents
+        /// decode unchanged; writers omit them when nil). NOT folded into
+        /// the historyHash (item metadata never enters the fold — the
+        /// HistoryHash mechanism; the SidecarV11 negative pins it).
+        public var note: String?
+
+        /// See `note`. `nil` = the implicit user (GUI writes never set it).
+        public var author: String?
+
         /// Frozen CodingKeys — checkpoint 02-05-01 lock #6 (+ the 06-01
         /// additive stackSnapshot + the 09-04 additive pasteSet + the
-        /// M2-6-3 additive drtRecord + the M3-3-01 additive filmRecord
-        /// fields).
+        /// M2-6-3 additive drtRecord + the M3-3-01 additive filmRecord +
+        /// the M7-4-01 additive note/author fields).
         private enum CodingKeys: String, CodingKey {
             case id, snapshot, label, timestamp, layerScope, stackSnapshot, pasteSet
             case drtRecord
             case filmRecord
+            case note, author
         }
 
         public init(
@@ -142,7 +156,9 @@ public struct HistoryStack: Codable, Sendable, Equatable {
             stackSnapshot: LayerStackSnapshot? = nil,
             pasteSet: [ModuleInstance]? = nil,
             drtRecord: DrtRecord? = nil,
-            filmRecord: FilmRecord? = nil
+            filmRecord: FilmRecord? = nil,
+            note: String? = nil,
+            author: String? = nil
         ) {
             self.id = id
             self.snapshot = snapshot
@@ -153,6 +169,8 @@ public struct HistoryStack: Codable, Sendable, Equatable {
             self.pasteSet = pasteSet
             self.drtRecord = drtRecord
             self.filmRecord = filmRecord
+            self.note = note
+            self.author = author
         }
 
         public init(from decoder: Decoder) throws {
@@ -169,6 +187,8 @@ public struct HistoryStack: Codable, Sendable, Equatable {
             drtRecord = try container.decodeIfPresent(DrtRecord.self, forKey: .drtRecord)
             filmRecord = try container.decodeIfPresent(
                 FilmRecord.self, forKey: .filmRecord)
+            note = try container.decodeIfPresent(String.self, forKey: .note)
+            author = try container.decodeIfPresent(String.self, forKey: .author)
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -182,6 +202,8 @@ public struct HistoryStack: Codable, Sendable, Equatable {
             try container.encodeIfPresent(pasteSet, forKey: .pasteSet)
             try container.encodeIfPresent(drtRecord, forKey: .drtRecord)
             try container.encodeIfPresent(filmRecord, forKey: .filmRecord)
+            try container.encodeIfPresent(note, forKey: .note)
+            try container.encodeIfPresent(author, forKey: .author)
         }
 
         /// The records this item projects into a chain: the paste payload
@@ -248,7 +270,9 @@ public struct HistoryStack: Codable, Sendable, Equatable {
         label: String,
         timestamp: Date = Date(),
         scope: String?,
-        stackSnapshot: LayerStackSnapshot? = nil
+        stackSnapshot: LayerStackSnapshot? = nil,
+        note: String? = nil,
+        author: String? = nil
     ) {
         guard !records.isEmpty else { return }
         if position + 1 < items.count {
@@ -258,7 +282,7 @@ public struct HistoryStack: Codable, Sendable, Equatable {
             HistoryItem(
                 snapshot: records[0], label: label, timestamp: timestamp,
                 layerScope: scope, stackSnapshot: stackSnapshot,
-                pasteSet: records))
+                pasteSet: records, note: note, author: author))
         position = items.count - 1
     }
 
