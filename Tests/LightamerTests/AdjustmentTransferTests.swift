@@ -460,4 +460,74 @@ final class AdjustmentTransferTests: XCTestCase {
             history: HistoryStack(), baseLayer: BackgroundLayer())
         XCTAssertTrue(pristine.adjustmentLayers.isEmpty)
     }
+
+    // MARK: - M7-4-01 T6: the Catalog single-source golden (no-second-copy)
+
+    /// The enumeration identity: the GUI model and the shared Catalog
+    /// agree VALUE-FOR-VALUE on the same chain (the no-second-copy red
+    /// line's mechanical face) — nodes, per-node items and the layer
+    /// snapshots are identical, and the model's pastePayload ≡ the
+    /// Catalog build over the model's own state (the mask epoch reset
+    /// visible in both).
+    @MainActor
+    func testCatalogEnumerationAndPayloadMatchTheGuiModelValueForValue() throws {
+        let (chain, layerID) = try sourceChain()
+        let catalog = AdjustmentTransferCatalog.enumerateSnapshot(chain: chain)
+
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("transfer-catalog-\(UUID().uuidString).lra")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try writeFixture(chain, versions: nil, activeVersionID: nil, to: url)
+        let model = AdjustmentTransferModel()
+        model.loadExternalFile(at: url)
+
+        // Nodes identical.
+        XCTAssertEqual(model.nodes, catalog.nodes)
+        // Items identical (ids, transferable, checked faces).
+        XCTAssertEqual(model.items.count, catalog.items.count)
+        for (nodeID, modelItems) in model.items {
+            let catalogItems = try XCTUnwrap(catalog.items[nodeID])
+            XCTAssertEqual(modelItems.count, catalogItems.count)
+            for (index, item) in modelItems.enumerated() {
+                XCTAssertEqual(item.instance.id, catalogItems[index].instance.id)
+                XCTAssertEqual(item.transferable, catalogItems[index].transferable)
+                XCTAssertEqual(item.checked, catalogItems[index].checked)
+            }
+        }
+        // Layer snapshots identical (including the mask shell).
+        XCTAssertEqual(model.layerSnapshots, catalog.layerSnapshots)
+        XCTAssertEqual(model.layerSnapshots.count, 1)
+        XCTAssertEqual(model.layerSnapshots[0].id, layerID)
+
+        // The payload identity: the model's materialization ≡ the
+        // Catalog's build over the same state.
+        let modelPayload = try XCTUnwrap(model.pastePayload())
+        let catalogPayload = try XCTUnwrap(
+            AdjustmentTransferCatalog.buildPayload(
+                layerSnapshots: model.layerSnapshots, items: model.items,
+                drtRecord: model.drtRecord, includeDrt: model.drtChecked))
+        XCTAssertEqual(modelPayload, catalogPayload)
+        XCTAssertEqual(modelPayload.records.count, 1,
+                       "exposure only (temperature is RAW-decode-owned, "
+                           + "gamma rides the terminal trio)")
+        XCTAssertNil(modelPayload.snapshot?.layers[0].mask?.contentRevision,
+                     "the mask epoch resets in BOTH faces (KD-3)")
+        XCTAssertNotNil(modelPayload.drtRecord)
+
+        // The filter legs (the MCP parameter face): an include subset of
+        // one + the DRT opt-out.
+        let onlyExposure = try XCTUnwrap(
+            model.items[layerID]?.first {
+                $0.instance.opName == ExposureModule.opName
+            })
+        let filtered = try XCTUnwrap(
+            AdjustmentTransferCatalog.buildPayload(
+                layerSnapshots: model.layerSnapshots, items: model.items,
+                drtRecord: model.drtRecord, includeDrt: false,
+                include: [onlyExposure.instance.id]))
+        XCTAssertEqual(filtered.records.count, 1)
+        XCTAssertEqual(filtered.records[0].opName, ExposureModule.opName)
+        XCTAssertNil(filtered.drtRecord, "includeDrt=false drops the row")
+        XCTAssertNil(filtered.snapshot?.layers[0].mask?.contentRevision)
+    }
 }

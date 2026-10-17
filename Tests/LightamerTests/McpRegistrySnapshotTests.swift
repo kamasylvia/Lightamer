@@ -132,10 +132,30 @@ final class McpRegistrySnapshotTests: XCTestCase {
             registry: registry,
             expected: [
                 McpToolDescriptor(
+                    // M7-4-01: apply_params gains the item-level note
+                    // property (MCP2-09 — this domain snapshot edits
+                    // consciously, the same batch the union layer edits).
                     name: "apply_params",
                     description: "apply",
                     inputSchemaJSON:
-                        #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"ops":{"type":"array","minItems":1,"description":"Module-level upserts","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer","default":0},"params":{"type":"object","description":"Partial params JSON overlaid on the instance (keys per list_iops)"},"enabled":{"type":"boolean"},"remove":{"type":"boolean","default":false}},"required":["opName"]}}},"required":["relPath","ops"]}"#,
+                        #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"ops":{"type":"array","minItems":1,"description":"Module-level upserts","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer","default":0},"params":{"type":"object","description":"Partial params JSON overlaid on the instance (keys per list_iops)"},"enabled":{"type":"boolean"},"remove":{"type":"boolean","default":false}},"required":["opName"]}},"note":{"type":"string","minLength":1,"description":"ITEM-level edit note attached to the history commit (distinct from the document-level note set via append_note)"}},"required":["relPath","ops"]}"#,
+                    destructiveHint: true),
+                McpToolDescriptor(
+                    // M7-4-01 (MCP2-08): copy_adjustments joins the
+                    // editing domain (7→9, the O4 pair — this domain
+                    // snapshot edits consciously).
+                    name: "copy_adjustments",
+                    description: "copy",
+                    inputSchemaJSON:
+                        #"{"type":"object","properties":{"source":{"type":"string","description":"A library image id (digits) or an open-session relPath"}},"required":["source"]}"#,
+                    readOnlyHint: true),
+                McpToolDescriptor(
+                    // M7-4-01 (MCP2-08): paste_adjustments joins the
+                    // editing domain (the O4 pair's write face).
+                    name: "paste_adjustments",
+                    description: "paste",
+                    inputSchemaJSON:
+                        #"{"type":"object","properties":{"source":{"type":"string","description":"A library image id (digits) or an open-session relPath (the copy_adjustments addressing)"},"targets":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":1000,"description":"Open-session relPaths to paste onto"},"note":{"type":"string","minLength":1,"description":"ITEM-level edit note attached to each history commit (distinct from the document-level note set via append_note)"},"include":{"type":"array","items":{"type":"string","format":"uuid"},"description":"instanceId subset from copy_adjustments (default: every transferable instance)"},"includeDrt":{"type":"boolean","default":true,"description":"false drops the source's DRT row"},"version":{"type":"string","description":"A copy_adjustments versions[] id (default: the active chain)"}},"required":["source","targets"]}"#,
                     destructiveHint: true),
                 McpToolDescriptor(
                     name: "list_iops",
@@ -200,9 +220,9 @@ final class McpRegistrySnapshotTests: XCTestCase {
         XCTAssertFalse(names.contains("ping"), "ping is retired")
         XCTAssertFalse(names.contains("count_images"), "count_images is retired")
         XCTAssertEqual(
-            names.count, 21,
-            "the editing+culling closed face is exactly 21 tools "
-                + "(M7-3 list_luts joined the editing domain): \(names.sorted())")
+            names.count, 23,
+            "the editing+culling closed face is exactly 23 tools "
+                + "(M7-4 copy/paste joined the editing domain): \(names.sorted())")
     }
 
     /// A minimal LOCAL double for the transport-echo tests (the registry

@@ -32642,6 +32642,16 @@
           }
         }
       }
+    },
+    "editor_history_author_badge" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作者 %@"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

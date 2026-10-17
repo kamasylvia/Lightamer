@@ -271,8 +271,9 @@ final class McpSearchStateToolsetTests: XCTestCase {
             culling: McpServerController.makeCullingContext(session: { nil }))
         let descriptors = await registry.descriptors()
         XCTAssertEqual(
-            descriptors.count, 21,
-            "the default seam stays nil = 21 (M7-3 list_luts in editing)")
+            descriptors.count, 23,
+            "the default seam stays nil = 23 (M7-4 copy/paste joined the "
+                + "editing domain)")
         XCTAssertFalse(descriptors.contains { $0.name == "search_photos" })
     }
 
@@ -678,7 +679,10 @@ final class McpSearchStateToolsetTests: XCTestCase {
     /// double-payload paste item (pasteSet + stackSnapshot riding ONE
     /// item — the N-5 review pin) + three version records + the metadata
     /// face. Returns the image row id.
-    private func makeGoldenSidecar() async throws -> Int64 {
+    /// - Parameters:
+    ///   - positionOverride: rebuilds the stack at this position (the F8
+    ///     red-tail fixture — an UNDONE tail item; M7-4-01).
+    private func makeGoldenSidecar(positionOverride: Int? = nil) async throws -> Int64 {
         let imageURL = tempDirectory.appendingPathComponent("Media/golden.arw")
         try Data(repeating: 0xCD, count: 32).write(to: imageURL)
         let record = LibraryImageRecord(
@@ -710,6 +714,15 @@ final class McpSearchStateToolsetTests: XCTestCase {
         stack.commitFilm(
             record: FilmRecord(), placeholder: exposure, label: "Film look",
             timestamp: Date(timeIntervalSince1970: 300))
+        // M7-4-01: the drt item carries an MCP stamp (note + author) — the
+        // attribution face's golden anchor.
+        var stamped = stack.items
+        stamped[3].note = "tuned via MCP"
+        stamped[3].author = "mcp"
+        stack = HistoryStack(items: stamped, position: stack.position)
+        if let positionOverride {
+            stack = HistoryStack(items: stack.items, position: positionOverride)
+        }
 
         var chainedA = HistoryStack()
         chainedA.commit(exposure, label: "vA")
@@ -749,7 +762,11 @@ final class McpSearchStateToolsetTests: XCTestCase {
         XCTAssertEqual(payload["position"] as? Int, 4)
         XCTAssertEqual(payload["itemCount"] as? Int, 5)
         XCTAssertEqual(payload["truncated"] as? Bool, false)
-        XCTAssertEqual(payload["author"] as? NSNull, NSNull(), "author is the v1 placeholder")
+        // M7-4-01: the top-level author is the POSITION item's author (the
+        // truth-value form) — position 4 = the film item, which carries
+        // none, so .null (the stamped drt item is NOT the position item).
+        XCTAssertEqual(payload["author"] as? NSNull, NSNull(),
+                       "the position item (film) carries no author")
         XCTAssertEqual(payload["note"] as? String, "agent visible note")
         XCTAssertEqual(payload["rating"] as? Int, 4)
         XCTAssertEqual(payload["flag"] as? Int, 1)
@@ -764,6 +781,14 @@ final class McpSearchStateToolsetTests: XCTestCase {
         XCTAssertEqual(items.map { $0["kind"] as? String },
                        ["param", "structure", "paste", "drt", "film"])
         XCTAssertEqual(items[0]["label"] as? String, "Exposure 2.0×")
+        // M7-4-01: the per-item note/author keys — only the stamped drt
+        // row carries them; every other row answers .null.
+        XCTAssertEqual(items[3]["note"] as? String, "tuned via MCP")
+        XCTAssertEqual(items[3]["author"] as? String, "mcp")
+        for (index, item) in items.enumerated() where index != 3 {
+            XCTAssertEqual(item["note"] as? NSNull, NSNull(), "item \(index) note")
+            XCTAssertEqual(item["author"] as? NSNull, NSNull(), "item \(index) author")
+        }
         // includeParams=false → NO params key on any item.
         for (index, item) in items.enumerated() {
             XCTAssertNil(item["params"], "item \(index) carried a summary params face")
@@ -807,6 +832,33 @@ final class McpSearchStateToolsetTests: XCTestCase {
         XCTAssertEqual(items.count, 2)
         XCTAssertEqual(items.map { $0["label"] as? String }, ["DRT tweak", "Film look"],
                        "the newest end survives the cap")
+        XCTAssertEqual(items[0]["author"] as? String, "mcp",
+                       "the kept drt row carries its stamp")
+    }
+
+    /// The F8 truth-value form's RED-TAIL leg: position 3 (the film item
+    /// UNDONE) with limit 2 — the kept window is [drt, film], so the
+    /// newest KEPT item (film, no author) is NOT the POSITION item (drt,
+    /// "mcp"). The top-level author reads the POSITION item, deliberately
+    /// decoupled from truncation.
+    func testGetHistoryTopAuthorReadsThePositionItemNotTheNewestKept() async throws {
+        let id = try await makeGoldenSidecar(positionOverride: 3)
+        let registry = await makeRegistry(context: McpSearchStateContext(
+            library: libraryProvider()))
+        let payload = try await Self.callJSON(registry, name: "get_history", arguments: [
+            "image": .string(String(id)), "limit": .int(2),
+        ])
+        XCTAssertEqual(payload["position"] as? Int, 3, "position stays TRUE")
+        XCTAssertEqual(payload["itemCount"] as? Int, 5)
+        XCTAssertEqual(payload["truncated"] as? Bool, true)
+        let items = try XCTUnwrap(payload["items"] as? [[String: Any]])
+        XCTAssertEqual(items.map { $0["label"] as? String }, ["DRT tweak", "Film look"])
+        // The newest KEPT item (film) carries no author; the POSITION item
+        // (drt) carries "mcp" — the flip reads position, not "last row".
+        XCTAssertEqual(items[1]["author"] as? NSNull, NSNull(),
+                       "the newest KEPT item carries no author")
+        XCTAssertEqual(payload["author"] as? String, "mcp",
+                       "the top-level author is the POSITION item's")
     }
 
     /// The pristine honest face: no sidecar = position -1, empty items,
@@ -830,6 +882,10 @@ final class McpSearchStateToolsetTests: XCTestCase {
         XCTAssertEqual(payload["truncated"] as? Bool, false,
                        "the pristine face carries the shape-consistency key (N2-1)")
         XCTAssertEqual(payload["rating"] as? NSNull, NSNull())
+        // M7-4-01: the pristine chain answers .null for the author flip
+        // (position -1 → null) — the negative half of the truth-value form.
+        XCTAssertEqual(payload["author"] as? NSNull, NSNull(),
+                       "pristine = the .null author")
         // The relPath arm with no session open = the typed honest arm.
         let error = try await Self.toolError {
             _ = try await registry.call(name: "get_history", arguments: [

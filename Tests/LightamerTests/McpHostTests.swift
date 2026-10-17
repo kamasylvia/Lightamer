@@ -240,7 +240,7 @@ final class McpHostTests: XCTestCase {
             "the initialize echo pins the protocol revision")
 
         let (tools, _) = try await clientActor.listTools()
-        XCTAssertEqual(tools.count, 21, "the closed face rides every host (M7-3 list_luts in editing)")
+        XCTAssertEqual(tools.count, 23, "the closed face rides every host (M7-4 copy/paste in editing)")
         XCTAssertFalse(
             tools.contains { $0.name == "ping" || $0.name == "count_images" },
             "the 14-1 probe face is retired")
@@ -694,7 +694,7 @@ final class McpHostTests: XCTestCase {
         await httpClient.disconnect()
         await httpHandle.stop()
 
-        XCTAssertEqual(httpTools.count, 21, "HTTP tools/list — the closed face (M7-3 list_luts)")
+        XCTAssertEqual(httpTools.count, 23, "HTTP tools/list — the closed face (M7-4 copy/paste)")
         XCTAssertFalse(
             httpTools.contains { $0 == "ping" || $0 == "count_images" },
             "no probe tool rides any host")
