@@ -34,6 +34,12 @@ struct LibraryInspectorView: View {
 
     static let panelWidth: CGFloat = 280
 
+    // M7-5-01 (D-M7-5-4 face ⑩): the rating face's gate — the AI-analysis
+    // command area (the AI 评片 rating writes) goes inert while the agent
+    // holds the control (the filter/browsing sections stay untouched —
+    // the preserved faces).
+    @Environment(AgentControlCoordinator.self) private var agentControl
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
@@ -371,6 +377,8 @@ struct LibraryInspectorView: View {
             }
         }
         .accessibilityIdentifier("library.inspector.ai")
+        // M7-5-01 face ⑩: the agent-held clause (disable-not-unmount).
+        .disabled(agentControl.holdsControl)
     }
 
     // MARK: - SMART ALBUMS

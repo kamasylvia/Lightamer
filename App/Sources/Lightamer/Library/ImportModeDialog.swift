@@ -80,6 +80,10 @@ struct ImportModeDialog: View {
     /// reads the persisted key through the injected defaults host).
     @State private var selection: ImportTypeSelectionModel
 
+    // M7-5-01 (D-M7-5-4 face ⑧): the import confirm gate — the dialog
+    // rides the app-root sheet (the environment chain reaches it).
+    @Environment(AgentControlCoordinator.self) private var agentControl
+
     init(
         request: ImportFlowRequest, initial: ImportModeChoice,
         onConfirm: @escaping (ImportModeChoice) -> Void,
@@ -139,7 +143,10 @@ struct ImportModeDialog: View {
                                 defaultValue: "Import"))
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(!selection.importEnabled)
+                // M7-5-01 face ⑧: the agent-held clause joins the merge
+                // (import is an Alcedo forbidden face while the agent
+                // drives; ImportTaskAdapter/ImportService stay untouched).
+                .disabled(!selection.importEnabled || agentControl.holdsControl)
             }
         }
         .padding(24)
