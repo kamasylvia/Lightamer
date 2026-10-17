@@ -32752,6 +32752,16 @@
           }
         }
       }
+    },
+    "slider_scrub_hint" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "横向拖动数字扫值——按住 Shift 以 1/10 速度细调。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
