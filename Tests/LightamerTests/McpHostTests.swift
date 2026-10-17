@@ -463,8 +463,8 @@ final class McpHostTests: XCTestCase {
     /// host shape): it must hold the writer lock yet NEVER write the
     /// endpoint json, and the piped three-step handshake (initialize →
     /// notifications/initialized → tools/list) answers with the CLOSED
-    /// 21-tool face (Plan 14-4 retired the probe pair; M5-1-03 added
-/// match_color to the editing domain).
+    /// editing+culling face (23 since M7-4; the control domain is the
+    /// independent fifth domain and does not touch either).
     func testStdioHostHelloRoundTripHoldsLockWritesNoJSON() async throws {
         let process = Process()
         process.executableURL = try XCTUnwrap(Bundle.main.executableURL)
@@ -665,8 +665,8 @@ final class McpHostTests: XCTestCase {
     /// stdio (a real subprocess), Streamable HTTP (SDK client over the NIO
     /// leg) and InMemory (in-process) — all produce IDENTICAL tool results.
     /// Plan 14-4: the canonical call is the final `list_iops` tool over the
-    /// closed 21-tool face (the probe pair retired; M5-1-03 match_color joined,
-    /// M7-3 list_luts).
+    /// closed editing+culling face (23 since M7-4; the probe pair retired;
+    /// the control domain is the independent fifth domain — no touch).
     func testHelloConformanceAcrossThreeHostForms() async throws {
         // THREE FORMS, ONE KERNEL, IDENTICAL RESULTS:
         //   HTTP      → this test (SDK client ↔ the NIO leg, live host)

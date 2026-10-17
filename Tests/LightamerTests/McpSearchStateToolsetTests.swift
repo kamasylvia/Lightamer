@@ -13,7 +13,8 @@ import XCTest
 //
 //   • the domain snapshot layer (the 3 read-only tools verbatim; the
 //     registry without the searchState seam stays at the editing+culling
-//     face (21 since M7-3's list_luts joined editing)
+//     face (23 since M7-4 — the control domain is the independent fifth
+//     domain and does not touch either)
 //   • the EXIF parity golden: the tool's cursor-chain walk ≡ the GUI
 //     two-segment walk (direct searchPage + searchNullTail concat) — the
 //     fixture MUST carry NULL-key rows (unrated + no-capture-date) and the
@@ -262,7 +263,9 @@ final class McpSearchStateToolsetTests: XCTestCase {
     /// The zero-diff negative: WITHOUT the searchState seam the registry is
     /// byte-identical to the pre-M7-2 face grown by list_luts (the editing
     /// domain's own M7-3 addition) — the negative's semantics ("no new
-    /// domain without its context") is unchanged; the count rides 21.
+    /// domain without its context") is unchanged; the count rides 23
+    /// (editing 9 + culling 14 since M7-4 — the control domain is the
+    /// independent fifth domain and does not touch either).
     func testRegistryWithoutSearchStateStaysAtTwenty() async throws {
         let registry = await McpServerController.makeRegistry(
             editing: EditingToolset.Seams(
