@@ -449,15 +449,15 @@ Deferred to future release. Tracked but not in current roadmap.
 
 ### M7 Agent Skills Documentation (SKILLS)（2026-10-16 M7 立项批登记）
 
-- **SKILLS-01**: agent 操作 skill 文档仓——对齐 alcedo-skills 形态（会话启动/stdio 配置模板/工具语义边界/错误码表/render_preview 预览语义〔编辑态无印框〕/UI 单位说明；reference 可从 tools/list 快照机检生成，对齐上游 generate_cli_reference.py 思路）；**零 taste 搬运**（Alcedo 同款排除——其文档文案 GPL 禁译禁改，全部自写；taste 留 launcher `{{PROMPT}}` 模板载体）—— **→ M7-6**（2026-10-16）
+- **SKILLS-01**: agent 操作 skill 文档仓——对齐 alcedo-skills 形态（会话启动/stdio 配置模板/工具语义边界/错误码表/render_preview 预览语义〔编辑态无印框〕/UI 单位说明；reference 可从 tools/list 快照机检生成，对齐上游 generate_cli_reference.py 思路）；**零 taste 搬运**（Alcedo 同款排除——其文档文案 GPL 禁译禁改，全部自写；taste 留 launcher `{{PROMPT}}` 模板载体）—— **→ M7-6**（2026-10-16）—— **✅ Delivered（M7-6-01 T4：`4259cfd8`——仓内 `skills/lightamer-mcp/`〔OQ-M7-6-1 仓内形态〕SKILL.md 七节 en 单语〔OQ-M7-6-2〕+ references/errors.md 19 码表 + references/tools.md 机检生成〔SkillsReferenceTests 测试即门 OQ-M7-6-3：活注册表渲染逐字节 + 19 码名断言；union 文件持权 internal 一行〕+ README 一句链接 + N2-2 文档句收口；偏差 = tools.md description 列省略〔zh 活文案 vs en 单语门结构冲突裁定——DECISIONS §8，晨审可翻〕）**
 
 ### Upstream Queue Intake (UQ) — 2026-10-16 M7 charter 批四候选入队（正本 = `research/UPSTREAM-QUEUE.md`）
 
 > 2026-10-16 M7 立项批：UPSTREAM-QUEUE 四候选全部入队立 ID（用户裁决③）；入队后候选区原位标注指向本族。UQ-L2 挂面不入波（软打样未立项）。
 
-- **UQ-A1**: DRT-SDR 预览层 ICC 双曲线失配——预览层 colorspace 改挂导出同款 ICC v4 字节（`CGColorSpace(iccProfileData:)`，L053 自建字节直接复用）+ ColorSync 解码等值测试（上游 Alcedo `36db9a8` 同病同修——preview/文件双曲线解码失配）—— **→ M7-6**（2026-10-16；渲染相关波分插）
+- **UQ-A1**: DRT-SDR 预览层 ICC 双曲线失配——预览层 colorspace 改挂导出同款 ICC v4 字节（`CGColorSpace(iccProfileData:)`，L053 自建字节直接复用）+ ColorSync 解码等值测试（上游 Alcedo `36db9a8` 同病同修——preview/文件双曲线解码失配）—— **→ M7-6**（2026-10-16；渲染相关波分插）—— **✅ Delivered（M7-6-01 T2：`32b592aa`——drtLayerColorSpace SDR 幂臂两段式〔OQ-M7-6-4：legal 8 对 = 导出同款缓存 ICC v4 实例 / 域外对 calibrated 回落，禁扩导出表〕+ EditorPreviewColorSpaceTests 3 法〔legal 8 对 === 同实例 + ICC bytes 逐字节同 + srgbPiecewise 真分段行为腿〔CGColor converted 真变换判别 2.2 幂〕+ 域外回落负腿〕+ M4-1-01 KD-8 显示侧偏离消解收口；HDR/linear 臂零 diff 亲证）**
 - **UQ-A2**: 导出 FAIL 档终写原子不覆盖——tmp 编码 + `link()` EEXIST 拒晋升 + unlink tmp（ExportCollisionPolicy 快照-落盘 TOCTOU 语义补全；上游 Alcedo `6203791` 同纪律——renameatx_np/renameat2 的 Swift `link()` 排他等价）—— **✅ Delivered（M7-4-01，2026-10-17：encodeStage additive `exclusiveFinalWrite` + 同目录隐藏 tmp + link() EEXIST → BaseNameOccupiedError 复用〔错误表零新增〕+ encoder-error 清理腿改道〔exclusive 臂 destination 不可触〕+ `$jobNamingCarrier` encode 腿递缝〔leg 签名零 diff〕+ **render 步快照检查保留**〔与上游唯一分歧——成本门，DECISIONS 申报〕+ exFAT 类卷 EOPNOTSUPP → encodeFailed 兜底〔行为变化申报，降级可选项挂 UPSTREAM-QUEUE〕；五腿实测；`2af9b17d`）**
-- **UQ-L1**: 滑杆双击重置 + 值横扫 scrub——SwiftUI Slider 无原生支持需自实现（yiyin 面板与 iop 面板通用 UX 小件；上游 LightCraft `cb8b797c`/`ab64e9a5`，MIT/Apache-2.0）—— **→ M7-6**（2026-10-16；UI 小件分插）
+- **UQ-L1**: 滑杆双击重置 + 值横扫 scrub——SwiftUI Slider 无原生支持需自实现（yiyin 面板与 iop 面板通用 UX 小件；上游 LightCraft `cb8b797c`/`ab64e9a5`，MIT/Apache-2.0）—— **→ M7-6**（2026-10-16；UI 小件分插）—— **✅ Delivered（M7-6-01 T3：`bac0ff76`——LightamerSlider readout scrub〔OQ-M7-6-5 单组件：DragGesture ≥3pt + LightamerSliderScrubSession 纯函数 + Shift 1/10 速 + range clamp；D-H1 三回调复用零旁路 = 一次 scrub 一次连续 commit〕+ 3 机检法 + xcstrings 恰 +1 键；范围勘注（review R1 计数勘正）：LightamerSlider 全部调用点 177 处全量受益 = iop + yiyin 面板族〔yiyin 八处 `:160/:182/:203/:235/:268/:380/:393/:589` 实测在册——RESEARCH §3.1「yiyin 零命中」为 grep 假阴性，review M2 翻转〕；双击重置已在位〔03-02 交付〕不顺手改 Monochrome 自有 row；track 双击 wrinkle 登记不动〔OQ-M7-6-6〕；拖离取消语义让渡申报〔DECISIONS §7——MANIFEST A3 观察行〕；走查配方 = `.work/gui-acceptance/m7-6/MANIFEST.md` 归验收批〔SC 措辞降格登记 = M7-VALIDATION §5③〕）**
 - **UQ-L2**: 软打样 1:1 zoom window + 「1:1 像素 == 导出」等值测试验收形态——**挂面不入波**（软打样未立项；立项时验收形态直接取用；上游 LightCraft `c78b457c`）（2026-10-16 登记，无 phase 指针）
 
 ### M8 FSIM Spectral Core (SPEC) — 光谱升维（2026-10-17 M8 预告批登记，草案形态；正式化归 M8-0 charter 批）
