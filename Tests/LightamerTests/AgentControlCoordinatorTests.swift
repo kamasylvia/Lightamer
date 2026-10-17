@@ -211,8 +211,8 @@ final class AgentControlCoordinatorTests: XCTestCase {
     /// Each row: (file, the exact merge-form token that must exist).
     static let disableFaceManifest: [(file: String, token: String, why: String)] = [
         ("UI/Shell/WorkspaceHostView.swift",
-         ".disabled(projectController?.isReadOnly ?? false\n                          || agentControl.holdsControl)",
-         "face ⑪ export/yiyin topbar entries (both buttons share the form)"),
+         ".disabled(isReadOnly || holdsControl)",
+         "face ⑪ export/yiyin topbar entries (both buttons share the form; AR-01 T1 moved the reads into the WorkspaceTopBar struct's narrow inputs — the merge form itself is unchanged)"),
         ("UI/Shell/EditorWorkspaceShellView.swift",
          ".disabled(agentControl.holdsControl)",
          "face ① the adjustment-stack host column"),
