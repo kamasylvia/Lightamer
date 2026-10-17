@@ -11,6 +11,11 @@
 > 入口检查实测 :215-217〔RESEARCH 记 :217〕、obs-3 复检锚 revoked throw
 > 实测 :228-231〔RESEARCH 记 :229 拼写，语义同点〕、`makeUnionRegistry`
 > 实测为 `private func` :277〔见下「快照改动权」行使注记〕）。
+> **评审 round 1 勘误两条（2026-10-17，正本 = `M7-6-01-PLAN-REVIEW.md`
+> e61185b0）随行内标注**：D-M7-6-5（yiyin Slider「零命中」为 grep 假阴
+> 性，实测 3 处在册）与 D-M7-6-7（setControlAdmit 装配构成实为三宿主，
+> embedded 委托 startHTTPHost 无独立安装点）——上游 RESEARCH 同句以本
+> 文勘误为准，晨审可翻。
 >
 > **夜间全自动授权在案**（先例 D-07-3-T5-1；晨审可推翻）：本 phase 执行批
 > （双 zcode subagent 执行 + 独立验收 + 全套 `--all` 轮〔本 plan 期
@@ -40,7 +45,7 @@ skills 文档仓（自家 MCP 的 agent 使用文档——仓内 `skills/lightam
 挂导出同款 ICC v4 + 解码等值测试）③UQ-L1 滑杆横扫 scrub（LightamerSlider
 单组件 readout DragGesture，D-H1 三段回调复用）④M7-5 major-1
 setControlAdmit 生产接线（宿主透传参案）⑤minor-1 裸 stdio/http 臂
-agentControl 两行 + obs-3 acquire 复检硬化两行 ⑥M7 站 VALIDATION 收口
+agentControl 两行 + obs-3 acquire 复检硬化（快照+条件复检三行，review B1） ⑥M7 站 VALIDATION 收口
 （单站级文档，含 M7-5 签核 + 制度偏离登记 + SC 翻账）。对应 REQUIREMENTS
 SKILLS-01（:452）+ UQ-A1/UQ-L1（:458/:460）+ M7-5-SUMMARY §Leftovers
 1/2/3/6。验收形态（ROADMAP 定式）：skill 仓机检 reference 生成 ✓ / UQ-A1
@@ -100,8 +105,11 @@ SKILLS-01（:452）+ UQ-A1/UQ-L1（:458/:460）+ M7-5-SUMMARY §Leftovers
   MonochromePanelView 自有 row 不获 scrub，登记观察项不顺手改。
 - 证据：RESEARCH §3.1-§3.2（LightamerSlider :18-81，readout :65-69 零手
   势 = 缺口；Monochrome 自有 row :178 不组合 LightamerSlider；yiyin 面板
-  grep Slider 零命中——UQ 条目「yiyin 通用」实际范围 = iop 面板族）；
-  §7.5。
+  grep Slider 零命中——**勘误（review M2，2026-10-17）：实测 3 处
+  `LightamerSlider(` 调用在册（YiyinPanelView :160/:182/:203），原「零
+  命中」为 RESEARCH §3.1 grep 假阴性，原句留痕、勘误随 DECISIONS 申报
+  ——UQ 条目「yiyin 通用」实际范围 = iop + yiyin 面板族〔三处落在 177
+  调用点内，scrub 自动受益〕））；§7.5。
 - 被否备选：全部自有 row（Monochrome 登记观察项即可——顺手改 = 范围膨胀）。
 
 ### D-M7-6-6 track 双击 wrinkle = 登记不动（OQ-M7-6-6）
@@ -120,8 +128,13 @@ SKILLS-01（:452）+ UQ-A1/UQ-L1（:458/:460）+ M7-5-SUMMARY §Leftovers
   （startReadOnlyHTTPHost :722 / startHeadlessStdioHost :786 /
   startHTTPHost :1035 / startEmbeddedIfPreferenceEnabled :1137——
   EmbeddedState box 加 `admit` 字段承载）+ `startEmbeddedServer` :1165
-  直通；每宿主函数体 `setWriterCheck` 之后 `if let admit { await
-  registry.setControlAdmit(admit) }`；GUI 装配点（LightamerApp
+  直通；`setControlAdmit` **生产调用恰 3 点** = 三宿主函数体
+  `setWriterCheck` 之后（:737/:819/:1081 各 +1 `if let admit { await
+  registry.setControlAdmit(admit) }`）——embedded 无自有 registry、整段
+  委托 startHTTPHost（:1176），经 box→startHTTPHost **复用 :1081 单点
+  装配，无独立安装点**（**勘误 review M1，2026-10-17**：RESEARCH §4.1
+  「四宿主装配点」将无 registry 的 embedded 段并入宿主清单——行号全对、
+  构成错；禁在 embedded 段经 handle 二次安装）；GUI 装配点（LightamerApp
   :1632-1651 段）喂 coordinator-backed admit 闭包（acquire provider
   plain-await hop 同款先例形）。无头臂 nil = 恒放行 = D-M7-5 正确语义，
   字节零 diff。理由一句：与 `writerCheck` 装配先例完全同构（:819/:1081
