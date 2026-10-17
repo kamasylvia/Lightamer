@@ -83,6 +83,19 @@ public enum McpToolError: Error, Sendable {
     /// misreport an absent asset/process as our bug). Retrying with
     /// different parameters cannot help; the message says which leg.
     case modelUnavailable(String)
+    /// M7-5-01 (D-M7-5-1, ≙ Alcedo -32003): a state-changing command was
+    /// dispatched while this agent session does NOT hold the GUI control —
+    /// the message says to `control_acquire` first.
+    case controlNotHeld(String)
+    /// M7-5-01 (D-M7-5-1, ≙ Alcedo -32004): the user STOPPED the agent
+    /// (the activity card's Stop) — the message tells the agent to stop
+    /// working and ask the user before acquiring again.
+    case controlRevokedByUser(String)
+    /// M7-5-01 (D-M7-5-1, ≙ Alcedo -32005): another holder already holds
+    /// the control (the message carries the holder), or the acquisition
+    /// wait timed out on an unsealed editor input (the message carries the
+    /// unsealed semantics).
+    case controlBusy(String)
 
     /// The stable snake_case code surfaced to MCP clients.
     public var code: String {
@@ -103,6 +116,9 @@ public enum McpToolError: Error, Sendable {
         case .projectReadOnly: "projectReadOnly"
         case .internalError: "internalError"
         case .modelUnavailable: "modelUnavailable"
+        case .controlNotHeld: "controlNotHeld"
+        case .controlRevokedByUser: "controlRevokedByUser"
+        case .controlBusy: "controlBusy"
         }
     }
 
@@ -114,7 +130,8 @@ public enum McpToolError: Error, Sendable {
             .renderTimeout(let m), .exportFailed(let m), .invalidFilter(let m),
             .roiOutOfBounds(let m), .keywordContainsSeparator(let m),
             .exportPresetNotApplicable(let m), .unknownPreset(let m),
-            .projectReadOnly(let m), .internalError(let m), .modelUnavailable(let m):
+            .projectReadOnly(let m), .internalError(let m), .modelUnavailable(let m),
+            .controlNotHeld(let m), .controlRevokedByUser(let m), .controlBusy(let m):
             m
         }
     }
@@ -223,6 +240,12 @@ public enum McpTimeouts {
     public static let export: Duration = .seconds(120)
     /// Graceful-shutdown in-flight drain (§RQ-14-14 停机处置).
     public static let shutdownDrain: Duration = .seconds(5)
+    /// M7-5-01 (D-M7-5-7): `control_acquire` waiting on an unsealed editor
+    /// input (the user mid-drag) — the bounded wait before the typed busy
+    /// answer. The coordinator's injected default reads THIS
+    /// (tests pass a short window; the tool face never hard-codes a bare
+    /// number).
+    public static let controlAcquire: Duration = .seconds(10)
 }
 
 /// The render serial gate (§RQ-14-13): every GPU render-class tool
@@ -283,6 +306,12 @@ public actor McpToolRegistry {
     private struct Entry {
         var descriptor: McpToolDescriptor
         var requiresWriter: Bool
+        /// M7-5-01 (D-M7-5-3): the third gate — the tool changes the GUI
+        /// session state and must pass the control-admit seam BEFORE the
+        /// handler (the agent must hold the control). `false` default keeps
+        /// every pre-M7-5 registration byte-identical; the control commands
+        /// themselves stay `false` (changing the control IS the control).
+        var requiresControl: Bool
         var handler: McpToolHandler
     }
 
@@ -294,6 +323,16 @@ public actor McpToolRegistry {
     /// not hold the endpoint lock). `nil` = no gate (tests, and the
     /// single-writer default).
     private var writerCheck: (@Sendable () async -> Bool)?
+
+    /// M7-5-01 (D-M7-5-3): the control-admit seam — same mechanical shape
+    /// as `writerCheck`. When set, tools registered with
+    /// `requiresControl: true` call it BEFORE the handler (after the writer
+    /// gate — the two gates stack, never substitute) and it throws the typed
+    /// control errors when the agent session may not act (the D-M7-5-1
+    /// tier). `nil` = no gate (headless always-admit
+    /// arm, tests). NOT counted in `writeCallCount` — the write counter
+    /// still rides the writer gate only.
+    private var controlAdmit: (@Sendable (_ toolName: String) async throws -> Void)?
 
     /// The process-wide write-face call counter (Plan 14-4 T2): every
     /// `requiresWriter` CALL that passed the gate increments this — the
@@ -310,15 +349,25 @@ public actor McpToolRegistry {
     public func register(
         _ descriptor: McpToolDescriptor,
         requiresWriter: Bool = false,
+        requiresControl: Bool = false,
         handler: @escaping McpToolHandler
     ) {
         entries[descriptor.name] = Entry(
-            descriptor: descriptor, requiresWriter: requiresWriter, handler: handler)
+            descriptor: descriptor, requiresWriter: requiresWriter,
+            requiresControl: requiresControl, handler: handler)
     }
 
     /// Installs the writer gate (T3: the flock owner check).
     public func setWriterCheck(_ check: (@Sendable () async -> Bool)?) {
         writerCheck = check
+    }
+
+    /// Installs the control-admit gate (M7-5-01 T1: the GUI coordinator
+    /// backs it; the headless arm leaves it nil = always admit).
+    public func setControlAdmit(
+        _ admit: (@Sendable (_ toolName: String) async throws -> Void)?
+    ) {
+        controlAdmit = admit
     }
 
     /// The registered tool descriptors in registration order (stable for
@@ -348,6 +397,13 @@ public actor McpToolRegistry {
                         + "HTTP endpoint listed in mcp-endpoint.json instead")
             }
             writeCallCount += 1
+        }
+        // M7-5-01 (D-M7-5-3): the control gate AFTER the writer gate, BEFORE
+        // the handler. The admit throw face is the coordinator's typed
+        // control errors; writeCallCount stays untouched here (the counter
+        // rides the writer gate only — D-M7-5-3).
+        if entry.requiresControl, let controlAdmit {
+            try await controlAdmit(name)
         }
         return try await entry.handler(arguments)
     }

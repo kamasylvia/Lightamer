@@ -141,11 +141,16 @@ enum EditingToolset {
     static func register(into registry: McpToolRegistry, seams: Seams) async {
         await registry.register(
             loadImageDescriptor, requiresWriter: false,
+            // M7-5-01 (D-M7-5-3): state-changing (switches the editor
+            // document) — the control gate applies despite requiresWriter:
+            // false.
+            requiresControl: true,
             handler: { arguments in
                 try await loadImageBody(arguments: arguments, seams: seams)
             })
         await registry.register(
             applyParamsDescriptor, requiresWriter: true,
+            requiresControl: true,
             handler: { arguments in
                 try await applyParamsBody(arguments: arguments, seams: seams)
             })
@@ -160,6 +165,7 @@ enum EditingToolset {
             })
         await registry.register(
             pasteAdjustmentsDescriptor, requiresWriter: true,
+            requiresControl: true,
             handler: { arguments in
                 try await pasteAdjustmentsBody(arguments: arguments, seams: seams)
             })
@@ -220,6 +226,7 @@ enum EditingToolset {
             })
         await registry.register(
             exportImageDescriptor, requiresWriter: true,
+            requiresControl: true,
             handler: { arguments in
                 try await exportImageBody(arguments: arguments, seams: seams)
             })

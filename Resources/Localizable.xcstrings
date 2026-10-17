@@ -32652,6 +32652,36 @@
           }
         }
       }
+    },
+    "mcp_tool_desc_control_acquire" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取得 GUI 会话的 agent 控制权（人机共驾：agent 持有控制期间用户编辑面被禁用；state-changing 工具在未持有时应答 controlNotHeld）。holder_name：你的会话标签（缺省 \"agent\"）——用户 Stop 后用同一标签恢复会延续先前任务；不同标签则新建任务。另一 holder 已持有时应答 controlBusy（携该 holder）；用户正在编辑器拖动时本调用会等待输入封合（有界等待，超时应答 controlBusy）。用 control_get / get_state 轮询变化（v1 无推送通知）。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_control_release" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把 agent 控制权交还给用户。幂等——未持有控制时调用不改变任何状态（状态对象照常应答）。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_control_get" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只读查询当前控制状态 {held, revokedByUser, holder}（轮询面——v1 无 control 变更通知）。revokedByUser = 用户已停止 agent：先停下工作、征得用户同意后再重新 acquire。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

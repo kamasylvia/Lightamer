@@ -336,6 +336,11 @@ enum McpCullingToolset {
                     inputSchemaJSON: schema,
                     destructiveHint: true),
                 requiresWriter: true,
+                // M7-5-01 (D-M7-5-3): ONE gate site covers the metadata
+                // write face's five tools (set_rating/set_flag/
+                // set_color_label/append_note/set_keywords ride this
+                // helper — never split into separate registers).
+                requiresControl: true,
                 handler: { arguments in
                     try await withTimeout(
                         McpTimeouts.metadataWrite,
@@ -527,6 +532,7 @@ enum McpCullingToolset {
                     #"{"type":"object","required":["presetID","relPaths"],"properties":{"presetID":{"type":"string"},"relPaths":{"type":"array","items":{"type":"string"},"maxItems":1000},"mode":{"enum":["overwrite","merge"],"description":"Paste mode (default merge)"},"selection":{"type":"array","description":"Partial-apply subset of instances","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer"},"multiName":{"type":"string"}},"required":["opName","multiPriority","multiName"]}}}}"#,
                 destructiveHint: true),
             requiresWriter: true,
+            requiresControl: true,
             handler: { arguments in
                 try await withTimeout(
                     McpTimeouts.apply,

@@ -163,6 +163,7 @@ enum MatchColorToolset {
     static func register(into registry: McpToolRegistry, seams: EditingToolset.Seams) async {
         await registry.register(
             descriptor, requiresWriter: true,
+            requiresControl: true,
             handler: { arguments in
                 try await body(arguments: arguments, seams: seams)
             })
