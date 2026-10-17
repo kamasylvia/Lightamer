@@ -115,7 +115,11 @@ REQUIREMENTS TURN-01..04（:445-448）；对表锚 = Alcedo Studio AU14（HEAD
   历史列表）/ Version mutation+checkout（`VersionsPanelView`）/ editor 切图
   （`FilmstripView` + SessionCoordinator 路由）/ import（`ImportModeDialog`
   confirm → `LibraryProjectController.runImport` 入口）/ delete / rating
-  （图库删除/评分控件——`LibraryGridView`/`LibraryInspectorView`）/
+  （图库删除/评分控件——`LibraryGridView`/`LibraryInspectorView`）〔
+  **F5 勘注（2026-10-13 plan 评审，裁决不重开）**：delete 面我方语义
+  缺席——无删除工具（MCP 29 无 delete）+ 无删除 UI（全 App 无图库删除
+  路由），零落点申报（LibraryGridView 零触），Alcedo 禁面语义由缺席
+  覆盖〕/
   export start（topbar export/yiyin 钮 :625/:638 同点位 + `ExportState`
   enqueue 入口）/ project open/create/close（**调用点视图层加门——
   `LibraryProjectController` 文件零 diff，FIX2③ 第四波维持**）。
@@ -161,7 +165,12 @@ REQUIREMENTS TURN-01..04（:445-448）；对表锚 = Alcedo Studio AU14（HEAD
 - **裁决 = RESEARCH 推荐（①等待 10s）**：acquire 检
   `hasInFlightLiveEdit`（D-H1 begin/commit 窗计数查询——`PipeCoordinator`
   additive 只读深度计数，`beginContinuousEdit` :1771 / `commitContinuousEdit`
-  :1815 两点配对增减）；有在飞 live drag → acquire 挂起轮询等封合；
+  :1815 两点配对增减）〔**2026-10-13 plan 评审 F2 载体勘注（orchestrator
+  裁定，裁决不重开）**：等待窗载体改三窗 OR 计算属性 `liveEditActive =
+  isEditingContinuous || isEditingDrt || isEditingFilm`——DRT/Film 拖动
+  连续窗与 D-H1 窗同入口径（Alcedo UnsealedEditorInput 全语义对表；
+  深度计数的视图拆卸丢 commit 永久卡死脆弱性 = V2 遗留面登记）；
+  「等待 + 10s + 注入短窗」裁决原样〕；有在飞 live drag → acquire 挂起轮询等封合；
   `McpTimeouts.controlAcquire`（**新档 `.seconds(10)`**）兜底超时 →
   `controlBusy`（message 携「编辑器输入未封合」语义族——自写文案）。
   用户拖滑杆是秒级常态，立即拒会把 agent 打进无谓重试环。
