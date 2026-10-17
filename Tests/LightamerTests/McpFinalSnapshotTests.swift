@@ -274,7 +274,7 @@ final class McpFinalSnapshotTests: XCTestCase {
 
     // MARK: - The assembly
 
-    private func makeUnionRegistry() async -> McpToolRegistry {
+    func makeUnionRegistry() async -> McpToolRegistry {
         await McpServerController.makeRegistry(
             editing: EditingToolset.Seams(
                 session: { nil }, metal: { nil }, modules: { ModuleRegistry() },

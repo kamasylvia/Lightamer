@@ -97,6 +97,9 @@ agent can screen and edit the photos of the currently open session.
 - **Headless**: the same binary serves MCP over stdio
   (`Lightamer.app/Contents/MacOS/Lightamer --mcp-stdio`) or HTTP
   (`--mcp-http`).
+- **Agent docs**: `skills/lightamer-mcp/` is the agent-facing skill
+  (session start, turn-taking, domain boundaries, error codes, preview
+  semantics) — start there when wiring an agent to Lightamer.
 
 ## Testing
 

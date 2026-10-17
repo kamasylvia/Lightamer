@@ -774,3 +774,4 @@ APP	15	McpControlToolsetTests.swift
 APP	10	AgentControlCoordinatorTests.swift
 APP	3	EditorPreviewColorSpaceTests.swift
 APP	3	LightamerSliderScrubTests.swift
+APP	2	SkillsReferenceTests.swift
