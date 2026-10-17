@@ -664,6 +664,21 @@ enum McpServerController {
         }
     }
 
+    /// S2 (D-M7-4-8): the launch-time LUT library preheat. The FIRST
+    /// `LutLibraryStore.shared` access runs the swift_once store init
+    /// (built-in seeding + the ~50s full-library parse); detaching it at
+    /// .utility from every host start moves that cost off the agent's
+    /// first `list_luts` call. The env gate is the TEST-context opt-out
+    /// (M7-4-01 F14): the e2e/arbitration spawn fixtures inject
+    /// LIGHTAMER_SKIP_LUT_PREHEAT so a spawned real host pays neither the
+    /// parse CPU nor the real-user LUT-root seeding inside the assertion
+    /// windows. swift_once makes the multiple assembly points idempotent.
+    static func warmLutLibrary() {
+        guard ProcessInfo.processInfo
+            .environment["LIGHTAMER_SKIP_LUT_PREHEAT"] == nil else { return }
+        Task.detached(priority: .utility) { _ = LutLibraryStore.shared }
+    }
+
     /// The read-only HTTP serve face (the project read-only arm): binds
     /// loopback ephemeral WITHOUT the endpoint writer right and writes NO
     /// discovery json; every write-face tool fails at call time (the
@@ -674,6 +689,7 @@ enum McpServerController {
         searchState: McpSearchStateContext? = nil,
         project: McpProjectContext? = nil
     ) async {
+        warmLutLibrary()
         var editing = await makeEditingSeams(session: { nil })
         editing.projectWriteProbe = projectWriteProbe
         var culling = makeCullingContext(session: { nil })
@@ -736,6 +752,7 @@ enum McpServerController {
         searchState: McpSearchStateContext? = nil,
         project: McpProjectContext? = nil
     ) async {
+        warmLutLibrary()
         let stderr = FileHandle.standardError
         do {
             let lock: McpEndpointLock?
@@ -977,6 +994,7 @@ enum McpServerController {
         searchState: McpSearchStateContext? = nil,
         project: McpProjectContext? = nil
     ) async throws -> HttpHostHandle {
+        warmLutLibrary()
         // The Bearer valve exists ONLY on the non-loopback branch (the
         // loopback default is zero-token by design — the smallest surface).
         let bearerToken: String?

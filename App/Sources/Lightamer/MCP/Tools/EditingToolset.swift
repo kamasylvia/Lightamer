@@ -339,7 +339,10 @@ enum EditingToolset {
                 + "remembered authoring-encoding pair. The key is the ADDRESSING "
                 + "value: pass it as the lut3d module's params `lutName` for NEW "
                 + "writes. libraryRoot is the library root the keys are relative "
-                + "to. Read-only, stateless, no errors beyond internalError.")),
+                + "to. In a FRESH host the first call may block up to ~50s while "
+                + "the LUT library preheats in the background — clients with "
+                + "short timeouts should retry. Read-only, stateless, no errors "
+                + "beyond internalError.")),
         inputSchemaJSON: #"{"type":"object","properties":{},"required":[]}"#,
         readOnlyHint: true)
 

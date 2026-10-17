@@ -1257,6 +1257,12 @@ internal struct LightamerApp: App {
                     // The metadata seed is the app-wide default chain
                     // (the same face MetadataController.configure rides).
                     let mcpSeed = await seedInstances()
+                    // S2 (D-M7-4-8): the GUI assembly is the fourth preheat
+                    // point — the embedded-host path is already covered
+                    // transitively (startEmbeddedServer → startHTTPHost),
+                    // this direct call is the LUT-panel benefit leg
+                    // (redundant and harmless — swift_once idempotent).
+                    McpServerController.warmLutLibrary()
                     var cullingContext = McpCullingContext(
                         store: { [sessionIndexController] in
                             await MainActor.run { sessionIndexController.currentStore }

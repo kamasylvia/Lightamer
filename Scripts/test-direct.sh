@@ -59,6 +59,14 @@ set -euo pipefail
 
 ROOT="${0:A:h:h}"
 
+# ── 测试语境 LUT 预热门（M7-4-01 T2/F14）──────────────────────────────
+# McpServerController.warmLutLibrary 的 env 门：本脚本导出
+# LIGHTAMER_SKIP_LUT_PREHEAT=1，直启宿主与其 spawn 的子进程（env 继承）
+# 一律零预热——in-process startHTTPHost 直调面（McpHostTests /
+# McpFinalSnapshotTests / McpRenderParityTests）与真宿主 e2e spawn 都
+# 不付 ~50s 全库解析、不触真实用户 LUT 根 seeding。
+export LIGHTAMER_SKIP_LUT_PREHEAT=1
+
 # ── 运行门（先于 parse_bundle_log 定义：LA_SELFTEST source 路径下 parse 亦需在册）──
 # 门修订（2026-09-30，SPIKE 70e09e5 证伪原 <3G 门槛）：by-design GB 级重测单类自身
 # 峰值即 TilingOverlapTests 7865 / HDRPipelineMatrixTests 5913 / QuickLookRendererTests
