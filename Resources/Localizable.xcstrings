@@ -32762,6 +32762,23 @@
           }
         }
       }
+    },
+    "latitude_share_value" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ %lld%%"
+          }
+        },
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ %lld%%"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

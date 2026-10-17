@@ -10,6 +10,16 @@ import SwiftUI
 // readout row with the Solve button (the cache invalidation face). NO
 // tolerance/histogram/descriptor face — FSIM-02 (M3-4). Material names are
 // the assets' info.name (technical proper nouns, not translated).
+//
+// AR-01 T3 (audit M5): the three former `private var` sections are now
+// their own View structs (SessionControlsView / LatitudeSectionView /
+// PlacementSectionView) — computed properties share the panel's single
+// invalidation boundary, so any model tick re-evaluated the whole panel
+// (Canvas histogram + pickers + readouts included); the structs give each
+// section its own boundary. Behavior-preserving: every binding is a
+// line-for-line translation (live tick → setLive, drag end → commit
+// untouched; the `model?.` optional chains dropped where the sub-view's
+// non-optional `let model` makes them moot).
 // ─────────────────────────────────────────────────────────────────────────────
 
 internal struct FilmPanelView: View {
@@ -35,10 +45,10 @@ internal struct FilmPanelView: View {
                     if model.isPristine {
                         enableEntry
                     } else {
-                        sessionControls
+                        SessionControlsView(model: model)
                     }
-                    latitudeSection
-                    placementSection
+                    LatitudeSectionView(model: model)
+                    PlacementSectionView(model: model)
                 }
             } else {
                 EmptyView()
@@ -103,20 +113,29 @@ internal struct FilmPanelView: View {
         }
         .padding(.horizontal, 8)
     }
+}
 
-    // MARK: - The session controls
+// ─────────────────────────────────────────────────────────────────────────────
+// SessionControlsView (AR-01 T3 / audit M5) — the former `sessionControls`
+// section as its own invalidation boundary: the material pickers, the four
+// D-H1 sliders, the content-adaptive Toggle and the solve readout row.
+// ─────────────────────────────────────────────────────────────────────────────
 
-    private var sessionControls: some View {
+private struct SessionControlsView: View {
+
+    let model: FilmPanelModel
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             row(String(localized: "film_label_film", defaultValue: "Film")) {
                 Picker(
                     String(localized: "film_label_film", defaultValue: "Film"),
                     selection: Binding(
-                        get: { model?.record.filmStock ?? "" },
-                        set: { model?.setFilmStock($0) }
+                        get: { model.record.filmStock },
+                        set: { model.setFilmStock($0) }
                     )
                 ) {
-                    ForEach(model?.filmStocks ?? [], id: \.info.stock) { profile in
+                    ForEach(model.filmStocks, id: \.info.stock) { profile in
                         Text(verbatim: profile.info.name ?? profile.info.stock ?? "")
                             .tag(profile.info.stock ?? "")
                     }
@@ -128,11 +147,11 @@ internal struct FilmPanelView: View {
                 Picker(
                     String(localized: "film_label_paper", defaultValue: "Paper"),
                     selection: Binding(
-                        get: { model?.record.paperStock ?? "" },
-                        set: { model?.setPaperStock($0) }
+                        get: { model.record.paperStock },
+                        set: { model.setPaperStock($0) }
                     )
                 ) {
-                    ForEach(model?.paperStocks ?? [], id: \.info.stock) { profile in
+                    ForEach(model.paperStocks, id: \.info.stock) { profile in
                         Text(verbatim: profile.info.name ?? profile.info.stock ?? "")
                             .tag(profile.info.stock ?? "")
                     }
@@ -143,40 +162,40 @@ internal struct FilmPanelView: View {
             shiftRow(
                 String(localized: "film_label_yellow", defaultValue: "Yellow"),
                 value: Binding(
-                    get: { model?.record.yFilterShift ?? 0 },
-                    set: { model?.setYShiftLive($0) }
+                    get: { model.record.yFilterShift },
+                    set: { model.setYShiftLive($0) }
                 ),
                 range: FilmPanelModel.shiftRange,
-                readout: "\(Int(model?.record.yFilterShift ?? 0)) CC",
+                readout: "\(Int(model.record.yFilterShift)) CC",
                 axIdentifier: "film.y.slider")
             shiftRow(
                 String(localized: "film_label_magenta", defaultValue: "Magenta"),
                 value: Binding(
-                    get: { model?.record.mFilterShift ?? 0 },
-                    set: { model?.setMShiftLive($0) }
+                    get: { model.record.mFilterShift },
+                    set: { model.setMShiftLive($0) }
                 ),
                 range: FilmPanelModel.shiftRange,
-                readout: "\(Int(model?.record.mFilterShift ?? 0)) CC",
+                readout: "\(Int(model.record.mFilterShift)) CC",
                 axIdentifier: "film.m.slider")
             shiftRow(
                 String(localized: "film_label_strength", defaultValue: "Strength"),
                 value: Binding(
-                    get: { model?.record.strength ?? 1 },
-                    set: { model?.setStrengthLive($0) }
+                    get: { model.record.strength },
+                    set: { model.setStrengthLive($0) }
                 ),
                 range: FilmPanelModel.strengthRange,
                 readout: String(
-                    format: "%.2f", Double(model?.record.strength ?? 1)),
+                    format: "%.2f", Double(model.record.strength)),
                 axIdentifier: "film.strength.slider")
             shiftRow(
                 String(localized: "film_label_exposure", defaultValue: "Exposure"),
                 value: Binding(
-                    get: { model?.record.exposureEv ?? 0 },
-                    set: { model?.setExposureLive($0) }
+                    get: { model.record.exposureEv },
+                    set: { model.setExposureLive($0) }
                 ),
                 range: FilmPanelModel.exposureRange,
                 readout: String(
-                    format: "%+.2f EV", Double(model?.record.exposureEv ?? 0)),
+                    format: "%+.2f EV", Double(model.record.exposureEv)),
                 axIdentifier: "film.exposure.slider")
             row(String(
                     localized: "film_label_content_adaptive",
@@ -185,8 +204,8 @@ internal struct FilmPanelView: View {
                 Toggle(
                     String(localized: "film_label_content_adaptive", defaultValue: ""),
                     isOn: Binding(
-                        get: { model?.record.contentAdaptiveShift ?? false },
-                        set: { model?.setContentAdaptive($0) }
+                        get: { model.record.contentAdaptiveShift },
+                        set: { model.setContentAdaptive($0) }
                     )
                 )
                 .labelsHidden()
@@ -201,7 +220,7 @@ internal struct FilmPanelView: View {
     private var readoutRow: some View {
         row(String(localized: "film_label_readout", defaultValue: "Solve")) {
             HStack(spacing: 6) {
-                if let readout = model?.solveReadout {
+                if let readout = model.solveReadout {
                     Text(verbatim: String(
                         format: "M %.1f · Y %.1f · ×%.2f",
                         readout.magentaCC, readout.yellowCC, readout.gain))
@@ -218,7 +237,7 @@ internal struct FilmPanelView: View {
                 }
                 Spacer(minLength: 4)
                 Button(String(localized: "film_solve", defaultValue: "Solve")) {
-                    model?.forceResolve()
+                    model.forceResolve()
                 }
                 .buttonStyle(.borderless)
                 .controlSize(.mini)
@@ -227,9 +246,57 @@ internal struct FilmPanelView: View {
         }
     }
 
-    // MARK: - The latitude section (FSIM-02, M3-4-01 KD-3)
+    // MARK: - Shared row shell (the DrtPanelView row shape)
 
-    private var latitudeSection: some View {
+    private func row(_ label: String, @ViewBuilder content: () -> some View)
+        -> some View
+    {
+        HStack {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(ThemeTokens.textSecondary)
+                .frame(width: 110, alignment: .leading)
+            content()
+        }
+        .padding(.vertical, 2)
+    }
+    /// One slider row: the D-H1 trio rides the shared bindings (live ticks
+    /// re-render with zero items; the drag end commits exactly once).
+    private func shiftRow(
+        _ label: String, value: Binding<Float>, range: ClosedRange<Float>,
+        readout: String, axIdentifier: String
+    ) -> some View {
+        row(label) {
+            HStack {
+                Slider(value: value, in: range) { editing in
+                    if editing {
+                        model.beginDrag()
+                    } else {
+                        model.commitDrag()
+                    }
+                }
+                .accessibilityIdentifier(axIdentifier)
+                Text(readout)
+                    .font(.caption2.monospacedDigit())
+                    .frame(width: 56, alignment: .trailing)
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LatitudeSectionView (AR-01 T3 / audit M5) — the former `latitudeSection`
+// section: the teaching notes, the EV-axis histogram Canvas, the
+// below/inside/above share readouts (m9: each share renders through its own
+// static format key — the verbatim label+percent concatenation broke zh word
+// order) and the absence notes.
+// ─────────────────────────────────────────────────────────────────────────────
+
+private struct LatitudeSectionView: View {
+
+    let model: FilmPanelModel
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Divider().padding(.vertical, 2)
             Text(String(localized: "latitude_section", defaultValue: "Latitude"))
@@ -260,7 +327,7 @@ internal struct FilmPanelView: View {
     /// pair's dashed lines (absent + noted without a descriptor).
     private var latitudeHistogram: some View {
         Canvas { context, size in
-            let luma = model?.latitudeStats?.perChannel[3] ?? []
+            let luma = model.latitudeStats?.perChannel[3] ?? []
             let maxCount = luma.max().map { Int($0) } ?? 0
             let barWidth = max(1.0, size.width / 256.0)
             for (bin, count) in luma.enumerated() {
@@ -275,7 +342,7 @@ internal struct FilmPanelView: View {
                 context.fill(
                     Path(rect), with: .color(ThemeTokens.textSecondary.opacity(0.65)))
             }
-            if let descriptor = model?.latitudeDescriptor {
+            if let descriptor = model.latitudeDescriptor {
                 for ev in [descriptor.usefulShadowEV, descriptor.usefulHighlightEV] {
                     let x = size.width * min(max(evFraction(ev), 0), 1)
                     var path = Path()
@@ -298,27 +365,32 @@ internal struct FilmPanelView: View {
     }
 
     /// The below/inside/above shares (nil = the descriptor's absence is
-    /// presented, never faked).
+    /// presented, never faked). m9 (AR-01 T3): each share renders through
+    /// the ONE `latitude_share_value` format key (the label-arg + %lld
+    /// slots — zh word order is the catalog's business) with the existing
+    /// latitude_share_* label keys as the argument (they stay live — zero
+    /// orphan catalog keys); the former `"\(label) \(pct)%"` verbatim
+    /// concatenation is gone.
     private var shareReadoutRow: some View {
         Group {
-            if let stats = model?.latitudeStats,
-                let descriptor = model?.latitudeDescriptor,
+            if let stats = model.latitudeStats,
+                let descriptor = model.latitudeDescriptor,
                 let shares = FilmPanelModel.latitudeShares(
                     histogram: stats,
                     belowEV: descriptor.usefulShadowEV,
                     aboveEV: descriptor.usefulHighlightEV) {
                 HStack(spacing: 10) {
                     shareLabel(
-                        String(localized: "latitude_share_below",
-                               defaultValue: "Below"), shares.below,
+                        String(localized: "latitude_share_value",
+                               defaultValue: "\(String(localized: "latitude_share_below", defaultValue: "Below")) \(Int((shares.below * 100).rounded()))%"),
                         "film.latitude.share.below")
                     shareLabel(
-                        String(localized: "latitude_share_inside",
-                               defaultValue: "Inside"), shares.inside,
+                        String(localized: "latitude_share_value",
+                               defaultValue: "\(String(localized: "latitude_share_inside", defaultValue: "Inside")) \(Int((shares.inside * 100).rounded()))%"),
                         "film.latitude.share.inside")
                     shareLabel(
-                        String(localized: "latitude_share_above",
-                               defaultValue: "Above"), shares.above,
+                        String(localized: "latitude_share_value",
+                               defaultValue: "\(String(localized: "latitude_share_above", defaultValue: "Above")) \(Int((shares.above * 100).rounded()))%"),
                         "film.latitude.share.above")
                     Spacer(minLength: 0)
                 }
@@ -333,10 +405,10 @@ internal struct FilmPanelView: View {
         }
     }
 
-    private func shareLabel(_ label: String, _ share: Double, _ axID: String)
+    private func shareLabel(_ text: String, _ axID: String)
         -> some View
     {
-        Text(verbatim: "\(label) \(Int((share * 100).rounded()))%")
+        Text(text)
             .font(.caption2.monospacedDigit())
             .foregroundStyle(ThemeTokens.textSecondary)
             .accessibilityIdentifier(axID)
@@ -345,19 +417,19 @@ internal struct FilmPanelView: View {
     @ViewBuilder
     private var notes: some View {
         VStack(alignment: .leading, spacing: 2) {
-            if model?.latitudeStats == nil {
+            if model.latitudeStats == nil {
                 Text(String(localized: "latitude_stats_missing",
                             defaultValue: "Film statistics not in yet."))
                     .font(.caption2)
                     .foregroundStyle(ThemeTokens.textSecondary)
             }
-            if model?.latitudeDescriptor == nil {
+            if model.latitudeDescriptor == nil {
                 Text(String(localized: "latitude_descriptor_missing",
                             defaultValue: "Descriptor unavailable for this pair — the dashed lines stay absent."))
                     .font(.caption2)
                     .foregroundStyle(ThemeTokens.textSecondary)
             }
-            if model?.placementAnchors.usedFallback == true {
+            if model.placementAnchors.usedFallback == true {
                 Text(String(localized: "latitude_fallback_note",
                             defaultValue: "Anchors on the no-film fallback constants."))
                     .font(.caption2)
@@ -366,12 +438,21 @@ internal struct FilmPanelView: View {
         }
         .padding(.horizontal, 8)
     }
+}
 
-    // MARK: - The placement editing section (KD-3; T1+T2 landed — the
-    // hard order satisfied)
+// ─────────────────────────────────────────────────────────────────────────────
+// PlacementSectionView (AR-01 T3 / audit M5) — the former `placementSection`
+// section: the add button / the N_h·N_s·m·Fit editing face + the §9.2
+// readouts (m9: side-by-side Texts replace the localized-label concatenation
+// — zero new keys, the existing latitude_readout_* keys stay) + the typed
+// refusal rows.
+// ─────────────────────────────────────────────────────────────────────────────
 
-    @ViewBuilder
-    private var placementSection: some View {
+private struct PlacementSectionView: View {
+
+    let model: FilmPanelModel
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Divider().padding(.vertical, 2)
             Text(String(localized: "latitude_placement_section",
@@ -379,9 +460,9 @@ internal struct FilmPanelView: View {
                 .font(.callout.weight(.medium))
                 .foregroundStyle(ThemeTokens.textPrimary)
                 .padding(.horizontal, 8)
-            if model?.placementTarget == nil {
+            if model.placementTarget == nil {
                 Button {
-                    model?.addPlacement()
+                    model.addPlacement()
                 } label: {
                     Text(String(localized: "latitude_placement_add",
                                 defaultValue: "Add Scene Placement"))
@@ -400,9 +481,8 @@ internal struct FilmPanelView: View {
     }
 
     private var placementControls: some View {
-        let params = model?.placementParams ?? FilmPlacementModule.Params()
-        let anchors = model?.placementAnchors
-            ?? PlacementResolver.anchors(stats: nil, descriptor: nil)
+        let params = model.placementParams ?? FilmPlacementModule.Params()
+        let anchors = model.placementAnchors
         let minimums = PlacementResolver.sliderMinimums(anchors: anchors)
         let capH = max(minimums.nH, anchors.aH - anchors.cS)
         let capS = max(minimums.nS, anchors.cH - anchors.aS)
@@ -418,10 +498,10 @@ internal struct FilmPanelView: View {
                 defaultValue: 0,
                 readoutFormat: "%.2f",
                 unit: " EV",
-                onDragBegin: { model?.beginPlacementDrag() },
-                onChange: { model?.tickPlacement(highlights: $0, shadows: nil) },
-                onDragEnd: { model?.endPlacementDrag() },
-                onReset: { model?.resetPlacementSide(highlights: true) },
+                onDragBegin: { model.beginPlacementDrag() },
+                onChange: { model.tickPlacement(highlights: $0, shadows: nil) },
+                onDragEnd: { model.endPlacementDrag() },
+                onReset: { model.resetPlacementSide(highlights: true) },
                 accessibilityID: "film.placement.nh")
             LightamerSlider(
                 label: String(localized: "latitude_label_ns",
@@ -431,10 +511,10 @@ internal struct FilmPanelView: View {
                 defaultValue: 0,
                 readoutFormat: "%.2f",
                 unit: " EV",
-                onDragBegin: { model?.beginPlacementDrag() },
-                onChange: { model?.tickPlacement(highlights: nil, shadows: $0) },
-                onDragEnd: { model?.endPlacementDrag() },
-                onReset: { model?.resetPlacementSide(highlights: false) },
+                onDragBegin: { model.beginPlacementDrag() },
+                onChange: { model.tickPlacement(highlights: nil, shadows: $0) },
+                onDragEnd: { model.endPlacementDrag() },
+                onReset: { model.resetPlacementSide(highlights: false) },
                 accessibilityID: "film.placement.ns")
             row(String(localized: "latitude_label_m",
                        defaultValue: "Roll-off m")) {
@@ -442,7 +522,7 @@ internal struct FilmPanelView: View {
                     Stepper(
                         value: Binding(
                             get: { params.rolloff },
-                            set: { model?.stepM($0) }
+                            set: { model.stepM($0) }
                         ),
                         in: mRange,
                         step: 0.5
@@ -456,12 +536,12 @@ internal struct FilmPanelView: View {
             row(String(localized: "latitude_fit", defaultValue: "Fit")) {
                 HStack(spacing: 6) {
                     Button(String(localized: "latitude_fit", defaultValue: "Fit")) {
-                        model?.runFit(m: params.rolloff)
+                        model.runFit(m: params.rolloff)
                     }
                     .buttonStyle(.borderless)
                     .controlSize(.mini)
                     .accessibilityIdentifier("film.placement.fit")
-                    if let outcome = model?.lastFitOutcome, outcome.refusedByHMin {
+                    if let outcome = model.lastFitOutcome, outcome.refusedByHMin {
                         Text(String(localized: "latitude_fit_refused_hmin",
                                     defaultValue: "Refused: the recommended rooms would undercut the curvature floor (H < 3.0)."))
                             .font(.caption2)
@@ -477,7 +557,12 @@ internal struct FilmPanelView: View {
     }
 
     /// The §9.2 readouts (the identity core width / both landings / both
-    /// endpoint slopes) — read-only, Solve-style refresh.
+    /// endpoint slopes) — read-only, Solve-style refresh. m9 (AR-01 T3):
+    /// side-by-side Texts (layout instead of concatenation — the former
+    /// single `String(format:)` row baked localized labels into a verbatim
+    /// pattern, breaking zh word order). Zero new keys: the existing
+    /// latitude_readout_* labels carry; the numeric fragments render through
+    /// format-style Texts (locale digits, the former %.2f/%+.2f/%.3f faces).
     private func placementReadouts(
         params: FilmPlacementModule.Params, anchors: PlacementAnchors
     ) -> some View {
@@ -494,28 +579,35 @@ internal struct FilmPanelView: View {
                 extreme: anchors.aS, boundary: anchors.cS, knee: $0,
                 m: Double(params.rolloff))
         } ?? 1
-        return VStack(alignment: .leading, spacing: 1) {
-            Text(verbatim: String(
-                format: "%@ %.2f EV    %@ %+.2f / %+.2f    %@ %.3f / %.3f",
-                String(localized: "latitude_readout_core",
-                       defaultValue: "Core"),
-                coreWidth,
-                String(localized: "latitude_readout_landing",
-                       defaultValue: "Lands"),
-                landingH, landingS,
-                String(localized: "latitude_readout_slope",
-                       defaultValue: "Slopes"),
-                slopeH, slopeS))
-            .font(.caption2.monospacedDigit())
-            .foregroundStyle(ThemeTokens.textSecondary)
-            .accessibilityIdentifier("film.placement.readouts")
+        return HStack(spacing: 6) {
+            Text(String(localized: "latitude_readout_core",
+                        defaultValue: "Core"))
+            Text(coreWidth, format: .number.precision(.fractionLength(2)))
+            Text(verbatim: "EV")
+            Text(String(localized: "latitude_readout_landing",
+                        defaultValue: "Lands"))
+            Text(landingH, format: .number.sign(
+                strategy: .always(includingZero: true))
+                .precision(.fractionLength(2)))
+            Text(verbatim: "/")
+            Text(landingS, format: .number.sign(
+                strategy: .always(includingZero: true))
+                .precision(.fractionLength(2)))
+            Text(String(localized: "latitude_readout_slope",
+                        defaultValue: "Slopes"))
+            Text(slopeH, format: .number.precision(.fractionLength(3)))
+            Text(verbatim: "/")
+            Text(slopeS, format: .number.precision(.fractionLength(3)))
         }
+        .font(.caption2.monospacedDigit())
+        .foregroundStyle(ThemeTokens.textSecondary)
+        .accessibilityIdentifier("film.placement.readouts")
     }
 
     /// The typed refusal rows (naming the slider — never a silent clamp).
     @ViewBuilder
     private var rejectionRows: some View {
-        if let rejection = model?.lastPlacementRejection {
+        if let rejection = model.lastPlacementRejection {
             switch rejection {
             case .kneeOrder:
                 Text(String(localized: "latitude_reject_knee_order",
@@ -539,14 +631,14 @@ internal struct FilmPanelView: View {
                 EmptyView()
             }
         }
-        if let outcome = model?.lastFitOutcome, outcome.sharedDeficit {
+        if let outcome = model.lastFitOutcome, outcome.sharedDeficit {
             Text(String(localized: "latitude_fit_shared",
                         defaultValue: "The medium's budget was short — the pull-backs were shared proportionally."))
                 .font(.caption2)
                 .foregroundStyle(ThemeTokens.textSecondary)
                 .accessibilityIdentifier("film.placement.fit.shared")
         }
-        if let outcome = model?.lastFitOutcome, outcome.sidesOff, !outcome.refusedByHMin {
+        if let outcome = model.lastFitOutcome, outcome.sidesOff, !outcome.refusedByHMin {
             Text(String(localized: "latitude_fit_sides_off",
                         defaultValue: "A side's scene extreme sits inside the medium — that branch stays off."))
                 .font(.caption2)
@@ -568,27 +660,5 @@ internal struct FilmPanelView: View {
             content()
         }
         .padding(.vertical, 2)
-    }
-    /// One slider row: the D-H1 trio rides the shared bindings (live ticks
-    /// re-render with zero items; the drag end commits exactly once).
-    private func shiftRow(
-        _ label: String, value: Binding<Float>, range: ClosedRange<Float>,
-        readout: String, axIdentifier: String
-    ) -> some View {
-        row(label) {
-            HStack {
-                Slider(value: value, in: range) { editing in
-                    if editing {
-                        model?.beginDrag()
-                    } else {
-                        model?.commitDrag()
-                    }
-                }
-                .accessibilityIdentifier(axIdentifier)
-                Text(readout)
-                    .font(.caption2.monospacedDigit())
-                    .frame(width: 56, alignment: .trailing)
-            }
-        }
     }
 }
