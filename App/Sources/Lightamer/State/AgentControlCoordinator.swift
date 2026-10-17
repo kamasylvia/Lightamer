@@ -128,11 +128,12 @@ final class AgentControlCoordinator {
 
     // MARK: Injected deps (F12: the registry reference + the live-edit probe)
 
-    /// The live-edit probe — the THREE-window OR (D-H1 continuous drag /
-    /// DRT drag / film drag; the PipeCoordinator.liveEditActive computed
-    /// property feeds this at the assembly point). Settable, never a hard
-    /// reference (the F-6 testability seam): the App root cannot reference
-    /// its other @State objects at declaration time, so the probe lands via
+    /// The live-edit probe — the THREE-window OR (the D-H1 continuous drag
+    /// window, the DRT record drag window and the film record drag window;
+    /// the pipe coordinator's liveEditActive computed property feeds this
+    /// at the assembly point). Settable, never a hard reference (the F-6
+    /// testability seam): the App root cannot reference its other @State
+    /// objects at declaration time, so the probe lands via
     /// `configureLiveEditProbe` in the launch task (the
     /// pipeCoordinator.configure(window:) cross-attach precedent). The
     /// default answers false (no edit window) — tests inject their own.

@@ -32722,6 +32722,36 @@
           }
         }
       }
+    },
+    "mcp_error_control_not_held" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此命令会更改会话状态，需要 agent 控制权——请先调用 control_acquire。"
+          }
+        }
+      }
+    },
+    "mcp_error_control_revoked_by_user" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用户已停止 agent——请停止工作并询问用户如何继续；征得用户同意后再 control_acquire。"
+          }
+        }
+      }
+    },
+    "mcp_error_control_busy" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一持有者已持有控制权：%1$@。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

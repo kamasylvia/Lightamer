@@ -901,7 +901,10 @@ final class McpSearchStateToolsetTests: XCTestCase {
     // MARK: - get_state (the F-6 double judgment lives here + the T6 grep)
 
     /// The headless no-project contract: the absent faces are JSON nulls;
-    /// the control and server faces stay alive.
+    /// the control and server faces stay alive. M7-5-01 (F4 勘正 — get_state
+    /// has NO whole-face golden; every control assertion is per-key, so the
+    /// additive agent key rides THIS contract as its nil-provider negative
+    /// leg; the truth-provider leg lives in McpControlToolsetTests).
     func testGetStateHeadlessNoProjectNullsContract() async throws {
         let registry = await makeRegistry(context: McpSearchStateContext(
             projectWriteProbe: { .writable }))
@@ -913,6 +916,9 @@ final class McpSearchStateToolsetTests: XCTestCase {
         XCTAssertEqual(control["lock"] as? String, "writable")
         XCTAssertTrue(control["writeCallCount"] is NSNull,
                       "the headless face has no exposed handle (F-4②)")
+        // M7-5-01: the nil provider answers the JSON null honest face.
+        XCTAssertTrue(control["agent"] is NSNull,
+                      "nil agentControl provider = the null honest face")
         let server = try XCTUnwrap(payload["server"] as? [String: Any])
         XCTAssertEqual(server["name"] as? String, McpServerController.serverName)
         XCTAssertTrue(server["hostMode"] is NSNull)
@@ -1020,9 +1026,9 @@ final class McpSearchStateToolsetTests: XCTestCase {
         }
     }
 
-    // MARK: - The McpToolError 16-value exhaustive codes
+    // MARK: - The McpToolError 19-value exhaustive codes
 
-    func testMcpToolErrorCodesSixteenValuesExhaustive() {
+    func testMcpToolErrorCodesNineteenValuesExhaustive() {
         let errors: [McpToolError] = [
             .unknownOp("x"), .invalidParams("x"), .imageLiveInEditor("x"),
             .notSessionMember("x"), .serverReadOnly("x"), .renderFailed("x"),
@@ -1030,6 +1036,7 @@ final class McpSearchStateToolsetTests: XCTestCase {
             .roiOutOfBounds("x"), .keywordContainsSeparator("x"),
             .exportPresetNotApplicable("x"), .unknownPreset("x"),
             .projectReadOnly("x"), .internalError("x"), .modelUnavailable("x"),
+            .controlNotHeld("x"), .controlRevokedByUser("x"), .controlBusy("x"),
         ]
         let expected = [
             "unknownOp", "invalidParams", "imageLiveInEditor",
@@ -1038,10 +1045,11 @@ final class McpSearchStateToolsetTests: XCTestCase {
             "roiOutOfBounds", "keywordContainsSeparator",
             "exportPresetNotApplicable", "unknownPreset", "projectReadOnly",
             "internalError", "modelUnavailable",
+            "controlNotHeld", "controlRevokedByUser", "controlBusy",
         ]
-        XCTAssertEqual(errors.count, 16, "the closed table is 16 values")
+        XCTAssertEqual(errors.count, 19, "the closed table is 19 values (M7-5-01)")
         XCTAssertEqual(errors.map(\.code), expected)
-        XCTAssertEqual(errors.map(\.message), Array(repeating: "x", count: 16))
+        XCTAssertEqual(errors.map(\.message), Array(repeating: "x", count: 19))
     }
 
     // MARK: - The read-only exemption face

@@ -767,3 +767,8 @@ APP	4	ExportPresetTests.swift
 # M7-2-1 增行记录（2026-10-16 执行期，checker E2 测试登记纪律）：新测试文件随 T5
 #   commit 登记进 LightamerTestsApp（APP/App 级——MCP 工具面测试与既有 Mcp* 同
 #   bundle）。行内 method 数以终态对账为准。运行期总数基线相应上移。
+# M7-5-01 增行记录（2026-10-17 执行期，checker E2 测试登记纪律）：两个新测试文件随 T6
+#   commit 登记进 LightamerTestsApp（APP/App 级——MCP 控制域快照 + coordinator 状态机
+#   面与既有 Mcp*/App 面同 bundle）。行内 method 数以终态对账为准。运行期总数基线相应上移。
+APP	15	McpControlToolsetTests.swift
+APP	10	AgentControlCoordinatorTests.swift
