@@ -442,10 +442,10 @@ Deferred to future release. Tracked but not in current roadmap.
 
 来源 = `research/ALCEDO-CLI-AI-SURVEY.md` §5 块二（用户裁决②生效；survey 拟「与 M2-9-A 合并立项」——**MCP-09-A 已由 M6-1 兑现**〔Core `SingleWriterLock` 五态 + `.lalb.lock` + GUI 三选对话框/只读面/guard 家族 + connect 指引〕，合并不再是等待项而是底座复用，本批勘误登记）。家族正本 = ROADMAP §Milestone 7（M7-5）。
 
-- **TURN-01**: control acquire/release/get 工具面——agent 持锁期间 GUI 禁编辑保留浏览（编辑面板/命令面只读化；Alcedo `-32003 control_not_held` / `-32004 control_revoked_by_user` 错误语义同构）—— **→ M7-5**（2026-10-16）
-- **TURN-02**: agent 活动 GUI 可见性——活动卡/task island 对应面（「Agent · <holder> · <命令>」形；落点 = Toast/任务面 + MCP server 面板扩展；Alcedo task island + Cancel = Take control 对表）—— **→ M7-5**（2026-10-16）
-- **TURN-03**: Stop 语义 + 恢复——Stop = Take control + agent 任务钉住 + 逐命令 activity 记录 + Stop 后同 agent re-acquire 可恢复任务（Alcedo AU14 `7e0c9cb` 迭代对表）—— **→ M7-5**（2026-10-16）
-- **TURN-04**: 无头宿主 turn-taking 简化臂——headless/stdio 形态 agent 恒持有（Alcedo null owner → `held: true` 同构）；GUI 选区类工具 headless `not_ready` 语义对表 —— **→ M7-5**（2026-10-16；可与 TURN-01 同 plan）
+- **TURN-01**: control acquire/release/get 工具面——agent 持锁期间 GUI 禁编辑保留浏览（编辑面板/命令面只读化；Alcedo `-32003 control_not_held` / `-32004 control_revoked_by_user` 错误语义同构）—— **→ M7-5**（2026-10-16）—— **✅ Delivered（M7-5-01 T1/T2：`599601d7`+`89d8bbff`——ControlToolset 第五域三工具 + requiresControl 第三道门 13 工具集 + 错误码 16→19 + AgentControlCoordinator 单写点 + 禁编辑 11 实落点 + get_state control.agent；验收形态①判定见 M7-5-01-SUMMARY）**
+- **TURN-02**: agent 活动 GUI 可见性——活动卡/task island 对应面（「Agent · <holder> · <命令>」形；落点 = Toast/任务面 + MCP server 面板扩展；Alcedo task island + Cancel = Take control 对表）—— **→ M7-5**（2026-10-16）—— **✅ Delivered（M7-5-01 T3：`4755941d`——BackgroundTaskBar agent 行 + AgentTaskHandle pinned + Stop 卡单入口；实机走查配方 = `.work/gui-acceptance/m7-5/MANIFEST.md`，归验收批）**
+- **TURN-03**: Stop 语义 + 恢复——Stop = Take control + agent 任务钉住 + 逐命令 activity 记录 + Stop 后同 agent re-acquire 可恢复任务（Alcedo AU14 `7e0c9cb` 迭代对表）—— **→ M7-5**（2026-10-16）—— **✅ Delivered（M7-5-01 T2/T3：coordinator stop/resume 状态机 + activity 边界闭形 + F8 registry.cancel 绕行负测；验收形态③判定见 M7-5-01-SUMMARY）**
+- **TURN-04**: 无头宿主 turn-taking 简化臂——headless/stdio 形态 agent 恒持有（Alcedo null owner → `held: true` 同构）；GUI 选区类工具 headless `not_ready` 语义对表 —— **→ M7-5**（2026-10-16；可与 TURN-01 同 plan）—— **✅ Delivered（M7-5-01 T4：`dea46168`——makeHeadlessControlContext 恒真面 + 七生产调用点 + read-only 宿主照常注册；GUI 选区类工具我方不存在 = 零新码申报；验收形态④判定见 M7-5-01-SUMMARY）**
 
 ### M7 Agent Skills Documentation (SKILLS)（2026-10-16 M7 立项批登记）
 
