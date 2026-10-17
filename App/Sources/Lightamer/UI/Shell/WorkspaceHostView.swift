@@ -48,11 +48,10 @@ struct WorkspaceHostView: View {
     /// with the shell model (both ends weak, the owners strong).
     @Environment(PipeCoordinator.self) private var pipeCoordinator
 
-    /// M2-8-3 acceptance FINDING-B fix: the D-26 toast channel's DEFAULT-face
-    /// render site reads the editor state's toast here (the StatusBar slot is
-    /// the legacy face's twin — reachable at this depth, the same injection
-    /// YiyinTopBarSheet reads beside it).
-    @Environment(EditorState.self) private var editorState
+    // M2-8-3 acceptance FINDING-B fix: the D-26 toast channel's DEFAULT-face
+    // render site lives on the `ToastBarMount` leaf below (AR-01 T1 / audit
+    // M1 T-M1b — the read moved OFF this host body so a toast push/clear no
+    // longer re-evaluates the whole shell).
 
     // M2-9-04 (declared increment — the front-matter omission family): the
     // top-bar EXPORT entry (OQ-1 A / KD-1 — the M2 face's "toolbar 导出按钮")
@@ -68,11 +67,11 @@ struct WorkspaceHostView: View {
     @Environment(AgentControlCoordinator.self) private var agentControl
 
     // Plan M2-3-1 T6 (M2UIW-06): the background-task faces — ONE registry
-    // behind BOTH presentations (bar + dialog), the import leg riding the
-    // read-only ImportTaskAdapter subscription.
+    // behind BOTH presentations (bar + dialog). AR-01 T1: the import-leg
+    // adapter lifecycle moved into `ImportProgressModifier` beside its
+    // observation (the modifier's own @State — same persistence window).
     @State private var taskRegistry = BackgroundTaskRegistry()
     @State private var isTaskDialogPresented = false
-    @State private var importAdapter: ImportTaskAdapter?
 
     // M2-10-03 (declared increment): the AI analysis leg + the labeling ask.
     // The registry rides THIS host's aggregate task registry (the bar/dialog
@@ -129,7 +128,17 @@ struct WorkspaceHostView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            topBar
+            // AR-01 T1 (audit M1 T-M1c): the top bar is its own View struct —
+            // narrow inputs + callbacks; the bar's internal tree no longer
+            // rides the host's body evaluation.
+            WorkspaceTopBar(
+                phase: workspace.phase,
+                projectName: projectName,
+                isReadOnly: projectController?.isReadOnly ?? false,
+                holdsControl: agentControl.holdsControl,
+                onCloseEditor: { workspace.closeEditor() },
+                onExport: { inspectorState.openExportPage() },
+                onYiyin: { isYiyinSheetPresented = true })
             ZStack {
                 switch workspace.phase {
                 case .library:
@@ -163,10 +172,11 @@ struct WorkspaceHostView: View {
         // safe-area inset while the project is the second instance's
         // read-only face (the AX identifier is the walkthrough/test
         // assertion surface). Zero-height when writable (no chrome).
+        // AR-01 T1 (audit M1 T-M1b): the banner reads fold into the leaf
+        // mount — the mount point (this .safeAreaInset(edge:)) keeps its
+        // original shape; only the content expression swapped.
         .safeAreaInset(edge: .top, spacing: 0) {
-            ProjectReadOnlyBannerView(
-                isReadOnly: projectController?.isReadOnly ?? false,
-                holderPid: projectController?.readOnlyHolderPid)
+            ReadOnlyBannerMount(projectController: projectController)
         }
         // M2-8-3 acceptance FINDING-B fix: the DEFAULT shell's D-26 toast
         // render site. The M2-3-1 shell swap moved the project workspace onto
@@ -176,9 +186,11 @@ struct WorkspaceHostView: View {
         // failures, deletion locks and drift warnings were structurally
         // invisible here. Zero-height when no toast is up; the StatusBar's
         // 22pt visual language when one is.
+        // AR-01 T1 (audit M1 T-M1b): the toast read folds into the leaf
+        // mount — a toast push/clear no longer re-evaluates the host body;
+        // the mount point keeps its original shape.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            ToastBarView(toast: editorState.toast)
-                .animation(.easeInOut(duration: 0.2), value: editorState.toast)
+            ToastBarMount()
         }
         .focusedSceneValue(\.lightamerWorkspaceModel, workspace)
         // The task-dialog host (the SAME registry — dual presentation).
@@ -261,27 +273,13 @@ struct WorkspaceHostView: View {
             }
         }
         // M2-10-07 (KD-3): the editor Image menu's enhancement request —
-        // consumed here and turned into the enhance queue (ONE presentation
-        // owner; the menu command only sets the request face).
-        .onChange(of: workspace.pendingAIEnhance) { _, request in
-            guard let request else { return }
-            _ = workspace.consumeAIEnhance()
-            aiEntry.openEnhance(
-                kind: request.kind, imageIDs: request.imageIDs)
-        }
-        // M6-4-01 (KD-8): the View ▸ Stacks commands — consumed here and
-        // turned into the grid model's faces; with the library face
-        // inactive (gridModel nil) the request is dropped = the no-op
-        // guard.
-        .onChange(of: workspace.pendingStackCommand) { _, command in
-            guard let command else { return }
-            _ = workspace.consumeStackCommand()
-            guard let grid = gridModel else { return }
-            switch command {
-            case .expandAll: Task { await grid.expandAll() }
-            case .collapseAll: Task { await grid.collapseAll() }
-            }
-        }
+        // AR-01 T1 (audit M1 T-M1a): the observation + consumption moved into
+        // the modifier; the request change re-evaluates the light modifier,
+        // not the host body.
+        .modifier(PendingAIEnhanceModifier(workspace: workspace, aiEntry: aiEntry))
+        // M6-4-01 (KD-8): the View ▸ Stacks commands — same AR-01 T1 sink
+        // (the gridModel dependency rides the modifier's init parameter).
+        .modifier(StackCommandModifier(workspace: workspace, gridModel: gridModel))
         // M2-10-07: the AI enhancement sheet — one dialog per queued image
         // (the v1 sequential batch; a finished non-final job auto-advances,
         // a user close aborts the remainder and stops the worker client).
@@ -319,40 +317,29 @@ struct WorkspaceHostView: View {
         // walkthrough fix: the run's end also refreshes the library surface
         // (grid first page + inspector aggregates) — a fresh import must
         // land in the visible collection without a project reopen.
-        .onChange(of: projectController?.importProgress) { _, progress in
-            guard let controller = projectController else { return }
-            if progress != nil {
-                if importAdapter == nil {
-                    let adapter = ImportTaskAdapter(controller: controller)
-                    taskRegistry.register(adapter)
-                    importAdapter = adapter
-                }
-                importAdapter?.apply(progress)
-            } else if let adapter = importAdapter {
-                taskRegistry.finish(id: adapter.id)
-                importAdapter = nil
-                guard gridModel != nil else { return }
-                Task {
-                    // Hoisted locals: the optional-chain compound below the
-                    // locals trips the Release -O type-checker timeout
-                    // (M2-11-02 T5 execution finding — Debug face identical).
-                    let grid = gridModel
-                    try? await grid?.reloadFirstPage()
-                    let inspector = inspectorModel
-                    await inspector?.refresh()
-                }
-            }
-        }
-        .onChange(of: projectController?.projectURL) { _, _ in
+        // AR-01 T1 (audit M1 T-M1a): the observation + adapter lifecycle
+        // moved into the modifier (gridModel/inspectorModel by init — the
+        // host re-arms them on every surface rebuild body pass).
+        .modifier(ImportProgressModifier(
+            projectController: projectController,
+            taskRegistry: taskRegistry,
+            gridModel: gridModel,
+            inspectorModel: inspectorModel))
+        // AR-01 T1 (audit M1 T-M1a): the projectURL swap side effect (the
+        // surface rebuild) rides the modifier — the URL observation no
+        // longer re-evaluates the host body.
+        .modifier(ProjectURLChangeModifier(projectController: projectController) {
             rebuildLibrarySurface()
-        }
-        .onAppear {
-            rebuildLibrarySurface()
-        }
+        })
         // M2-4-1 T5 (KD-5/E1③): the bidirectional attach seam (the
         // M2-3-1 `EditorState.attach` pattern) — write-leg pass-through +
-        // restore-leg priming ride it.
+        // restore-leg priming ride it. AR-01 T1 (audit M1 T-M1d): the
+        // surface rebuild moved here from the former `.onAppear` (the
+        // appear-time semantics = one async execution after appear; the
+        // aiEntry.configure below now sees the rebuilt surface, the same
+        // configure-after-rebuild order the onAppear form had).
         .task {
+            rebuildLibrarySurface()
             // M2-10-07: bind the AI entry coordinator (once per host
             // lifetime; the injections are plain reference writes).
             aiEntry.configure(
@@ -601,15 +588,51 @@ struct WorkspaceHostView: View {
         }
     }
 
-    // MARK: - Top bar (the T5 seam: project name + phase command buttons;
-    // P2/P3 fill in the full command row)
+    // MARK: - Top bar seam (AR-01 T1 / audit M1 T-M1c: the bar is the
+    // `WorkspaceTopBar` struct below; the host keeps only the projectName
+    // derivation — a render-coupled read, per the plan's narrow-input form)
 
-    @ViewBuilder
-    private var topBar: some View {
+    private var projectName: String {
+        guard let url = projectController?.projectURL else {
+            return String(localized: "shell_topbar_no_project", defaultValue: "Lightamer")
+        }
+        return url.deletingPathExtension().lastPathComponent
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AR-01 T1 (audit M1) — the host's invalidation-isolation family. The host
+// body previously carried four side-effect onChange observers, two leaf
+// value-read mounts (toast / read-only banner) and the whole top bar inline:
+// any of those changing re-evaluated the entire shell body (the audit's
+// "@self invalidation fan"). The four observers sink into ViewModifiers
+// (the dataflow.md "Isolating onChange side-effect invalidation" shape), the
+// two leaf reads fold into self-reading Mount leaves, and the bar becomes
+// its own View struct. The D-6 禁区 faces are untouched: the two
+// .safeAreaInset mount points keep their original shape (content-expression
+// swap only), .focusedSceneValue (:183) stays in place, no sheet closure
+// moved. Behavior-preserving: every consumer body is a line-for-line
+// translation of the former inline onChange closures.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The top bar (the T5 seam: project name + phase command buttons) —
+/// extracted from the host body into its own invalidation boundary.
+/// Narrow inputs (phase/projectName/isReadOnly/holdsControl) + action
+/// callbacks; the AX identifier set (`shell.topbar.*`) is unchanged.
+private struct WorkspaceTopBar: View {
+    let phase: AppPhase
+    let projectName: String
+    let isReadOnly: Bool
+    let holdsControl: Bool
+    let onCloseEditor: () -> Void
+    let onExport: () -> Void
+    let onYiyin: () -> Void
+
+    var body: some View {
         HStack(spacing: 12) {
-            if workspace.phase == .editor {
+            if phase == .editor {
                 Button {
-                    workspace.closeEditor()
+                    onCloseEditor()
                 } label: {
                     Image(systemName: "chevron.left")
                 }
@@ -622,7 +645,7 @@ struct WorkspaceHostView: View {
                 .foregroundStyle(ThemeTokens.textPrimary)
                 .accessibilityIdentifier("shell.topbar.projectName")
             Spacer()
-            if workspace.phase == .editor {
+            if phase == .editor {
                 // M2-9-04 (OQ-1 A / KD-1): the M2 export entry — routes to
                 // the Inspector Export page (the page switch + the column
                 // raise in one arm via ContentView's inspector mount; the
@@ -630,13 +653,12 @@ struct WorkspaceHostView: View {
                 // read-only face disables the export entry (the OQ-4
                 // 禁用投影 — the enqueue seam below is the backstop).
                 Button {
-                    inspectorState.openExportPage()
+                    onExport()
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                 }
                 .buttonStyle(.borderless)
-                .disabled(projectController?.isReadOnly ?? false
-                          || agentControl.holdsControl)
+                .disabled(isReadOnly || holdsControl)
                 .accessibilityIdentifier("shell.topbar.export")
                 .accessibilityLabel(Text(String(localized: "menu_export")))
                 // The D4 独有入口: the yiyin 印框/水印 sheet (the export-domain
@@ -645,13 +667,12 @@ struct WorkspaceHostView: View {
                 // (the yiyin export leg rides the same ExportState seam).
                 // M7-5-01 (face ⑪): the agent-held clause joins the merge.
                 Button {
-                    isYiyinSheetPresented = true
+                    onYiyin()
                 } label: {
                     Image(systemName: "signature")
                 }
                 .buttonStyle(.borderless)
-                .disabled(projectController?.isReadOnly ?? false
-                          || agentControl.holdsControl)
+                .disabled(isReadOnly || holdsControl)
                 .accessibilityIdentifier("shell.topbar.yiyin")
                 .accessibilityLabel(Text(String(
                     localized: "shell_topbar_yiyin",
@@ -668,12 +689,144 @@ struct WorkspaceHostView: View {
             alignment: .bottom
         )
     }
+}
 
-    private var projectName: String {
-        guard let url = projectController?.projectURL else {
-            return String(localized: "shell_topbar_no_project", defaultValue: "Lightamer")
-        }
-        return url.deletingPathExtension().lastPathComponent
+/// The D-26 toast mount (M2-8-3 acceptance FINDING-B fix — the DEFAULT
+/// shell's toast render site; the StatusBar slot is the legacy face's twin).
+/// AR-01 T1 (T-M1b): the toast read lives HERE, on the leaf — a toast
+/// push/clear re-evaluates only this mount. The forwarded
+/// `ToastBarView(toast:)` value-passing init is untouched (the
+/// ToastFaceTests contract).
+private struct ToastBarMount: View {
+
+    @Environment(EditorState.self) private var editorState
+
+    var body: some View {
+        ToastBarView(toast: editorState.toast)
+            .animation(.easeInOut(duration: 0.2), value: editorState.toast)
+    }
+}
+
+/// The read-only banner mount (M6-1-01 T5, KD-3/OQ-4). AR-01 T1 (T-M1b):
+/// the isReadOnly/holderPid reads live HERE, on the leaf — a read-only
+/// toggle re-evaluates only this mount. The forwarded
+/// `ProjectReadOnlyBannerView(isReadOnly:holderPid:)` value-passing init is
+/// untouched.
+private struct ReadOnlyBannerMount: View {
+
+    let projectController: LibraryProjectController?
+
+    var body: some View {
+        ProjectReadOnlyBannerView(
+            isReadOnly: projectController?.isReadOnly ?? false,
+            holderPid: projectController?.readOnlyHolderPid)
+    }
+}
+
+/// M2-10-07 (KD-3): the editor Image menu's enhancement request — consumed
+/// here and turned into the enhance queue (ONE presentation owner; the menu
+/// command only sets the request face). AR-01 T1 (T-M1a) sink from the host
+/// body; the consumer body is a line-for-line translation.
+private struct PendingAIEnhanceModifier: ViewModifier {
+
+    let workspace: WorkspaceModel
+    let aiEntry: AIEntryPointCoordinator
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: workspace.pendingAIEnhance) { _, request in
+                guard let request else { return }
+                _ = workspace.consumeAIEnhance()
+                aiEntry.openEnhance(
+                    kind: request.kind, imageIDs: request.imageIDs)
+            }
+    }
+}
+
+/// M6-4-01 (KD-8): the View ▸ Stacks commands — consumed here and turned
+/// into the grid model's faces; with the library face inactive (gridModel
+/// nil) the request is dropped = the no-op guard. AR-01 T1 (T-M1a) sink;
+/// the gridModel dependency rides the init parameter (re-armed by the host
+/// on every surface-rebuild body pass).
+private struct StackCommandModifier: ViewModifier {
+
+    let workspace: WorkspaceModel
+    let gridModel: LibraryGridModel?
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: workspace.pendingStackCommand) { _, command in
+                guard let command else { return }
+                _ = workspace.consumeStackCommand()
+                guard let grid = gridModel else { return }
+                switch command {
+                case .expandAll: Task { await grid.expandAll() }
+                case .collapseAll: Task { await grid.collapseAll() }
+                }
+            }
+    }
+}
+
+/// The import-leg subscription (checker E3): a READ-ONLY observation of the
+/// controller's importProgress publication. The adapter mirrors it into the
+/// registry; the run's end (nil) finishes the task. The controller itself is
+/// never touched. The M2-3-4 T2 walkthrough fix: the run's end also
+/// refreshes the library surface (grid first page + inspector aggregates) —
+/// a fresh import must land in the visible collection without a project
+/// reopen. AR-01 T1 (T-M1a) sink; the adapter lifecycle (the host's former
+/// @State) moved beside its observation — a ViewModifier's @State persists
+/// for the mount's lifetime, the same window the host @State had.
+private struct ImportProgressModifier: ViewModifier {
+
+    let projectController: LibraryProjectController?
+    let taskRegistry: BackgroundTaskRegistry
+    let gridModel: LibraryGridModel?
+    let inspectorModel: LibraryInspectorModel?
+
+    @State private var importAdapter: ImportTaskAdapter?
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: projectController?.importProgress) { _, progress in
+                guard let controller = projectController else { return }
+                if progress != nil {
+                    if importAdapter == nil {
+                        let adapter = ImportTaskAdapter(controller: controller)
+                        taskRegistry.register(adapter)
+                        importAdapter = adapter
+                    }
+                    importAdapter?.apply(progress)
+                } else if let adapter = importAdapter {
+                    taskRegistry.finish(id: adapter.id)
+                    importAdapter = nil
+                    guard gridModel != nil else { return }
+                    Task {
+                        // Hoisted locals: the optional-chain compound below the
+                        // locals trips the Release -O type-checker timeout
+                        // (M2-11-02 T5 execution finding — Debug face identical).
+                        let grid = gridModel
+                        try? await grid?.reloadFirstPage()
+                        let inspector = inspectorModel
+                        await inspector?.refresh()
+                    }
+                }
+            }
+    }
+}
+
+/// The controller's projectURL swap side effect (open / create / move →
+/// rebuild the library surface) as a modifier — AR-01 T1 (T-M1a): the URL
+/// observation no longer re-evaluates the host body.
+private struct ProjectURLChangeModifier: ViewModifier {
+
+    let projectController: LibraryProjectController?
+    let onURLChange: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: projectController?.projectURL) { _, _ in
+                onURLChange()
+            }
     }
 }
 
