@@ -196,11 +196,11 @@ IOP	4	VisionDetectTests.swift
 APP	10	McpLauncherTests.swift
 APP	11	WorkspaceRoutingTests.swift
 APP	16	ViewportTransformTests.swift
-APP	18	McpHostTests.swift
+APP	19	McpHostTests.swift
 APP	2	GUI22UndoWarmColdTests.swift
 APP	20	McpEditingToolsetTests.swift
 APP	27	McpCullingToolsetTests.swift
-APP	17	McpSearchStateToolsetTests.swift
+APP	21	McpSearchStateToolsetTests.swift
 APP	3	EditorMetalLegRegressionTests.swift
 APP	5	BeforeAfterTests.swift
 APP	4	BuiltInLutSetTests.swift
@@ -771,7 +771,7 @@ APP	4	ExportPresetTests.swift
 #   commit 登记进 LightamerTestsApp（APP/App 级——MCP 控制域快照 + coordinator 状态机
 #   面与既有 Mcp*/App 面同 bundle）。行内 method 数以终态对账为准。运行期总数基线相应上移。
 APP	15	McpControlToolsetTests.swift
-APP	10	AgentControlCoordinatorTests.swift
+APP	13	AgentControlCoordinatorTests.swift
 APP	3	EditorPreviewColorSpaceTests.swift
 APP	3	LightamerSliderScrubTests.swift
 APP	2	SkillsReferenceTests.swift
