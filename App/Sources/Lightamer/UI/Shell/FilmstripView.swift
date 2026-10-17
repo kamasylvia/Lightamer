@@ -41,8 +41,14 @@ final class FilmstripModel {
     private let grid: LibraryGridModel
     private let bridge: LibraryThumbnailBridge?
 
-    /// The currently-visible row indices (List onAppear/onDisappear book).
-    private var visibleIndices: Set<Int> = []
+    /// The currently-visible row ids (List onAppear/onDisappear book) —
+    /// AR-01 T4 (audit M3, D-M7-AR-7): ID-keyed bookkeeping replaces position
+    /// indices. A fixup mid-insert shifts every position while the List row
+    /// identity (row.id) stays put — the cell neither unloads nor fires
+    /// onDisappear — so index bookkeeping went stale on insert (the warm
+    /// window inflated with stale+fresh indices and kept re-prioritizing);
+    /// ids cannot go stale against an insert.
+    private var visibleIDs: Set<Int64> = []
 
     /// The ids a bridge request was ISSUED for (the window union; requests
     /// are never re-issued for an id still inside the warm set — the merge
@@ -61,11 +67,37 @@ final class FilmstripModel {
         self.bridge = bridge
     }
 
+    /// The row-id → position map, REBUILT on demand (O(n) — 10k rows are
+    /// µs-scale; correctness first per D-M7-AR-7: a fixup mid-insert /
+    /// delete / reorder breaks position fingerprints, the rebuild has no
+    /// hole — the cached-map alternative was rejected).
+    private func makeIDToIndex() -> [Int64: Int] {
+        var map: [Int64: Int] = [:]
+        map.reserveCapacity(grid.rows.count)
+        for (index, row) in grid.rows.enumerated() {
+            map[row.id] = index
+        }
+        return map
+    }
+
     /// The warm window for the current visible span: visible ± prefetch,
-    /// clamped to the loaded rows.
+    /// clamped to the loaded rows (the property form rebuilds the map for
+    /// the assertion face; refreshWindow builds it once and rides the
+    /// parameter form below).
     var warmWindow: Range<Int> {
-        guard let first = visibleIndices.min(),
-            let last = visibleIndices.max() else {
+        warmWindow(idToIndex: makeIDToIndex())
+    }
+
+    /// The warm window resolved against a caller-supplied id→index map.
+    func warmWindow(idToIndex: [Int64: Int]) -> Range<Int> {
+        var first: Int?
+        var last: Int?
+        for id in visibleIDs {
+            guard let index = idToIndex[id] else { continue }
+            first = min(first ?? index, index)
+            last = max(last ?? index, index)
+        }
+        guard let first, let last else {
             return 0..<0
         }
         let lower = max(0, first - Self.prefetchSpan)
@@ -75,15 +107,14 @@ final class FilmstripModel {
 
     // MARK: - The List signal face
 
-    func rowAppeared(_ index: Int) {
-        guard grid.rows.indices.contains(index) else { return }
-        visibleIndices.insert(index)
+    func rowAppeared(id: Int64) {
+        visibleIDs.insert(id)
         refreshWindow()
     }
 
-    func rowDisappeared(_ index: Int) {
-        visibleIndices.remove(index)
-        if visibleIndices.isEmpty {
+    func rowDisappeared(id: Int64) {
+        visibleIDs.remove(id)
+        if visibleIDs.isEmpty {
             // The strip scrolled away / torn down: drop the warm set (the
             // cancel face). In-flight productions complete into the void.
             requestedIDs.removeAll()
@@ -95,7 +126,7 @@ final class FilmstripModel {
     /// The whole-list disappear (the view's `.onDisappear`) — a stricter
     /// cancel than per-row bookkeeping alone.
     func listDisappeared() {
-        visibleIndices.removeAll()
+        visibleIDs.removeAll()
         requestedIDs.removeAll()
     }
 
@@ -117,7 +148,13 @@ final class FilmstripModel {
     // MARK: - Window refresh (the request issuer)
 
     private func refreshWindow() {
-        let window = warmWindow
+        let map = makeIDToIndex()
+        // The prune: ids the collection no longer carries cannot survive a
+        // refresh — the visible set reads only live ids into the window
+        // (no stale id residue; the requestedIDs warm set keeps its
+        // disappear-face cancel contract unchanged).
+        visibleIDs.formIntersection(map.keys)
+        let window = warmWindow(idToIndex: map)
         let rows = grid.rows
         var promoted: [Int64] = []
         for index in window {
@@ -192,14 +229,12 @@ struct FilmstripView: View {
                 .frame(height: FilmstripModel.rowHeight)
                 .accessibilityIdentifier("filmstrip.row.\(row.id)")
                 .onAppear {
-                    if let index = grid.rows.firstIndex(where: { $0.id == row.id }) {
-                        model.rowAppeared(index)
-                    }
+                    // AR-01 T4: the row hands its OWN identity — no O(n)
+                    // position reverse-lookup on every appear/disappear.
+                    model.rowAppeared(id: row.id)
                 }
                 .onDisappear {
-                    if let index = grid.rows.firstIndex(where: { $0.id == row.id }) {
-                        model.rowDisappeared(index)
-                    }
+                    model.rowDisappeared(id: row.id)
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
