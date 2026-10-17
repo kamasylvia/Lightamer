@@ -5,12 +5,12 @@ title: "plan A — d6 面大重构（行为保持验证重）：T1 M1 WorkspaceH
 wave: 1
 depends_on: []
 autonomous: true
-requirements: ["审计修复批 charter：A/B 路 findings 可修项行为保持落线（正本 = .work/audits/xcode27-skills-2026-10/LANEA-FINDINGS.md + LANEB-FINDINGS.md，commit 388e3875）", "调研正本 = phases/audit-repair/RESEARCH.md（§1 D-6 禁区 / §2 M1 / §3 M4 / §4 M5 / §6 M3 / §7 验收形态 / §10 切分 / §12 房内纪律）", "OQ 裁决正本 = phases/audit-repair/AUDIT-REPAIR-CONTEXT.md（D-M7-AR-1..9 全按 RESEARCH 推荐，晨审可推翻）", "全套基线 3963/35/0（M7-6 收口终态）；本 plan 带 +0..6 → 终值带 3963..3969", "C 档停位 = 本 plan 执行+验收闭环后停汇报（大重构批给用户过目点）；确认后 plan B/C 连跑"]
-success_criteria: "SC 全可机检——T1（M1）：四 modifier（PendingAIEnhanceModifier / StackCommandModifier / ImportProgressModifier / ProjectURLChangeModifier）落位且 WorkspaceHostView body 作用域 `.onChange(of: workspace.pendingAIEnhance|pendingStackCommand|projectController?.importProgress|projectController?.projectURL)` 四观察零命中（grep WHV 面核）+ ToastBarMount 自读 `@Environment(EditorState.self)` 转发既有 `ToastBarView(toast:)` + ReadOnlyBannerMount 转发既有 `ProjectReadOnlyBannerView(isReadOnly:holderPid:)`——两叶既有值传递 init 零 diff（ToastFaceTests 零 diff 全绿）+ safeAreaInset 双挂载形不变（:166-169 top banner / :179-182 bottom toast 的 `.safeAreaInset(edge:)` 修饰符族原位保留，仅内容表达式换 Mount）+ `WorkspaceTopBar` 子 View struct 落位（窄输入 phase/projectName/isReadOnly/holdsControl + 回调；isReadOnly ×3 与 holdsControl ×2 读收进 topBar）+ rebuildLibrarySurface() 从 `.onAppear`（:349-351）移入既有 `.task` 链（:355 起，onAppear 摘除）+ menus/focus 形态零触碰（:183 focusedSceneValue 挂点零 diff）；T2（M4）：`ExportQueueRebuildModifier` 落位 + gate-false 臂 body 作用域 onChange(of: projectController?.projectURL) 零命中 + `InspectorPageMount` 下沉（.inspector :205-223 + .focusedSceneValue :228-233 + onChange :238-240 整段）后根 body 只剩常量读 + WorkspaceHostView 装配 + Mount + **legacyBody :248-418 逐字节零 diff**（git diff -U0 面核）；T3（M5）：Film 拆 SessionControlsView / LatitudeSectionView / PlacementSectionView 三子 View struct（各持 let model 类引用 + 窄读）+ Drt 拆 DrtMethodCard / DrtEncodingGroup / DrtLimitingGroup / DrtPresetGroup 四子 View struct（encodingExpanded @State 随 encodingGroup 迁移）+ m11 = DrtPanelView init State(initialValue:)（:23-30）摘除改 onAppear 惰性建（body 包 `if let model`，FilmPanelView :49-51 定式）+ m2② isCustomLook 按 recordHash 键 stored 缓存 + ③ placementTarget 写点刷新缓存（commit 点零触）+ 条件分支形态保持（if model.isPristine 原样，零新增条件卸载）+ scopes 面零 diff + D-H1 绑定链逐行平移（live tick→setLive、dragEnd→commit 零改；grep setLiveParams/commitFilmEdit/recordDrtChange 绑定面零漂移）+ m9 = :339 改单 `String(localized:)` 格式键（xcstrings 恰 +2..3 键尾块纯插入）+ :498-509 改并排独立 Text（零新键）+ o9 = EditorAdjustmentStackView :135-136 InspectorEditSession 新建下沉模型；T4（M3）：FilmstripModel 可见窗换 `visibleIDs: Set<Int64>` + View 侧直传 row.id（FilmstripView :194-203 与 LibraryGridView :166-170 的 `firstIndex(where:)` 反查 App/Sources 零命中）+ warmWindow 解析经 `idToIndex: [Int64: Int]` 每次 refreshWindow O(n) 重建 + scrollAnchorID/select/listDisappeared API 形态不变 + `pager.cellAppeared(at:)` API 不动 + FilmstripView :169 `.disabled(agentControl.holdsControl)` 逐字节保留 + FilmstripModelTests 改写 id API（法数不变）+ fixup 中插 stale-window 新回归 +1..3 法；T5：`--bundle App` 定向轮全绿 + D-6 探针硬门（重开项目进编辑器静置 CPU<10% ps/sample 机检 + 空载无项目面同口径记录 + 三铁条）+ GUI 走查逐项（toast/banner/import/项目切换 + 面板拖动 60Hz + Export 页开闭 + filmstrip fixup 请求计数不虚胖）+ MANIFEST/SUMMARY/DECISIONS 落盘 + 全套 --all 不强制（批准制；若跑 = /tmp/la-audit-repair-all.lock 串行）"
-estimated_tests: "+0..6（M3 FilmstripModelTests 新回归 +1..3 / m2②③ 缓存纯函数测试 +0..2 / M1 modifier 消费逻辑平移可抽纯函数负测 +0..2（合法 ΔN=0）/ 其余 0；执行时逐任务如实记账，越带申报理由）"
+requirements: ["审计修复批 charter：A/B 路 findings 可修项行为保持落线（正本 = .work/audits/xcode27-skills-2026-10/LANEA-FINDINGS.md + LANEB-FINDINGS.md，commit 388e3875）", "调研正本 = phases/audit-repair/RESEARCH.md（§1 D-6 禁区 / §2 M1 / §3 M4 / §4 M5 / §6 M3 / §7 验收形态 / §10 切分 / §12 房内纪律）", "OQ 裁决正本 = phases/audit-repair/AUDIT-REPAIR-CONTEXT.md（D-M7-AR-1..9 全按 RESEARCH 推荐，晨审可推翻）", "全套基线 3963/35/0（M7-6 收口终态）；本 plan 带 +1..7（review F-1——T4 fixup 新回归 +1..3 下界强制 ≥1，带下界非 0）→ 终值带 3964..3970", "C 档停位 = 本 plan 执行+验收闭环后停汇报（大重构批给用户过目点）；确认后 plan B/C 连跑"]
+success_criteria: "SC 全可机检——T1（M1）：四 modifier（PendingAIEnhanceModifier / StackCommandModifier / ImportProgressModifier / ProjectURLChangeModifier）落位且 WorkspaceHostView body 作用域 `.onChange(of: (workspace.pendingAIEnhance|workspace.pendingStackCommand|projectController?.importProgress|projectController?.projectURL))` 四观察零命中（grep 分组形——review F-7）+ ToastBarMount 自读 `@Environment(EditorState.self)` 转发既有 `ToastBarView(toast:)` + ReadOnlyBannerMount 转发既有 `ProjectReadOnlyBannerView(isReadOnly:holderPid:)`——两叶既有值传递 init 零 diff（ToastFaceTests 零 diff 全绿）+ safeAreaInset 双挂载形不变（:166-169 top banner / :179-182 bottom toast 的 `.safeAreaInset(edge:)` 修饰符族原位保留，仅内容表达式换 Mount）+ `WorkspaceTopBar` 子 View struct 落位（窄输入 phase/projectName/isReadOnly/holdsControl + 回调；isReadOnly ×3 与 holdsControl ×2 读收进 topBar）+ rebuildLibrarySurface() 从 `.onAppear`（:349-351）移入既有 `.task` 链（:355 起，onAppear 摘除）+ menus/focus 形态零触碰（:183 focusedSceneValue 挂点零 diff）；T2（M4）：`ExportQueueRebuildModifier` 落位 + gate-false 臂 body 作用域 onChange(of: projectController?.projectURL) 零命中 + `InspectorPageMount` 下沉（.inspector :205-223 + .focusedSceneValue :228-233 + onChange :238-240 整段）后根 body 只剩常量读 + WorkspaceHostView 装配 + Mount + **legacyBody :248-418 逐字节零 diff**（机检：HEAD 版 vs 工作版 :248-418 段 diff 零输出——review F-6 命令形见 T2 验收）；T3（M5）：Film 拆 SessionControlsView / LatitudeSectionView / PlacementSectionView 三子 View struct（各持 let model 类引用 + 窄读）+ Drt 拆 DrtMethodCard / DrtEncodingGroup / DrtLimitingGroup / DrtPresetGroup 四子 View struct（encodingExpanded @State 随 encodingGroup 迁移）+ m11 = DrtPanelView init State(initialValue:)（:23-30）摘除改 onAppear 惰性建（body 包 `if let model`，FilmPanelView :49-51 定式）+ m2② isCustomLook 按 recordHash 键 stored 缓存 + ③ placementTarget 写点刷新缓存（commit 点零触）+ 条件分支形态保持（if model.isPristine 原样，零新增条件卸载）+ scopes 面零 diff + D-H1 绑定链逐行平移（live tick→setLive、dragEnd→commit 零改；grep setLiveParams/commitFilmEdit/recordDrtChange 绑定面零漂移）+ m9 = :339 改单 `String(localized:)` 格式键（xcstrings 恰 +2..3 键尾块纯插入）+ :498-509 改并排独立 Text（零新键）+ o9 = EditorAdjustmentStackView :135-136 InspectorEditSession 新建下沉模型；T4（M3）：FilmstripModel 可见窗换 `visibleIDs: Set<Int64>` + View 侧直传 row.id（FilmstripView :194-203 与 LibraryGridView :166-170 的 `firstIndex(where:)` 反查 App/Sources 零命中）+ warmWindow 解析经 `idToIndex: [Int64: Int]` 每次 refreshWindow O(n) 重建 + scrollAnchorID/select/listDisappeared API 形态不变 + `pager.cellAppeared(at:)` API 不动 + FilmstripView :169 `.disabled(agentControl.holdsControl)` 逐字节保留 + FilmstripModelTests 改写 id API（法数不变）+ fixup 中插 stale-window 新回归 +1..3 法；T5：`--bundle App` 定向轮全绿 + D-6 探针硬门（重开项目进编辑器静置 CPU<10% ps/sample 机检 + 空载无项目面同口径记录 + 三铁条）+ GUI 走查逐项（toast/banner/import/项目切换 + 面板拖动 60Hz + Export 页开闭 + filmstrip fixup 请求计数不虚胖）+ MANIFEST/SUMMARY/DECISIONS 落盘 + 全套 --all 不强制（批准制；若跑 = /tmp/la-audit-repair-all.lock 串行）"
+estimated_tests: "+1..7（review F-1——T4 新回归下界强制 +1；M3 FilmstripModelTests 新回归 +1..3 / m2②③ 缓存纯函数测试 +0..2 / M1 modifier 消费逻辑平移可抽纯函数负测 +0..2（合法 ΔN=0）/ 其余 0；执行时逐任务如实记账，越带申报理由）"
 test_bundles: [APP]
 baseline: "3963/35/0（M7-6 收口终态，skip 35 = 24 基线 + 11 RAW 供件漂移；HEAD 363117ee = audit-repair research docs-only 产线零漂移；planner 2026-10-13 亲核 git log/status——工作区三个未跟踪文件为既有在制品非本批）"
-expected_all: "3963 + ΔN（对账式；ΔN 带 +0..6 → 终值带 3963..3969，执行时按实记账；skip 35 口径维持——第三种 skip 来源逐族差分申报禁静默吸收；--all 批准制 + A/B 并行窗口 /tmp/la-audit-repair-all.lock 串行）"
+expected_all: "3963 + ΔN（对账式；ΔN 带 +1..7 → 终值带 3964..3970——review F-1，执行时按实记账；skip 35 口径维持——第三种 skip 来源逐族差分申报禁静默吸收；--all 批准制 + A/B 并行窗口 /tmp/la-audit-repair-all.lock 串行）"
 red_lines:
   - "D-6 交互禁区（正本 = RESEARCH §1，FIX2 链）：①menus/focus 形态零触碰——.focusedSceneValue 挂点（WorkspaceHostView:183 / ContentView:287-288、:228-233）、LightamerApp Commands 求值面、legacyBody 的 toolbar/alert 链不得移动摘除或改变求值路径；菜单环燃料面（visibleMenuCommands/ratingMenuLabel/metadataTextEntryActive）零触。②threshold 承载面不得结构性增删——双 safeAreaInset（WHV:166-169/:179-182）挂载方式（.safeAreaInset(edge:) 修饰符族）保持原形（本 plan 改造 = 内容面替换非挂载点摘除）；.inspector 分栏（CV:205-223）形态不动；编辑器三段内容段数不变。③每次树形改动 = FIX2 T1 探针复测硬门：重开项目进编辑器静置 CPU<10%（ps/sample 机检；10-30% = 未达标触发判别探针二轮迭代义务）+ 空载无项目面同口径记录；本 plan 内 M1/M4/M5 合并复测一次（同一批树形改动一次探针轮覆盖三件）；walkthrough 配方 = gui-acceptance/v2m/ D-6 复现链（6 图项目重开 + 编辑器三铁条）。④AX 自动化轻用（L057-B 共同因子——定点 AX 断言形，禁全树深遍历放大）。⑤o6 LutPanelView .id(libraryRevision) 本批不动（挂 D-6 专项卷）。"
   - "disable-not-unmount 三纪律（M7-5）：T3 面板拆分不涉 scopes 面（无交涉面）；条件分支形态保持（if model.isPristine 原样——不新增条件卸载）；FilmstripView:169 .disabled(agentControl.holdsControl) 逐字节保留（T4）。"
@@ -21,7 +21,9 @@ red_lines:
   - "xcstrings 恰 +2..3 键（m9 latitude_share 族格式键，终账 DECISIONS 申报——FIX2 红线族原文「xcstrings 零 diff」按 m9 同批显式豁免一条）尾块纯插入，历史键字节与顺序零触碰；zh-audit --check 对账 + --self-test 双 PASS；T2/T4 不触本地化面。"
   - "UserDefaults 零新键（KD-4）；.runModal( 在 App/Sources 零命中（L057 禁令随批机检）；String.LocalizationValue(\"prefix_\\(x)\" 插值禁形零命中（m9 新键一律 String(localized: 静态键, defaultValue:) 显式形态——M2-9 F-2 禁令）。"
   - "M2-8-3 app-root sheet 禁裸 @Environment：T1 叶挂载走 safeAreaInset 内容面（非 .sheet），Environment 读合法；零新增 sheet 闭包。"
-  - "C 路并入条款（RESEARCH §11）：周一合并 MANIFEST 落盘后，C 路新 findings 按 CONTEXT §9 同款分诊并入对应 plan 或追加 plan；C 路推翻本 plan 清单项（如软废弃/firstIndex 命中存疑）时以 C 路为准修正——执行前亲读合并 MANIFEST 一轮。"
+  - "C 路并入条款（RESEARCH §11）：周一合并 MANIFEST 落盘后，C 路新 findings 按 CONTEXT §9 同款分诊并入对应 plan 或追加 plan；C 路推翻本 plan 清单项（如软废弃/firstIndex 命中存疑）时以 C 路为准修正——执行前亲读合并 MANIFEST 一轮；基线按合并 MANIFEST
+  落盘时点全套终态重算 ΔN 对账带（review F-9——RESEARCH §11②，本文带
+  +1..7/3964..3970 为 3963 静态基线形态，合并时点漂移即重算对齐）。"
   - "构建 caffeinate -dis 包裹；单测 = Scripts/test-direct.sh --bundle App 定向；全套 --all 批准制（运行中保持监视 + 8G 门 + MEMFAIL 机检，超门立即 kill；A/B 并行窗口 /tmp/la-audit-repair-all.lock 串行——macOS 无 flock(1) 用 mkdir/fcntl/进程树探测等价）；测试宿主清理先核 parentage（ps -o ppid——测试宿主 parent = 脚本进程树，GUI 实例 parent = launchd，M2-7-3 先例）。"
   - "Project.swift 零 diff（本 plan 零新测试文件——M3 测试进既有 FilmstripModelTests.swift；BUNDLE-MAP 零触）。"
 files_modified:
@@ -63,10 +65,11 @@ files_modified:
 > 确认后 plan B/C 连跑（编排 = CONTEXT 头注总纲）。
 >
 > **基线**：**3963/35/0**（M7-6 收口终态；HEAD `363117ee`）。全套预期
-> `TOTAL|3963+ΔN/35/0|`（ΔN 带 +0..6 → 终值带 3963..3969，对账式；
+> `TOTAL|3963+ΔN/35/0|`（ΔN 带 +1..7 → 终值带 3964..3970——review F-1，
+> 对账式；
 > `--all` 批准制，不强制）。
 
-## ΔN 预算表（逐任务，合计带 +0..6；越带须申报理由）
+## ΔN 预算表（逐任务，合计带 +1..7——review F-1：T4 下界强制 ≥1；越带须申报理由）
 
 | 任务 | 测试增量 | 构成 | 落点 |
 |---|---|---|---|
@@ -74,7 +77,7 @@ files_modified:
 | T2 M4 | **0** | 纯结构下沉，无新逻辑面 | WorkspaceRouting/LibraryLegacyGate 既有面 |
 | T3 M5 | **+0..2** | m2②③ 缓存纯函数测试（recordHash 键命中/失效两腿） | DrtPanelModelTests 扩或 DECISIONS 申报让渡 |
 | T4 M3 | **+1..3** | fixup 中插 stale-window 新回归（可见 id 集插行后仍产正确 warm 窗 + 无 stale id 残留）+ id API 改写（法数不变） | FilmstripModelTests |
-| **合计** | **+0..6** | 3963 → 终值带 3963..3969 | 全 APP 域；Project.swift 零 diff |
+| **合计** | **+1..7** | 3963 → 终值带 3964..3970（review F-1） | 全 APP 域；Project.swift 零 diff |
 
 ## 已定裁决（生效值，硬约束，不得重开）
 
@@ -152,7 +155,7 @@ skill 正本只读对表）；`ToastFaceTests.swift`（两面契约 + AX wiring 
   5. 构建绿机检（caffeinate -dis 包裹）。
 - **验收标准（机检）**：
   - 构建绿；`git diff --stat` 本任务恰一产线文件（WorkspaceHostView.swift）。
-  - grep：`\.onChange\(of: workspace\.pendingAIEnhance|workspace\.pendingStackCommand|projectController\?\.importProgress|projectController\?\.projectURL\)` 在 WorkspaceHostView body 作用域零命中（四观察全部迁入 modifier）；`ToastBarMount|ReadOnlyBannerMount|WorkspaceTopBar` 各恰一处定义 + 挂载点替换；`.safeAreaInset\(edge: \.top|\.bottom` 双挂载点仍在（:166-169/:179-182 形核对）；`.onAppear` 内 `rebuildLibrarySurface` 零命中（移入 .task）。
+  - grep（review F-7 分组形——原交替式无分组括号时闭合 `\)` 只约束末分支、前三分支宽匹配）：`\.onChange\(of: (workspace\.pendingAIEnhance|workspace\.pendingStackCommand|projectController\?\.importProgress|projectController\?\.projectURL)\)` 在 WorkspaceHostView body 作用域零命中（四观察全部迁入 modifier）；`ToastBarMount|ReadOnlyBannerMount|WorkspaceTopBar` 各恰一处定义 + 挂载点替换；`.safeAreaInset\(edge: \.top|\.bottom` 双挂载点仍在（:166-169/:179-182 形核对）；`.onAppear` 内 `rebuildLibrarySurface` 零命中（移入 .task）。
   - **ToastFaceTests / WorkspaceRoutingTests / ProjectReadOnlyFaceTests / EditorStackRoutingTests 全绿**（`--bundle App` 定向过滤）；ToastFaceTests.swift 零 diff。
   - **LibraryProjectController.swift 零 diff**；focusedSceneValue :183 与既有 sheet 闭包段零 diff（`git diff` 逐 hunk 面核）。
 - **commit**: `fix(ar01): isolate workspace host invalidation fans (audit M1)`
@@ -189,8 +192,10 @@ exportPageActive||filmPageActive / .focusedSceneValue :228-233 /
      gate-false 臂 + 文件头注如有）。
   4. 构建绿机检。
 - **验收标准（机检）**：
-  - 构建绿；`git diff -U0 App/Sources/Lightamer/UI/ContentView.swift`
-    面核 **:248-418 段零 diff**（legacyBody byte-frozen）。
+  - 构建绿；legacyBody byte-frozen 机检（review F-6——命令级判据非
+    面核）：`diff <(git show HEAD:App/Sources/Lightamer/UI/ContentView.swift | sed -n '248,418p') <(sed -n '248,418p' App/Sources/Lightamer/UI/ContentView.swift)`
+    要求零输出；辅以 `git diff -U0 App/Sources/Lightamer/UI/ContentView.swift`
+    确认全部 hunk 归属 gate-false 臂（:248-418 段零 hunk）。
   - grep：`ExportQueueRebuildModifier|InspectorPageMount` 各恰一处定
     义；gate-false 臂 body 作用域 `.onChange\(of: projectController\?\.projectURL\)` 零命中（迁入 modifier）；`.focusedSceneValue\(\\\.exportPanelRequest` 求值路径仍在（下沉后于 Mount 内——路径改变 = 禁区违反，面核确认仅挂载宿主变化、求值内容零改）。
   - WorkspaceRoutingTests / LibraryLegacyGateTests 全绿且两测试文件零 diff。
@@ -239,6 +244,14 @@ M3-1 KD-3 / M2-6（D-H1 三件套 + 三级读正本）。
      setter/commit 路径，**commit 点零触**，缓存键计算与命中面新增）；
      placementTarget（FilmPanelModel :330-345）写点刷新缓存（层链变
      更写点失效）。缓存失效点选择 = DECISIONS 申报终形。
+     **伪优化防线（review F-3）**：DrtPanelModel record 为 KD-3 三级
+     computed 读（liveRecord → history → carrier，模型侧无 record
+     setter——history/carrier 腿不存在写点失效钩子），缓存键**不得按
+     读点计算 `record.stableHash()`**（单次 65 浮点 sorted-keys JSON +
+     FNV 成本 ≥ 被缓存对象 `DrtPresets` struct `==` 的 ns 级比较 =
+     伪优化降级）；DECISIONS 终形申报须附**单次读成本对比证据**，成本
+     对比不成立 = 比照 m2① 降级为注记零代码（isCustomLook 计算成本
+     本身可忽略）。
   5. **m9**：:339 `Text(verbatim: "\(label) \(pct)%")` 改单
      `String(localized:)` 格式键（latitude_share 族格式键 %lld/%@ 槽
      ——V14 静态键纪律，xcstrings 恰 +2..3 键尾块纯插入，键名终账
@@ -271,7 +284,10 @@ M3-1 KD-3 / M2-6（D-H1 三件套 + 三级读正本）。
   偏差（节拆分粒度/缓存失效点/键名与键数/ o9 让渡与否）= DECISIONS
   申报；**禁触 scopes 面**（发现 = 停手上报）；**禁改 D-H1 三段回调
   语义**（逐行平移是验收面）；**禁改 KD-3 三级读形态**（o5 豁免正
-  本——发现缓存穿透到 record 读链 = 停手上报）。
+  本——发现缓存穿透到 record 读链 = 停手上报）；**m2② 伪优化判定成立
+  （成本对比不成立）= 降级注记零代码并 DECISIONS 申报**（review F-3
+  ——伪优化方向是「停手上报」护栏不覆盖的另一失败向，降级合法、硬上
+  不合法）。
 
 ## T4 — M3：Filmstrip id 记账（visibleIDs Set<Int64> + row.id 直传 + firstIndex 消灭 + fixup stale-window 回归）
 
@@ -338,10 +354,16 @@ diff）+ :347（调用点）；`FilmstripModelTests.swift` 全文（:89/:96/
   1. **定向轮**：`caffeinate -dis Scripts/test-direct.sh --bundle App`
      全绿（M7-6 口径 917 法 + ΔN）。
   2. **D-6 探针硬门**：重开 ≥6 图项目 → 进入编辑器 → 静置 30s CPU
-     `ps`/`sample` 机检 **<10%**（10-30% = 未达标 → 判别探针二轮迭
-     代义务，禁放行）+ 空载无项目面同口径记录 + 三铁条走查（编辑器
-     spin 消失 / filmstrip 点击换图出图 / 截图证据）。**若 A/B 并行且
-     plan B 已落盘 = 探针轮合并覆盖两 plan 树形改动**（D-M7-AR-6）。
+     机检 **<10%**（采样命令形钉死，review F-8：30s 窗内
+     `ps -o %cpu -p <gui-pid>` 采样 ≥5 次、间隔 ≥5s 取中位 +
+     `sample <gui-pid> 3` 一轮作栈旁证；**pid parentage 判别一行**
+     随记录落 DECISIONS 探针记录节——探针对象 = GUI 实例，parent =
+     launchd；test-direct 宿主 parent = 脚本进程树，AGENTS 资源监控
+     口径/M2-7-3 先例；探针轮只应有 GUI 实例在跑）。10-30% = 未达标
+     → 判别探针二轮迭代义务，禁放行 + 空载无项目面同口径记录 + 三铁
+     条走查（编辑器 spin 消失 / filmstrip 点击换图出图 / 截图证据）。
+     **若 A/B 并行且 plan B 已落盘 = 探针轮合并覆盖两 plan 树形改
+     动**（D-M7-AR-6）。
   3. **GUI 走查**（配方落盘 MANIFEST，实机归验收批/用户）：toast 推
      入/清除、只读横幅显隐、import 进度条出现/收尾、项目切换四信号
      逐项目测；Film/Drt 面板逐滑杆拖动 60Hz 目测 + readout 刷新 +
@@ -359,7 +381,7 @@ diff）+ :347（调用点）；`FilmstripModelTests.swift` 全文（:89/:96/
      B/C）。
 - **验收标准（机检）**：定向轮绿 + 探针硬门记录（CPU 数值 + 命令 +
      三铁条证据路径）落 DECISIONS + MANIFEST 在库 + SUMMARY ΔN 对账
-     表（3963+ΔN 带 3963..3969）。
+     表（3963+ΔN 带 3964..3970——review F-1）。
 - **commit**: `test(ar01): run app suite, d6 probe gate, and walkthrough manifest`
 - **回滚与偏差申报要求**：探针门未达 = 本 plan 树形改动归因排查（逐
   任务 revert 二分），修复后复测，禁放行禁静默；定向轮任何 fail =
@@ -408,9 +430,10 @@ diff）+ :347（调用点）；`FilmstripModelTests.swift` 全文（:89/:96/
 6. **M3 语义面**：pager.cellAppeared(at:) 签名零改 + stackAdjacencyFixup
    本体零 diff + FilmstripView:169 disabled 保留 + 新回归法 ≥1。
 7. **SC 可机检性**：每条 SC 有命令级判据（grep / diff 面核 / 定向轮
-   / 探针 CPU 数值），非「目测」；ΔN 对账式非死数（带 3963..3969）。
+   / 探针 CPU 数值），非「目测」；ΔN 对账式非死数（带 3964..3970——review F-1）。
 8. **登记纪律**：xcstrings 恰 +2..3 键尾块纯插入 + zh-audit 双 PASS +
    UserDefaults 零新键 + Project.swift/BUNDLE-MAP 零 diff +
    `.runModal(`/插值禁形零命中。
-9. **C 路并入**：执行前合并 MANIFEST 亲读一轮记录（红线条款兑现）。
+9. **C 路并入**：执行前合并 MANIFEST 亲读一轮记录 + 基线重算核对
+   （红线条款兑现——review F-9）。
 10. **编排**：C 档停位兑现（T5 闭环停汇报）；--all 批准制 + 锁串行。

@@ -47,7 +47,8 @@ M2 每 tick params 重解码）+ M3 Filmstrip id 记账 + 43 处软废弃 +
 minor 族 9 项；挂账 3 项（m10 复数 / o4 翻译注释 / o6 LutPanelView
 → D-6 专项卷）；销账 8 项。验收形态：既有测试面（App bundle 定向轮）
 + D-6 探针硬门（树形改动专用）+ GUI 走查三层（§7）；全套基线
-`3963/35/0`，全批终值带 `3963..3971`。
+`3963/35/0`，全批终值带 `3964..3972`（review F-1——plan A 带
++1..7，T4 fixup 新回归下界强制 ≥1）。
 
 ## 决议（D-M7-AR-1..9，生效值，硬约束，执行中不重开）
 
@@ -217,7 +218,7 @@ minor 族 9 项；挂账 3 项（m10 复数 / o4 翻译注释 / o6 LutPanelView
 ### D-M7-AR-9 plan 切分 = 三 plan（A/B 零交集可并行、C 最后）（OQ-M7-AR-9）
 
 - **裁决 = RESEARCH §10 推荐**：plan A = d6 面大重构（M1/M4/M5 + 顺路
-  m2②③/m11/m9/o9 + M3 含 m6，ΔN +0..6）；plan B = M2 39 面板
+  m2②③/m11/m9/o9 + M3 含 m6，ΔN +1..7——review F-1 勘误）；plan B = M2 39 面板
   stored-params codemod（ΔN +0..1）；plan C = 机械小件批（软废弃 43 +
   m1/m4/m5/m7/m8，ΔN +0..1）。A/B 文件零交集（A = UI/Shell/ 宿主面板
   族 + ContentView + LibraryGridView；B = UI/Inspector/ 面板域——唯一
@@ -246,6 +247,16 @@ minor 族 9 项；挂账 3 项（m10 复数 / o4 翻译注释 / o6 LutPanelView
    SettingsPages/LibraryInspectorView/ExportNamingEditor/SessionBrowser/
    EditorAdjustmentStackView/Project.swift）全部吻合（±1 行内微差不影
    响语义）。
+4. **@Published 计数勘误（review F-4）**：McpLauncherPanelView.swift
+   全文件 `@Published` = **6** 处（:33-41——lines/followScroll/
+   isRunning/runningPID/lastOutcome/hint）；LANEB m4 与 AR-03 T2
+   「×7 直剥」均差 1——grep 清零判据不受影响，纯数字面勘误
+   （AR-03 已随批同步 ×7 → ×6）。
+5. **「39 面板」计量单位勘误（review F-4）**：实为 39 **文件** / 44
+   处 `private var params` 直读形（GradeScalarPanels.swift 一文件 6
+   个面板 struct 各 1 处，:27/:101/:155/:208/:262/:316）——AR-02
+   命中数恒等式按处数闭合（44 + helper 1 + 其余 3 = 48 ≤ 48）；勘误
+   ①（48 命中/41 文件/39 直读）在文件口径维持成立。
 
 ## 登记申报（非 OQ）
 
@@ -258,8 +269,10 @@ minor 族 9 项；挂账 3 项（m10 复数 / o4 翻译注释 / o6 LutPanelView
   FilmstripModelTests.swift；plan C ΔN 不落新文件）——例外 = plan B
   env 门探针若落新文件则 Project.swift 恰 +1 行 + BUNDLE-MAP 恰一行 +
   `tuist generate` 恒为该批最后一个动作（L041）。
-- **ΔN 对账带**：plan A +0..6 / plan B +0..1 / plan C +0..1 → 全批终
-  值带 **3963..3971**（基线 `3963/35/0`，M7-6 收口终态；skip 35 = 24
+- **ΔN 对账带**：plan A +1..7（review F-1 勘误——原文 +0..6 漏 T4
+  fixup 新回归 +1..3 的下界强制 ≥1）/ plan B +0..1 / plan C +0..1 →
+  全批终
+  值带 **3964..3972**（基线 `3963/35/0`，M7-6 收口终态；skip 35 = 24
   基线 + 11 RAW 供件漂移；第三种 skip 来源逐族差分申报禁静默吸收）。
 - **销账 8 项明细**（落 plan C DECISIONS 正式登记）：o1（闭包 Binding
   ——D-H1 约定豁免）/ o2（动态查表键——V15 豁免 + 手工在册实证）/

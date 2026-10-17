@@ -12,7 +12,7 @@
 2. **A 路 28 处软废弃**：逐处抽查 6 代表命中全数坐实；15 处 overlay/background + 3 showsIndicators + 1 foregroundColor + 1 TextField onCommit + 1 coordinateSpace + 2 dropDestination = 机械零观感差；**5 处 menuStyle borderlessButton 需截图对比**（`.menuStyle(.button)` + `.buttonStyle(.borderless)` 观感近似非逐字节）。连同 B 路 m3（cornerRadius ×14 + onChange 旧形 ×1）合计 **43 处机械批**。
 3. **构建设置 = 本批唯一用户裁决点（OQ-M7-AR-1）**。关键新事实：`ENABLE_ENHANCED_SECURITY = YES` **级联强制 pointer authentication（= arm64e slice 全链）**（enhanced-security.md :37「Cascades automatically to pointer authentication…」）——A 路「编译侧可先行单开」的口径不成立，F1 与 F3 是一个包：app + 2 appex + SPM（libwebp C 源码）+ 测试宿主全部 arm64e 化 + `macOSPackagesShouldBuildARM64e` workspace 旗标配套。结合 unsigned 分发终裁（13-4），runtime enforcement 面全灭，**推荐本批不采纳、挂账**（§8 分析 + 复活条件）。
 4. **B 路 11 minor + 9 obs 分诊完毕**（§9）：本批修 9 项（m1/m3/m4/m5/m7/m8/m9 + m2 剩余 + M3 顺路 m6）、挂账 3 项（m10 xcstrings 复数 / o4 翻译注释 / o6 LutPanelView——o6 入 D-6 专项卷）、销账/豁免 8 项（o1/o2/o3/o5/o7/o8 + m2① 勘误降级 + m3 Stepper 零行动）。
-5. **plan 切分推荐三 plan 串行**（§10）:plan A = d6 面大重构（M1/M4/M5 + 顺路，~6 文件，行为保持验证重）/ plan B = M2 39 面板 codemod（机械但面大，独立验收）/ plan C = 机械小件批（软废弃 43 + minor 族）。A/B 文件零交集可并行；C 最后（含观感改动走查一次定稿）。ΔN 预估:A +0..4 / B +0..1 / C +0..1（§10）。
+5. **plan 切分推荐三 plan 串行**（§10）:plan A = d6 面大重构（M1/M4/M5 + 顺路，~6 文件，行为保持验证重）/ plan B = M2 39 面板 codemod（机械但面大，独立验收）/ plan C = 机械小件批（软废弃 43 + minor 族）。A/B 文件零交集可并行；C 最后（含观感改动走查一次定稿）。ΔN 预估:A +1..7 / B +0..1 / C +0..1（§10；review F-1 勘误——本节原文「A +0..4」与 §10「+0..6」互斥，且均漏 T4 fixup 新回归 +1..3 的下界强制 ≥1）。
 
 ---
 
@@ -146,7 +146,7 @@ D-6 定性（FIX2 T1 五读数，双路追认）：macOS 27 SwiftUI **菜单/焦
 | m1 EditorAdjustmentStackView AnyView 行（:420-441/:440/:202/:212） | **本批修（plan C）** | 返回具体 `InspectorRowView?`——该行本就是具体类型，签名收紧机械；foreach.md §AnyView row 直引 |
 | m2 每 body 重计算非解码族 | **部分修（plan A M5 顺路）** + **m2① 勘误降级注记**（§4，solve 已有 FilmSolveCache 内 consult）；isCustomLook/placementTarget 顺路缓存 |
 | m3 软弃用 17 处（cornerRadius ×14 / foregroundColor ×1 / TextField onCommit ×1 / onChange 旧形 ×1） | **本批修（plan C，与 A 路 28 合并 43 处批）**；note-1/note-2/note-3（Font.system 31 / GeometryProxy.frame 1 / Stepper 2）= 零行动销账（重载消歧大概率已落新臂，编译器无弃用警告） |
-| m4 McpLauncherPanelModel ObservableObject 残留（:31 + :174 @StateObject） | **本批修（plan C）** | 迁 `@Observable` + `@State`（仓内 30+ 模型既定形，最后一处）；`@Published` 7 处直剥 |
+| m4 McpLauncherPanelModel ObservableObject 残留（:31 + :174 @StateObject） | **本批修（plan C）** | 迁 `@Observable` + `@State`（仓内 30+ 模型既定形，最后一处）；`@Published` 6 处直剥（review F-4 勘误——LANEB m4 原文 7 处差 1） |
 | m5 CropOverlayHost 非私有 @State（:80） | **本批修（plan C）** | 加 `private`（无外部初始化需求，零波及） |
 | m6 行出现/消失 O(n) firstIndex ×2 处 | **本批修（plan A M3 顺路）** | §6（LibraryGridView enumerated + Filmstrip id 化双修） |
 | m7 SettingsPages:377-381 onAppear+Task 手工复刻 .task | **本批修（plan C）** | `.task { await model.refresh() }` 删 loaded 旗标；:682-686 同型 once-guard 冗余顺路清（B 类）；o8 三处重播种 = 合规销账 |
@@ -173,7 +173,7 @@ D-6 定性（FIX2 T1 五读数，双路追认）：macOS 27 SwiftUI **菜单/焦
 
 **推荐三 plan 串行（A→B→C），A/B 文件零交集可并行**:
 
-- **plan A — d6 面大重构（行为保持验证重）**:M1（§2 四件）+ M4（§3）+ M5（§4 含 m2②③/m11/o9/m9 顺路）+ M3（§6 含 m6）。文件 ~8（WorkspaceHostView / ContentView / FilmPanelView / FilmPanelModel / DrtPanelView / DrtPanelModel / EditorAdjustmentStackView / FilmstripView / FilmstripModelTests / LibraryGridView）。ΔN **+0..6**（M3 测试 +1..3 / m2 缓存 +0..2 / M1 +0..2 / 其余 0）→ 终值带 3963..3969。验收 = §7 三层全开（D-6 探针硬门在此 plan）。C 档停:闭环后汇报等确认。
+- **plan A — d6 面大重构（行为保持验证重）**:M1（§2 四件）+ M4（§3）+ M5（§4 含 m2②③/m11/o9/m9 顺路）+ M3（§6 含 m6）。文件 ~8（WorkspaceHostView / ContentView / FilmPanelView / FilmPanelModel / DrtPanelView / DrtPanelModel / EditorAdjustmentStackView / FilmstripView / FilmstripModelTests / LibraryGridView）。ΔN **+1..7**（review F-1 勘误——原写 +0..6 漏 T4 fixup 新回归 +1..3 的下界强制 ≥1；M3 测试 +1..3 / m2 缓存 +0..2 / M1 +0..2 / 其余 0）→ 终值带 3964..3970。验收 = §7 三层全开（D-6 探针硬门在此 plan）。C 档停:闭环后汇报等确认。
 - **plan B — M2 39 面板 codemod（机械但面大，独立验收）**:§5 stored-params 批 + env 门探针 +1（可选）。文件 ~40（UI/Inspector/ 全域 + PanelEditing 不动）。ΔN **+0..1** → 终值带 +0..1。验收 = 编译 + App bundle 轮 + 1-2 面板拖动走查 + D-6 探针复测一次（面板树形亦变）。与 A 并行合法性:UI/Inspector/* 与 plan A 文件零交集（唯一共享依赖 = LightamerSlider 只读）；并行时 D-6 探针轮合并到两 plan 都落盘后一次跑亦可。
 - **plan C — 机械小件批**:软废弃 43 处（A 路 28 + cornerRadius 14 + onChange 旧形 1，§4/§9 清单逐处复核）+ m1/m4/m5/m7/m8。文件 ~30。ΔN **+0..1**。验收 = 编译 + App bundle 轮 + borderlessButton 5 处截图对比。**C 最后**:含观感改动（menuStyle/m9 邻域），走查一次定稿；plan A 的面板走查截图不受其扰动。
 - **构设置（若用户裁采纳）= plan D 独立验证批**（§8，含回滚预案）；默认挂账零 plan。
