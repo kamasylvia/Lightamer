@@ -1372,7 +1372,14 @@ internal struct LightamerApp: App {
                             guard let store = libraryProjects.projectStore,
                                 let url = libraryProjects.projectURL
                             else { return nil }
-                            return (LibraryStore(store: store), url)
+                            // T5 (M7-4-01; the 20997721 precedent's third
+                            // instance): the anchor is the package's
+                            // DIRECTORY — the .lalb FILE url would poison
+                            // the pathKind 0/1 resolution (projectRelative
+                            // rows append to it).
+                            return (
+                                LibraryStore(store: store),
+                                url.deletingLastPathComponent())
                         }
                     }
                     // M7-2-01 (T1 action 4): the search/state context — every

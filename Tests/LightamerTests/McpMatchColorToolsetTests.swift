@@ -172,10 +172,12 @@ final class McpMatchColorToolsetTests: XCTestCase {
         return (store, packageURL, id, imageURL)
     }
 
-    /// Installs the (store, directory) provider (the GUI assembly 同形).
+    /// Installs the (store, directory) provider (the GUI assembly 同形 —
+    /// T5 勘正: the anchor is the package DIRECTORY, not the .lalb file
+    /// url, the 20997721 precedent's third instance).
     private func installLibrary(_ library: (store: LibraryStore, directory: URL, imageID: Int64, imageURL: URL)) {
         MatchColorToolset.installLibraryProvider {
-            (library.store, library.directory)
+            (library.store, library.directory.deletingLastPathComponent())
         }
     }
 
@@ -349,6 +351,63 @@ final class McpMatchColorToolsetTests: XCTestCase {
         XCTAssertEqual(Self.results(answer).first?["status"] as? String, "params-only")
     }
 
+    /// T5 (M7-4-01; M7-2/M7-3 ledger 5): the PATH-KIND 0 anchor leg — a
+    /// projectRelative row resolves against the package DIRECTORY anchor.
+    /// Absolute-kind rows could never catch the diseased anchor (the
+    /// historical provider passed the .lalb FILE url — the 20997721
+    /// precedent's lesson); this fixture rides kind 0, so the corrected
+    /// directory anchor is POSITIVE evidence: the id-form reference
+    /// resolves to <projectDir>/Media/x.tif and the tool answers (with
+    /// the diseased anchor the same row is stale → typed).
+    func testProjectRelativeRowResolvesAgainstTheDirectoryAnchor() async throws {
+        let metal = try await makeMetal()
+        let packageURL = tempDirectory.appendingPathComponent("AnchorLib.lalb")
+        let fileStore = ProjectFileStore(at: packageURL)
+        libraryFileStores.append(fileStore)
+        _ = try await fileStore.create(name: "AnchorLib")
+        let store = LibraryStore(store: fileStore)
+        // The kind0 row: a PROJECT-RELATIVE path (Media/x.tif under the
+        // package's directory — never inside the package file).
+        let mediaDirectory = tempDirectory
+            .appendingPathComponent("Media", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: mediaDirectory, withIntermediateDirectories: true)
+        let imageURL = mediaDirectory.appendingPathComponent("x.tif")
+        try Self.writeTIFF(
+            imageURL, top: (0.85, 0.55, 0.30), bottom: (0.45, 0.25, 0.15))
+        let id = try await store.insertImage(record: LibraryImageRecord(
+            imagePath: "Media/x.tif", pathKind: .projectRelative))
+        let anchor = packageURL.deletingLastPathComponent()
+        MatchColorToolset.installLibraryProvider { (store, anchor) }
+        // The anchor's correctness, direct: kind0 resolve ==
+        // <projectDir>/Media/x.tif (the absolute-kind goldens cannot see
+        // this face).
+        let resolved = ImageLinker.resolve(
+            imagePath: "Media/x.tif", pathKind: .projectRelative,
+            volumeUUID: nil, projectDirectory: anchor)
+        guard case .resolved(let url) = resolved else {
+            return XCTFail(
+                "the directory anchor must resolve the kind0 row: \(resolved)")
+        }
+        XCTAssertEqual(
+            url.standardizedFileURL.path, imageURL.standardizedFileURL.path,
+            "kind0 resolve == <projectDir>/Media/x.tif")
+        // The provider face end-to-end: the id-form reference ANSWERS
+        // (the pre-fix .lalb-file anchor made this exact row stale →
+        // typed notSessionMember).
+        let session = try await makeSession([
+            ("target.tif", (0.30, 0.50, 0.80), (0.20, 0.30, 0.60)),
+        ])
+        let registry = await makeRegistry(
+            seams: await makePopulatedSeams(session: session, metal: metal))
+        let answer = try await Self.callMatchColor(registry, [
+            "reference": .string(String(id)),
+            "targets": .string(session.relPaths[0]),
+            "attach": .bool(false),
+        ])
+        XCTAssertTrue(Self.failures(answer).isEmpty, "\(answer)")
+    }
+
     func testLibraryIDWithoutOpenLibraryIsTyped() async throws {
         let metal = try await makeMetal()
         let session = try await makeSession([("a.tif", (0.3, 0.5, 0.8), (0.2, 0.3, 0.6))])
@@ -399,7 +458,7 @@ final class McpMatchColorToolsetTests: XCTestCase {
         let id = try await store.insertImage(record: LibraryImageRecord(
             imagePath: tempDirectory.appendingPathComponent("gone.tif").path,
             pathKind: .absolute))
-        MatchColorToolset.installLibraryProvider { (store, packageURL) }
+        MatchColorToolset.installLibraryProvider { (store, packageURL.deletingLastPathComponent()) }
         let session = try await makeSession([("a.tif", (0.3, 0.5, 0.8), (0.2, 0.3, 0.6))])
         let registry = await makeRegistry(seams: await makePopulatedSeams(session: session, metal: metal))
         do {
