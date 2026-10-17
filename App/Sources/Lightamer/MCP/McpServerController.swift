@@ -687,7 +687,8 @@ enum McpServerController {
         paths: McpEndpointPaths,
         projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil,
         searchState: McpSearchStateContext? = nil,
-        project: McpProjectContext? = nil
+        project: McpProjectContext? = nil,
+        control: McpControlContext? = nil
     ) async {
         warmLutLibrary()
         var editing = await makeEditingSeams(session: { nil })
@@ -696,7 +697,7 @@ enum McpServerController {
         culling.projectWriteProbe = projectWriteProbe
         let registry = await makeRegistry(
             editing: editing, culling: culling, searchState: searchState,
-            project: project)
+            project: project, control: control)
         await registry.setWriterCheck { false }
         let host = McpHTTPHost(
             configuration: .init(host: McpHTTPHost.loopbackHost, port: 0),
@@ -750,7 +751,8 @@ enum McpServerController {
         paths: McpEndpointPaths,
         projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil,
         searchState: McpSearchStateContext? = nil,
-        project: McpProjectContext? = nil
+        project: McpProjectContext? = nil,
+        control: McpControlContext? = nil
     ) async {
         warmLutLibrary()
         let stderr = FileHandle.standardError
@@ -777,7 +779,7 @@ enum McpServerController {
             culling.projectWriteProbe = projectWriteProbe
             let registry = await makeRegistry(
                 editing: editing, culling: culling, searchState: searchState,
-                project: project)
+                project: project, control: control)
             await registry.setWriterCheck { @Sendable in lock != nil }
             let server = await McpAdapters.makeServer(registry: registry)
             try await server.start(transport: StdioTransport())
@@ -808,7 +810,8 @@ enum McpServerController {
         editing: EditingToolset.Seams? = nil,
         culling: McpCullingContext? = nil,
         searchState: McpSearchStateContext? = nil,
-        project: McpProjectContext? = nil
+        project: McpProjectContext? = nil,
+        control: McpControlContext? = nil
     ) async -> McpToolRegistry {
         let registry = McpToolRegistry()
         if let editing {
@@ -824,6 +827,14 @@ enum McpServerController {
             // M7-3 T4: the fourth domain — nil default keeps every existing
             // construction and test at its pre-M7-3 count (zero-diff).
             await McpProjectToolset.registerAll(on: registry, context: project)
+        }
+        if let control {
+            // M7-5-01 (D-M7-5-2): the fifth domain — nil default keeps every
+            // existing construction and test at its pre-M7-5 count; hosts
+            // that pass a context (headless constant / GUI coordinator)
+            // register the three control tools (the union single-value
+            // discipline — tools never disappear).
+            await McpControlToolset.registerAll(on: registry, context: control)
         }
         return registry
     }
@@ -992,7 +1003,8 @@ enum McpServerController {
         editing: EditingToolset.Seams? = nil,
         culling: McpCullingContext? = nil,
         searchState: McpSearchStateContext? = nil,
-        project: McpProjectContext? = nil
+        project: McpProjectContext? = nil,
+        control: McpControlContext? = nil
     ) async throws -> HttpHostHandle {
         warmLutLibrary()
         // The Bearer valve exists ONLY on the non-loopback branch (the
@@ -1028,7 +1040,7 @@ enum McpServerController {
         do {
             let registry = await makeRegistry(
                 editing: editing, culling: culling, searchState: searchState,
-                project: project)
+                project: project, control: control)
             // The host holds the writer right by construction.
             await registry.setWriterCheck { true }
             let pipeline = bearerToken.map { validationPipelineWithBearer(token: $0) }
@@ -1090,13 +1102,19 @@ enum McpServerController {
         editing: EditingToolset.Seams?,
         culling: McpCullingContext?,
         searchState: McpSearchStateContext? = nil,
-        project: McpProjectContext? = nil
+        project: McpProjectContext? = nil,
+        control: McpControlContext? = nil
     ) async {
         withEmbeddedState { state in
             state.editing = editing
             state.culling = culling
             state.searchState = searchState
             state.project = project
+            // M7-5-01 (the sixth seam, the F-4① fifth-seam lineage
+            // numbering — NOT the box field order): the control face rides
+            // the same box so an off→on preference toggle re-assembles the
+            // three control tools (they cannot silently vanish).
+            state.control = control
         }
         guard UserDefaults.standard.bool(forKey: embeddedServerEnabledKey) else { return }
         await startEmbeddedServer()
@@ -1111,9 +1129,11 @@ enum McpServerController {
     static func startEmbeddedServer() async {
         if withEmbeddedState({ $0.handle != nil }) { return }
         do {
-            let (editing, culling, searchState, project) = withEmbeddedState { state in
-                (state.editing, state.culling, state.searchState, state.project)
-            }
+            let (editing, culling, searchState, project, control) =
+                withEmbeddedState { state in
+                    (state.editing, state.culling, state.searchState,
+                     state.project, state.control)
+                }
             let exposure: McpExposure =
                 UserDefaults.standard.bool(forKey: lanExposureEnabledKey)
                 ? .lan : .loopback
@@ -1123,7 +1143,8 @@ enum McpServerController {
                 editing: editing,
                 culling: culling,
                 searchState: searchState,
-                project: project)
+                project: project,
+                control: control)
             let wonRace = withEmbeddedState { state -> Bool in
                 if state.handle == nil {
                     state.handle = handle
@@ -1181,6 +1202,10 @@ enum McpServerController {
         /// re-assembles the three project tools (they cannot silently
         /// vanish across a toggle).
         var project: McpProjectContext?
+        /// M7-5-01 T1 (the SIXTH seam — the F-4① lineage numbering, NOT the
+        /// field order; D-M7-5-10): the control face rides the same box for
+        /// the same toggle-visibility guarantee.
+        var control: McpControlContext?
     }
     nonisolated(unsafe) private static var embeddedState = EmbeddedState()
 

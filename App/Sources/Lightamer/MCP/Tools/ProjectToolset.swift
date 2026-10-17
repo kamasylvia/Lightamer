@@ -161,6 +161,7 @@ enum McpProjectToolset {
                 inputSchemaJSON:
                     #"{"type":"object","properties":{"path":{"type":"string","description":"The absolute path of the .lalb package to open"}},"required":["path"]}"#),
             requiresWriter: true,
+            requiresControl: true,
             handler: { arguments in
                 try await McpCullingToolset.withTimeout(
                     McpTimeouts.apply,
@@ -222,6 +223,7 @@ enum McpProjectToolset {
                 inputSchemaJSON:
                     #"{"type":"object","properties":{"folder":{"type":"string","description":"An EXISTING directory the package is created in"},"name":{"type":"string","minLength":1,"description":"The package name (folder/<name>.lalb; no path separators / colons / leading dots)"}},"required":["folder","name"]}"#),
             requiresWriter: true,
+            requiresControl: true,
             handler: { arguments in
                 try await McpCullingToolset.withTimeout(
                     McpTimeouts.apply,
