@@ -61,6 +61,16 @@ protocol BackgroundTaskHandle: AnyObject {
     func cancel() async
 }
 
+// M7-5-01 (OQ-6, D-M7-5-6): the pinned requirement — terminal states stay
+// in the registry until the user dismisses. The EXTENSION default keeps the
+// three pre-M7-5 conformers (import/export/AI) at zero diff AND at the
+// finish-removes semantics (isPinned == false → finish drops the row);
+// only the agent handle overrides with true.
+@MainActor
+extension BackgroundTaskHandle {
+    var isPinned: Bool { false }
+}
+
 /// The ONE background-task registry (M2UIW-06): both presentation faces (the
 /// bottom bar AND the task dialog) render from THIS — the dual-presentation
 /// same-source guarantee by construction. Completion removes the task;
@@ -88,6 +98,14 @@ final class BackgroundTaskRegistry {
     /// The task completed — it leaves the registry (and every face).
     func finish(id: UUID) {
         handles.removeAll { $0.id == id }
+    }
+
+    /// M7-5-01 (OQ-6): the PINNED row's user dismissal — the named removal
+    /// face for terminal agent tasks. Thin wrapper over finish (the removal
+    /// mechanics are identical; the NAME carries the pinned-row semantics —
+    /// the DECISIONS终形). finish/cancel/cancelAll semantics untouched.
+    func dismiss(id: UUID) {
+        finish(id: id)
     }
 
     /// Cancel the task through its own route, then remove it.

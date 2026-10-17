@@ -57,6 +57,10 @@ final class AgentTaskHandle: BackgroundTaskHandle {
     let id: UUID
     var title: String
     var snapshot: BackgroundTaskSnapshot
+    /// M7-5-01 (OQ-6): THE pinned handle — terminal states stay in the
+    /// registry until the user dismisses (the resume-continuity carrier).
+    /// The three pre-M7-5 legs ride the extension default (false).
+    let isPinned = true
     /// The activity log mirror (the dialog's per-command rows).
     var activity: [AgentActivityEntry] = []
     /// True while the control is held OR a resume is possible (terminal
@@ -69,7 +73,8 @@ final class AgentTaskHandle: BackgroundTaskHandle {
         self.id = id
         self.title = "Agent · \(holderName)"
         self.snapshot = .indeterminate(
-            String(localized: "agent_card_waiting", defaultValue: "等待下一条命令"))
+            String(localized: "agent_card_waiting",
+                   defaultValue: "Waiting for the next command"))
         self.coordinator = coordinator
     }
 

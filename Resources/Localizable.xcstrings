@@ -32682,6 +32682,46 @@
           }
         }
       }
+    },
+    "tasks_agent_kind" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent"
+          }
+        }
+      }
+    },
+    "agent_card_waiting" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待下一条命令"
+          }
+        }
+      }
+    },
+    "tasks_agent_stop" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止 Agent"
+          }
+        }
+      }
+    },
+    "tasks_dismiss" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
