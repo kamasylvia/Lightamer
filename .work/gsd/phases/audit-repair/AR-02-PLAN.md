@@ -6,11 +6,11 @@ wave: 1
 depends_on: []
 autonomous: true
 requirements: ["审计修复批 charter：B 路 M2 major 修复（正本 = .work/audits/xcode27-skills-2026-10/LANEB-FINDINGS.md M2 行）", "调研正本 = phases/audit-repair/RESEARCH.md §5（勘测 + 修法 + 性能门评估）+ §9 m2 行 + §10 切分", "OQ 裁决正本 = phases/audit-repair/AUDIT-REPAIR-CONTEXT.md（D-M7-AR-5 stored-params 形态 + D-M7-AR-6 验收 + D-M7-AR-9 编排）", "全套基线 3963/35/0；本 plan 带 +0..1 → 终值带 3963..3964（叠加 plan A 时按累计口径对账）", "与 plan A 并行合法性 = 文件零交集（本 plan = UI/Inspector/ 面板域；plan A = UI/Shell/ 宿主面板族 + ContentView + LibraryGridView；唯一共享依赖 LightamerSlider 只读）"]
-success_criteria: "SC 全可机检——T1 codemod：codemod 前 grep 清单落 DECISIONS（`private var params:` 直读形 = 39 文件 + `PanelEditing.params(of:` helper 式调用点逐处清点）→ codemod 后①grep `private var params:` 在 App/Sources/Lightamer/UI/Inspector/ 零命中②每面板 init/成员初始化内恰一次 params 解码（`params(of:` 或 helper 调用——codemod 后命中数 = 面板数 × 1 + PanelEditing helper 本体 + 既有非 computed 合法调用点，逐文件对账清单落 DECISIONS）③binding get/set 闭包内零 params(of:)/PanelEditing.params 解码调用（捕获 stored 值）④`ModuleInstance.swift` 零 diff（Core 面零改）⑤`IOPPanelProvider.swift` PanelEditing.params helper 签名零 diff⑥单 commit；T2 探针（可选）：PanelParamsDecodeProbeTests 新文件两法（默认 skip 腿 = XCTSkipUnless 环境门断言；PERF 腿 = LIGHTAMER_PERF_PROBE=1 下代表性 Params 解码 µs 基线 stderr PERF 行留档）+ Project.swift 恰 +1 行（LightamerTestsApp 数组）+ BUNDLE-MAP 恰 +1 行（APP 域）+ tuist generate 恒为该批最后一个动作（L041）；T3 验收：构建绿 + `--bundle App` 定向轮全绿 + 1-2 面板拖动走查（ChannelMixerRGB 代表）+ D-6 探针复测一次（面板批后；A/B 并行可合并到两 plan 都落盘后一跑）+ SUMMARY/DECISIONS 落盘"
+success_criteria: "SC 全可机检——T1 codemod：codemod 前 grep 清单落 DECISIONS（`private var params:` 直读形 = 39 文件 + `PanelEditing.params(of:` helper 式调用点逐处清点）→ codemod 后①grep `private var params:` 在 App/Sources/Lightamer/UI/Inspector/ 零命中②每面板 init/成员初始化内恰一次 params 解码（`params(of:` 或 helper 调用——codemod 后命中数 = 直读形处数 × 1（39 文件 44 处——review F-4）+ PanelEditing helper 本体 + 既有非 computed 合法调用点，grep 域限定 App/Sources/Lightamer/UI/Inspector/ 域内（review F-2——全仓域 62 命中会扰算术），逐文件对账清单落 DECISIONS）③binding get/set 闭包内零 params(of:)/PanelEditing.params 解码调用（捕获 stored 值）④`ModuleInstance.swift` 零 diff（Core 面零改）⑤`IOPPanelProvider.swift` PanelEditing.params helper 签名零 diff⑥单 commit；T2 探针（可选）：PanelParamsDecodeProbeTests 新文件两法（默认 skip 腿 = XCTSkipUnless 环境门断言；PERF 腿 = LIGHTAMER_PERF_PROBE=1 下代表性 Params 解码 µs 基线 stderr PERF 行留档）+ Project.swift 恰 +1 行（LightamerTestsApp 数组）+ BUNDLE-MAP 恰 +1 行（APP 域）+ tuist generate 恒为该批最后一个动作（L041）；T3 验收：构建绿 + `--bundle App` 定向轮全绿 + 1-2 面板拖动走查（ChannelMixerRGB 代表）+ D-6 探针复测一次（面板批后；A/B 并行可合并到两 plan 都落盘后一跑）+ SUMMARY/DECISIONS 落盘"
 estimated_tests: "+0..1（T2 探针 PERF 腿 +1——若裁定零探针 = ΔN 0 且 Project.swift 零 diff；T1 codemod 本身 ΔN=0 纯机械）"
 test_bundles: [APP]
 baseline: "3963/35/0（M7-6 收口终态；HEAD 363117ee = audit-repair research docs-only 产线零漂移）"
-expected_all: "3963 + ΔN（对账式；本 plan 带 +0..1；全批三 plan 终值带 3963..3971；skip 35 口径维持；--all 批准制 + A/B 并行窗口 /tmp/la-audit-repair-all.lock 串行）"
+expected_all: "3963 + ΔN（对账式；本 plan 带 +0..1；全批三 plan 终值带 3964..3972——review F-1，plan A 带 +1..7；skip 35 口径维持；--all 批准制 + A/B 并行窗口 /tmp/la-audit-repair-all.lock 串行）"
 red_lines:
   - "D-6 交互禁区（正本 = RESEARCH §1，与 plan A 同款共用清单）：①menus/focus 形态零触碰。②threshold 承载面不得结构性增删（双 safeAreaInset/.inspector 分栏/编辑器三段内容段数）。③每次树形改动 = FIX2 T1 探针复测硬门：本 plan 面板批后复测一次（重开项目进编辑器静置 CPU<10% ps/sample 机检 + 空载无项目面同口径记录；A/B 并行可合并）。④AX 自动化轻用。⑤o6 LutPanelView .id(libraryRevision) 本批不动（挂 D-6 专项卷）。"
   - "Core 面零改：LightamerCore/Sources/Pipe/History/ModuleInstance.swift 零 diff（params(of:) 每 call JSONDecoder 语义是本修的病源事实，但本修 = 纯 App 层消费形态提升 stored，Core 不动）；LightamerIOP/ 全域零 diff。"
@@ -20,7 +20,7 @@ red_lines:
   - "xcstrings 零 diff（本 plan 零新键——与 plan A 的 m9 豁免不同，本 plan 不触本地化面）；UserDefaults 零新键（KD-4）。"
   - "禁形机检：String.LocalizationValue(\"prefix_\\(x)\" 插值禁形零命中（本 plan 零新键面——纯预防性随批）；.runModal( App/Sources 零命中（L057）。"
   - "面板行为面零改：codemod = 纯语义等价改造（instance let 值捕获论据，RESEARCH §5）——禁顺手改任何面板布局/绑定逻辑/默认值；发现行为差 = 停手上报。"
-  - "C 路并入条款（RESEARCH §11）：周一合并 MANIFEST 落盘后逐条分诊并入——C 路若推翻本 plan 面数清单（39）以 C 路为准修正；执行前亲读合并 MANIFEST 一轮。"
+  - "C 路并入条款（RESEARCH §11）：周一合并 MANIFEST 落盘后逐条分诊并入——C 路若推翻本 plan 面数清单（39）以 C 路为准修正；执行前亲读合并 MANIFEST 一轮；基线按合并 MANIFEST 落盘时点全套终态重算 ΔN 对账带（review F-9——RESEARCH §11②）。"
   - "构建 caffeinate -dis 包裹；单测 = Scripts/test-direct.sh --bundle App；全套 --all 批准制 + A/B 并行窗口 /tmp/la-audit-repair-all.lock 串行（macOS 无 flock(1) 用 mkdir/fcntl/进程树探测等价——M7-6 验收先例口径）；测试宿主清理先核 parentage（ps -o ppid）。"
 files_modified:
   - App/Sources/Lightamer/UI/Inspector/*.swift                     # T1：39 面板 codemod（清单执行时以 grep `private var params: ` 定死落 DECISIONS；代表锚 = ChannelMixerRGBPanelView.swift :23 let instance / :26-28 computed / :322 discreteBinding 闭包捕获面）——每面板 init 一次解码存 let params + 删 computed + 闭包捕获 stored；ChannelMixerRGBPanelView 为首批样板
@@ -47,6 +47,17 @@ files_modified:
 > **面数勘误（CONTEXT §勘误①）**：RESEARCH「48 文件」实为 **48 命中
 > / 41 文件 / 39 直读面板**（`private var params: X.Params {` 直读形
 > = 39，codemod scope 正本）；helper 式调用点执行时逐处清点。
+>
+> **YiyinPanelView 同病残余登记（review F-2）**：`App/Sources/Lightamer/
+> Yiyin/YiyinPanelView.swift:59-60/:65` 双 computed params（watermark/
+> borders，同 helper 同 ModuleInstance 解码底座）= M2 同病残余，不在本
+> plan codemod scope（39 清单 = UI/Inspector/ 域口径）——处置二选一
+> （挂账注明 ∨ 以 +1 文件并入清单）执行时落 DECISIONS，禁静默漏网。
+>
+> **计量单位勘误（review F-4）**：「39 面板」实为 39 **文件** / 44 处
+> `private var params` 直读形（GradeScalarPanels.swift 一文件 6 个面板
+> struct 各 1 处）——命中数恒等式按处数闭合（44 + helper 1 + 其余 3 =
+> 48）；SC 与验收对账一律写「处数」口径。
 >
 > **裁定权归属钉**：本 plan 无用户裁决分支（D-M7-AR-5 落定 stored
 > 形；探针可选面 = plan 内裁量非用户裁决）。执行中如触「必须扩面」
@@ -122,7 +133,8 @@ files_modified:
   1. **清单定死**：codemod 前 grep 两式清单落 DECISIONS——①直读式
      `private var params: X.Params { (try? instance.params(of: X.self)) ?? .init() }`
      （39 文件）②helper 式 `PanelEditing.params(of: instance, as:)`
-     调用点逐处清点；对账 RESEARCH/B 路 39 口径（勘误①）。
+     调用点逐处清点；对账 RESEARCH/B 路 39 口径（勘误①——39 文件
+     44 处直读形，review F-4 计量单位）。
   2. **样板先行**：ChannelMixerRGBPanelView 首改——init（或成员初始
      化处）`let params = (try? instance.params(of:
      ChannelMixerRGBModule.self)) ?? ChannelMixerRGBModule.Params()`
@@ -139,9 +151,11 @@ files_modified:
   - 构建绿；`git diff --stat` 恰 39±ε 文件（ε = helper 式清单出入，
     DECISIONS 申报——禁静默吸收）。
   - grep：`private var params:` 在 App/Sources/Lightamer/UI/Inspector/
-    **零命中**；codemod 后 `params\(of:` 命中数 = 面板数 × 1（init
-    各一次）+ PanelEditing helper 本体 1 + 既有非 computed 合法调用
-    点（对账清单落 DECISIONS——命中数应 ≤ codemod 前 48）。
+    **零命中**；codemod 后 `params\(of:` 命中数（**UI/Inspector/ 域内
+    ——review F-2 域限定**，禁按全仓跑）= 直读形处数 × 1（39 文件
+    44 处——review F-4，init 各一次）+ PanelEditing helper 本体 1 +
+    既有非 computed 合法调用点（对账清单落 DECISIONS——域内命中数应
+    ≤ codemod 前 48）。
   - **ModuleInstance.swift / IOPPanelProvider.swift 零 diff**（Core
     面 + helper 面）；`panel(for:) -> AnyView` 注册缝零 diff。
   - **LibraryProjectController.swift 零 diff**；LightamerSlider.swift
@@ -205,7 +219,9 @@ T1 SC（探针判定式）；CONTEXT 编排总纲（探针合并窗口）。
      + readout 面零漂移 + binding 开关（normalize 族 discrete）行为
      零差。
   3. **D-6 探针复测**：重开 ≥6 图项目进编辑器静置 CPU<10% + 空载面
-     同口径记录（独立跑或与 plan A 合并）。
+     同口径记录（独立跑或与 plan A 合并；采样命令形与 pid parentage
+     判别沿 AR-01 T5 钉死形——review F-8，记录落本 plan DECISIONS
+     探针记录节）。
   4. **全套 --all（可选，批准制）**：A/B 并行窗口持
      `/tmp/la-audit-repair-all.lock` 串行。
   5. **SUMMARY + DECISIONS 落盘**（39 文件清单终账 + codemod 前后

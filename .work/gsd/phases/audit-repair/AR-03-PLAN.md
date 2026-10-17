@@ -5,12 +5,12 @@ title: "plan C — 机械小件批（C 最后）：T1 软废弃 43 处（A 路 2
 wave: 2
 depends_on: ["AR-01", "AR-02"]
 autonomous: true
-requirements: ["审计修复批 charter：A 路软废弃 28 处 + B 路 minor 族可修项落线（正本 = .work/audits/xcode27-skills-2026-10/LANEA-FINDINGS.md §1.2 + LANEB-FINDINGS.md m1/m3/m4/m5/m7/m8 行）", "调研正本 = phases/audit-repair/RESEARCH.md §9 分诊表 + §10 切分（C 最后）+ §12 纪律", "OQ 裁决正本 = phases/audit-repair/AUDIT-REPAIR-CONTEXT.md（D-M7-AR-8 m10 挂账 + D-M7-AR-9 C 最后 + 销账 8/挂账 3 登记面）", "全套基线 3963/35/0；本 plan 带 +0..1 → 全批终值带 3963..3971", "C 最后理由（§10）：含观感改动（menuStyle 5 处 + m9 邻域复核）——A 的 D-6 探针门要求净基线，C 观感改动污染树形归因；走查一次定稿"]
-success_criteria: "SC 全可机检——T1 软废弃批：43 处逐处清零（执行时先 grep 复核清单与 LANEA §1.2/B 路 m3 行号漂移——以符号形态为准落 DECISIONS 对账表）①overlay 旧重载 6 处 + background 旧重载 9 处 → 尾闭包形（grep `\\.overlay\\(` / `\\.background\\(` 旧 View 实参形逐处面核清零——ShapeStyle/`in:` 合法重载不误伤）②showsIndicators 3 处 → `.scrollIndicators(.hidden)`（grep `showsIndicators:` 零命中）③foregroundColor 1 处 → `.foregroundStyle`（grep `\\.foregroundColor\\(` App/Sources 零命中）④TextField onCommit 1 处 → `TextField(_:text:)` + `.onSubmit`（grep `onCommit:` 的 SwiftUI 形零命中——自定义回调类型 onCommit 不误伤）⑤coordinateSpace 1 处 → 新形（EditorNodesPanelView :273）⑥dropDestination 2 处 → DropSession 新形（SidebarView :709/:809——skill 正本对表替代签名）⑦menuStyle borderlessButton 5 处 → `.menuStyle(.button)` + `.buttonStyle(.borderless)`（grep `\\.menuStyle\\(\\.borderlessButton\\)` 零命中）⑧cornerRadius 14 处 → `clipShape(RoundedRectangle(cornerRadius:))`（grep `\\.cornerRadius\\(` App/Sources 零命中——清单 = MaskToolbarView ×11 :81/:170/:361/:378/:396/:446/:465/:483/:515/:530/:555 + SegmentEditingOverlayHost :224 + InstancePickerOverlay :70/:92，planner 实测勘误 B 路清单缺 :70）⑨onChange 旧形 1 处 → 双参/零参新形（McpLauncherPanelView :284，grep `\\.onChange\\(of:.*\\) \\{ _ in` 零命中）；T2 minor 族：m1 = EditorAdjustmentStackView row(for:) `AnyView?` → 具体 `InspectorRowView?`（:420-441 签名收紧，:440 AnyView 包装摘除——喂入面 :202/:212 ForEach 零改语义）+ m4 = McpLauncherPanelModel ObservableObject → @Observable + :174 @StateObject → @State（@Published ×7 直剥——仓内 30+ 模型既定形，最后一处）+ m5 = CropOverlayHost :80 `@State var preset` → `@State private var preset` + m7 = SettingsPages :377-381 改 `.task { await model.refresh() }` 删 loaded 旗标 + :682-686 同型 once-guard 冗余顺路清（sync load 留 onAppear 仅删冗余 guard）+ m8 = LibraryInspectorView :500-505 dateSpelling formatter 提 `static let` 缓存（dateFormat 直设面按 RESEARCH 保守口径维持——检索语法契约嫌疑，DECISIONS 核对消费方后终账）；T3：挂账 3 + 销账 8 正式登记（AR-03-DECISIONS）+ 构建绿 + `--bundle App` 定向轮全绿 + borderlessButton 5 处截图对比走查（FilterBarView :323 / PresetPanelView :98 / CatalogFilterBarView :253 / SoftProofControlView :66 / EDRControlView :58——唯一非逐字节等价面）+ m9 readout 布局复核行（m9 属 AR-01——C 走查复核一次定稿）+ MANIFEST/SUMMARY/DECISIONS 落盘"
+requirements: ["审计修复批 charter：A 路软废弃 28 处 + B 路 minor 族可修项落线（正本 = .work/audits/xcode27-skills-2026-10/LANEA-FINDINGS.md §1.2 + LANEB-FINDINGS.md m1/m3/m4/m5/m7/m8 行）", "调研正本 = phases/audit-repair/RESEARCH.md §9 分诊表 + §10 切分（C 最后）+ §12 纪律", "OQ 裁决正本 = phases/audit-repair/AUDIT-REPAIR-CONTEXT.md（D-M7-AR-8 m10 挂账 + D-M7-AR-9 C 最后 + 销账 8/挂账 3 登记面）", "全套基线 3963/35/0；本 plan 带 +0..1 → 全批终值带 3964..3972（review F-1——plan A 带 +1..7）", "C 最后理由（§10）：含观感改动（menuStyle 5 处 + m9 邻域复核）——A 的 D-6 探针门要求净基线，C 观感改动污染树形归因；走查一次定稿"]
+success_criteria: "SC 全可机检——T1 软废弃批：43 处逐处清零（执行时先 grep 复核清单与 LANEA §1.2/B 路 m3 行号漂移——以符号形态为准落 DECISIONS 对账表）①overlay 旧重载 6 处 + background 旧重载 9 处 → 尾闭包形（grep `\\.overlay\\(` / `\\.background\\(` 旧 View 实参形逐处面核清零——ShapeStyle/`in:` 合法重载不误伤）②showsIndicators 3 处 → `.scrollIndicators(.hidden)`（grep `showsIndicators:` 零命中）③foregroundColor 1 处 → `.foregroundStyle`（grep `\\.foregroundColor\\(` App/Sources 零命中）④TextField onCommit 1 处 → `TextField(_:text:)` + `.onSubmit`（grep `onCommit:` 的 SwiftUI 形零命中——自定义回调类型 onCommit 不误伤）⑤coordinateSpace 1 处 → 新形（EditorNodesPanelView :273）⑥dropDestination 2 处 → DropSession 新形（SidebarView :709/:809——skill 正本对表替代签名）⑦menuStyle borderlessButton 5 处 → `.menuStyle(.button)` + `.buttonStyle(.borderless)`（grep `\\.menuStyle\\(\\.borderlessButton\\)` 零命中）⑧cornerRadius 14 处 → `clipShape(RoundedRectangle(cornerRadius:))`（grep `\\.cornerRadius\\(` App/Sources 零命中——清单 = MaskToolbarView ×11 :81/:170/:361/:378/:396/:446/:465/:483/:515/:530/:555 + SegmentEditingOverlayHost :224 + InstancePickerOverlay :70/:92，planner 实测勘误 B 路清单缺 :70）⑨onChange 旧形 1 处 → 双参/零参新形（McpLauncherPanelView :284，grep `\\.onChange\\(of:.*\\) \\{ _ in` 零命中）；T2 minor 族：m1 = EditorAdjustmentStackView row(for:) `AnyView?` → 具体 `InspectorRowView?`（:420-441 签名收紧，:440 AnyView 包装摘除——喂入面 :202/:212 ForEach 零改语义）+ m4 = McpLauncherPanelModel ObservableObject → @Observable + :174 @StateObject → @State（@Published ×6 直剥——review F-4 勘误，LANEB m4 原文 ×7 差 1，:33-41 六处——仓内 30+ 模型既定形，最后一处）+ m5 = CropOverlayHost :80 `@State var preset` → `@State private var preset` + m7 = SettingsPages :377-381 改 `.task { await model.refresh() }` 删 loaded 旗标 + :682-686 同型 once-guard 冗余顺路清（sync load 留 onAppear 仅删冗余 guard）+ m8 = LibraryInspectorView :500-505 dateSpelling formatter 提 `static let` 缓存（dateFormat 直设面按 RESEARCH 保守口径维持——检索语法契约嫌疑，DECISIONS 核对消费方后终账）；T3：挂账 3 + 销账 8 正式登记（AR-03-DECISIONS）+ 构建绿 + `--bundle App` 定向轮全绿 + borderlessButton 5 处截图对比走查（FilterBarView :323 / PresetPanelView :98 / CatalogFilterBarView :253 / SoftProofControlView :66 / EDRControlView :58——唯一非逐字节等价面）+ m9 readout 布局复核行（m9 属 AR-01——C 走查复核一次定稿）+ MANIFEST/SUMMARY/DECISIONS 落盘"
 estimated_tests: "+0..1（m1 签名收紧 / m4 迁移顺路单测可选 +1——纯机械批合法 ΔN=0；执行时如实记账）"
 test_bundles: [APP]
 baseline: "3963/35/0（M7-6 收口终态；叠加 plan A/B ΔN 后按累计口径对账——本 plan depends_on AR-01/AR-02 串行尾位）"
-expected_all: "3963 + 累计 ΔN（对账式；本 plan 带 +0..1；全批三 plan 终值带 3963..3971；skip 35 口径维持；--all 批准制 + /tmp/la-audit-repair-all.lock 串行如逢并行残窗）"
+expected_all: "3963 + 累计 ΔN（对账式；本 plan 带 +0..1；全批三 plan 终值带 3964..3972——review F-1，plan A 带 +1..7；skip 35 口径维持；--all 批准制 + /tmp/la-audit-repair-all.lock 串行如逢并行残窗）"
 red_lines:
   - "D-6 交互禁区（正本 = RESEARCH §1，三 plan 共用清单）：①menus/focus 形态零触碰——本 plan menuStyle 5 处改造仅换 style 形（.menuStyle(.button) + .buttonStyle(.borderless)），菜单内容/命令求值面/Commands 面零触；.focusedSceneValue 挂点零 diff。②threshold 承载面不得结构性增删。③本 plan 树形改动面 = 观感级（style 换形/尾闭包形）——非结构性树形改动，探针硬门不强制；若执行中发现某处改造引入结构性树变化（如 overlay 尾闭包形改变子层级身份）= 升级触发探针复测义务（停手上报 + 复测一次）。④AX 自动化轻用。⑤o6 LutPanelView 本批不动（挂 D-6 专项卷）。"
   - "disable-not-unmount 三纪律：零条件卸载新增；CropOverlayHost m5 仅加 private（零波及）。"
@@ -20,7 +20,7 @@ red_lines:
   - "禁形机检：String.LocalizationValue(\"prefix_\\(x)\" 插值禁形零命中；.runModal( App/Sources 零命中（L057——m7 的 .task 改造零面板呈现面）。"
   - "观感改动申报面：borderlessButton 5 处 = 唯一非逐字节等价面（.menuStyle(.button) + .buttonStyle(.borderless) 观感近似非逐字节）——改造后 5 处截图对比步为验收面（MANIFEST 配方），观感差超预期 = DECISIONS 申报 + 该处回退评估；其余 38 处 = 机械等价改造（观感零差预期）。"
   - "dropDestination 新形对表纪律：替代签名以 skill 正本为准（.work/xcode27-skills/swiftui-specialist/references/soft-deprecated-apis.md——只读对表，禁凭模型先验写签名）；编译失败 = 回 skill 正本重对表，禁自造 API。"
-  - "C 路并入条款（RESEARCH §11）：执行前必读周一合并 MANIFEST——C 路新 findings 按 CONTEXT §9 同款分诊并入本 plan（机械小件族天然落位本 plan）或追加 plan；C 路推翻 A/B 软废弃命中存疑项（如某处实为合法重载）以 C 路为准修正清单。"
+  - "C 路并入条款（RESEARCH §11）：执行前必读周一合并 MANIFEST——C 路新 findings 按 CONTEXT §9 同款分诊并入本 plan（机械小件族天然落位本 plan）或追加 plan；C 路推翻 A/B 软废弃命中存疑项（如某处实为合法重载）以 C 路为准修正清单；基线按合并 MANIFEST 落盘时点全套终态重算 ΔN 对账带（review F-9——RESEARCH §11②）。"
   - "构建 caffeinate -dis 包裹；单测 = Scripts/test-direct.sh --bundle App；全套 --all 批准制 + /tmp/la-audit-repair-all.lock 串行（macOS 无 flock(1) 用 mkdir/fcntl/进程树探测等价——M7-6 验收先例口径）；测试宿主清理先核 parentage（ps -o ppid）。"
   - "Project.swift 零 diff（本 plan 零新测试文件——m1/m4 顺路单测进既有文件或 ΔN=0 让渡）。"
 files_modified:
@@ -41,7 +41,7 @@ files_modified:
   - App/Sources/Lightamer/UI/Overlay/MaskToolbarView.swift         # T1：cornerRadius ×11（:81/:170/:361/:378/:396/:446/:465/:483/:515/:530/:555——planner 实测清单，B 路原「等」展开）→ clipShape
   - App/Sources/Lightamer/UI/Overlay/SegmentEditingOverlayHost.swift # T1：cornerRadius :224 → clipShape
   - App/Sources/Lightamer/UI/Overlay/InstancePickerOverlay.swift   # T1：cornerRadius :70/:92 → clipShape（planner 勘误：B 路清单缺 :70）
-  - App/Sources/Lightamer/UI/McpLauncherPanelView.swift            # T1：onChange 旧形 :284 双参/零参新形 + T2 m4：McpLauncherPanelModel :31 ObservableObject → @Observable + @Published ×7 直剥 + :174 @StateObject → @State
+  - App/Sources/Lightamer/UI/McpLauncherPanelView.swift            # T1：onChange 旧形 :284 双参/零参新形 + T2 m4：McpLauncherPanelModel :31 ObservableObject → @Observable + @Published ×6 直剥（review F-4——×7 差 1）+ :174 @StateObject → @State
   - App/Sources/Lightamer/UI/Shell/EditorAdjustmentStackView.swift # T2 m1：row(for:) AnyView? → InspectorRowView?（:420-441 + :440 AnyView 摘除）——与 AR-01 T3（o9）串行不冲突
   - App/Sources/Lightamer/UI/Overlay/CropOverlayHost.swift         # T2 m5：:80 @State var preset → @State private var preset
   - App/Sources/Lightamer/Settings/SettingsPages.swift             # T2 m7：:377-381 .task { await model.refresh() } 删 loaded 旗标 + :682-686 once-guard 冗余顺路清
@@ -74,7 +74,8 @@ files_modified:
 > Conventional Commits，全英文，只 add 相关文件，不 push。
 >
 > **基线**：**3963/35/0**（叠加 plan A/B ΔN 后按累计口径）；本 plan
-> ΔN 带 +0..1 → **全批终值带 3963..3971**。
+> ΔN 带 +0..1 → **全批终值带 3964..3972**（review F-1——plan A 带
+> +1..7）。
 
 ## ΔN 预算表（逐任务，合计带 +0..1；越带须申报理由）
 
@@ -83,7 +84,7 @@ files_modified:
 | T1 软废弃 43 处 | **0** | 纯机械 API 换形——回归靠既有 App bundle 面 + 走查 | 既有测试面 |
 | T2 minor 族 | **+0..1** | m1 签名收紧 / m4 迁移顺路单测（可选——类型层断言）；纯机械批合法 ΔN=0 | 既有测试文件扩或让渡 |
 | T3 登记 + 验收 | **0** | 挂账/销账登记 + 轮次 + 截图对比 + 收口文档 | — |
-| **合计** | **+0..1** | 累计基线 → 全批终值带 3963..3971 | 全 APP 域；Project.swift 零 diff |
+| **合计** | **+0..1** | 累计基线 → 全批终值带 3964..3972（review F-1） | 全 APP 域；Project.swift 零 diff |
 
 ## 已定裁决（生效值，硬约束，不得重开）
 
@@ -195,7 +196,7 @@ files_modified:
 **read_first**：`RESEARCH.md` §9 minor 表 m1/m4/m5/m7/m8 行；
 `EditorAdjustmentStackView.swift` :189-227（row 消费面 :202/:212）+
 :420-441（row(for:) AnyView?）；`McpLauncherPanelView.swift` :31-40
-（ObservableObject + @Published ×7）+ :174（@StateObject）+ :284 邻域；
+（ObservableObject + @Published ×6——review F-4 勘误）+ :174（@StateObject）+ :284 邻域；
 `CropOverlayHost.swift` :80；`SettingsPages.swift` :377-381 + :682-686；
 `LibraryInspectorView.swift` :500-505（dateSpelling）+ 消费方 grep
 （dateFormat 契约核对——m8 保守口径）。
@@ -206,7 +207,8 @@ files_modified:
      ForEach 零改（类型收紧后 SwiftUI 结构身份更精——行为保持走查）。
   2. **m4**：McpLauncherPanelModel `ObservableObject` →
      `@Observable`（@MainActor 对齐仓内 30+ 模型既定形）；`@Published`
-     ×7 直剥（@Observable 逐属性跟踪）；:174 `@StateObject` →
+     ×6 直剥（review F-4 勘误——LANEB m4 原文 ×7 差 1；@Observable
+     逐属性跟踪）；:174 `@StateObject` →
      `@State`；消费面 `model.$xxx` 投影若有 → 直读适配（逐处面核）。
   3. **m5**：CropOverlayHost :80 `@State var preset` → `@State private
      var preset`（无外部初始化需求——编译绿即零波及证明）。
@@ -250,7 +252,12 @@ files_modified:
      + 挂账 3 正式登记（m10/o4/o6——零代码动作 + 复活条件）+ 销账 8
      正式登记（o1/o2/o3/o5/o7/o8/m2①/m3 notes——各附豁免正本引语）
      + m8 dateFormat 终账 + C 路并入记录（合并 MANIFEST 亲读结论 +
-     新 findings 分诊去向）。
+     新 findings 分诊去向）+ **LANEA side-note 销账两行（review F-5）**：
+     ①LANEA §2 M3 note（@State private memberwise init 合成依赖——
+     「不可机械 grep，留 B 路」交接原无人承接）= 零行动销账（编译器
+     诊断面，大概率零缺陷；显式销账不留断链）②LANEA §4 modernize-
+     tests 快评（3,968 法 XCTest）= 裁决留痕「不立项专项、随触随迁」
+     （零代码决定亦留痕）。
   2. **定向轮**：`caffeinate -dis Scripts/test-direct.sh --bundle App`
      全绿（累计基线 + ΔN 对账）。
   3. **截图对比步**：borderlessButton 5 处改造前后截图对比
@@ -261,7 +268,7 @@ files_modified:
      测（m9 属 AR-01——C 走查复核一次定稿）。
   5. **SUMMARY + MANIFEST 落盘**（AR-03 节：43 处对账 + 截图配方 +
      m4 McpLauncher 行为观察行）；全批 ΔN 终账对
-     照（A +0..6 / B +0..1 / C +0..1 → 3963..3971）。
+     照（A +1..7 / B +0..1 / C +0..1 → 3964..3972——review F-1）。
   6. 汇报（本 plan 闭环 + 全批终值 + 挂账/销账清单呈用户）。
 - **验收标准（机检）**：定向轮绿 + DECISIONS/MANIFEST/SUMMARY 在库
   （grep 节标题）+ 43 处 grep 清零终态复核 + 全批 ΔN 对账表闭合。
@@ -309,6 +316,6 @@ files_modified:
 5. **红线核**：LibraryProjectController / 封存面 / xcstrings /
    UserDefaults / Project.swift 五面零 diff；禁形机检两零命中。
 6. **SC 可机检性**：五族 grep 清零 + 对账表 + 定向轮 + 截图配方；
-   ΔN 对账式（全批 3963..3971）。
+   ΔN 对账式（全批 3964..3972——review F-1）。
 7. **C 路并入**：合并 MANIFEST 亲读记录 + 新 findings 分诊去向逐条。
 8. **编排**：depends_on 串行兑现（A/B 闭环证据在先）。
