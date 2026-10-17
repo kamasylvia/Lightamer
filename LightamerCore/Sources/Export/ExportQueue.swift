@@ -520,10 +520,20 @@ public actor ExportQueue {
             // The EXIF Software carrier (M2-9-04 KD-4) rides the same
             // TaskLocal discipline as the render legs' carriers — the
             // encode leg reads it through `withValue` (additive wrapper;
-            // the engine semantics are untouched).
+            // the engine semantics are untouched). UQ-A2 (M7-4-01): the
+            // NAMING carrier rides the encode leg too — the .fail tier's
+            // exclusive final write reads collisionPolicy from HERE (the
+            // frozen leg signature cannot carry it; the same assembly the
+            // render leg scopes in).
+            let encodeNamingCarrier = ExportRenderer.ExportNamingCarrier(
+                naming: queued.naming,
+                collisionPolicy: queued.collisionPolicy,
+                subfolder: queued.subfolder)
             url = try await ExportRenderer.$jobExifSoftware.withValue(queued.exifSoftware) {
-                try await MetalContext.$routesToExportQueue.withValue(true) {
-                    try await encodeLeg(artifact, queued.variant)
+                try await ExportRenderer.$jobNamingCarrier.withValue(encodeNamingCarrier) {
+                    try await MetalContext.$routesToExportQueue.withValue(true) {
+                        try await encodeLeg(artifact, queued.variant)
+                    }
                 }
             }
         } catch {
@@ -711,6 +721,13 @@ public actor ExportQueue {
             // (one shot; non-gain-map jobs never touch the box).
             let hdrGainPlane = variant.gainMapHDR
                 ? gainMapBox.consume(artifact.token) : nil
+            // UQ-A2 (M7-4-01): the .fail tier promotes exclusively — the
+            // final write rejects instead of replacing (the render-stage
+            // snapshot stays the early cost gate; this closes the TOCTOU
+            // window). Every other tier (and a nil carrier — direct
+            // renderStage+encodeStage callers) keeps the plain-rename face.
+            let exclusiveFinalWrite =
+                ExportRenderer.jobNamingCarrier?.collisionPolicy == .fail
             return try ExportRenderer.encodeStage(
                 plane: stage.plane, formatSpec: stage.formatSpec,
                 targetColorSpace: stage.targetColorSpace, dpi: stage.dpi,
@@ -720,7 +737,8 @@ public actor ExportQueue {
                 exifSoftware: ExportRenderer.jobExifSoftware,
                 embedICC: variant.embedICC,
                 gainMapHDR: variant.gainMapHDR,
-                hdrGainPlane: hdrGainPlane)
+                hdrGainPlane: hdrGainPlane,
+                exclusiveFinalWrite: exclusiveFinalWrite)
         }
         return (renderLeg, encodeLeg)
     }
