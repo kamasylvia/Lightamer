@@ -151,6 +151,11 @@ struct FilmstripView: View {
 
     @State private var model: FilmstripModel?
 
+    // M7-5-01 (D-M7-5-4 face ⑦): the editor image-switching gate — the
+    // environment-resolved coordinator (the shell's environment chain
+    // provides it; the sole mount is the editor shell).
+    @Environment(AgentControlCoordinator.self) private var agentControl
+
     var body: some View {
         Group {
             if let model, !grid.rows.isEmpty {
@@ -159,6 +164,9 @@ struct FilmstripView: View {
                 emptyState
             }
         }
+        // M7-5-01 face ⑦: image switching in the editor is an Alcedo
+        // forbidden face while the agent drives (disable-not-unmount).
+        .disabled(agentControl.holdsControl)
         .onAppear {
             if model == nil {
                 model = FilmstripModel(grid: grid, bridge: bridge)

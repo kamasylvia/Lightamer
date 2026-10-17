@@ -71,6 +71,10 @@ final class ToastFaceTests: XCTestCase {
                 .environment(pipeCoordinator)
                 .environment(exportState)
                 .environment(inspectorState)
+                // M7-5-01: the turn-taking coordinator joined the host's
+                // environment face (never held here — the faces stay
+                // byte-identical).
+                .environment(AgentControlCoordinator())
         }
     }
 

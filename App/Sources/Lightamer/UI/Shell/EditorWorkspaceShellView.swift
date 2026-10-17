@@ -37,6 +37,8 @@ struct EditorWorkspaceShellView: View {
     @Environment(EditorState.self) private var editorState
     @Environment(PipeCoordinator.self) private var pipeCoordinator
     @Environment(VersionCoordinator.self) private var versionCoordinator
+    // M7-5-01 (D-M7-5-4 face ①): the adjustment-stack host column's gate.
+    @Environment(AgentControlCoordinator.self) private var agentControl
 
     /// The filmstrip column width (the P1 slot budget).
     private static let filmstripWidth: CGFloat = 148
@@ -166,9 +168,14 @@ struct EditorWorkspaceShellView: View {
     }
 
     /// The T2 adjustment stack (the seven-tab routing over the existing
-    /// panel registry — the M1 panels instantiate untouched).
+    /// panel registry — the M1 panels instantiate untouched). M7-5-01 face
+    /// ①: the agent-held gate disables the host column CONTAINER
+    /// (disable-not-unmount — never conditional unmounting: an unmount
+    /// would fire onDisappear and close the scope taps, the Alcedo
+    /// c7ba784 disease shape).
     private var stackSlot: some View {
         EditorAdjustmentStackView(workspace: workspace)
+            .disabled(agentControl.holdsControl)
     }
 
     // MARK: - The current-image load leg

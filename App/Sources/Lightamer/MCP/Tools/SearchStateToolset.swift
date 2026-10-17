@@ -111,6 +111,13 @@ public struct McpSearchStateContext: Sendable {
     /// null honest face (NO new plumbing — there is no consumer).
     public var writeCallCount: (@Sendable () async -> Int?)?
 
+    /// M7-5-01 (D-M7-5-8): the agent control state provider — get_state's
+    /// `control.agent` face. nil = the JSON null honest face (the headless
+    /// constant rides T4's assembly; the GUI arm MainActor.run-hops into
+    /// the coordinator). Additive optional: every existing construction
+    /// compiles zero-diff.
+    public var agentControl: (@Sendable () async -> McpControlState?)?
+
     public init(
         library: (@Sendable () async -> (
             store: ProjectFileStore, projectDirectory: URL
@@ -123,7 +130,8 @@ public struct McpSearchStateContext: Sendable {
         fulltext: (@Sendable (String) async throws -> [Int64])? = nil,
         liveState: (@Sendable () async -> McpSearchStateLiveSnapshot?)? = nil,
         projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil,
-        writeCallCount: (@Sendable () async -> Int?)? = nil
+        writeCallCount: (@Sendable () async -> Int?)? = nil,
+        agentControl: (@Sendable () async -> McpControlState?)? = nil
     ) {
         self.library = library
         self.sessionPair = sessionPair
@@ -133,6 +141,7 @@ public struct McpSearchStateContext: Sendable {
         self.liveState = liveState
         self.projectWriteProbe = projectWriteProbe
         self.writeCallCount = writeCallCount
+        self.agentControl = agentControl
     }
 }
 
@@ -1074,6 +1083,16 @@ enum McpSearchStateToolset {
             writeCount = .null
         }
         control["writeCallCount"] = writeCount
+
+        // M7-5-01 (D-M7-5-8): the agent control state — the additive ONE
+        // key. nil provider → the JSON null honest face; a provider answer
+        // → the {held, revokedByUser, holder} sub-object. The three keys
+        // above stay byte-identical (zero drift).
+        if let agentControl = context.agentControl, let state = await agentControl() {
+            control["agent"] = state.json
+        } else {
+            control["agent"] = .null
+        }
 
         // The server face: the snapshot's host-derived stance when the
         // host supplied one; the identity is the handler's own fallback.

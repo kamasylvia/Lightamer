@@ -266,6 +266,11 @@ internal struct LightamerApp: App {
     @State private var versionCoordinator = VersionCoordinator()
     @State private var exportState = ExportState()
     @State private var inspectorState = InspectorState()
+    /// M7-5-01 (D-M7-5-4..9): the turn-taking single writer — the GUI
+    /// disable faces' gate source and the MCP control face's backing store.
+    /// The acquire wait probe feeds `pipeCoordinator.liveEditActive` at the
+    /// assembly point below (the injected-provider discipline, F-6).
+    @State private var agentControl = AgentControlCoordinator()
     // Plan 06-05 T3: the layer-selection + editing-mode state machine
     // (viewport gesture arbitration归口 — D-03b isolated state object).
     @State private var layerEditingState = LayerEditingState()
@@ -529,6 +534,7 @@ internal struct LightamerApp: App {
                 .environment(exportState)
                 .environment(inspectorState)
                 .environment(layerEditingState)
+                .environment(agentControl)
                 .environment(aiDownloadModel)
                 .environment(depthMaskService)
                 .environment(metadataController)
@@ -568,6 +574,13 @@ internal struct LightamerApp: App {
                     // render path.
                     editorState.attach(pipeCoordinator: pipeCoordinator)
                     pipeCoordinator.attach(editorState: editorState)
+                    // M7-5-01 (F-6): the turn-taking acquire wait probe —
+                    // the coordinator reads the THREE-window OR through this
+                    // injected closure (MainActor hop inside; the probe
+                    // never hard-references PipeCoordinator).
+                    agentControl.configureLiveEditProbe { [pipeCoordinator] in
+                        await MainActor.run { pipeCoordinator.liveEditActive }
+                    }
                     // M2-8-2 T4 (KD-6): the sentinel launch leg — read the
                     // PREVIOUS session's verdict, then mark THIS session
                     // running (the toast decision rides the editor-ready
@@ -1541,6 +1554,12 @@ internal struct LightamerApp: App {
                         projectWriteProbe: projectWriteProbe,
                         writeCallCount: {
                             await McpServerController.embeddedWriteCallCount()
+                        },
+                        // M7-5-01 (D-M7-5-8): the get_state control.agent
+                        // face rides the same coordinator (MainActor hop
+                        // inside, the tool handler only sees the snapshot).
+                        agentControl: { [agentControl] in
+                            await MainActor.run { agentControl.currentState() }
                         })
                     // M7-3 T4: the GUI-embedded project context (D-M7-3-1
                     // GUI arm) — the controller-hop providers with the
@@ -1605,11 +1624,31 @@ internal struct LightamerApp: App {
                         },
                         library: librarySeam,
                         sessionPair: sessionPairSeam)
+                    // M7-5-01 (D-M7-5-4..9): the coordinator-backed control
+                    // face — every provider MainActor.run-hops into the
+                    // App-level coordinator (the liveState discipline; the
+                    // F-6 structure rule: the tool implementations never
+                    // reference the coordinator type).
+                    let controlContext = McpControlContext(
+                        acquire: { [agentControl] holderName in
+                            // The plain await IS the MainActor hop (the
+                            // coordinator is @MainActor; MainActor.run's
+                            // body is synchronous — the async acquire hops
+                            // through the await).
+                            try await agentControl.acquire(holderName)
+                        },
+                        release: { [agentControl] in
+                            await MainActor.run { agentControl.release() }
+                        },
+                        state: { [agentControl] in
+                            await MainActor.run { agentControl.currentState() }
+                        })
                     await McpServerController.startEmbeddedIfPreferenceEnabled(
                         editing: editingSeams,
                         culling: cullingContext,
                         searchState: searchStateContext,
-                        project: projectContext)
+                        project: projectContext,
+                        control: controlContext)
                 }
                 // Plan M2-2-2: the project/import minimal faces (OQ-1 A +
                 // OQ-4/OQ-11 切分线 — dialog + progress here, the complete
@@ -1631,11 +1670,22 @@ internal struct LightamerApp: App {
                         onCancel: { libraryImportRequest = nil })
                 }
                 .sheet(isPresented: $libraryWelcomePresented) {
+                    // M7-5-01 (D-M7-5-4 face ⑫): the welcome route rides the
+                    // equivalent derived-closure form — LibraryWelcomeView
+                    // lives inside the zero-diff controller file (FIX2④),
+                    // so the gate lands on the App-side closures.
                     LibraryWelcomeView(
                         recentProjects: libraryProjects.recentProjects,
-                        onCreate: { Task { await newLibraryProjectFromPanel() } },
-                        onOpen: { Task { await openLibraryProjectFromPanel() } },
+                        onCreate: {
+                            guard !agentControl.holdsControl else { return }
+                            Task { await newLibraryProjectFromPanel() }
+                        },
+                        onOpen: {
+                            guard !agentControl.holdsControl else { return }
+                            Task { await openLibraryProjectFromPanel() }
+                        },
                         onOpenRecent: { url in
+                            guard !agentControl.holdsControl else { return }
                             Task {
                                 try? await libraryProjects.openProject(at: url)
                                 // M6-1-01: a published conflict keeps the
@@ -1800,13 +1850,18 @@ internal struct LightamerApp: App {
                 // Plan M2-2-2 (OQ-1 A/KD-5): the project command face —
                 // additive beside the Session face (coexistence until the
                 // M2-2-4 剥离门). Verbatim labels: zh lands with M2-3.
+                // M7-5-01 (D-M7-5-4 face ⑫): the project open/create view
+                // layer joins the merge form (the controller file stays
+                // zero-diff — FIX2④).
                 Button {
                     Task { await newLibraryProjectFromPanel() }
                 } label: { Text(verbatim: "New Project…") }
+                .disabled(agentControl.holdsControl)
                 .keyboardShortcut("n", modifiers: [.command])
                 Button {
                     Task { await openLibraryProjectFromPanel() }
                 } label: { Text(verbatim: "Open Project…") }
+                .disabled(agentControl.holdsControl)
                 .keyboardShortcut("o", modifiers: [.command, .option])
                 Menu {
                     ForEach(libraryProjects.recentProjects, id: \.absoluteString) { url in
@@ -1822,7 +1877,8 @@ internal struct LightamerApp: App {
                         }
                     }
                 } label: { Text(verbatim: "Open Recent Project") }
-                .disabled(libraryProjects.recentProjects.isEmpty)
+                .disabled(libraryProjects.recentProjects.isEmpty
+                          || agentControl.holdsControl)
                 Divider()
                 // L057 (fix(l057), 2026-10-08): the panel actions ride
                 // PanelPresentation.present (the `begin` seam) — a modal
@@ -1910,12 +1966,17 @@ internal struct LightamerApp: App {
                 // M6-1-01 omp E-OMP-1 (d): undo lands a sidecar position
                 // write — read-only disables it (first line of defense; the
                 // EditorState guard is the backstop).
-                .disabled(!editorState.canUndo || libraryProjects.isReadOnly)
+                // M7-5-01 (D-M7-5-4 face ⑤): the agent-held control joins
+                // the same merge form (history head moves are an Alcedo
+                // forbidden face while the agent drives).
+                .disabled(!editorState.canUndo || libraryProjects.isReadOnly
+                          || agentControl.holdsControl)
                 .keyboardShortcut("z", modifiers: .command)
                 Button(String(localized: "menu_redo")) {
                     Task { await pipeCoordinator.redo() }
                 }
-                .disabled(!editorState.canRedo || libraryProjects.isReadOnly)
+                .disabled(!editorState.canRedo || libraryProjects.isReadOnly
+                          || agentControl.holdsControl)
                 .keyboardShortcut("z", modifiers: [.command, .shift])
                 Divider()
                 // 09-04 HIST-05 (was the Phase 9 disabled placeholder):

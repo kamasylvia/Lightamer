@@ -32,6 +32,9 @@ struct VersionsPanelView: View {
 
     @Environment(VersionCoordinator.self) private var versions
     @Environment(EditorState.self) private var editorState
+    // M7-5-01 (D-M7-5-4 face ⑥): the version mutation/checkout gate —
+    // the container-level disable joins the read-only face.
+    @Environment(AgentControlCoordinator.self) private var agentControl
 
     /// The inline-rename target + draft (nil = closed; the alert-free
     /// inline shape — the EditorNodesPanelView rename seam, in-row).
@@ -83,6 +86,10 @@ struct VersionsPanelView: View {
             }
         }
         .accessibilityIdentifier(Self.panelMarker)
+        // M7-5-01 face ⑥: create / branch / tap-switch / rename / remove
+        // all sit under the container gate while the agent holds the
+        // control (disable-not-unmount — the panel stays mounted).
+        .disabled(agentControl.holdsControl)
     }
 
     // MARK: - The header buttons (create / branch — both create-activate)

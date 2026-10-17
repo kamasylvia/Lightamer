@@ -61,6 +61,12 @@ struct WorkspaceHostView: View {
     @Environment(ExportState.self) private var exportState
     @Environment(InspectorState.self) private var inspectorState
 
+    // M7-5-01 (D-M7-5-4): the turn-taking gate — the topbar export/yiyin
+    // entries merge the agent-held clause; the coordinator's registry attach
+    // rides the .task below (the card row lands in THIS host's aggregate
+    // registry — the M2UIW-06 single-aggregate discipline).
+    @Environment(AgentControlCoordinator.self) private var agentControl
+
     // Plan M2-3-1 T6 (M2UIW-06): the background-task faces — ONE registry
     // behind BOTH presentations (bar + dialog), the import leg riding the
     // read-only ImportTaskAdapter subscription.
@@ -143,6 +149,13 @@ struct WorkspaceHostView: View {
             BackgroundTaskBarView(
                 registry: taskRegistry,
                 isDialogPresented: $isTaskDialogPresented)
+        }
+        .task {
+            // M7-5-01 (F12): the agent card row rides THIS host's aggregate
+            // registry — the App-level coordinator attaches it here (the
+            // pipeCoordinator.configure(window:) cross-attach precedent;
+            // weak on the coordinator side).
+            agentControl.attachTaskRegistry(taskRegistry)
         }
         .background(ThemeTokens.windowBackground)
         .accessibilityIdentifier(ThemeTokens.Markers.workspaceHost)
@@ -622,20 +635,23 @@ struct WorkspaceHostView: View {
                     Image(systemName: "square.and.arrow.up")
                 }
                 .buttonStyle(.borderless)
-                .disabled(projectController?.isReadOnly ?? false)
+                .disabled(projectController?.isReadOnly ?? false
+                          || agentControl.holdsControl)
                 .accessibilityIdentifier("shell.topbar.export")
                 .accessibilityLabel(Text(String(localized: "menu_export")))
                 // The D4 独有入口: the yiyin 印框/水印 sheet (the export-domain
                 // first-class panel — no Alcedo counterpart; TextOverlay is
                 // the sheet's text carrier). M6-1-01: disabled read-only
                 // (the yiyin export leg rides the same ExportState seam).
+                // M7-5-01 (face ⑪): the agent-held clause joins the merge.
                 Button {
                     isYiyinSheetPresented = true
                 } label: {
                     Image(systemName: "signature")
                 }
                 .buttonStyle(.borderless)
-                .disabled(projectController?.isReadOnly ?? false)
+                .disabled(projectController?.isReadOnly ?? false
+                          || agentControl.holdsControl)
                 .accessibilityIdentifier("shell.topbar.yiyin")
                 .accessibilityLabel(Text(String(
                     localized: "shell_topbar_yiyin",

@@ -34,6 +34,10 @@ struct EditorAdjustmentStackView: View {
     @Environment(InspectorState.self) private var inspectorState
     @Environment(PipeCoordinator.self) private var pipeCoordinator
     @Environment(LayerEditingState.self) private var editingState
+    // M7-5-01 (D-M7-5-4 face ②): the adjustment-stack container's gate —
+    // ONE container-level disable (never per-panel scattering, never
+    // conditional unmounting).
+    @Environment(AgentControlCoordinator.self) private var agentControl
 
     /// The T4 RAW Decode panel's decode legs (the shell-owned actor + the
     /// coordinator's read-only Metal seam).
@@ -74,6 +78,11 @@ struct EditorAdjustmentStackView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(ThemeTokens.cardSurface)
         .accessibilityIdentifier("editor.stack")
+        // M7-5-01 face ②: the container-level agent-held disable — the
+        // whole stack (tab rail + page content + preset entry) goes inert
+        // while the agent drives (Alcedo disables the adjustment panels
+        // wholesale; tab switching is not a preserved face).
+        .disabled(agentControl.holdsControl)
         // M2-7-2 (KD-3 Locate): consume the ONE-shot tab route the Mask
         // Groups panel's Locate writes — the tab state stays THIS view's
         // private @State (the pending field is a routed request, cleared

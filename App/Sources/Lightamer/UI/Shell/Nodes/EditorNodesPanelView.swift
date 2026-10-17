@@ -30,6 +30,11 @@ struct EditorNodesPanelView: View {
     /// degrades the tap to a no-op, it must never crash the host.
     private weak var inspectorState: InspectorState?
 
+    /// M7-5-01 face ④: the turn-taking gate source — OPTIONAL + injected
+    /// (the same bare-host discipline as inspectorState above; the rail
+    /// passes the environment-resolved coordinator).
+    private weak var agentControl: AgentControlCoordinator?
+
     /// The active drag's drop index (nil = no drag → the indicator hides).
     @State private var dropIndex: Int?
 
@@ -63,13 +68,15 @@ struct EditorNodesPanelView: View {
     init(
         editorState: EditorState, editingState: LayerEditingState,
         pipeCoordinator: PipeCoordinator? = nil,
-        inspectorState: InspectorState? = nil
+        inspectorState: InspectorState? = nil,
+        agentControl: AgentControlCoordinator? = nil
     ) {
         _model = State(
             initialValue: NodesPanelModel(
                 editorState: editorState, editingState: editingState,
                 pipeCoordinator: pipeCoordinator))
         self.inspectorState = inspectorState
+        self.agentControl = agentControl
     }
 
     var body: some View {
@@ -78,6 +85,11 @@ struct EditorNodesPanelView: View {
                 .onAppear { containerSize = geo.size }
                 .onChange(of: geo.size) { _, newSize in containerSize = newSize }
         }
+        // M7-5-01 (D-M7-5-4 face ④): the node canvas + mask editing surface
+        // go inert while the agent holds the control. OPTIONAL injection
+        // (the inspectorState precedent — the bare test host degrades the
+        // gate to open, never crashes it).
+        .disabled(agentControl?.holdsControl ?? false)
         .onChange(of: model.document?.nodes.map(\.id)) { model.pruneSelection() }
         .alert(
             String(localized: "nodes_rename_title", defaultValue: "Rename Color Grade"),

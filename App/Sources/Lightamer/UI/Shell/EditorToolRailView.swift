@@ -69,6 +69,9 @@ struct EditorToolRailView: View {
     @Environment(PipeCoordinator.self) private var pipeCoordinator
     @Environment(LayerEditingState.self) private var editingState
     @Environment(InspectorState.self) private var inspectorState
+    // M7-5-01 (D-M7-5-4 face ③): the history panel's gate (history head
+    // moves are an Alcedo forbidden face while the agent drives).
+    @Environment(AgentControlCoordinator.self) private var agentControl
 
     var body: some View {
         HStack(spacing: 0) {
@@ -145,11 +148,17 @@ struct EditorToolRailView: View {
                 EditorNodesPanelView(
                     editorState: editorState, editingState: editingState,
                     pipeCoordinator: pipeCoordinator,
-                    inspectorState: inspectorState)
+                    inspectorState: inspectorState,
+                    agentControl: agentControl)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.leading, 8)
+        // M7-5-01 face ③: the expanded panel bodies (history head moves /
+        // versions mutation / nodes canvas) go inert while the agent holds
+        // the control (disable-not-unmount — the rail stays mounted so the
+        // scope taps and panel state survive).
+        .disabled(agentControl.holdsControl)
     }
 
     /// The LIVE history stack (D3 活体壳): undo/redo header + one row per

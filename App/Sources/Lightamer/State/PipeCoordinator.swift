@@ -166,6 +166,17 @@ final class PipeCoordinator {
     /// collapses the whole interaction into ONE item.
     private var isEditingContinuous = false
 
+    /// M7-5-01 (D-M7-5-7 / F2): the THREE-window OR — the D-H1 continuous
+    /// drag window, the DRT record drag window and the film record drag
+    /// window are all "the user is mid-drag" facts (the Alcedo
+    /// UnsealedEditorInput semantics: the control-acquire wait probe reads
+    /// this). Read-only computed property: zero new mutable state, zero
+    /// pairing-counter risk (the OR form cannot leak — the three Bools are
+    /// strictly begin/commit paired).
+    var liveEditActive: Bool {
+        isEditingContinuous || isEditingDrt || isEditingFilm
+    }
+
     /// The live snapshots touched during the current continuous edit,
     /// keyed by instance UUID — what `commitContinuousEdit` turns into
     /// history items (usually exactly one entry per drag).
