@@ -723,9 +723,16 @@ extension EditorMTKView.Coordinator {
     ///     the primaries match the encoded gamut. A nil fallback = the E3
     ///     note (never observed on macOS 27).
     ///   • linear — extendedLinearSRGB (the EDR-linear handoff).
-    ///   • SDR powers/BT.1886 — a calibrated-RGB space built from the
-    ///     encoding space's primaries + white point + the EOTF's gamma (the
-    ///     gamma-tail precedent: software encode + matching layer tag).
+    ///   • SDR powers/BT.1886 — the M7-6-01 (UQ-A1) TWO-STAGE arm: a LEGAL
+    ///     pair returns the export-side ICC v4 instance (the same cached
+    ///     object the exported file carries — the preview/file double-curve
+    ///     mismatch is gone and srgbPiecewise gets its real piecewise
+    ///     table); an OUT-OF-DOMAIN pair (the export resolver's typed
+    ///     throw, e.g. gamma18) falls back to the calibrated-RGB power
+    ///     construction (the gamma-tail precedent: software encode +
+    ///     matching layer tag) — the preview display obligation covers
+    ///     every space×SDR-eotf combination while the export legal table
+    ///     stays closed (OQ-M7-6-4).
     ///     XYZ has no RGB derivation — the calibrated Rec709-gamut
     ///     approximation carries a DECISIONS note (degenerate display
     ///     target, walkthrough observation).
@@ -747,6 +754,16 @@ extension EditorMTKView.Coordinator {
         case .linear:
             return CGColorSpace(name: CGColorSpace.extendedLinearSRGB)
         case .gamma26, .bt1886, .gamma22, .gamma18, .srgbPiecewise:
+            // M7-6-01 (UQ-A1): the legal pairs first — the Core resolver is
+            // public and permanently caches per (space, eotf), so the hit
+            // path is a dictionary read, never a per-frame ICC rebuild.
+            if let export = try? DrtOutputColorSpace.drtOutputColorSpace(
+                space: record.encodingSpace, eotf: record.encodingEotf) {
+                return export
+            }
+            // The fallback arm: ONLY the out-of-domain pairs reach here
+            // (legal pairs returned above — the M4-1-01 KD-8 power
+            // approximation is no longer reachable for them).
             let gamma: [CGFloat] = {
                 switch record.encodingEotf {
                 case .bt1886: return [2.4, 2.4, 2.4]
@@ -755,8 +772,10 @@ extension EditorMTKView.Coordinator {
                 // M4-1-01 KD-8 (the explicit ruling): srgbPiecewise sits
                 // in the SDR-power group; CGColorSpace has no piecewise
                 // table form, so the calibrated face approximates the sRGB
-                // segment curve with its 2.2 power (the display-side
-                // approximation — DECISIONS records the deviation).
+                // segment curve with its 2.2 power. M7-6-01 (UQ-A1): the
+                // legal pairs now ride the export ICC above — this power
+                // approximation is only reachable for the OUT-OF-DOMAIN
+                // pairs (the display obligation arm).
                 case .srgbPiecewise: return [2.2, 2.2, 2.2]
                 default: return [2.2, 2.2, 2.2]
                 }
