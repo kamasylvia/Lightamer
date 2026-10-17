@@ -205,6 +205,21 @@ enum McpServerController {
     /// arbitration tests reset it at start (order independence).
     nonisolated(unsafe) static let headlessProjectBox = HeadlessProjectBox()
 
+    /// M7-5-01 (TURN-04, D-M7-5-2/10): the headless ALWAYS-HELD control
+    /// face — the null-owner semantics (the agent always holds; the
+    /// state-changing commands pass because the registry's admit seam stays
+    /// nil here — the writerCheck-nil same shape). Constant closures, zero
+    /// cost. The control tools register on EVERY host that passes this (the
+    /// union single-value discipline — OQ-10: the read-only host lists the
+    /// control face and the write tools still answer serverReadOnly at the
+    /// writer gate — control state and write right are orthogonal).
+    static func makeHeadlessControlContext() -> McpControlContext {
+        McpControlContext(
+            acquire: { _ in McpControlState.headlessConstant },
+            release: { McpControlState.headlessConstant },
+            state: { McpControlState.headlessConstant })
+    }
+
     /// The headless search/state context (M7-2-01 T1 action 5 + T3; M7-3 T4
     /// box form): every data face reads the CURRENT-PROJECT BOX per call —
     /// the launch-captured projectURL/isWriter spellings are RETIRED (the
@@ -216,7 +231,8 @@ enum McpServerController {
     /// so `get_state.control.lock` reports the verdict truth.
     static func makeHeadlessSearchState(
         mode: LaunchMode,
-        projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil
+        projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil,
+        agentControl: (@Sendable () async -> McpControlState?)? = nil
     ) -> McpSearchStateContext {
         McpSearchStateContext(
             library: {
@@ -272,7 +288,10 @@ enum McpServerController {
                         "readOnly": .bool(snapshot.readOnly),
                     ]))
             },
-            projectWriteProbe: projectWriteProbe)
+            projectWriteProbe: projectWriteProbe,
+            // M7-5-01 (D-M7-5-8): the headless agent face rides the
+            // constant provider (the always-held truth).
+            agentControl: agentControl)
     }
 
     /// The headless project context (M7-3 T4, D-M7-3-1 headless arm): the
@@ -461,7 +480,10 @@ enum McpServerController {
                     await startHeadlessStdioHost(
                         paths: McpEndpointPaths.makeDefault(),
                         searchState: makeHeadlessSearchState(mode: mode),
-                        project: makeHeadlessProjectContext(mode: mode))
+                        project: makeHeadlessProjectContext(mode: mode),
+                        // M7-5-01 (F1 形 B production point 1): the headless
+                        // always-held face.
+                        control: makeHeadlessControlContext())
                 case .http:
                     // The headless HTTP daemon: same binding discipline as
                     // the GUI host (writer lock → bind 127.0.0.1 → write the
@@ -473,7 +495,9 @@ enum McpServerController {
                             editing: await makeEditingSeams(session: { nil }),
                             culling: makeCullingContext(session: { nil }),
                             searchState: makeHeadlessSearchState(mode: mode),
-                            project: makeHeadlessProjectContext(mode: mode))
+                            project: makeHeadlessProjectContext(mode: mode),
+                            // M7-5-01 (F1 形 B production point 2).
+                            control: makeHeadlessControlContext())
                         await log(
                             "headless MCP server up (http) on 127.0.0.1:\(handle.port)"
                                 + " — endpoint file \(handle.paths.jsonURL.path)")
@@ -577,13 +601,20 @@ enum McpServerController {
         // every host call site too (H3 — tools never disappear; the
         // read-only host's open/create answer serverReadOnly at the gate).
         let searchState = makeHeadlessSearchState(
-            mode: mode, projectWriteProbe: probe)
+            mode: mode, projectWriteProbe: probe,
+            // M7-5-01 (D-M7-5-8): the headless agent face = the constant.
+            agentControl: { McpControlState.headlessConstant })
         let project = makeHeadlessProjectContext(mode: mode)
+        // M7-5-01 (F1 形 B production points 3-5): the arbitrated arms share
+        // ONE const (the searchState/project shared-const same shape) — the
+        // stdio arm, the http writer arm AND the read-only arm all pass it
+        // (the read-only host registers the control face too — OQ-10).
+        let control = makeHeadlessControlContext()
         switch mode {
         case .stdio:
             await startHeadlessStdioHost(
                 paths: headlessEndpointPaths, projectWriteProbe: probe,
-                searchState: searchState, project: project)
+                searchState: searchState, project: project, control: control)
         case .http:
             if isWriter {
                 // Writer arm: the full legacy http daemon (endpoint lock →
@@ -598,7 +629,8 @@ enum McpServerController {
                         editing: editing,
                         culling: culling,
                         searchState: searchState,
-                        project: project)
+                        project: project,
+                        control: control)
                     await log(
                         "headless MCP server up (http) on 127.0.0.1:\(handle.port)"
                             + " — endpoint file \(handle.paths.jsonURL.path)")
@@ -616,7 +648,11 @@ enum McpServerController {
                 // its shape; this is the separate honest read-only face.
                 await startReadOnlyHTTPHost(
                     paths: headlessEndpointPaths, projectWriteProbe: probe,
-                    searchState: searchState, project: project)
+                    searchState: searchState, project: project,
+                    // OQ-10: the read-only host registers the control face
+                    // too (tools never disappear; the write tools still
+                    // answer serverReadOnly at the writer gate).
+                    control: control)
             }
         }
     }
