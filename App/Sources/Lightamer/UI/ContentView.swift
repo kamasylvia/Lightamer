@@ -183,61 +183,23 @@ internal struct ContentView: View {
             //
             // Plan M2-9-04 (OQ-1 A / KD-1): the M2 face's export entry routes
             // to the INSPECTOR Export PAGE — the page rides the inspector
-            // column (mounted here, over the shell) behind the
+            // column (mounted by the InspectorPageMount below) behind the
             // `exportPageActive` switch, and the app menu's File > Export
             // command (the same focused-value key the legacy arm publishes
             // below) opens the page in this face. The legacy body and its
             // sheet arm are byte-frozen above (M2-2-4 gate discipline) — this
             // branch is the ONLY route that arms the page switch.
+            //
+            // AR-01 T2 (audit M4): the inspector mount + the focused-value
+            // publication + the queue-rebuild side effect sink into
+            // `InspectorPageMount` — exportPageActive/filmPageActive changes
+            // re-evaluate the light modifier, not this root body (the root
+            // keeps the WorkspaceHostView assembly + the mount only).
             WorkspaceHostView(
                 projectController: projectController,
                 onImportFolder: onImportFolder)
-            // The page's inspector column: present exactly while A page
-            // switch is on (M3-4-01 T4 walkthrough find: the M3-3-03 film
-            // page branch lives inside InspectorView, which mounts ONLY
-            // here — a filmPageActive without this OR-term left the film
-            // page structurally unreachable in the gate-false face, the
-            // default editor's right column being the adjustment stack,
-            // never InspectorView). The column's own dismissal routes back
-            // through the SAME switches (one truth, no second presentation
-            // flag); the develop editing face is the shell's adjustment
-            // stack and never depended on this panel.
-                .inspector(isPresented: Binding(
-                    get: { inspectorState.exportPageActive
-                        || inspectorState.filmPageActive },
-                    set: { visible in
-                        // The PRESENT side is a no-op: the page switches own
-                        // the truth (a SwiftUI presentation echo must not arm
-                        // the export page over a live film page — the M3-4-01
-                        // walkthrough's first mount attempt armed it). The
-                        // DISMISS side closes whichever page is active (both
-                        // closes are idempotent).
-                        if !visible {
-                            inspectorState.closeExportPage()
-                            inspectorState.closeFilmPage()
-                        }
-                    })) {
-                    InspectorView()
-                        .navigationSplitViewColumnWidth(
-                            min: 200, ideal: clamped(inspectorWidth, 200, 460), max: 460)
-                }
-            // The M2 export ROUTE: publishes the legacy menu key so the app
-            // menu's Export command enables in this face and lands on the
-            // page (the set side raises the page; the get side is the page
-            // switch itself).
-                .focusedSceneValue(\.exportPanelRequest, Binding<Bool>(
-                    get: { inspectorState.exportPageActive },
-                    set: { requested in
-                        guard requested else { return }
-                        inspectorState.openExportPage()
-                    }))
-            // KD-1: the queue rebuild rides the PROJECT-open event (the M2
-            // workspace has no Session concept — the reset point is the
-            // project switch; the same rebuild semantics the session-open
-            // leg uses).
-                .onChange(of: projectController?.projectURL) { _, _ in
-                    Task { await exportState.rebuildQueueForProject() }
-                }
+                .modifier(InspectorPageMount(
+                    projectController: projectController))
         }
     }
 
@@ -765,5 +727,102 @@ struct ProjectWorkspaceFace: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("library.project.workspace")
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AR-01 T2 (audit M4) — the gate-false arm's presentation + side-effect
+// family, sunk off the ContentView root body. The root previously carried
+// the .inspector mount, the focused-value publication and the queue-rebuild
+// onChange inline: exportPageActive/filmPageActive/page-switch changes
+// re-evaluated the root (and through it the WorkspaceHostView assembly).
+// After the sink the root body keeps the WorkspaceHostView assembly + the
+// single mount; the page observation re-evaluates only the light modifier
+// chain. Behavior-preserving: the binding get/set legs, the focused-value
+// binding and the rebuild task are line-for-line translations (the
+// focusedSceneValue evaluation content is unchanged — only the mounting
+// host moved, the D-6 禁区 ① 求值内容零改). `legacyBody` is byte-frozen
+// (M2LIB-06) — this family touches ONLY the gate-false arm.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The Inspector page mount over the gate-false shell: the page's inspector
+/// column, the M2 export route's focused-value publication, and the
+/// project-open queue rebuild. The layout memory rides its own @AppStorage
+/// (the same `layout.inspectorWidth` key — the width feed re-evaluates this
+/// mount, not the ContentView root).
+private struct InspectorPageMount: ViewModifier {
+
+    let projectController: LibraryProjectController?
+
+    @AppStorage("layout.inspectorWidth") private var inspectorWidth: Double = 240
+    @Environment(InspectorState.self) private var inspectorState
+    @Environment(ExportState.self) private var exportState
+
+    func body(content: Content) -> some View {
+        content
+            // The page's inspector column: present exactly while A page
+            // switch is on (M3-4-01 T4 walkthrough find: the M3-3-03 film
+            // page branch lives inside InspectorView, which mounts ONLY
+            // here — a filmPageActive without this OR-term left the film
+            // page structurally unreachable in the gate-false face, the
+            // default editor's right column being the adjustment stack,
+            // never InspectorView). The column's own dismissal routes back
+            // through the SAME switches (one truth, no second presentation
+            // flag); the develop editing face is the shell's adjustment
+            // stack and never depended on this panel.
+            .inspector(isPresented: Binding(
+                get: { inspectorState.exportPageActive
+                    || inspectorState.filmPageActive },
+                set: { visible in
+                    // The PRESENT side is a no-op: the page switches own
+                    // the truth (a SwiftUI presentation echo must not arm
+                    // the export page over a live film page — the M3-4-01
+                    // walkthrough's first mount attempt armed it). The
+                    // DISMISS side closes whichever page is active (both
+                    // closes are idempotent).
+                    if !visible {
+                        inspectorState.closeExportPage()
+                        inspectorState.closeFilmPage()
+                    }
+                })) {
+                InspectorView()
+                    .navigationSplitViewColumnWidth(
+                        min: 200,
+                        ideal: CGFloat(min(max(inspectorWidth, 200), 460)),
+                        max: 460)
+            }
+            // The M2 export ROUTE: publishes the legacy menu key so the app
+            // menu's Export command enables in this face and lands on the
+            // page (the set side raises the page; the get side is the page
+            // switch itself).
+            .focusedSceneValue(\.exportPanelRequest, Binding<Bool>(
+                get: { inspectorState.exportPageActive },
+                set: { requested in
+                    guard requested else { return }
+                    inspectorState.openExportPage()
+                }))
+            // AR-01 T2: the KD-1 queue rebuild rides the PROJECT-open event
+            // through its own modifier (the M2 workspace has no Session
+            // concept — the reset point is the project switch; the same
+            // rebuild semantics the session-open leg uses).
+            .modifier(ExportQueueRebuildModifier(
+                projectController: projectController,
+                exportState: exportState))
+    }
+}
+
+/// The export queue's project-open rebuild (KD-1) as a modifier — AR-01 T2:
+/// the projectURL observation no longer re-evaluates the gate-false root
+/// body; the rebuild task is a line-for-line translation.
+private struct ExportQueueRebuildModifier: ViewModifier {
+
+    let projectController: LibraryProjectController?
+    let exportState: ExportState
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: projectController?.projectURL) { _, _ in
+                Task { await exportState.rebuildQueueForProject() }
+            }
     }
 }
