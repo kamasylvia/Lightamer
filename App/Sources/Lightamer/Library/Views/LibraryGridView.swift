@@ -131,8 +131,13 @@ struct LibraryGridView: View {
     private func gridBody(_ pager: LibraryGridPager) -> some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(grid.rows, id: \.id) { row in
-                    cell(row, pager: pager)
+                // AR-01 T4 (audit M3 / m6): the enumerated form carries the
+                // row's position to the pager signal — the cell onAppear no
+                // longer runs the O(n) firstIndex reverse-lookup (identity
+                // stays row.id; pager.cellAppeared(at:) stays index-keyed —
+                // paging by index is design-intended).
+                ForEach(Array(grid.rows.enumerated()), id: \.element.id) { index, row in
+                    cell(row, pager: pager, index: index)
                 }
             }
             .padding(14)
@@ -151,7 +156,9 @@ struct LibraryGridView: View {
         .accessibilityIdentifier("library.grid")
     }
 
-    private func cell(_ row: LibraryImageRow, pager: LibraryGridPager) -> some View {
+    private func cell(
+        _ row: LibraryImageRow, pager: LibraryGridPager, index: Int
+    ) -> some View {
         let stackBadge = grid.stackBadge(for: row.id)
         return LibraryGridCellView(
             row: row,
@@ -164,9 +171,7 @@ struct LibraryGridView: View {
             })
             .accessibilityIdentifier("library.grid.cell.\(row.id)")
             .onAppear {
-                if let index = grid.rows.firstIndex(where: { $0.id == row.id }) {
-                    Task { await pager.cellAppeared(at: index) }
-                }
+                Task { await pager.cellAppeared(at: index) }
             }
             .contentShape(Rectangle())
             .onTapGesture {
