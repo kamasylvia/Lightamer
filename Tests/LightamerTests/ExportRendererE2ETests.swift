@@ -871,4 +871,154 @@ final class ExportRendererE2ETests: XCTestCase {
             withBytes: rgba, bytesPerRow: width * WorkingSpace.bytesPerPixel)
         return texture
     }
+
+    // MARK: - UQ-A2 (M7-4-01 T4): the .fail tier's exclusive final write
+
+    /// The hidden-tmp residue glob (every leg asserts the defer left the
+    /// landing directory clean).
+    private func tmpResidue() throws -> [String] {
+        try FileManager.default
+            .contentsOfDirectory(atPath: tempDirectory.path)
+            .filter { $0.hasPrefix(".") && $0.hasSuffix(".tmp") }
+    }
+
+    /// Leg 1 — the TOCTOU negative (the deterministic interleave): the
+    /// render stage NAMES the destination, then ANOTHER process's file
+    /// lands there before the encode. The exclusive promotion must reject
+    /// with the typed `BaseNameOccupiedError`, leave the intruder bytes
+    /// byte-intact (the pre-fix form silently replaced them through the
+    /// Darwin rename) and leave zero hidden-tmp residue.
+    func testExclusiveFinalWriteRejectsOccupiedDestinationWithoutTmpResidue() async throws {
+        try await LightamerIOPRegistry.populate(registry)
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        let source = try writePNG(width: 32, height: 32, stem: "TOC_0001")
+        let stage = try await ExportRenderer.renderStage(
+            request: ExportRenderer.Request(
+                imageURL: source,
+                destinationDirectory: tempDirectory,
+                occupiedNames: [source.lastPathComponent],
+                variant: ExportVariant(
+                    sizing: YiyinExportSettings(mode: .original),
+                    format: .png(bitDepth: .eight), colorSpace: .sRGB)),
+            metal: metal, registry: registry)
+        let intruder = Data("intruder-bytes-0xDEADBEEF".utf8)
+        try intruder.write(to: stage.destination)
+        do {
+            _ = try ExportRenderer.encodeStage(
+                plane: stage.plane, formatSpec: stage.formatSpec,
+                targetColorSpace: stage.targetColorSpace, dpi: stage.dpi,
+                sourceURL: stage.sourceURL,
+                editorSignature: stage.editorSignature,
+                destination: stage.destination, embedICC: true,
+                exclusiveFinalWrite: true)
+            XCTFail("the exclusive promotion must reject the occupied name")
+        } catch let error as ExportNamer.BaseNameOccupiedError {
+            XCTAssertEqual(
+                error.name, stage.destination.lastPathComponent,
+                "the typed .fail surface names the occupied base")
+        }
+        XCTAssertEqual(
+            try Data(contentsOf: stage.destination), intruder,
+            "the pre-planted destination must stay byte-unchanged — no "
+                + "overwrite through the exclusive final write")
+        let residue = try tmpResidue()
+        XCTAssertTrue(
+            residue.isEmpty,
+            "zero tmp residue after the rejected promotion: \(residue)")
+    }
+
+    /// Leg 2 — the positive identity: the exclusive face changes the
+    /// PROMOTION, never the product — same plane, byte-equal outputs.
+    func testExclusiveFinalWriteIsByteIdenticalToThePlainRenameFace() throws {
+        let source = try writePNG(width: 24, height: 16, stem: "IDN_0001")
+        let plane = ExportQuantizedPlane(
+            data: Data(repeating: 0x7F, count: 24 * 16 * 4),
+            width: 24, height: 16, layout: .rgba8)
+        let spec = ExportFormatSpec.png(bitDepth: .eight)
+        let cs = ExportColorSpaceMapper.displayCGColorSpace(for: .sRGB)
+        let plainURL = tempDirectory.appendingPathComponent("IDN-plain.png")
+        let exclusiveURL = tempDirectory.appendingPathComponent("IDN-exclusive.png")
+        _ = try ExportRenderer.encodeStage(
+            plane: plane, formatSpec: spec, targetColorSpace: cs, dpi: 300,
+            sourceURL: source, editorSignature: nil, destination: plainURL,
+            embedICC: true)
+        _ = try ExportRenderer.encodeStage(
+            plane: plane, formatSpec: spec, targetColorSpace: cs, dpi: 300,
+            sourceURL: source, editorSignature: nil, destination: exclusiveURL,
+            embedICC: true, exclusiveFinalWrite: true)
+        XCTAssertEqual(
+            try Data(contentsOf: plainURL), try Data(contentsOf: exclusiveURL),
+            "the exclusive promotion must be product-identical")
+        XCTAssertTrue(try tmpResidue().isEmpty)
+    }
+
+    /// Leg 3 — the .replace negative guard: the OTHER tiers keep the
+    /// plain-rename face — an existing destination is still REPLACED
+    /// (the exclusive arm must not leak into .replace/default paths).
+    func testReplaceFaceStillOverwritesAnExistingDestination() throws {
+        let source = try writePNG(width: 24, height: 16, stem: "RPL_0001")
+        let cs = ExportColorSpaceMapper.displayCGColorSpace(for: .sRGB)
+        let spec = ExportFormatSpec.png(bitDepth: .eight)
+        let destination = tempDirectory.appendingPathComponent("RPL_0001.png")
+        let first = ExportQuantizedPlane(
+            data: Data(repeating: 0x11, count: 24 * 16 * 4),
+            width: 24, height: 16, layout: .rgba8)
+        let second = ExportQuantizedPlane(
+            data: Data(repeating: 0xEE, count: 24 * 16 * 4),
+            width: 24, height: 16, layout: .rgba8)
+        _ = try ExportRenderer.encodeStage(
+            plane: first, formatSpec: spec, targetColorSpace: cs, dpi: 300,
+            sourceURL: source, editorSignature: nil, destination: destination,
+            embedICC: true)
+        _ = try ExportRenderer.encodeStage(
+            plane: second, formatSpec: spec, targetColorSpace: cs, dpi: 300,
+            sourceURL: source, editorSignature: nil, destination: destination,
+            embedICC: true)
+        // The SECOND face replaced the first: a decoded sample carries the
+        // 0xEE content (the plain rename still overwrites — the negative
+        // guard against the exclusive arm leaking into other tiers).
+        let values = try decodedPNGValues(destination)
+        XCTAssertTrue(
+            values.bytes.contains(UInt8(0xEE)),
+            "the second encode replaced the first face (plain rename kept)")
+    }
+
+    /// Leg 5 (F4) — the encoder-error cleanup leg in the exclusive arm:
+    /// a forced encoder throw (layout mismatch) must surface, leave the
+    /// PRE-PLANTED destination byte-unchanged (the destination was never
+    /// written by this job — removing it could delete another process's
+    /// TOCTOU-win file) and leave zero tmp residue (the defer).
+    func testExclusiveEncoderFailureLeavesDestinationAndNoTmpResidue() throws {
+        let source = try writePNG(width: 24, height: 16, stem: "ENC_0001")
+        let planted = Data("planted-destination-bytes".utf8)
+        let destination = tempDirectory.appendingPathComponent("ENC-fail.png")
+        try planted.write(to: destination)
+        // The forced encoder failure: a float32 plane against a png spec
+        // (the registry's typed layout-mismatch throw, INSIDE the
+        // encoder-error catch's reach).
+        let mismatched = ExportQuantizedPlane(
+            data: Data(count: 24 * 16 * 16), width: 24, height: 16,
+            layout: .float32)
+        var thrown = false
+        do {
+            _ = try ExportRenderer.encodeStage(
+                plane: mismatched,
+                formatSpec: .png(bitDepth: .eight),
+                targetColorSpace: ExportColorSpaceMapper.displayCGColorSpace(for: .sRGB),
+                dpi: 300, sourceURL: source, editorSignature: nil,
+                destination: destination, embedICC: true,
+                exclusiveFinalWrite: true)
+        } catch {
+            thrown = true
+        }
+        XCTAssertTrue(thrown, "the encoder failure must surface")
+        XCTAssertEqual(
+            try Data(contentsOf: destination), planted,
+            "the cleanup leg must NOT touch the destination in the "
+                + "exclusive arm (F4 — it may be another process's file)")
+        let residue = try tmpResidue()
+        XCTAssertTrue(
+            residue.isEmpty,
+            "zero tmp residue after the encoder failure: \(residue)")
+    }
 }

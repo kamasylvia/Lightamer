@@ -656,6 +656,21 @@ public enum ExportRenderer {
     /// COMPLETED export never reaches the cleanup path. (Explicit
     /// parameters — both the internal `StageOutput` and the queue-facing
     /// `ExportRenderStage` carry exactly this set.)
+    ///
+    /// UQ-A2 (M7-4-01): `exclusiveFinalWrite` = the .fail tier's TOCTOU
+    /// closure at the FINAL write. true encodes into a SAME-DIRECTORY
+    /// hidden tmp (`.name.uuid.tmp` — same volume, so link(2) cannot EXDEV)
+    /// and promotes with link(2): EEXIST throws the typed
+    /// `ExportNamer.BaseNameOccupiedError` (surface-identical to the
+    /// render-stage snapshot face) instead of Darwin rename's unconditional
+    /// replace; any other errno (exFAT-class volumes without hard links —
+    /// EOPNOTSUPP/ENOSYS included) lands the `encodeFailed` bucket. The
+    /// encoder-error cleanup leg does NOT touch the destination in this
+    /// arm (the destination may be another process's TOCTOU-win file; the
+    /// tmp half-product cleanup rides the defer). The queue reads the tier
+    /// through `$jobNamingCarrier` (the render legs' carrier, scoped to
+    /// the encode leg too); false/nil = the legacy plain-rename face
+    /// byte-identical (the default keeps every existing caller zero-diff).
     public static func encodeStage(
         plane: ExportQuantizedPlane,
         formatSpec: ExportFormatSpec,
@@ -668,8 +683,24 @@ public enum ExportRenderer {
         exifSoftware: String? = nil,
         embedICC: Bool = true,
         gainMapHDR: Bool = false,
-        hdrGainPlane: ExportGainMapHDRPlane? = nil
+        hdrGainPlane: ExportGainMapHDRPlane? = nil,
+        exclusiveFinalWrite: Bool = false
     ) throws -> URL {
+        // The exclusive face: the write TARGET is the hidden tmp; every
+        // leg below (encoder + the two post-encode passes) operates on it,
+        // and the promotion is the LAST filesystem act.
+        let writeTarget = exclusiveFinalWrite
+            ? destination.deletingLastPathComponent().appendingPathComponent(
+                "." + destination.lastPathComponent + "."
+                    + UUID().uuidString + ".tmp")
+            : destination
+        defer {
+            if exclusiveFinalWrite {
+                // Any throw path leaves ZERO tmp residue; the promotion
+                // itself unlinks the tmp (double-link → single-link).
+                try? FileManager.default.removeItem(at: writeTarget)
+            }
+        }
         // ── the gain map arm (M6-3-01 KD-5): registry-BYPASSING encode —
         // the layout gate does not fit the two-plane tier. The arm-first
         // fail-loud guard (M4): the capture assembly arms on
@@ -688,7 +719,7 @@ public enum ExportRenderer {
             let url = try ExportGainMapEncoder.encode(
                 plane: plane, hdrPlane: hdrGainPlane,
                 targetColorSpace: targetColorSpace, quality: formatSpec.quality,
-                destination: destination, sourceURL: sourceURL,
+                destination: writeTarget, sourceURL: sourceURL,
                 exifSoftware: exifSoftware, metadataPolicy: metadataPolicy)
             // The post-encode passes are BOTH skipped here (RESEARCH §8.4):
             // stripICC deletes APP2 segments and mountXMP injects an APP1 —
@@ -698,6 +729,10 @@ public enum ExportRenderer {
             // (the encoder's rewrap).
             Self.logger.info(
                 "export: \(url.lastPathComponent, privacy: .public) gain map \(plane.width, privacy: .public) x \(plane.height, privacy: .public) hdr")
+            if exclusiveFinalWrite {
+                return try Self.promoteExclusive(
+                    from: writeTarget, to: destination)
+            }
             return url
         }
         let encodeRequest = ExportEncodeRequest(
@@ -707,7 +742,7 @@ public enum ExportRenderer {
             dpi: dpi,
             sourceURL: sourceURL,
             editorSignature: editorSignature,
-            destination: destination,
+            destination: writeTarget,
             exifSoftware: exifSoftware,
             metadataPolicy: metadataPolicy,
             embedICC: embedICC)
@@ -721,7 +756,13 @@ public enum ExportRenderer {
             // file, never a partial destination. The destination removal
             // here is the belt-and-suspenders cleanup for any pre-rename
             // residue; a COMPLETED export never reaches this path.
-            try? FileManager.default.removeItem(at: destination)
+            // UQ-A2 (F4): in the exclusive arm the destination has NOT
+            // been written by THIS job — removing it could delete another
+            // process's TOCTOU-win file. The tmp half-product cleanup is
+            // the defer's job.
+            if !exclusiveFinalWrite {
+                try? FileManager.default.removeItem(at: destination)
+            }
             throw error
         }
 
@@ -732,10 +773,10 @@ public enum ExportRenderer {
         // their embed and the outcome records it).
         if !embedICC {
             let iccOutcome = ExportICCStrip.stripICC(
-                from: destination, format: formatSpec)
+                from: writeTarget, format: formatSpec)
             if case .failed(let reason) = iccOutcome {
                 Self.logger.error(
-                    "export: ICC strip degraded for \(destination.lastPathComponent, privacy: .public): \(reason, privacy: .public)")
+                    "export: ICC strip degraded for \(writeTarget.lastPathComponent, privacy: .public): \(reason, privacy: .public)")
             } else {
                 Self.logger.info("export: ICC strip \(String(describing: iccOutcome), privacy: .public)")
             }
@@ -749,18 +790,44 @@ public enum ExportRenderer {
         // export never hard-fails on metadata; the outcome value is the
         // tally face.
         let xmpOutcome = ExportChainBuilder.mountXMP(
-            destination: destination, format: formatSpec, sourceURL: sourceURL,
+            destination: writeTarget, format: formatSpec, sourceURL: sourceURL,
             policy: metadataPolicy)
         if case .failed(let reason) = xmpOutcome {
             Self.logger.error(
-                "export: XMP injection degraded for \(destination.lastPathComponent, privacy: .public): \(reason, privacy: .public)")
+                "export: XMP injection degraded for \(writeTarget.lastPathComponent, privacy: .public): \(reason, privacy: .public)")
         } else {
             Self.logger.info("export: XMP mount \(String(describing: xmpOutcome), privacy: .public)")
         }
 
         Self.logger.info(
             "export: \(destination.lastPathComponent, privacy: .public) \(plane.width, privacy: .public)×\(plane.height, privacy: .public)")
+        if exclusiveFinalWrite {
+            return try Self.promoteExclusive(from: writeTarget, to: destination)
+        }
         return destination
+    }
+
+    /// The exclusive promotion (UQ-A2): link(2) the finished tmp onto the
+    /// destination — success unlinks the tmp (double link → single) and
+    /// returns; EEXIST throws the typed `BaseNameOccupiedError` (the .fail
+    /// contract at the FINAL write); any other errno (exFAT-class volumes
+    /// without hard links included) lands `encodeFailed`.
+    private static func promoteExclusive(
+        from tmp: URL, to destination: URL
+    ) throws -> URL {
+        if link(tmp.path, destination.path) == 0 {
+            try? FileManager.default.removeItem(at: tmp)
+            return destination
+        }
+        let detail = String(
+            cString: strerror(errno), encoding: .utf8) ?? "errno \(errno)"
+        if errno == EEXIST {
+            throw ExportNamer.BaseNameOccupiedError(
+                name: destination.lastPathComponent)
+        }
+        throw AppError.encodeFailed(
+            "exclusive final write: link(\(tmp.lastPathComponent), "
+                + "\(destination.lastPathComponent)) failed: \(detail)")
     }
 
     /// The OQ-11 subfolder join — the ONE source for the renderer's landing
