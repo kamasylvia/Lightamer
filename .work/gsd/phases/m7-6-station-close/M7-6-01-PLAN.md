@@ -6,11 +6,11 @@ wave: 1
 depends_on: []
 autonomous: true
 requirements: ["REQUIREMENTS SKILLS-01（:452）+ UQ-A1/UQ-L1（:458/:460，→ M7-6）+ ROADMAP §M7-6 行（验收形态：skill 仓机检 reference 生成 ✓ / UQ-A1 解码等值测试 ✓ / UQ-L1 交互走查 ✓ / SC 数字门 = 站终验全套轮判定式兑现）", "M7-5 遗留正本 = phases/m7-5-turn-taking/M7-5-SUMMARY.md §Leftovers（major-1/minor-1/obs-3 三缺陷 + union 改动权移交 + M7 站 VALIDATION 收口含 M7-5 签核）+ GOAL-STATE 续接点 2026-10-17 条（scope 六项定案）", "OQ 裁决正本 = phases/m7-6-station-close/M7-6-CONTEXT.md（D-M7-6-1..10 全按 RESEARCH §7 推荐，站 charter 授权落定，晨审可推翻）", "调研正本 = phases/m7-6-station-close/RESEARCH.md（§1 SKILLS-01 / §2 UQ-A1 / §3 UQ-L1 / §4 三缺陷 / §5 VALIDATION / §6 切分 / §7 OQ / §8 证据索引；file:line 经 planner 2026-10-17 HEAD 07927ab2 逐点亲核复核吻合——转写勘正五条见本 plan 头注）", "夜间全自动授权在案（先例 D-07-3-T5-1；晨审可推翻）；全套 --all 轮 plan 期 orchestrator 已预批"]
-success_criteria: "SC 全可机检——T1：三宿主（startReadOnlyHTTPHost :722 / startHeadlessStdioHost :786 / startHTTPHost :1035）+ startEmbeddedIfPreferenceEnabled :1137 各恰 +1 `admit` 缺省 nil 透传参 + EmbeddedState box 恰 +1 admit 字段 + startEmbeddedServer :1165 读出透传 + 每宿主函数体 setWriterCheck 调用点（:737/:819/:1081）之后恰 +1 `if let admit { await registry.setControlAdmit(admit) }`——setControlAdmit 生产调用恰 3 点（embedded 无自有 registry、整段委托 startHTTPHost :1176，经 box→startHTTPHost 复用 :1081 单点装配，无独立安装点；App/Sources grep `setControlAdmit` 恰 5 处 = 定义 :367 + ControlToolset :20 头注字样 + 三调用点——grep 构成按此核，头注命中不计调用点——review M1）+ GUI 装配点恰一处 admit 闭包（coordinator-backed，acquire provider plain-await hop 同款）+ 无头臂生产调用点 admit 缺省 nil 字节零 diff + minor-1 = McpServerController :482/:497 两处 makeHeadlessSearchState 调用各补 `agentControl: { McpControlState.headlessConstant }`（与 :603-606 arbitrated 臂拼写逐字同形）+ obs-3 = AgentControlCoordinator acquire 等待循环（:227-240）前恰 +1 入口快照行（`let stoppedAtEntry = stoppedByUser`）+ 循环退出后、success 路径前恰 +2 条件复检行（revoked 臂 `stoppedByUser, !stoppedAtEntry` 才拒——入口已 stopped = TURN-03 resume 语义放行清零；busy 臂保持无条件 `held ∧ holderName != holderName`——两 throw 拼写与循环内既有臂逐字同构；或等价终形 DECISIONS 申报——review B1）+ 测试腿 ≥4（真宿主未 acquire 直调 apply_params → controlNotHeld〔McpHostTests 扩〕/ 裸臂 get_state agent 非 null〔McpSearchStateToolsetTests 扩〕/ obs-3 两变体 revoked+busy + resume 不断裂负腿〔AgentControlCoordinatorTests 扩——review B1〕）+ 构建绿；T2：drtLayerColorSpace SDR 幂臂两段式（legal 对 try? DrtOutputColorSpace.drtOutputColorSpace → 返回导出同款 ICC v4 实例；typed throw 域外对回落现行 calibrated 构造）+ HDR/linear 臂零改（diff 面核 :734-748 段零触）+ Core DrtOutputColorSpace.swift 零 diff + 等值测试（legal SDR 8 对逐对〔review m1〕preview space === export space 同实例 + ICC data 逐字节同 + ramp 采样等值 ≤1 LSB @8bit〔实现形可 DECISIONS 申报——同实例蕴含等值时 ramp 腿可收敛为字节同断言〕）+ 域外负腿（rec709×gamma18 / p3d65×bt1886 非 nil 且走 calibrated 回落）+ srgbPiecewise legal 对断言 ICC data == Core curv 1024 采样表形（非 2.2 幂）+ 构建绿；T3：scrub 纯函数 session 值类型（travel→value 映射 + Shift ×0.1 + range clamp——golden 测试族）+ readout Text 挂 DragGesture(minimumDistance: 3)（scrub begin → onDragBegin / per-tick → onChange / end → onDragEnd——D-H1 三段回调复用 grep 断言零旁路）+ 既有双击重置 onReset 行为零触（:72-74）+ AX identifier 三处零改（:47/:63/:69）+ denoise 旁路面零 diff（EditorState.previewDenoiseBypass 所在文件零触）+ MonochromePanelView 零 diff（D-M7-6-5）+ xcstrings 恰 +1 键 slider_scrub_hint 尾块纯插入（或零键 DECISIONS 申报）+ 构建绿；T4：skills/lightamer-mcp/ 三文件落位（SKILL.md 七节骨架人写 en 单语 + references/tools.md 机检生成 + references/errors.md 19 码表）+ SkillsReferenceTests 两法绿（tools.md vs 活注册表渲染逐字节 + errors.md 19 码名逐一断言）+ McpFinalSnapshotTests.swift diff 恰一行（makeUnionRegistry private→internal）+ union 32 断言面零触（全测试绿）+ skill 目录中文字符 grep 零命中（en 单语机检）+ N2-2 句 grep 在 SKILL.md + README 一句链接 + 构建绿；T5：--bundle App 定向轮绿 + 全套 --all = TOTAL|3950+ΔN/35/0| 对账闭合（预期带 3958..3963 / exit 0 / 0 MEMFAIL / 七 bundle 8G 门内〔预批在案〕）+ skip 35 构成声明 + zh-audit --check PASS（+1 键对账）+ --self-test PASS + 红线族 11 项逐条亲跑 PASS + 走查配方落盘 .work/gui-acceptance/m7-6/MANIFEST.md；T6：M7-VALIDATION.md 落盘（front-matter 对齐 M7-1 体例 + 五 phase 收口矩阵 + 红线族复检记录 + SC 翻账〔skill 机检 ✓ / UQ-A1 等值 ✓ / UQ-L1 走查配方就绪 ✓ / 全套数字门 ✓〕+ 制度偏离登记〔omp→双 zcode / m7-5 载体偏差 / UQ-L1 SC 降格注记——review m4〕+ M7-5 §signed 节 + 挂账清算面〔N2-2 收口 / S-2 维持 / obs-A C12 注记一行 / FIX2③ 第五波维持 / union 权用讫归还 M8〕）+ 四台账一 AGENTS 同批翻账（ROADMAP M7-6 行闭环 / REQUIREMENTS SKILLS-01+UQ-A1+UQ-L1 Delivered / TODO / GOAL-STATE / AGENTS.md M7-6 架构增量节）"
-estimated_tests: "+8..13（预期 +13：T1 = 6〔major-1 真宿主 controlNotHeld 1 + 无头臂端到端 nil 恒放行 1〔若与既有负测同语义 = DECISIONS 申报合并让渡，带下限 4〕+ minor-1 裸臂 agent 非 null 1 + obs-3 两变体 2 + resume 不断裂负腿 1〔review B1：5→6〕〕+ T2 = 2〔legal 8 对等值 1〔review m1〕+ 域外回落负腿 1〕+ T3 = 3〔travel→value 映射族 1 + Shift/clamp 族 1 + session begin/end 配对 1，带 2..4〕+ T4 = 2〔tools.md 逐字节 1 + errors.md 19 码名断言 1，带 1..2〕；3950 → 预期 3963，带 3958..3963；执行时逐任务如实记账，越带申报理由）"
+success_criteria: "SC 全可机检——T1：三宿主（startReadOnlyHTTPHost :722 / startHeadlessStdioHost :786 / startHTTPHost :1035）+ startEmbeddedIfPreferenceEnabled :1137 各恰 +1 `admit` 缺省 nil 透传参 + EmbeddedState box 恰 +1 admit 字段 + startEmbeddedServer :1165 读出透传 + 每宿主函数体 setWriterCheck 调用点（:737/:819/:1081）之后恰 +1 `if let admit { await registry.setControlAdmit(admit) }`——setControlAdmit 生产调用恰 3 点（embedded 无自有 registry、整段委托 startHTTPHost :1176，经 box→startHTTPHost 复用 :1081 单点装配，无独立安装点；App/Sources grep `setControlAdmit` 恰 5 处 = 定义 :367 + ControlToolset :20 头注字样 + 三调用点——grep 构成按此核，头注命中不计调用点——review M1）+ GUI 装配点恰一处 admit 闭包（coordinator-backed，acquire provider plain-await hop 同款）+ 无头臂生产调用点 admit 缺省 nil 字节零 diff + minor-1 = McpServerController :482/:497 两处 makeHeadlessSearchState 调用各补 `agentControl: { McpControlState.headlessConstant }`（与 :603-606 arbitrated 臂拼写逐字同形）+ obs-3 = AgentControlCoordinator acquire 等待循环（:227-240）前恰 +1 入口快照行（`let stoppedAtEntry = stoppedByUser`）+ 循环退出后、success 路径前恰 +2 条件复检行（revoked 臂 `stoppedByUser, !stoppedAtEntry` 才拒——入口已 stopped = TURN-03 resume 语义放行清零；busy 臂保持无条件 `held ∧ holderName != holderName`——两 throw 拼写与循环内既有臂逐字同构；或等价终形 DECISIONS 申报——review B1）+ 测试腿 ≥4（真宿主未 acquire 直调 apply_params → controlNotHeld〔McpHostTests 扩〕/ 裸臂 get_state agent 非 null〔McpSearchStateToolsetTests 扩〕/ obs-3 两变体 revoked+busy + resume 不断裂负腿〔AgentControlCoordinatorTests 扩——review B1〕）+ 构建绿；T2：drtLayerColorSpace SDR 幂臂两段式（legal 对 try? DrtOutputColorSpace.drtOutputColorSpace → 返回导出同款 ICC v4 实例；typed throw 域外对回落现行 calibrated 构造）+ HDR/linear 臂零改（diff 面核 :734-748 段零触）+ Core DrtOutputColorSpace.swift 零 diff + 等值测试（legal SDR 8 对逐对〔review m1〕preview space === export space 同实例 + ICC data 逐字节同 + ramp 采样等值 ≤1 LSB @8bit〔实现形可 DECISIONS 申报——同实例蕴含等值时 ramp 腿可收敛为字节同断言〕）+ 域外负腿（rec709×gamma18 / p3d65×bt1886 非 nil 且走 calibrated 回落）+ srgbPiecewise legal 对断言 ICC data == Core curv 1024 采样表形（非 2.2 幂）+ 构建绿；T3：scrub 纯函数 session 值类型（travel→value 映射 + Shift ×0.1 + range clamp——golden 测试族）+ readout Text 挂 DragGesture(minimumDistance: 3)（scrub begin → onDragBegin / per-tick → onChange / end → onDragEnd——D-H1 三段回调复用 grep 断言零旁路）+ 既有双击重置 onReset 行为零触（:72-74）+ AX identifier 三处零改（:47/:63/:69）+ denoise 旁路面零 diff（EditorState.previewDenoiseBypass 所在文件零触）+ MonochromePanelView 零 diff（D-M7-6-5）+ xcstrings 恰 +1 键 slider_scrub_hint 尾块纯插入（或零键 DECISIONS 申报）+ 构建绿；T4：skills/lightamer-mcp/ 三文件落位（SKILL.md 七节骨架人写 en 单语 + references/tools.md 机检生成 + references/errors.md 19 码表）+ SkillsReferenceTests 两法绿（tools.md vs 活注册表渲染逐字节 + errors.md 19 码名逐一断言）+ McpFinalSnapshotTests.swift diff 恰一行（makeUnionRegistry private→internal）+ union 32 断言面零触（全测试绿）+ skill 目录中文字符 grep 零命中（en 单语机检）+ N2-2 句 grep 在 SKILL.md + README 一句链接 + 构建绿；T5：--bundle App 定向轮绿 + 全套 --all = TOTAL|3950+ΔN/35/0| 对账闭合（预期带 3959..3964〔review R2 带边随 B1 重导〕 / exit 0 / 0 MEMFAIL / 七 bundle 8G 门内〔预批在案〕）+ skip 35 构成声明 + zh-audit --check PASS（+1 键对账）+ --self-test PASS + 红线族 11 项逐条亲跑 PASS + 走查配方落盘 .work/gui-acceptance/m7-6/MANIFEST.md；T6：M7-VALIDATION.md 落盘（front-matter 对齐 M7-1 体例 + 五 phase 收口矩阵 + 红线族复检记录 + SC 翻账〔skill 机检 ✓ / UQ-A1 等值 ✓ / UQ-L1 走查配方就绪 ✓ / 全套数字门 ✓〕+ 制度偏离登记〔omp→双 zcode / m7-5 载体偏差 / UQ-L1 SC 降格注记——review m4〕+ M7-5 §signed 节 + 挂账清算面〔N2-2 收口 / S-2 维持 / obs-A C12 注记一行 / FIX2③ 第五波维持 / union 权用讫归还 M8〕）+ 四台账一 AGENTS 同批翻账（ROADMAP M7-6 行闭环 / REQUIREMENTS SKILLS-01+UQ-A1+UQ-L1 Delivered / TODO / GOAL-STATE / AGENTS.md M7-6 架构增量节）"
+estimated_tests: "+8..13（预期 +13：T1 = 6〔major-1 真宿主 controlNotHeld 1 + 无头臂端到端 nil 恒放行 1〔若与既有负测同语义 = DECISIONS 申报合并让渡，带下限 4〕+ minor-1 裸臂 agent 非 null 1 + obs-3 两变体 2 + resume 不断裂负腿 1〔review B1：5→6〕〕+ T2 = 2〔legal 8 对等值 1〔review m1〕+ 域外回落负腿 1〕+ T3 = 3〔travel→value 映射族 1 + Shift/clamp 族 1 + session begin/end 配对 1，带 2..4〕+ T4 = 2〔tools.md 逐字节 1 + errors.md 19 码名断言 1，带 1..2〕；3950 → 预期 3963，带 3959..3964〔review R2：带边随 B1 重导，T1 带 3..5→4..6，组件和 +9..14〕；执行时逐任务如实记账，越带申报理由）"
 test_bundles: [APP]
 baseline: "3950/35/0（M7-5 三路全套同值，exit 0 零 MEMFAIL；skip 35 = 24 基线 + 11 RAW 供件缺失；其后 58c3a78a〔M7-5 收口 docs〕+ 17b9a6c2 + 07927ab2〔本 phase research docs〕docs-only 零漂移；HEAD 07927ab2 planner 2026-10-17 亲核 git log/status——其上零产线文件）"
-expected_all: "3950 + ΔN（对账式；ΔN 预期 +13〔review B1〕、带 +8..13 → 终值带 3958..3963，执行时按实记账；skip 35 口径维持——第三种 skip 来源 = 逐族差分申报禁静默吸收）"
+expected_all: "3950 + ΔN（对账式；ΔN 预期 +13〔review B1〕、带 +9..14 → 终值带 3959..3964〔review R2 带边重导〕，执行时按实记账；skip 35 口径维持——第三种 skip 来源 = 逐族差分申报禁静默吸收）"
 red_lines:
   - "union 快照串行（本波持权——M7-5 移交）：McpFinalSnapshotTests.swift 32 基线 + 五钉 23（editing 9 + culling 14）维持，union 内容零 diff 为预期态；唯一预期 diff = makeUnionRegistry 可见性提升 private→internal 恰一行 additive（T4 机检新文件复用活注册表——实测 :277 为 private）；若执行中确需改 union 内容/计数断言（六项均不增删工具，不该发生）= 立即停手上报禁自裁；本波持权窗口内禁并行派发任何波（orchestrator 编排保证——误并行派发立即停手上报，禁抢先合并快照表）；窗口用讫归还 M8（T6 VALIDATION 登记移交注记）"
   - "零新 SPM 依赖（Project.swift dependencies 块零 diff；Project.swift 仅测试登记行恰三行 additive——EditorPreviewColorSpaceTests / LightamerSliderScrubTests / SkillsReferenceTests 全 APP 域 + BUNDLE-MAP 恰三行 + tuist generate 恒为该批最后一个动作〔L041〕）"
@@ -49,7 +49,7 @@ files_modified:
   - .work/gsd/phases/m7-6-station-close/M7-6-01-DECISIONS.md       # T5：裁定记录（FIX2③ 勘正承接 + makeUnionRegistry internal 一行申报 + obs-3 交错控制终形 + T2 等值测试实现形 + T3 trackWidth 测量终形 + xcstrings 键数终账 + RESEARCH §3.1 yiyin 勘正假阴性留痕勘误申报〔review M2〕+ 若干让渡/合并申报）
   - .work/gsd/phases/m7-6-station-close/M7-VALIDATION.md           # T6 新建：站级 VALIDATION（front-matter 对齐 M7-1 体例，phase: M7 站；五 phase 收口矩阵 / 红线族 11 项复检记录 / SC 翻账 / 制度偏离登记 / M7-5 §signed 节 / 挂账清算面）
   - .work/gsd/ROADMAP.md                                           # T6：M7-6 行翻账（✅ 闭环 + ΔN 终值 + M7 站收口标注——历史行只追加不改写惯例）
-  - .work/gsd/REQUIREMENTS.md                                      # T6：SKILLS-01 / UQ-A1 / UQ-L1 → Delivered（M7-6 commit 指针；UQ-L1 范围勘注 = LightamerSlider 全部调用点〔iop + yiyin 面板族，177 处——yiyin 三处 :160/:182/:203 实测在册，RESEARCH §3.1 勘正为 grep 假阴性，review M2 翻转〕）
+  - .work/gsd/REQUIREMENTS.md                                      # T6：SKILLS-01 / UQ-A1 / UQ-L1 → Delivered（M7-6 commit 指针；UQ-L1 范围勘注 = LightamerSlider 全部调用点〔iop + yiyin 面板族，177 处——yiyin 八处 :160/:182/:203/:235/:268/:380/:393/:589 实测在册〔review R1 计数勘正 3→8〕，RESEARCH §3.1 勘正为 grep 假阴性，review M2 翻转〕）
   - .work/TODO.md                                                  # T6：M7-6 条目翻账 + M7 站收口标注
   - .work/GOAL-STATE.md                                            # T6：续接点翻新（M7 站收口 → next = M8 charter〔SPEC 正式化〕；union 改动权用讫归还注记）
   - AGENTS.md                                                      # T6：「M7-6 架构增量」节（预览 ICC 两段式 legal/域外两臂 + scrub session 缝 + 宿主 admit 透传缝 + skills 仓形态 + ΔN 终值）
@@ -103,13 +103,13 @@ files_modified:
 >
 > **基线**：**3950/35/0**（M7-5 三路全套同值；其后 docs-only 零漂移；HEAD
 > `07927ab2`）。全套预期 `TOTAL|3950+ΔN/35/0|`（ΔN 预期 +13〔review B1〕、
-> 带 +8..13 → 终值带 3958..3963，对账式）。
+> 带 +9..14 → 终值带 3959..3964，对账式〔review R2 带边重导〕）。
 >
 > **快照改动权**：本波持 union 文件改动权（M7-5 移交）——预期唯一 diff =
 > makeUnionRegistry private→internal 一行（T4）；内容/计数断言零 diff；
 > **禁并行派发**（orchestrator 编排保证；若误并行派发立即停手上报）。
 
-## ΔN 预算表（逐任务，合计带 +8..13；越带须申报理由）
+## ΔN 预算表（逐任务，合计带 +9..14〔review R2〕；越带须申报理由）
 
 | 任务 | 测试增量 | 构成 | 落点 |
 |---|---|---|---|
@@ -117,7 +117,7 @@ files_modified:
 | T2 UQ-A1 | **2** | legal SDR 8 对等值 1（循环逐对，review m1）+ 域外回落负腿 1 | EditorPreviewColorSpaceTests（新） |
 | T3 UQ-L1 | **3**（带 2..4） | travel→value 映射族 1 + Shift/clamp 族 1 + begin/end 配对 1 | LightamerSliderScrubTests（新） |
 | T4 SKILLS-01 | **2**（带 1..2） | tools.md 逐字节 1 + errors.md 19 码名断言 1 | SkillsReferenceTests（新） |
-| **合计** | **+13**（带 +8..13）〔review B1：+12→+13〕 | 3950 → 预期 3963，带 3958..3963 | 全 APP 域；Project.swift 恰 +3 行 |
+| **合计** | **+13**（带 +9..14〔review R2 带边重导〕）〔review B1：+12→+13〕 | 3950 → 预期 3963，带 3959..3964 | 全 APP 域；Project.swift 恰 +3 行 |
 
 ## 已定裁决（生效值，硬约束，不得重开）
 
@@ -341,8 +341,9 @@ per-pair 缓存 :56）+ :248-259（ICC bytes 构造）；`PipeCoordinator.swift`
 （D-H1 三段回调 :30-37 头注契约 + readout :65-69 + 双击 :72-74 + AX 三处
 :47/:63/:69）；M3-1-02 先例 = `YiyinSheetDragSession`（「AC 可机检缝范式：
 交互纪律断言不靠 UI 驱动」——scrub session 值类型同款）；
-`YiyinPanelView.swift` 实测 3 处 `LightamerSlider(` 调用在册（:160 blur /
-:182 main_rate / :203）——LightamerSlider 单组件修复使 yiyin 面板族同样
+`YiyinPanelView.swift` 实测 8 处 `LightamerSlider(` 调用在册（:160 blur /
+:182 main_rate / :203 / :235 / :268 / :380 / :393 / :589〔review R1 计数
+勘正 3→8〕）——LightamerSlider 单组件修复使 yiyin 面板族同样
 受益（review M2）；lightcraft
 `cb8b797c`/`ab64e9a5` 交互语义清单（RESEARCH §3.1——MIT 对表只取语义不搬
 码）。
@@ -477,7 +478,7 @@ survey `.work/gsd/research/ALCEDO-CLI-AI-SURVEY.md` :217（launcher 模板）+
 
 > **全套轮预批在案**（plan 期 orchestrator 批准）——运行中保持监视 +
 > 8G 门 + MEMFAIL 机检。对账式判定：`TOTAL|3950+ΔN/35/0|`，ΔN 逐任务记
-> 账落 +8..13 带（预期 +13 → 3963，review B1 预算同步）。
+> 账落 +9..14 带（预期 +13 → 3963，review B1 预算同步 + R2 带边重导）。
 
 **read_first**：`RESEARCH.md` §5（VALIDATION 清单骨架——红线族 11 项表）
 + §6（ΔN 预估带）；M7-5-SUMMARY §Execution Batch Results（对账先例形）；
@@ -489,7 +490,7 @@ survey `.work/gsd/research/ALCEDO-CLI-AI-SURVEY.md` :217（launcher 模板）+
      全绿（T1-T4 全部测试落 APP 域——覆盖本批全部新测试面）。
   2. **全套对账轮**：`caffeinate -dis Scripts/test-direct.sh --all`
      （预批；运行中监视 + 超门立即 kill）——`TOTAL|3950+ΔN/35/0|` 对账
-     精确闭合（ΔN 预期带 +8..13；逐任务记账表进 SUMMARY；越带 = 申报理
+     精确闭合（ΔN 预期带 +9..14；逐任务记账表进 SUMMARY；越带 = 申报理
      由禁静默）；skip 35 构成声明（24 基线 + 11 RAW 供件——第三种来源
      逐族差分申报禁静默吸收）。
   3. **zh-audit 对账**：`uv run python3 Scripts/zh-audit.py --check` PASS
@@ -647,7 +648,7 @@ REQUIREMENTS :445-461（翻账目标行）；ROADMAP :108-110（M7-4/M7-5/M7-6 �
    绿在先）。
 9. **SC 可机检性**：每条 SC 有命令级判据（grep / diff 面核 / 对账行 /
    定向 bundle 绿 / zh-audit 双 PASS），非「目测」；expected_all 对账式
-   非死数（带 3958..3963）；skip 35 构成声明条款在 T5。
+   非死数（带 3959..3964）；skip 35 构成声明条款在 T5。
 10. **登记纪律**：Project.swift 恰三行 + BUNDLE-MAP 恰三行 + tuist
     generate 恒末位（L041）——commit 顺序核；xcstrings 恰 +1 键尾块纯
     插入（或零键申报）+ zh-audit 对账；UserDefaults 零新键。

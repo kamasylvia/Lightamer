@@ -13,7 +13,7 @@
 > 实测为 `private func` :277〔见下「快照改动权」行使注记〕）。
 > **评审 round 1 勘误两条（2026-10-17，正本 = `M7-6-01-PLAN-REVIEW.md`
 > e61185b0）随行内标注**：D-M7-6-5（yiyin Slider「零命中」为 grep 假阴
-> 性，实测 3 处在册）与 D-M7-6-7（setControlAdmit 装配构成实为三宿主，
+> 性，实测 8 处在册〔review R1 计数勘正 3→8〕）与 D-M7-6-7（setControlAdmit 装配构成实为三宿主，
 > embedded 委托 startHTTPHost 无独立安装点）——上游 RESEARCH 同句以本
 > 文勘误为准，晨审可翻。
 >
@@ -105,8 +105,9 @@ SKILLS-01（:452）+ UQ-A1/UQ-L1（:458/:460）+ M7-5-SUMMARY §Leftovers
   MonochromePanelView 自有 row 不获 scrub，登记观察项不顺手改。
 - 证据：RESEARCH §3.1-§3.2（LightamerSlider :18-81，readout :65-69 零手
   势 = 缺口；Monochrome 自有 row :178 不组合 LightamerSlider；yiyin 面板
-  grep Slider 零命中——**勘误（review M2，2026-10-17）：实测 3 处
-  `LightamerSlider(` 调用在册（YiyinPanelView :160/:182/:203），原「零
+  grep Slider 零命中——**勘误（review M2，2026-10-17）：实测 8 处〔review
+  R1 计数勘正 3→8，checker `078ab372`〕
+  `LightamerSlider(` 调用在册（YiyinPanelView :160/:182/:203/:235/:268/:380/:393/:589），原「零
   命中」为 RESEARCH §3.1 grep 假阴性，原句留痕、勘误随 DECISIONS 申报
   ——UQ 条目「yiyin 通用」实际范围 = iop + yiyin 面板族〔三处落在 177
   调用点内，scrub 自动受益〕））；§7.5。
