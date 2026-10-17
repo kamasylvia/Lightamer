@@ -479,7 +479,13 @@ enum McpServerController {
                 case .stdio:
                     await startHeadlessStdioHost(
                         paths: McpEndpointPaths.makeDefault(),
-                        searchState: makeHeadlessSearchState(mode: mode),
+                        searchState: makeHeadlessSearchState(
+                            mode: mode,
+                            // M7-6-01 (minor-1): the headless agent face =
+                            // the constant (the arbitrated-arm same spelling
+                            // — get_state's control.agent is the always-held
+                            // truth here too, never a null mirror lie).
+                            agentControl: { McpControlState.headlessConstant }),
                         project: makeHeadlessProjectContext(mode: mode),
                         // M7-5-01 (F1 形 B production point 1): the headless
                         // always-held face.
@@ -494,7 +500,12 @@ enum McpServerController {
                             paths: McpEndpointPaths.makeDefault(),
                             editing: await makeEditingSeams(session: { nil }),
                             culling: makeCullingContext(session: { nil }),
-                            searchState: makeHeadlessSearchState(mode: mode),
+                            searchState: makeHeadlessSearchState(
+                                mode: mode,
+                                // M7-6-01 (minor-1): the bare http arm rides
+                                // the constant agent face too (the arbitrated
+                                // -arm same spelling — never a null mirror).
+                                agentControl: { McpControlState.headlessConstant }),
                             project: makeHeadlessProjectContext(mode: mode),
                             // M7-5-01 (F1 形 B production point 2).
                             control: makeHeadlessControlContext())
@@ -724,7 +735,8 @@ enum McpServerController {
         projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil,
         searchState: McpSearchStateContext? = nil,
         project: McpProjectContext? = nil,
-        control: McpControlContext? = nil
+        control: McpControlContext? = nil,
+        admit: (@Sendable (_ toolName: String) async throws -> Void)? = nil
     ) async {
         warmLutLibrary()
         var editing = await makeEditingSeams(session: { nil })
@@ -735,6 +747,11 @@ enum McpServerController {
             editing: editing, culling: culling, searchState: searchState,
             project: project, control: control)
         await registry.setWriterCheck { false }
+        // M7-6-01 (major-1): the admit seam rides the same host-body
+        // installation shape as the writer gate above; the default nil
+        // keeps every pre-M7-6 caller (the read-only arm) byte-identical
+        // (the always-admit headless semantics).
+        if let admit { await registry.setControlAdmit(admit) }
         let host = McpHTTPHost(
             configuration: .init(host: McpHTTPHost.loopbackHost, port: 0),
             validationPipeline: nil
@@ -788,7 +805,8 @@ enum McpServerController {
         projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)? = nil,
         searchState: McpSearchStateContext? = nil,
         project: McpProjectContext? = nil,
-        control: McpControlContext? = nil
+        control: McpControlContext? = nil,
+        admit: (@Sendable (_ toolName: String) async throws -> Void)? = nil
     ) async {
         warmLutLibrary()
         let stderr = FileHandle.standardError
@@ -817,6 +835,10 @@ enum McpServerController {
                 editing: editing, culling: culling, searchState: searchState,
                 project: project, control: control)
             await registry.setWriterCheck { @Sendable in lock != nil }
+            // M7-6-01 (major-1): the admit seam — the writer-gate same
+            // shape; the default nil keeps the headless arm byte-identical
+            // (always admit = the D-M7-5 correct headless semantics).
+            if let admit { await registry.setControlAdmit(admit) }
             let server = await McpAdapters.makeServer(registry: registry)
             try await server.start(transport: StdioTransport())
             await log("headless MCP server up (stdio)")
@@ -1040,7 +1062,8 @@ enum McpServerController {
         culling: McpCullingContext? = nil,
         searchState: McpSearchStateContext? = nil,
         project: McpProjectContext? = nil,
-        control: McpControlContext? = nil
+        control: McpControlContext? = nil,
+        admit: (@Sendable (_ toolName: String) async throws -> Void)? = nil
     ) async throws -> HttpHostHandle {
         warmLutLibrary()
         // The Bearer valve exists ONLY on the non-loopback branch (the
@@ -1079,6 +1102,11 @@ enum McpServerController {
                 project: project, control: control)
             // The host holds the writer right by construction.
             await registry.setWriterCheck { true }
+            // M7-6-01 (major-1): the admit seam — the writer-gate same
+            // shape; the GUI embedded arm re-uses THIS single installation
+            // point through the box (no second install site), the headless
+            // callers keep the nil default (always admit).
+            if let admit { await registry.setControlAdmit(admit) }
             let pipeline = bearerToken.map { validationPipelineWithBearer(token: $0) }
             let host = McpHTTPHost(
                 configuration: .init(host: bindHost, port: port),
@@ -1139,7 +1167,8 @@ enum McpServerController {
         culling: McpCullingContext?,
         searchState: McpSearchStateContext? = nil,
         project: McpProjectContext? = nil,
-        control: McpControlContext? = nil
+        control: McpControlContext? = nil,
+        admit: (@Sendable (_ toolName: String) async throws -> Void)? = nil
     ) async {
         withEmbeddedState { state in
             state.editing = editing
@@ -1151,6 +1180,10 @@ enum McpServerController {
             // the same box so an off→on preference toggle re-assembles the
             // three control tools (they cannot silently vanish).
             state.control = control
+            // M7-6-01 (major-1): the admit closure rides the same box (the
+            // seventh seam, same lineage) — an off→on toggle re-arms the
+            // gate through startHTTPHost's single installation point.
+            state.admit = admit
         }
         guard UserDefaults.standard.bool(forKey: embeddedServerEnabledKey) else { return }
         await startEmbeddedServer()
@@ -1165,10 +1198,10 @@ enum McpServerController {
     static func startEmbeddedServer() async {
         if withEmbeddedState({ $0.handle != nil }) { return }
         do {
-            let (editing, culling, searchState, project, control) =
+            let (editing, culling, searchState, project, control, admit) =
                 withEmbeddedState { state in
                     (state.editing, state.culling, state.searchState,
-                     state.project, state.control)
+                     state.project, state.control, state.admit)
                 }
             let exposure: McpExposure =
                 UserDefaults.standard.bool(forKey: lanExposureEnabledKey)
@@ -1180,7 +1213,8 @@ enum McpServerController {
                 culling: culling,
                 searchState: searchState,
                 project: project,
-                control: control)
+                control: control,
+                admit: admit)
             let wonRace = withEmbeddedState { state -> Bool in
                 if state.handle == nil {
                     state.handle = handle
@@ -1242,6 +1276,10 @@ enum McpServerController {
         /// field order; D-M7-5-10): the control face rides the same box for
         /// the same toggle-visibility guarantee.
         var control: McpControlContext?
+        /// M7-6-01 T1 (major-1, the SEVENTH seam — same lineage): the admit
+        /// closure rides the box so the off→on toggle re-arms the registry's
+        /// control gate through startHTTPHost's single installation point.
+        var admit: (@Sendable (_ toolName: String) async throws -> Void)?
     }
     nonisolated(unsafe) private static var embeddedState = EmbeddedState()
 

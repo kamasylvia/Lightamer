@@ -264,6 +264,31 @@ final class McpHostTests: XCTestCase {
             "stop must release the writer lock")
     }
 
+    /// The admit seam's host-level installation (M7-6-01 major-1): an
+    /// admit-armed REAL host refuses the un-acquired state-changing write
+    /// with the TYPED controlNotHeld. The M7-5 second-lane e2e found this
+    /// shape landing in the handler's internalError (the admit closure had
+    /// no channel from the App to the registry) — the transmissive
+    /// parameter flips that face. The stub rides startHTTPHost's parameter
+    /// exactly like the production GUI closure will.
+    func testHTTPHostAdmitStubRefusesUnacquiredApplyParams() async throws {
+        let handle = try await McpServerController.startHTTPHost(
+            paths: paths, editing: await headlessEditing,
+            culling: McpServerController.makeCullingContext(session: { nil }),
+            admit: { _ in throw McpToolError.controlNotHeld("not held") })
+        defer { Task { await handle.stop() } }
+        do {
+            _ = try await handle.registry.call(
+                name: "apply_params", arguments: [:])
+            XCTFail("the admit-armed host must refuse the un-acquired write")
+        } catch let error as McpToolError {
+            XCTAssertEqual(error.code, "controlNotHeld")
+            XCTAssertTrue(
+                error.message.contains("not held"),
+                "the stub's message rides through: \(error.message)")
+        }
+    }
+
     /// The discovery-file write/delete timing against a live host: alive
     /// while serving, gone after stop (no residue on a graceful shutdown).
     func testHTTPEndpointFileWriteDeleteTiming() async throws {

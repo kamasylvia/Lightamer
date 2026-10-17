@@ -1648,7 +1648,14 @@ internal struct LightamerApp: App {
                         culling: cullingContext,
                         searchState: searchStateContext,
                         project: projectContext,
-                        control: controlContext)
+                        control: controlContext,
+                        admit: { [agentControl] name in
+                            // M7-6-01 (major-1): the coordinator-backed admit
+                            // gate — the acquire-provider plain-await hop same
+                            // precedent (the plain await IS the MainActor hop;
+                            // the coordinator is @MainActor).
+                            try await agentControl.admit(toolName: name)
+                        })
                 }
                 // Plan M2-2-2: the project/import minimal faces (OQ-1 A +
                 // OQ-4/OQ-11 切分线 — dialog + progress here, the complete
