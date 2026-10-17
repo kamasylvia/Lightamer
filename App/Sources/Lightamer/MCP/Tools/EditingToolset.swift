@@ -149,6 +149,20 @@ enum EditingToolset {
             handler: { arguments in
                 try await applyParamsBody(arguments: arguments, seams: seams)
             })
+        // M7-4-01 (MCP2-08): the cross-image copy/paste pair — copy = the
+        // read-only enumeration preview, paste = the batch overwrite write
+        // (the shared AdjustmentTransferCatalog face; the M2-8 dialog
+        // model consumes the same Catalog).
+        await registry.register(
+            copyAdjustmentsDescriptor, requiresWriter: false,
+            handler: { arguments in
+                try await copyAdjustmentsBody(arguments: arguments, seams: seams)
+            })
+        await registry.register(
+            pasteAdjustmentsDescriptor, requiresWriter: true,
+            handler: { arguments in
+                try await pasteAdjustmentsBody(arguments: arguments, seams: seams)
+            })
         await registerRenderPreview(into: registry, seams: seams)
         await registry.register(
             listIopsDescriptor, requiresWriter: false,
@@ -535,7 +549,7 @@ enum EditingToolset {
                 + "retry, or edit in the GUI (图像在编辑器中打开；请让用户关闭后重试，"
                 + "或改用 GUI 操作). Params key reference: list_iops.")),
         inputSchemaJSON:
-            #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"ops":{"type":"array","minItems":1,"description":"Module-level upserts","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer","default":0},"params":{"type":"object","description":"Partial params JSON overlaid on the instance (keys per list_iops)"},"enabled":{"type":"boolean"},"remove":{"type":"boolean","default":false}},"required":["opName"]}}},"required":["relPath","ops"]}"#,
+            #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"ops":{"type":"array","minItems":1,"description":"Module-level upserts","items":{"type":"object","properties":{"opName":{"type":"string"},"multiPriority":{"type":"integer","default":0},"params":{"type":"object","description":"Partial params JSON overlaid on the instance (keys per list_iops)"},"enabled":{"type":"boolean"},"remove":{"type":"boolean","default":false}},"required":["opName"]}},"note":{"type":"string","minLength":1,"description":"ITEM-level edit note attached to the history commit (distinct from the document-level note set via append_note)"}},"required":["relPath","ops"]}"#,
         destructiveHint: true)
 
     /// One parsed `ops[]` entry.
@@ -596,6 +610,9 @@ enum EditingToolset {
     ) async throws -> McpToolOutput {
         let relPath = try requiredRelPath(arguments)
         let ops = try parseParamOps(arguments)
+        // M7-4-01 (MCP2-09): the optional ITEM-level note rides the paste
+        // commit (minLength 1 — the append_note face); author stamps "mcp".
+        let note = try optionalNoteArgument(arguments)
         let member = try await resolveMember(relPath: relPath, seams: seams)
 
         // The WRITE gate: apply_params calls serialize against each other.
@@ -666,7 +683,8 @@ enum EditingToolset {
                         root: member.root, relPaths: [relPath], payload: payload,
                         mode: .overwrite, seed: [], liveRelPaths: [],
                         store: member.store, writer: writer,
-                        timestamp: Date(), label: "MCP apply_params")
+                        timestamp: Date(), label: "MCP apply_params",
+                        note: note, author: Self.mcpAuthorToken)
                     guard outcome.appliedRelPaths.contains(relPath) else {
                         throw McpToolError.internalError(
                             "apply_params compose/claim did not land for '\(relPath)'")
@@ -686,6 +704,421 @@ enum EditingToolset {
                         + "are idempotent, check load_image and retry once")
             }
         }
+    }
+
+    // MARK: - copy_adjustments / paste_adjustments (M7-4-01, MCP2-08)
+
+    /// D-M7-4-4: the fixed author token every MCP write commit stamps.
+    static let mcpAuthorToken = "mcp"
+
+    /// The per-target rejection reason tokens (M7-4-01 F7 — the FIXED
+    /// token set; these are response-JSON strings, not the 16-case
+    /// McpToolError table).
+    private enum PasteRejectionReason {
+        static let notSessionMember = "notSessionMember"
+        static let imageLiveInEditor = "imageLiveInEditor"
+        static let unreadableSidecar = "unreadableSidecar"
+        static let internalError = "internalError"
+    }
+
+    /// An optional note argument (minLength 1 — the append_note face;
+    /// nil/absent = no note field enters the commit bytes).
+    private static func optionalNoteArgument(
+        _ arguments: [String: McpJSON]
+    ) throws -> String? {
+        guard let value = arguments["note"], value != .null else { return nil }
+        guard let string = value.stringValue, !string.isEmpty else {
+            throw McpToolError.invalidParams(
+                "note must be a non-empty string (minLength 1) — omit it to "
+                    + "attach no item-level note")
+        }
+        return string
+    }
+
+    /// The `targets` argument (paste_adjustments): non-empty string array,
+    /// ≤1000 (the write-five cap), DUPLICATES REJECTED (F10 — explicit >
+    /// implicit: silent dedup would mask a caller bug).
+    private static func pasteTargetsArgument(
+        _ arguments: [String: McpJSON]
+    ) throws -> [String] {
+        guard let items = arguments["targets"]?.arrayValue, !items.isEmpty else {
+            throw McpToolError.invalidParams(
+                "targets must be a non-empty array of session relPaths")
+        }
+        guard items.count <= 1000 else {
+            throw McpToolError.invalidParams(
+                "targets accepts at most 1000 entries per request; page the call")
+        }
+        let paths = items.map(\.stringValue)
+        guard paths.allSatisfy({ $0 != nil }) else {
+            throw McpToolError.invalidParams("targets entries must be strings")
+        }
+        let targets = paths.map { $0! }
+        if Set(targets).count != targets.count {
+            throw McpToolError.invalidParams(
+                "targets contains duplicate entries — each target must appear "
+                    + "exactly once")
+        }
+        return targets
+    }
+
+    /// The optional `include` argument (paste_adjustments): instanceId
+    /// UUID strings; nil/absent = every transferable instance.
+    private static func pasteIncludeArgument(
+        _ arguments: [String: McpJSON]
+    ) throws -> Set<UUID>? {
+        guard let items = arguments["include"]?.arrayValue else { return nil }
+        var ids = Set<UUID>()
+        for item in items {
+            guard let raw = item.stringValue,
+                let id = UUID(uuidString: raw)
+            else {
+                throw McpToolError.invalidParams(
+                    "include entries must be instanceId UUID strings (the "
+                        + "copy_adjustments answer's items[].instanceId)")
+            }
+            ids.insert(id)
+        }
+        return ids.isEmpty ? nil : ids
+    }
+
+    private static let copyAdjustmentsDescriptor = McpToolDescriptor(
+        name: "copy_adjustments",
+        description: String(localized: "mcp_tool_desc_copy_adjustments",
+            defaultValue: String.LocalizationValue(
+                "Read ONE source image's grade adjustments as a transfer "
+            + "PREVIEW (READ-ONLY — no state is stored, no clipboard exists; "
+            + "feed the answer's instanceIds to paste_adjustments' include "
+            + "parameter). source: a library image id (digits) or an "
+            + "open-session relPath. The answer enumerates the source's "
+            + "ACTIVE chain (version picks go through paste_adjustments' "
+            + "version parameter — versions[] lists the ids): every Grade "
+            + "layer with its instances {instanceId, opName, multiPriority, "
+            + "enabled, transferable}, the greyed non-transferable rows "
+            + "VISIBLE (never silently swallowed), the DRT row presence and "
+            + "the summary counts. NOTE LEVEL: the note field on "
+            + "paste_adjustments is an ITEM-level edit note on the history "
+            + "commit — distinct from the document-level note set via "
+            + "append_note. Errors: notSessionMember (unknown id / no open "
+            + "session), invalidParams.")),
+        inputSchemaJSON:
+            #"{"type":"object","properties":{"source":{"type":"string","description":"A library image id (digits) or an open-session relPath"}},"required":["source"]}"#,
+        readOnlyHint: true)
+
+    private static let pasteAdjustmentsDescriptor = McpToolDescriptor(
+        name: "paste_adjustments",
+        description: String(localized: "mcp_tool_desc_paste_adjustments",
+            defaultValue: String.LocalizationValue(
+                "Paste ONE source image's grade adjustments onto MANY "
+            + "open-session targets in ONE call (each target = one undoable "
+            + "overwrite-paste commit; write lands BEFORE this tool returns). "
+            + "source: a library image id (digits) or an open-session relPath "
+            + "(the copy_adjustments addressing; re-read STATELESSLY — no "
+            + "server clipboard). targets: 1...1000 open-session relPaths. "
+            + "include: instanceId subset (default ALL transferable); "
+            + "includeDrt: false drops the DRT row (default true); version: "
+            + "a copy_adjustments versions[] id (default the active chain). "
+            + "Masks restart their epoch on paste (source in-flight mask "
+            + "writers never validate against pasted masks). Live targets "
+            + "(open in the editor) are PER-TARGET REJECTED, never skipped. "
+            + "The answer is a per-target ledger {relPath, status: "
+            + "applied|rejected(reason)} — an all-rejected batch answers "
+            + "appliedCount=0 honestly instead of throwing. NOTE LEVEL: the "
+            + "note field is an ITEM-level edit note on each history commit "
+            + "— distinct from the document-level note set via append_note. "
+            + "Errors: invalidParams, notSessionMember, imageLiveInEditor, "
+            + "projectReadOnly, serverReadOnly, internalError.")),
+        inputSchemaJSON:
+            #"{"type":"object","properties":{"source":{"type":"string","description":"A library image id (digits) or an open-session relPath (the copy_adjustments addressing)"},"targets":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":1000,"description":"Open-session relPaths to paste onto"},"note":{"type":"string","minLength":1,"description":"ITEM-level edit note attached to each history commit (distinct from the document-level note set via append_note)"},"include":{"type":"array","items":{"type":"string","format":"uuid"},"description":"instanceId subset from copy_adjustments (default: every transferable instance)"},"includeDrt":{"type":"boolean","default":true,"description":"false drops the source's DRT row"},"version":{"type":"string","description":"A copy_adjustments versions[] id (default: the active chain)"}},"required":["source","targets"]}"#,
+        destructiveHint: true)
+
+    /// copy_adjustments body: the source chain's enumeration PREVIEW (the
+    /// shared Catalog face; no server state is written anywhere).
+    private static func copyAdjustmentsBody(
+        arguments: [String: McpJSON], seams: Seams
+    ) async throws -> McpToolOutput {
+        guard let source = arguments["source"]?.stringValue, !source.isEmpty else {
+            throw McpToolError.invalidParams(
+                "source (string) is required — a library image id (digits) or "
+                    + "an open-session relPath")
+        }
+        return try await McpCullingToolset.withTimeout(
+            McpTimeouts.list,
+            McpToolError.internalError("copy_adjustments timed out")
+        ) {
+            let sourceURL = try await MatchColorToolset.resolveReference(
+                source, seams: seams)
+            let document = ExportRenderer.readDocument(imageURL: sourceURL)
+            let chain = document?.history ?? HistoryStack()
+            let snapshot = AdjustmentTransferCatalog.enumerateSnapshot(chain: chain)
+            let drtRecord = chain.effectiveDrtRecord()
+
+            let versions: [McpJSON] = (document?.versions ?? []).map { record in
+                .object([
+                    "id": .string(record.id.uuidString),
+                    "name": .string(record.name),
+                    "createdAt": .string(McpSearchStateToolset.iso8601(record.createdAt)),
+                    "updatedAt": .string(McpSearchStateToolset.iso8601(record.updatedAt)),
+                    // chain == nil means ACTIVE (its items ride the
+                    // document's history key).
+                    "active": .bool(record.chainStack == nil),
+                ])
+            }
+
+            let grades: [McpJSON] = snapshot.nodes.map { node in
+                let items: [McpJSON] = (snapshot.items[node.id] ?? []).map { item in
+                    .object([
+                        "instanceId": .string(item.instance.id.uuidString),
+                        "opName": .string(item.instance.opName),
+                        "multiPriority": .int(item.instance.multiPriority),
+                        "enabled": .bool(item.instance.enabled),
+                        "transferable": .bool(item.transferable),
+                    ] as [String: McpJSON])
+                }
+                return .object([
+                    "id": .string(node.id.uuidString),
+                    "name": .string(node.name),
+                    "chainCount": .int(node.chainCount),
+                    "transferableCount": .int(node.transferableCount),
+                    "items": .array(items),
+                ] as [String: McpJSON])
+            }
+            let transferable = snapshot.nodes.reduce(0) { $0 + $1.transferableCount }
+            let payload = McpJSON.object([
+                "source": .string(source),
+                "versions": .array(versions),
+                "selectedVersion": document?.activeVersionID.map { .string($0) }
+                    ?? .null,
+                "grades": .array(grades),
+                "drt": .object([
+                    "present": .bool(drtRecord != nil),
+                    "eligible": .bool(drtRecord != nil),
+                ]),
+                "summary": .object([
+                    "grades": .int(snapshot.nodes.count),
+                    "transferableItems": .int(transferable),
+                    "drt": .bool(drtRecord != nil),
+                ]),
+            ])
+            return McpToolOutput(
+                [.text(McpJSONSerialization.text(from: payload))])
+        }
+    }
+
+    /// paste_adjustments body: per-target prechecks in the gate, the
+    /// stateless source re-read + payload build + the three-segment batch
+    /// apply inside the applyBatch budget, flush BEFORE the answer (the
+    /// apply_params write-lands-before-return contract, batch form).
+    private static func pasteAdjustmentsBody(
+        arguments: [String: McpJSON], seams: Seams
+    ) async throws -> McpToolOutput {
+        guard let source = arguments["source"]?.stringValue, !source.isEmpty else {
+            throw McpToolError.invalidParams(
+                "source (string) is required — a library image id (digits) or "
+                    + "an open-session relPath")
+        }
+        let targets = try pasteTargetsArgument(arguments)
+        let note = try optionalNoteArgument(arguments)
+        let include = try pasteIncludeArgument(arguments)
+        let includeDrt = arguments["includeDrt"]?.boolValue ?? true
+        let version = arguments["version"]?.stringValue
+
+        let gate = seams.writeGate ?? McpRenderGate()
+        return try await gate.withRenderGate {
+            // Per-target prechecks — fast local reads, OUTSIDE the apply
+            // budget (the apply_params ordering: judge → probe → budget).
+            var rejected: [String: String] = [:]
+            var members: [String: (imageURL: URL, root: URL, store: SessionIndexStore)] = [:]
+            for relPath in targets {
+                do {
+                    members[relPath] = try await resolveMember(
+                        relPath: relPath, seams: seams)
+                } catch {
+                    // The membership miss is the per-target honest row (a
+                    // batch never throws away the whole answer for one bad
+                    // address).
+                    rejected[relPath] = PasteRejectionReason.notSessionMember
+                }
+            }
+            // GUI-live HARD rejection per target (NOT a skip — the MCP face
+            // has no interactive layer to hand a live image to).
+            let live = await seams.liveImageURL()?.standardizedFileURL.path
+            for relPath in targets where members[relPath] != nil {
+                if live == members[relPath]!.imageURL.standardizedFileURL.path {
+                    rejected[relPath] = PasteRejectionReason.imageLiveInEditor
+                    members[relPath] = nil
+                }
+            }
+            let cleanTargets = targets.filter { members[$0] != nil }
+            // Sendable-closure freeze: the budget window's body reads
+            // SNAPSHOT values (the prechecks are done mutating by then).
+            let rejectedSnapshot = rejected
+            let membersSnapshot = members
+
+            // The project-lock probe (whole call — a held project refuses
+            // the entire paste, the apply_params semantics).
+            try await EditingToolset.rejectIfProjectReadOnly(seams.projectWriteProbe)
+
+            guard !cleanTargets.isEmpty else {
+                return Self.pasteLedgerAnswer(
+                    targets: targets, rejected: rejectedSnapshot, applied: [],
+                    failed: [:], note: note)
+            }
+
+            let seconds = durationSeconds(McpTimeouts.applyBatch)
+            do {
+                return try await QuickLookRenderer.boundedWait(seconds: seconds) {
+                    // The source chain: STATELESS re-read (no copy-answer
+                    // cache — multi-client interleave safe).
+                    let sourceURL = try await MatchColorToolset.resolveReference(
+                        source, seams: seams)
+                    guard let document = ExportRenderer.readDocument(
+                        imageURL: sourceURL)
+                    else {
+                        // The source sidecar is unreadable — every compose
+                        // would fail; the honest face is the all-rejected
+                        // ledger.
+                        var reasons = rejectedSnapshot
+                        for relPath in cleanTargets {
+                            reasons[relPath] =
+                                PasteRejectionReason.unreadableSidecar
+                        }
+                        return Self.pasteLedgerAnswer(
+                            targets: targets, rejected: reasons, applied: [],
+                            failed: [:], note: note)
+                    }
+                    let chain = try Self.selectSourceChain(document, version: version)
+                    let snapshot = AdjustmentTransferCatalog.enumerateSnapshot(
+                        chain: chain)
+                    var items = snapshot.items
+                    if let include {
+                        for (nodeID, list) in items {
+                            items[nodeID] = list.map { item in
+                                var item = item
+                                if !include.contains(item.instance.id) {
+                                    item.checked = false
+                                }
+                                return item
+                            }
+                        }
+                    }
+                    guard let transfer = AdjustmentTransferCatalog.buildPayload(
+                        layerSnapshots: snapshot.layerSnapshots, items: items,
+                        drtRecord: chain.effectiveDrtRecord(),
+                        includeDrt: includeDrt)
+                    else {
+                        throw McpToolError.invalidParams(
+                            "the source carries no transferable grade adjustments "
+                                + "under the current selection — run "
+                                + "copy_adjustments for the enumeration face")
+                    }
+                    let payload = PastePayload(
+                        sourceImageID: UUID(), sourceURL: nil,
+                        instances: transfer.records,
+                        layerStack: transfer.snapshot.map(SidecarLayerStackRecord.init),
+                        copiedAt: Date())
+
+                    // The seed rides the editing face (the same switch that
+                    // populated the registry — the「默认种子 + 载荷实例」
+                    // overwrite acceptance).
+                    let modules = await seams.modules()
+                    let seed = await Self.editingSeed(
+                        modules: modules, defaultFace: seams.defaultFace)
+                    let first = membersSnapshot[cleanTargets[0]]!
+                    let writer = BatchSidecarWriter(
+                        root: first.root, store: first.store)
+                    let outcome = await SessionBatchApplier.apply(
+                        root: first.root, relPaths: cleanTargets,
+                        payload: payload, mode: .overwrite, seed: seed,
+                        liveRelPaths: [], store: first.store, writer: writer,
+                        timestamp: Date(), label: "MCP paste_adjustments",
+                        note: note, author: Self.mcpAuthorToken)
+                    // The write lands BEFORE the tool returns (the agent's
+                    // next get_history/render_preview reads the new state).
+                    await writer.flushForTeardown()
+
+                    var failed: [String: String] = [:]
+                    for relPath in outcome.failedRelPaths {
+                        failed[relPath] = Self.pasteFailureReason(
+                            relPath: relPath, root: first.root)
+                    }
+                    return Self.pasteLedgerAnswer(
+                        targets: targets, rejected: rejectedSnapshot,
+                        applied: outcome.appliedRelPaths, failed: failed,
+                        note: note)
+                }
+            } catch let timeout as QuickLookRenderer.RenderTimeout {
+                throw McpToolError.internalError(
+                    "paste_adjustments timed out after \(timeout.seconds)s — "
+                        + "the compose/claim/write pipeline did not answer; pastes "
+                        + "are idempotent, check get_history and retry once")
+            }
+        }
+    }
+
+    /// The source chain pick: absent/null version = the active chain (the
+    /// document's history key); otherwise the matching version record's
+    /// frozen chain. Unknown id = typed invalidParams.
+    private static func selectSourceChain(
+        _ document: LightamerSidecar, version: String?
+    ) throws -> HistoryStack {
+        guard let version, version != TransferSourceVersion.activeChainID else {
+            return document.history
+        }
+        guard let record = document.versions?.first(where: {
+            $0.id.uuidString == version
+        }) else {
+            throw McpToolError.invalidParams(
+                "version '\(version)' is not a version of the source document — "
+                    + "copy_adjustments lists the ids")
+        }
+        return record.chainStack ?? document.history
+    }
+
+    /// A compose/claim failure row's reason: an unreadable target sidecar
+    /// = `unreadableSidecar`; anything else (the claim rollback face) =
+    /// the `internalError` bucket (F7's fixed token set).
+    private static func pasteFailureReason(relPath: String, root: URL) -> String {
+        let sidecarURL = LightamerSidecar.sidecarURL(
+            for: root.appendingPathComponent(relPath))
+        if (try? Data(contentsOf: sidecarURL)) == nil {
+            return PasteRejectionReason.unreadableSidecar
+        }
+        return PasteRejectionReason.internalError
+    }
+
+    /// The per-target ledger answer: {targets: [{relPath, status,
+    /// reason?}], appliedCount, note, author} — an all-rejected batch is
+    /// an honest appliedCount=0 answer, never a throw.
+    private static func pasteLedgerAnswer(
+        targets: [String],
+        rejected: [String: String],
+        applied: [String],
+        failed: [String: String],
+        note: String?
+    ) -> McpToolOutput {
+        let appliedSet = Set(applied)
+        let rows: [McpJSON] = targets.map { relPath in
+            var row: [String: McpJSON] = [
+                "relPath": .string(relPath),
+                "status": appliedSet.contains(relPath)
+                    ? .string("applied") : .string("rejected"),
+            ]
+            if !appliedSet.contains(relPath) {
+                row["reason"] = .string(
+                    failed[relPath] ?? rejected[relPath]
+                        ?? PasteRejectionReason.internalError)
+            }
+            return .object(row)
+        }
+        var payload: [String: McpJSON] = [
+            "targets": .array(rows),
+            "appliedCount": .int(applied.count),
+            "author": .string(Self.mcpAuthorToken),
+        ]
+        payload["note"] = note.map { .string($0) } ?? .null
+        return McpToolOutput(
+            [.text(McpJSONSerialization.text(from: .object(payload)))])
     }
 
     /// The pristine-load seed (the editor's own fresh-load convention —

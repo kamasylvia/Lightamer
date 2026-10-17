@@ -32622,6 +32622,26 @@
           }
         }
       }
+    },
+    "mcp_tool_desc_copy_adjustments" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读取一张源图的调色调整作为传输预览（只读——不落任何服务端状态、无剪贴板；把应答中的 instanceId 喂给 paste_adjustments 的 include 参数）。source：库图像 id（数字）或打开会话的 relPath。应答枚举源的 ACTIVE 链（版本选择走 paste_adjustments 的 version 参数——versions[] 列出 id）：每个 Grade 层含其 instances {instanceId, opName, multiPriority, enabled, transferable}，不可贴行灰显可见（绝不静默吞掉），附 DRT 行存在性与 summary 计数。NOTE 层级：paste_adjustments 的 note 字段是历史提交上的 item 级编辑注记——与 append_note 设置的文档级 note 不同。错误：notSessionMember（未知 id / 无打开会话）、invalidParams。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_paste_adjustments" : {
+      "localizations" : {
+        "zh" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把一张源图的调色调整一次性贴到多个打开会话的目标上（每目标 = 一次可撤销的 overwrite-paste 提交；写达后方返回）。source：库图像 id（数字）或打开会话的 relPath（copy_adjustments 同款寻址；无状态重读——无服务端剪贴板）。targets：1...1000 个打开会话 relPath。include：instanceId 子集（缺省全部可贴项）；includeDrt: false 丢弃 DRT 行（缺省 true）；version：copy_adjustments versions[] 的 id（缺省 ACTIVE 链）。蒙版在粘贴时重置纪元（源图在飞蒙版写入者绝不对贴后图生效）。编辑器中打开的活目标按目标拒绝（绝不静默跳过）。应答为逐目标分账 {relPath, status: applied|rejected(reason)}——全拒批以 appliedCount=0 诚实应答而非抛错。NOTE 层级：note 字段是各历史提交上的 item 级编辑注记——与 append_note 设置的文档级 note 不同。错误：invalidParams、notSessionMember、imageLiveInEditor、projectReadOnly、serverReadOnly、internalError。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

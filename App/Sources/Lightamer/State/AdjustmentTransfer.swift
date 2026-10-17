@@ -23,8 +23,9 @@ import Observation
 //     `drtRecord` (document-level value copy).
 //
 // THE EXCLUSION PREDICATE IS ONE FUNCTION (`isAdjustmentTransferable`) —
-// this panel and any future batch face share it; no second copy of the
-// exclusion logic may appear at the view layer.
+// this panel and the MCP batch face (M7-4-01) share it AND the shared
+// `AdjustmentTransferCatalog` enumeration/payload face below; no second
+// copy of the exclusion logic may appear at the view layer.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// KD-3's transferable predicate (THE single function — CONTEXT Specific
@@ -112,6 +113,97 @@ struct AdjustmentTransferPayload: Equatable {
     var drtRecord: DrtRecord?
 
     var isEmpty: Bool { records.isEmpty && drtRecord == nil }
+}
+
+// MARK: - The shared enumeration/payload face (M7-4-01 T3)
+
+/// The pure enumeration + materialization face BOTH consumers share: the
+/// GUI dialog model (the pane state machine delegates here) and the MCP
+/// `copy_adjustments` / `paste_adjustments` toolset (M7-4-01). The
+/// exclusion predicate stays the ONE function above; this type is the ONE
+/// enumeration/materialization implementation (no second copy).
+enum AdjustmentTransferCatalog {
+
+    /// One enumeration result: the pure values the GUI model stores and
+    /// the MCP toolset projects (`nodes` rows + per-node item state).
+    struct Snapshot: Equatable {
+        /// The source stack's Grade layers (index-aligned with `nodes` —
+        /// the payload build slices these).
+        var layerSnapshots: [LayerStackSnapshot.Layer]
+        /// The Node-pane rows.
+        var nodes: [TransferNode]
+        /// The Item-pane state per node (checked defaults `transferable`).
+        var items: [UUID: [TransferItem]]
+    }
+
+    /// The KD-5 projection over a source chain (the model's enumerate
+    /// body, verbatim): rebuild the layer stack, snapshot each Grade
+    /// layer, count the transferable rows, default-check every
+    /// transferable instance.
+    static func enumerateSnapshot(chain: HistoryStack) -> Snapshot {
+        let stack = LayerStackProjection.rebuild(
+            history: chain, baseLayer: BackgroundLayer())
+        let snapshots = stack.adjustmentLayers.map(LayerStackSnapshot.Layer.init)
+        let nodes = snapshots.map { snap in
+            TransferNode(
+                id: snap.id, name: snap.name, chainCount: snap.chain.count,
+                transferableCount: snap.chain.filter(isAdjustmentTransferable).count)
+        }
+        var items: [UUID: [TransferItem]] = [:]
+        for snap in snapshots {
+            items[snap.id] = snap.chain.map { instance in
+                let transferable = isAdjustmentTransferable(instance)
+                return TransferItem(
+                    instance: instance, transferable: transferable, checked: transferable)
+            }
+        }
+        return Snapshot(layerSnapshots: snapshots, nodes: nodes, items: items)
+    }
+
+    /// Materialize the checked selection as the paste payload (the model's
+    /// pastePayload body, verbatim). `include` = an instanceId whitelist
+    /// applied BEFORE the build (nil = every checked row — the GUI shape);
+    /// `includeDrt: false` drops the DRT row (the MCP opt-out; the GUI
+    /// passes its `drtChecked` state here).
+    ///
+    /// KD-3's mask-epoch reset (悬决销账): the copied layer's mask
+    /// `contentRevision` resets to NIL — the optimistic-concurrency guard
+    /// restarts from zero for the new identity (a stale in-flight writer
+    /// on the SOURCE image must never validate against the PASTED mask;
+    /// the paste is a new epoch by construction).
+    static func buildPayload(
+        layerSnapshots: [LayerStackSnapshot.Layer],
+        items: [UUID: [TransferItem]],
+        drtRecord: DrtRecord?,
+        includeDrt: Bool,
+        include: Set<UUID>? = nil
+    ) -> AdjustmentTransferPayload? {
+        if layerSnapshots.isEmpty && drtRecord == nil { return nil }
+        var records: [ModuleInstance] = []
+        var layers: [LayerStackSnapshot.Layer] = []
+        for snap in layerSnapshots {
+            let checked = (items[snap.id] ?? []).filter { item in
+                let selected = item.checked
+                let whitelisted = include.map { $0.contains(item.instance.id) } ?? true
+                return selected && whitelisted
+            }.map(\.instance)
+            guard !checked.isEmpty else { continue }
+            var layer = snap
+            layer.chain = checked
+            if var mask = layer.mask {
+                mask.contentRevision = nil
+                layer.mask = mask
+            }
+            layers.append(layer)
+            records.append(contentsOf: checked)
+        }
+        let drt = includeDrt ? drtRecord : nil
+        let payload = AdjustmentTransferPayload(
+            records: records,
+            snapshot: layers.isEmpty ? nil : LayerStackSnapshot(layers: layers),
+            drtRecord: drt)
+        return payload.isEmpty ? nil : payload
+    }
 }
 
 @Observable
@@ -239,28 +331,18 @@ final class AdjustmentTransferModel {
     // MARK: - The enumeration (the KD-5 single-source projection)
 
     private func enumerate(chain: HistoryStack) {
-        let stack = LayerStackProjection.rebuild(
-            history: chain, baseLayer: BackgroundLayer())
-        let snapshots = stack.adjustmentLayers.map(LayerStackSnapshot.Layer.init)
-        layerSnapshots = snapshots
-        nodes = snapshots.map { snap in
-            TransferNode(
-                id: snap.id, name: snap.name, chainCount: snap.chain.count,
-                transferableCount: snap.chain.filter(isAdjustmentTransferable).count)
-        }
+        // M7-4-01 T3: the enumeration delegates to the shared Catalog —
+        // the MCP copy/paste face reads the SAME projection (no second
+        // copy); the pane state machine is unchanged.
+        let snapshot = AdjustmentTransferCatalog.enumerateSnapshot(chain: chain)
+        layerSnapshots = snapshot.layerSnapshots
+        nodes = snapshot.nodes
         // Item state rebuilds; the selection falls to the first node that
         // has anything checkable.
-        var rebuilt: [UUID: [TransferItem]] = [:]
-        for snap in snapshots {
-            rebuilt[snap.id] = snap.chain.map { instance in
-                let transferable = isAdjustmentTransferable(instance)
-                return TransferItem(
-                    instance: instance, transferable: transferable, checked: transferable)
-            }
-        }
-        items = rebuilt
+        items = snapshot.items
         selectedNodeID =
-            snapshots.first(where: { (rebuilt[$0.id] ?? []).contains { $0.transferable } })?
+            snapshot.layerSnapshots
+            .first(where: { (snapshot.items[$0.id] ?? []).contains { $0.transferable } })?
             .id
     }
 
@@ -294,33 +376,12 @@ final class AdjustmentTransferModel {
     /// The checked selection as the paste payload. nil = nothing checkable
     /// was enumerated (the dialog shows the empty note instead).
     ///
-    /// KD-3's mask-epoch reset (悬决销账销账): the copied layer's mask
-    /// `contentRevision` resets to NIL — the optimistic-concurrency guard
-    /// restarts from zero for the new identity (a stale in-flight writer
-    /// on the SOURCE image must never validate against the PASTED mask;
-    /// the paste is a new epoch by construction).
+    /// M7-4-01 T3: materialization delegates to the shared Catalog (the
+    /// mask-epoch reset lives THERE now — one implementation).
     func pastePayload() -> AdjustmentTransferPayload? {
-        if layerSnapshots.isEmpty && drtRecord == nil { return nil }
-        var records: [ModuleInstance] = []
-        var layers: [LayerStackSnapshot.Layer] = []
-        for snap in layerSnapshots {
-            let checked = (items[snap.id] ?? []).filter { $0.checked }.map(\.instance)
-            guard !checked.isEmpty else { continue }
-            var layer = snap
-            layer.chain = checked
-            if var mask = layer.mask {
-                mask.contentRevision = nil
-                layer.mask = mask
-            }
-            layers.append(layer)
-            records.append(contentsOf: checked)
-        }
-        let drt = drtChecked ? drtRecord : nil
-        let payload = AdjustmentTransferPayload(
-            records: records,
-            snapshot: layers.isEmpty ? nil : LayerStackSnapshot(layers: layers),
-            drtRecord: drt)
-        return payload.isEmpty ? nil : payload
+        AdjustmentTransferCatalog.buildPayload(
+            layerSnapshots: layerSnapshots, items: items,
+            drtRecord: drtRecord, includeDrt: drtChecked)
     }
 
     /// The Version pane's summary line (the paste button's subtitle face).

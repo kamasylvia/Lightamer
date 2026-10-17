@@ -864,6 +864,10 @@ enum McpSearchStateToolset {
                 "timestamp": .string(Self.iso8601(item.timestamp)),
                 "kind": .string(historyKind(of: item)),
                 "layerScope": item.layerScope.map { .string($0) } ?? .null,
+                // M7-4-01 (MCP2-09): the per-item note + author token —
+                // absent field = .null (pre-M7-4 items decode nil).
+                "note": item.note.map { .string($0) } ?? .null,
+                "author": item.author.map { .string($0) } ?? .null,
             ]
             if includeParams {
                 dict["params"] = Self.paramsFace(of: item)
@@ -899,9 +903,14 @@ enum McpSearchStateToolset {
             "rating": document.rating.map { .int($0) } ?? .null,
             "flag": document.flag.map { .int($0) } ?? .null,
             "colorLabel": document.colorLabel.map { .int($0) } ?? .null,
-            // M7-4 (MCP2-09 commit attribution) fills this; the read-only
-            // v1 face is the explicit forward placeholder.
-            "author": .null,
+            // M7-4-01 (MCP2-09) fills the M7-2 placeholder: the CURRENT
+            // position item's author (the truth-value form — with no
+            // truncation this is the newest kept item; the kept-window
+            // suffix case deliberately reads the POSITION item, not the
+            // last kept row). Pristine/empty chain = .null.
+            "author": stack.position >= 0 && stack.position < stack.items.count
+                ? (stack.items[stack.position].author.map { .string($0) } ?? .null)
+                : .null,
         ])
         return .text(McpJSONSerialization.text(from: payload))
     }
