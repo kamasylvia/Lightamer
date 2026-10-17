@@ -518,6 +518,37 @@ final class McpProjectToolsetTests: XCTestCase {
         XCTAssertNil(stubController.pendingConflict)
     }
 
+    /// S3 (M7-3 ledger ③, M7-4-01 T2): the POSITIVE arm of the diff
+    /// predicate — a held target WITHOUT a real lock (the stub's dialog
+    /// path: the held target publishes pendingConflict and leaves the
+    /// store untouched) trips the full diff clause (before == nil ∧
+    /// after != nil ∧ the store did not change) → typed projectReadOnly.
+    /// The existing legs pass heldTargets: [] and can never reach this arm.
+    func testGuiProviderHeldTargetDialogDiffFiresReadOnly() async throws {
+        try await makePackage(at: packageA, name: "Alpha")
+        try await makePackage(at: packageB, name: "Beta")
+        stubController.projectURL = packageA
+        stubController.projectStore = packageA.path
+        XCTAssertNil(
+            stubController.pendingConflict,
+            "before == nil: no conflict dialog on record")
+        let beforeStore = stubController.projectStore
+        let heldTarget = packageB
+        let provider = Self.makeGuiShapedProvider(
+            stub: stubController, heldTargets: [heldTarget])
+        let error = try await Self.toolError {
+            _ = try await provider(heldTarget)
+        }
+        XCTAssertEqual(error.code, "projectReadOnly")
+        XCTAssertNotNil(
+            stubController.pendingConflict,
+            "after != nil: the held target published the conflict dialog")
+        XCTAssertEqual(
+            stubController.projectStore, beforeStore,
+            "the store did not change: the open store stayed A")
+        XCTAssertEqual(stubController.projectStore, packageA.path, "A stays open")
+    }
+
     private let stubController = StubProjectController()
 
     // MARK: - list_versions golden (MCP2-07)

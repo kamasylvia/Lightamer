@@ -32588,7 +32588,7 @@
         "zh" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "列出已安装的 LUT 库（只读、扁平清单——v1 无分组过滤）：每个 LUT 含 key、文件名、内容 hash、is1D、晶格 size、可选 title/subdirectory 与已记忆的创作编码对。key 即寻址值：作为 lut3d 模块 params `lutName` 的新写入寻址键传入。libraryRoot 是 key 相对的库根。只读、无状态，除 internalError 外无错误。"
+            "value" : "列出已安装的 LUT 库（只读、扁平清单——v1 无分组过滤）：每个 LUT 含 key、文件名、内容 hash、is1D、晶格 size、可选 title/subdirectory 与已记忆的创作编码对。key 即寻址值：作为 lut3d 模块 params `lutName` 的新写入寻址键传入。libraryRoot 是 key 相对的库根。全新宿主的首次调用可能在后台 LUT 库预热完成前阻塞至多 ~50s——短超时客户端建议重试。只读、无状态，除 internalError 外无错误。"
           }
         }
       }
