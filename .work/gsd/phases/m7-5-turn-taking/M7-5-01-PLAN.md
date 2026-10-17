@@ -239,8 +239,9 @@ writerCheck/register/dispatch 两门序）；`McpServerController.swift` :807-83
      `_control_release` / `_control_get`）。
   8. 构建绿机检（caffeinate -dis 包裹）。
 - **验收标准（机检）**：
-  - 构建绿；`git diff --stat` 恰七产线文件（ControlToolset 新建 +
-    McpToolRegistry + 四 Toolset + McpServerController + xcstrings）。
+  - 构建绿；`git diff --stat` 恰八产线文件（ControlToolset 新建 +
+    McpToolRegistry + 四 Toolset + McpServerController + xcstrings——
+    1+1+4+1+1 = 8，CHECKER 勘正：原「七」为既存算术滑差）。
   - grep：`controlNotHeld|controlRevokedByUser|controlBusy` 在
     McpToolRegistry **每名恰 3 处**（case 声明 + code 臂 + message 连绑臂
     ——F6 勘正：非各 2 处）；`requiresControl` 在
