@@ -204,6 +204,7 @@ APP	21	McpSearchStateToolsetTests.swift
 APP	3	EditorMetalLegRegressionTests.swift
 APP	5	BeforeAfterTests.swift
 APP	4	BuiltInLutSetTests.swift
+APP	2	PanelParamsDecodeProbeTests.swift
 APP	5	LutEncodingPanelTests.swift
 APP	5	EffectsWiringTests.swift
 APP	5	EyedropperTests.swift
