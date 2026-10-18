@@ -24,9 +24,12 @@ internal struct AshiftPanelView: View {
 
     @State private var notice: String?
 
-    private var params: AshiftModule.Params {
-        PanelEditing.params(of: instance, as: AshiftModule.self)
-            ?? AshiftModule.Params()
+    private let params: AshiftModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: AshiftModule.self) ?? AshiftModule.Params()
     }
 
     var body: some View {

@@ -25,9 +25,12 @@ internal struct ToneCurvePanelView: View {
 
     @State private var channel: Channel = .l
 
-    private var params: ToneCurveModule.Params {
-        PanelEditing.params(of: instance, as: ToneCurveModule.self)
-            ?? ToneCurveModule.Params()
+    private let params: ToneCurveModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: ToneCurveModule.self) ?? ToneCurveModule.Params()
     }
 
     private var nodes: [ToneCurveModule.Node] {

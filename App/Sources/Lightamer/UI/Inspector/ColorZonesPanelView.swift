@@ -31,8 +31,12 @@ internal struct ColorZonesPanelView: View {
 
     @State private var tab: Tab = .hue
 
-    private var params: ColorZonesModule.Params {
-        (try? instance.params(of: ColorZonesModule.self)) ?? ColorZonesModule.Params()
+    private let params: ColorZonesModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = (try? instance.params(of: ColorZonesModule.self)) ?? ColorZonesModule.Params()
     }
 
     private var nodes: [ToneCurveModule.Node] {

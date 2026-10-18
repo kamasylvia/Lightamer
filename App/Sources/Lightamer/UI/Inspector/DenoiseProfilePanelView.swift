@@ -45,9 +45,12 @@ internal struct DenoiseProfilePanelView: View {
         var id: String { rawValue }
     }
 
-    private var params: DenoiseProfileModule.Params {
-        (try? instance.params(of: DenoiseProfileModule.self))
-            ?? DenoiseProfileModule.Params()
+    private let params: DenoiseProfileModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = (try? instance.params(of: DenoiseProfileModule.self)) ?? DenoiseProfileModule.Params()
     }
 
     private var profileMode: ProfileMode {

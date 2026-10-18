@@ -22,8 +22,12 @@ internal struct NLMeansPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: NLMeansModule.Params {
-        (try? instance.params(of: NLMeansModule.self)) ?? NLMeansModule.Params()
+    private let params: NLMeansModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = (try? instance.params(of: NLMeansModule.self)) ?? NLMeansModule.Params()
     }
 
     var body: some View {

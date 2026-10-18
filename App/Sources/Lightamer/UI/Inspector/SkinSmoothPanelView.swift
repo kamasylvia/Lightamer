@@ -30,9 +30,12 @@ internal struct SkinSmoothPanelView: View {
 
     @State private var locating = false
 
-    private var params: SkinSmoothModule.Params {
-        PanelEditing.params(of: instance, as: SkinSmoothModule.self)
-            ?? SkinSmoothModule.Params()
+    private let params: SkinSmoothModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: SkinSmoothModule.self) ?? SkinSmoothModule.Params()
     }
 
     var body: some View {

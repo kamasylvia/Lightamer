@@ -19,9 +19,12 @@ internal struct VignettePanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: VignetteModule.Params {
-        PanelEditing.params(of: instance, as: VignetteModule.self)
-            ?? VignetteModule.Params()
+    private let params: VignetteModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: VignetteModule.self) ?? VignetteModule.Params()
     }
 
     var body: some View {

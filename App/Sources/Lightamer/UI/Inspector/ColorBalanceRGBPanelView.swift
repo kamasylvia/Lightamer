@@ -25,8 +25,12 @@ internal struct ColorBalanceRGBPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: ColorBalanceRGBModule.Params {
-        (try? instance.params(of: ColorBalanceRGBModule.self)) ?? ColorBalanceRGBModule.Params()
+    private let params: ColorBalanceRGBModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = (try? instance.params(of: ColorBalanceRGBModule.self)) ?? ColorBalanceRGBModule.Params()
     }
 
     var body: some View {

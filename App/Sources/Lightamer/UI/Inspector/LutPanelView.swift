@@ -31,9 +31,12 @@ internal struct LutPanelView: View {
     /// encoding-picker changes write back to the library entry.
     @State private var rememberEncodings = true
 
-    private var params: Lut3dModule.Params {
-        PanelEditing.params(of: instance, as: Lut3dModule.self)
-            ?? Lut3dModule.Params()
+    private let params: Lut3dModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: Lut3dModule.self) ?? Lut3dModule.Params()
     }
 
     private var store: LutLibraryStore { LutLibraryStore.shared }

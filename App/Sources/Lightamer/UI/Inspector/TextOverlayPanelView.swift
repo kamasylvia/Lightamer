@@ -18,9 +18,12 @@ internal struct TextOverlayPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: TextOverlayModule.Params {
-        PanelEditing.params(of: instance, as: TextOverlayModule.self)
-            ?? TextOverlayModule.Params()
+    private let params: TextOverlayModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: TextOverlayModule.self) ?? TextOverlayModule.Params()
     }
 
     var body: some View {

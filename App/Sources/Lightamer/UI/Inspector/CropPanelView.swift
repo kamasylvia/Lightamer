@@ -21,9 +21,12 @@ internal struct CropPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: CropModule.Params {
-        PanelEditing.params(of: instance, as: CropModule.self)
-            ?? CropModule.Params()
+    private let params: CropModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: CropModule.self) ?? CropModule.Params()
     }
 
     var body: some View {

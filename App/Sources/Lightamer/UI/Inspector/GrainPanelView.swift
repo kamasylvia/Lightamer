@@ -18,9 +18,12 @@ internal struct GrainPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: GrainModule.Params {
-        PanelEditing.params(of: instance, as: GrainModule.self)
-            ?? GrainModule.Params()
+    private let params: GrainModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: GrainModule.self) ?? GrainModule.Params()
     }
 
     var body: some View {

@@ -16,8 +16,12 @@ internal struct ChannelMixerPanelView: View {
 
     @State private var outputChannel: ChannelMixerOutputChannel = .red
 
-    private var params: ChannelMixerModule.Params {
-        (try? instance.params(of: ChannelMixerModule.self)) ?? ChannelMixerModule.Params()
+    private let params: ChannelMixerModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = (try? instance.params(of: ChannelMixerModule.self)) ?? ChannelMixerModule.Params()
     }
 
     var body: some View {

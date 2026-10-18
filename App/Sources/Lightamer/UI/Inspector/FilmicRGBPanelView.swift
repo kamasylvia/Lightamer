@@ -23,9 +23,12 @@ internal struct FilmicRGBPanelView: View {
 
     @Environment(InspectorState.self) private var inspectorState
 
-    private var params: FilmicRGBModule.Params {
-        PanelEditing.params(of: instance, as: FilmicRGBModule.self)
-            ?? FilmicRGBModule.Params()
+    private let params: FilmicRGBModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: FilmicRGBModule.self) ?? FilmicRGBModule.Params()
     }
 
     var body: some View {

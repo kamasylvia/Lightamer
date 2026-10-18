@@ -15,9 +15,12 @@ internal struct SharpenPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: SharpenModule.Params {
-        PanelEditing.params(of: instance, as: SharpenModule.self)
-            ?? SharpenModule.Params()
+    private let params: SharpenModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: SharpenModule.self) ?? SharpenModule.Params()
     }
 
     var body: some View {

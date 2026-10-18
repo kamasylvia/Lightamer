@@ -22,9 +22,12 @@ internal struct FlipPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: FlipModule.Params {
-        PanelEditing.params(of: instance, as: FlipModule.self)
-            ?? FlipModule.Params()
+    private let params: FlipModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: FlipModule.self) ?? FlipModule.Params()
     }
 
     var body: some View {

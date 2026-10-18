@@ -29,9 +29,12 @@ internal struct LensPanelView: View {
     @State private var hasData: Bool = LensfunStore.isInstalled
     @State private var downloading: Bool = false
 
-    private var params: LensModule.Params {
-        PanelEditing.params(of: instance, as: LensModule.self)
-            ?? LensModule.Params()
+    private let params: LensModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: LensModule.self) ?? LensModule.Params()
     }
 
     var body: some View {

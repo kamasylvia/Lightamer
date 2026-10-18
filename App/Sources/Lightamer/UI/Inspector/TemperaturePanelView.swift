@@ -24,9 +24,12 @@ internal struct TemperaturePanelView: View {
 
     @Environment(InspectorState.self) private var inspectorState
 
-    private var params: TemperatureModule.Params {
-        PanelEditing.params(of: instance, as: TemperatureModule.self)
-            ?? TemperatureModule.Params()
+    private let params: TemperatureModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: TemperatureModule.self) ?? TemperatureModule.Params()
     }
 
     /// Kelvin/tint derived from the persisted gains (dt `_mul2temp`).
