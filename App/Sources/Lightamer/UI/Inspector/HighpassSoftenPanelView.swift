@@ -19,14 +19,14 @@ internal struct HighpassSoftenPanelView: View {
 
     private var isHighpass: Bool { instance.opName == HighpassModule.opName }
 
-    private var highpassParams: HighpassModule.Params {
-        PanelEditing.params(of: instance, as: HighpassModule.self)
-            ?? HighpassModule.Params()
-    }
+    private let highpassParams: HighpassModule.Params
+    private let softenParams: SoftenModule.Params
 
-    private var softenParams: SoftenModule.Params {
-        PanelEditing.params(of: instance, as: SoftenModule.self)
-            ?? SoftenModule.Params()
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.highpassParams = PanelEditing.params(of: instance, as: HighpassModule.self) ?? HighpassModule.Params()
+        self.softenParams = PanelEditing.params(of: instance, as: SoftenModule.self) ?? SoftenModule.Params()
     }
 
     var body: some View {

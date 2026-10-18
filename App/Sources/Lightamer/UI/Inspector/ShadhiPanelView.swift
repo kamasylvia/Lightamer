@@ -20,9 +20,12 @@ internal struct ShadhiPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: ShadhiModule.Params {
-        PanelEditing.params(of: instance, as: ShadhiModule.self)
-            ?? ShadhiModule.Params()
+    private let params: ShadhiModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: ShadhiModule.self) ?? ShadhiModule.Params()
     }
 
     var body: some View {

@@ -17,9 +17,12 @@ internal struct LevelsPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: LevelsModule.Params {
-        PanelEditing.params(of: instance, as: LevelsModule.self)
-            ?? LevelsModule.Params()
+    private let params: LevelsModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: LevelsModule.self) ?? LevelsModule.Params()
     }
 
     var body: some View {

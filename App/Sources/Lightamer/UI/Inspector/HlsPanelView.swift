@@ -24,8 +24,12 @@ internal struct HlsPanelView: View {
     /// truth; the Alcedo default target = bin 0).
     @State private var selectedBin: Int = 0
 
-    private var params: HlsModule.Params {
-        PanelEditing.params(of: instance, as: HlsModule.self) ?? HlsModule.Params()
+    private let params: HlsModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: HlsModule.self) ?? HlsModule.Params()
     }
 
     var body: some View {

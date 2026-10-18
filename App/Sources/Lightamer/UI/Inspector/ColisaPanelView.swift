@@ -13,9 +13,12 @@ internal struct ColisaPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: ColisaModule.Params {
-        PanelEditing.params(of: instance, as: ColisaModule.self)
-            ?? ColisaModule.Params()
+    private let params: ColisaModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: ColisaModule.self) ?? ColisaModule.Params()
     }
 
     var body: some View {

@@ -15,9 +15,12 @@ internal struct BloomPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: BloomModule.Params {
-        PanelEditing.params(of: instance, as: BloomModule.self)
-            ?? BloomModule.Params()
+    private let params: BloomModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: BloomModule.self) ?? BloomModule.Params()
     }
 
     var body: some View {

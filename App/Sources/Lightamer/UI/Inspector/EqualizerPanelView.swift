@@ -17,9 +17,12 @@ internal struct EqualizerPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: EqualizerModule.Params {
-        PanelEditing.params(of: instance, as: EqualizerModule.self)
-            ?? EqualizerModule.Params()
+    private let params: EqualizerModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: EqualizerModule.self) ?? EqualizerModule.Params()
     }
 
     private static let bands: [(String, WritableKeyPath<EqualizerModule.Params, Float>)] = [

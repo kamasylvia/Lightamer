@@ -28,8 +28,12 @@ internal struct LiquifyPanelView: View {
     /// DECISIONS D-06-06-T4-1).
     @State private var selectedNode: Int = 0
 
-    private var params: LiquifyModule.Params {
-        PanelEditing.params(of: instance, as: LiquifyModule.self) ?? .init()
+    private let params: LiquifyModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: LiquifyModule.self) ?? .init()
     }
 
     private var clampedSelection: Int {

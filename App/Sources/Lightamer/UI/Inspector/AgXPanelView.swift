@@ -18,9 +18,12 @@ internal struct AgXPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: AgXModule.Params {
-        PanelEditing.params(of: instance, as: AgXModule.self)
-            ?? AgXModule.Params()
+    private let params: AgXModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: AgXModule.self) ?? AgXModule.Params()
     }
 
     var body: some View {

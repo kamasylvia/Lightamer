@@ -24,9 +24,12 @@ internal struct ColorWheelsPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: ColorWheelsModule.Params {
-        PanelEditing.params(of: instance, as: ColorWheelsModule.self)
-            ?? ColorWheelsModule.Params()
+    private let params: ColorWheelsModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: ColorWheelsModule.self) ?? ColorWheelsModule.Params()
     }
 
     var body: some View {

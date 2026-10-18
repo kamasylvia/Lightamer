@@ -19,9 +19,12 @@ internal struct SigmoidPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: SigmoidModule.Params {
-        PanelEditing.params(of: instance, as: SigmoidModule.self)
-            ?? SigmoidModule.Params()
+    private let params: SigmoidModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: SigmoidModule.self) ?? SigmoidModule.Params()
     }
 
     /// dt sigmoid.c:249-277 presets (name, contrast, skewness).

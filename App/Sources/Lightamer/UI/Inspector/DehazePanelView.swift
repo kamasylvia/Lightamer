@@ -16,9 +16,12 @@ internal struct DehazePanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: DehazeModule.Params {
-        PanelEditing.params(of: instance, as: DehazeModule.self)
-            ?? DehazeModule.Params()
+    private let params: DehazeModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: DehazeModule.self) ?? DehazeModule.Params()
     }
 
     var body: some View {

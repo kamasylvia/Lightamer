@@ -27,9 +27,12 @@ internal struct Cat02WBPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: Cat02WBModule.Params {
-        PanelEditing.params(of: instance, as: Cat02WBModule.self)
-            ?? Cat02WBModule.Params()
+    private let params: Cat02WBModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: Cat02WBModule.self) ?? Cat02WBModule.Params()
     }
 
     var body: some View {
@@ -101,9 +104,12 @@ internal struct ContrastPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: ContrastModule.Params {
-        PanelEditing.params(of: instance, as: ContrastModule.self)
-            ?? ContrastModule.Params()
+    private let params: ContrastModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: ContrastModule.self) ?? ContrastModule.Params()
     }
 
     var body: some View {
@@ -155,8 +161,12 @@ internal struct WhitePanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: WhiteModule.Params {
-        PanelEditing.params(of: instance, as: WhiteModule.self) ?? WhiteModule.Params()
+    private let params: WhiteModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: WhiteModule.self) ?? WhiteModule.Params()
     }
 
     var body: some View {
@@ -208,8 +218,12 @@ internal struct BlackPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: BlackModule.Params {
-        PanelEditing.params(of: instance, as: BlackModule.self) ?? BlackModule.Params()
+    private let params: BlackModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: BlackModule.self) ?? BlackModule.Params()
     }
 
     var body: some View {
@@ -262,8 +276,12 @@ internal struct TintPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: TintModule.Params {
-        PanelEditing.params(of: instance, as: TintModule.self) ?? TintModule.Params()
+    private let params: TintModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: TintModule.self) ?? TintModule.Params()
     }
 
     var body: some View {
@@ -316,9 +334,12 @@ internal struct SaturationPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: SaturationModule.Params {
-        PanelEditing.params(of: instance, as: SaturationModule.self)
-            ?? SaturationModule.Params()
+    private let params: SaturationModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: SaturationModule.self) ?? SaturationModule.Params()
     }
 
     var body: some View {

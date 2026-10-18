@@ -13,8 +13,12 @@ internal struct VibrancePanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: VibranceModule.Params {
-        (try? instance.params(of: VibranceModule.self)) ?? VibranceModule.Params()
+    private let params: VibranceModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = (try? instance.params(of: VibranceModule.self)) ?? VibranceModule.Params()
     }
 
     var body: some View {

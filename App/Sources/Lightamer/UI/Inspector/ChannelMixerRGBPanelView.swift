@@ -23,8 +23,12 @@ internal struct ChannelMixerRGBPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: ChannelMixerRGBModule.Params {
-        (try? instance.params(of: ChannelMixerRGBModule.self)) ?? ChannelMixerRGBModule.Params()
+    private let params: ChannelMixerRGBModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = (try? instance.params(of: ChannelMixerRGBModule.self)) ?? ChannelMixerRGBModule.Params()
     }
 
     var body: some View {

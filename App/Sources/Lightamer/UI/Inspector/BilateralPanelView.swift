@@ -23,8 +23,12 @@ internal struct BilateralPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: BilateralModule.Params {
-        (try? instance.params(of: BilateralModule.self)) ?? BilateralModule.Params()
+    private let params: BilateralModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = (try? instance.params(of: BilateralModule.self)) ?? BilateralModule.Params()
     }
 
     var body: some View {

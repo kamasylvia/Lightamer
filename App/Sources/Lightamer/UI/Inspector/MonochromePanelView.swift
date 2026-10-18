@@ -25,8 +25,12 @@ internal struct MonochromePanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: MonochromeModule.Params {
-        (try? instance.params(of: MonochromeModule.self)) ?? MonochromeModule.Params()
+    private let params: MonochromeModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = (try? instance.params(of: MonochromeModule.self)) ?? MonochromeModule.Params()
     }
 
     var body: some View {

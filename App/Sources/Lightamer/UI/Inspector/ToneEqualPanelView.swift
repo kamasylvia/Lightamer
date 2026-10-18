@@ -24,9 +24,12 @@ internal struct ToneEqualPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: ToneEqualModule.Params {
-        PanelEditing.params(of: instance, as: ToneEqualModule.self)
-            ?? ToneEqualModule.Params()
+    private let params: ToneEqualModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: ToneEqualModule.self) ?? ToneEqualModule.Params()
     }
 
     /// dt band order (noise → speculars) with the UI labels.

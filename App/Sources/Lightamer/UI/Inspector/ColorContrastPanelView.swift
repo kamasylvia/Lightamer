@@ -13,8 +13,12 @@ internal struct ColorContrastPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: ColorContrastModule.Params {
-        (try? instance.params(of: ColorContrastModule.self)) ?? ColorContrastModule.Params()
+    private let params: ColorContrastModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = (try? instance.params(of: ColorContrastModule.self)) ?? ColorContrastModule.Params()
     }
 
     var body: some View {

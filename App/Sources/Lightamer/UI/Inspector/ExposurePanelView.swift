@@ -20,9 +20,12 @@ internal struct ExposurePanelView: View {
     /// The current params (decoded once per body evaluation; the record is
     /// the source of truth — after each commit the record changes identity
     /// and the view re-reads).
-    private var params: ExposureModule.Params {
-        PanelEditing.params(of: instance, as: ExposureModule.self)
-            ?? ExposureModule.Params()
+    private let params: ExposureModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: ExposureModule.self) ?? ExposureModule.Params()
     }
 
     var body: some View {

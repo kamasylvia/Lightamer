@@ -15,9 +15,12 @@ internal struct LocalContrastPanelView: View {
     let instance: ModuleInstance
     let edit: InspectorEditSession
 
-    private var params: LocalContrastModule.Params {
-        PanelEditing.params(of: instance, as: LocalContrastModule.self)
-            ?? LocalContrastModule.Params()
+    private let params: LocalContrastModule.Params
+
+    init(instance: ModuleInstance, edit: InspectorEditSession) {
+        self.instance = instance
+        self.edit = edit
+        self.params = PanelEditing.params(of: instance, as: LocalContrastModule.self) ?? LocalContrastModule.Params()
     }
 
     var body: some View {
