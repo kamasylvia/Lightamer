@@ -1,0 +1,5 @@
+pid=40716 bin=/tmp/nsmenu-spike-bin/B/Lightamer.app/Contents/MacOS/Lightamer args=
+editor-face=confirmed
+frontmost=true t=04:24:15
+symbols=done
+VERDICT=OK median=97.8

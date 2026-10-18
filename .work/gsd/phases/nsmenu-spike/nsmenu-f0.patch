@@ -1,0 +1,937 @@
+From dfde03bc23a52f7fd318b90a22aa0fccf2b7fd4b Mon Sep 17 00:00:00 2001
+From: Laniakea Kamasylvia <kamasylvia@zohomail.com>
+Date: Mon, 19 Oct 2026 02:21:24 +0800
+Subject: [PATCH] feat(nsmenu-spike): flag-gated AppKit NSMenu bridge (F0
+ experiment)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The F0 spike from research/UI-STACK-SUCCESSOR-PRE §4: the SwiftUI
+Commands main-menu family gains an AppKit twin behind the
+'la.menu.nsmenuBridge' UserDefaults flag (launch line
+'-la.menu.nsmenuBridge 1'; DEFAULT OFF = byte-identical face).
+
+- NSMenuBridge.swift: one statically built NSApp.mainMenu tree,
+  MenuCommandSet consumed verbatim (MenuCommandID -> NSMenuItem 1:1);
+  enablement rides menuNeedsUpdate + a withObservationTracking
+  adapter (no polling timer, no AttributeGraph); all action closures
+  route into the app root's existing command seams (captured after
+  install, the same @State-storage shape every scene-task closure
+  uses) — command bodies are NOT rewritten.
+- LightamerApp: the .commands block gates on !NSMenuBridge.isEnabled
+  (flag ON = SwiftUI never builds its ~45 custom items — the D-6
+  makeMainMenu/updateMainMenu loop fuel under test) and the wiring
+  task installs the bridge after the whole state graph is wired.
+- Publish-site seams (reads only): WorkspaceHostView notes the
+  workspace, ContentView notes the export-panel presence,
+  InspectorView notes the metadata field focus.
+- DEBUG probe: '-la_probe_stay' keeps the editor probe alive after
+  the rows load (AR-01 F-8 idle-probe shape for the churn driver).
+
+Zero Core/IOP touches, zero new localization keys, zero UserDefaults
+keys beyond the spike flag.
+---
+ App/Sources/Lightamer/UI/ContentView.swift    |   5 +
+ App/Sources/Lightamer/UI/InspectorView.swift  |   5 +
+ App/Sources/Lightamer/UI/LightamerApp.swift   | 122 ++++
+ .../Lightamer/UI/Shell/NSMenuBridge.swift     | 674 ++++++++++++++++++
+ .../UI/Shell/WorkspaceHostView.swift          |  15 +
+ 5 files changed, 821 insertions(+)
+ create mode 100644 App/Sources/Lightamer/UI/Shell/NSMenuBridge.swift
+
+diff --git a/App/Sources/Lightamer/UI/ContentView.swift b/App/Sources/Lightamer/UI/ContentView.swift
+index 80689756..be01cd9a 100644
+--- a/App/Sources/Lightamer/UI/ContentView.swift
++++ b/App/Sources/Lightamer/UI/ContentView.swift
+@@ -248,6 +248,11 @@ internal struct ContentView: View {
+         }
+         .focusedSceneValue(\.lightamerColumnVisibility, $columnVisibility)
+         .focusedSceneValue(\.exportPanelRequest, $exportPanelRequested)
++        // F0 NSMenu spike: the bridge's export-enablement read (presence =
++        // the window exists, the same condition the focused binding answers).
++        .onAppear {
++            NSMenuBridgeController.shared.noteExportPanelRequestPresent(true)
++        }
+         .toolbar { toolbarContent }
+         .alert(
+             String(localized: "alert_decode_failed_title"),
+diff --git a/App/Sources/Lightamer/UI/InspectorView.swift b/App/Sources/Lightamer/UI/InspectorView.swift
+index 9bbc944e..0534f5b1 100644
+--- a/App/Sources/Lightamer/UI/InspectorView.swift
++++ b/App/Sources/Lightamer/UI/InspectorView.swift
+@@ -428,6 +428,11 @@ internal struct MetadataInfoSection: View {
+         .focusedSceneValue(
+             \.metadataFieldFocused,
+              Binding(get: { fieldFocused }, set: { fieldFocused = $0 }))
++        // F0 NSMenu spike: the bridge's bare-key disarm read (the same
++        // @FocusState the focused binding mirrors).
++        .onChange(of: fieldFocused) { _, new in
++            NSMenuBridgeController.shared.noteMetadataFieldFocused(new)
++        }
+         .task(id: editorState.loadedImageURL) {
+             await reloadSnapshot()
+         }
+diff --git a/App/Sources/Lightamer/UI/LightamerApp.swift b/App/Sources/Lightamer/UI/LightamerApp.swift
+index 0d608857..d8e867f8 100644
+--- a/App/Sources/Lightamer/UI/LightamerApp.swift
++++ b/App/Sources/Lightamer/UI/LightamerApp.swift
+@@ -1254,6 +1254,120 @@ internal struct LightamerApp: App {
+                     sidecarProbeIfRequested()
+                     importProbeIfRequested()
+                     #endif
++                    // F0 NSMenu spike (research/UI-STACK-SUCCESSOR-PRE §4):
++                    // the flag-gated AppKit main-menu bridge. OFF by default =
++                    // the SwiftUI Commands face byte-identical (this block is
++                    // inert); ON = the NSMenu tree installs HERE, after the
++                    // whole state graph is wired — every closure below calls
++                    // the SAME App methods the SwiftUI Buttons call (command
++                    // bodies untouched; the capture-after-install shape is the
++                    // one every other closure in this task uses).
++                    if NSMenuBridge.isEnabled {
++                        NSMenuBridgeController.shared.install(deps: .init(
++                            editorState: editorState,
++                            sessionState: sessionState,
++                            libraryProjects: libraryProjects,
++                            agentControl: agentControl,
++                            pasteboard: pasteboard,
++                            softProofState: softProofState,
++                            legacyLibraryEnabled: legacyLibraryEnabled,
++                            openImage: {
++                                Task {
++                                    await FileOpener.openImage { url in
++                                        editorState.load(
++                                            url: url, decoder: decoder,
++                                            metal: metalContext,
++                                            logger: EditorState.decodeLogger)
++                                    }
++                                }
++                            },
++                            openSession: { url in
++                                Task { await sessionCoordinator.openSession(url: url) }
++                            },
++                            newProject: {
++                                Task { await newLibraryProjectFromPanel() }
++                            },
++                            openProject: {
++                                Task { await openLibraryProjectFromPanel() }
++                            },
++                            openRecentProject: { url in
++                                Task {
++                                    try? await libraryProjects.openProject(at: url)
++                                    if libraryProjects.pendingConflict == nil {
++                                        libraryWelcomePresented = false
++                                    }
++                                }
++                            },
++                            importFolder: {
++                                Task { await importFolderFromPanel() }
++                            },
++                            backupProject: {
++                                Task { await backupProjectFromPanel() }
++                            },
++                            moveProject: {
++                                Task { await moveProjectFromPanel() }
++                            },
++                            enterEditor: { focusedWorkspace?.openEditor(imageID: nil) },
++                            backToLibrary: { focusedWorkspace?.closeEditor() },
++                            searchLibrary: {
++                                focusedWorkspace?.isSearchDialogPresented = true
++                            },
++                            export: { exportPanelRequested = true },
++                            undo: { Task { await pipeCoordinator.undo() } },
++                            redo: { Task { await pipeCoordinator.redo() } },
++                            copyAdjustments: { Task { await copyAdjustments() } },
++                            pasteAdjustments: {
++                                Task {
++                                    await pasteToSelection(selection: nil, mode: .merge)
++                                }
++                            },
++                            pastePartial: { pastePartialRequested = true },
++                            copyAdjustmentsDialog: { adjustmentTransferPresented = true },
++                            presetManager: { openWindow(id: "preset-manager") },
++                            mcpLauncher: { openWindow(id: "mcp-launcher") },
++                            filmPanel: { inspectorState.openFilmPage() },
++                            showSidebar: { toggleSidebar() },
++                            showInspector: { toggleInspector() },
++                            toggleSoftProof: {
++                                softProofState.toggle(coordinator: pipeCoordinator)
++                            },
++                            setGamutCheck: {
++                                softProofState.setGamutCheck(
++                                    !softProofState.gamutCheck,
++                                    coordinator: pipeCoordinator)
++                            },
++                            actualSize: { viewportState.actualSize() },
++                            fitToScreen: { viewportState.fit() },
++                            expandAllStacks: {
++                                focusedWorkspace?.requestStackCommand(.expandAll)
++                            },
++                            collapseAllStacks: {
++                                focusedWorkspace?.requestStackCommand(.collapseAll)
++                            },
++                            toggleToolRail: { focusedWorkspace?.toolRailVisible.toggle() },
++                            toggleScopes: { focusedWorkspace?.scopesVisible.toggle() },
++                            toggleAdjustmentStack: {
++                                focusedWorkspace?.adjustmentStackVisible.toggle()
++                            },
++                            applyRating: { applyRating($0) },
++                            applyFlag: { applyFlag($0) },
++                            toggleFlag: { toggleFlag($0) },
++                            applyColor: { applyColor($0) },
++                            aiUpscale: {
++                                guard let workspace = focusedWorkspace,
++                                    let id = workspace.editorPhase.currentImageID
++                                else { return }
++                                workspace.requestAIEnhance(
++                                    kind: .upscale, imageIDs: [id])
++                            },
++                            aiDenoise: {
++                                guard let workspace = focusedWorkspace,
++                                    let id = workspace.editorPhase.currentImageID
++                                else { return }
++                                workspace.requestAIEnhance(
++                                    kind: .denoise, imageIDs: [id])
++                        }))
++                    }
+                     // Plan 14-1 T4: the EMBEDDED MCP host (D-14-CONTEXT-2①:
+                     // preference on → writer lock → bind 127.0.0.1 → write
+                     // the discovery json → serve; the Settings toggle lands
+@@ -1797,6 +1911,13 @@ internal struct LightamerApp: App {
+         .defaultSize(width: 1440, height: 900)
+         .windowToolbarStyle(.unified) // UI-SPEC: unified toolbar
+         .commands {
++            // F0 NSMenu spike: flag ON = the AppKit NSMenu bridge owns the
++            // menu bar (NSMenuBridgeController.install at the wiring task)
++            // and the SwiftUI Commands family stays HOME — its per-graph-
++            // change re-eval never builds the ~45 custom items (the D-6
++            // loop fuel under test). OFF (default) = the face below,
++            // byte-identical to the pre-spike baseline.
++            if !NSMenuBridge.isEnabled {
+             // ── File ────────────────────────────────────────────────
+             CommandGroup(replacing: .newItem) {
+                 if visibleMenuCommands.contains(.sessionNew) {
+@@ -2202,6 +2323,7 @@ internal struct LightamerApp: App {
+                     .disabled(true)
+                     .keyboardShortcut("?", modifiers: .command)
+             }
++            } // if !NSMenuBridge.isEnabled (F0 spike gate)
+         }
+ 
+         // Plan 12-4 T3: the preset MANAGER window (the CRUD/import/export
+diff --git a/App/Sources/Lightamer/UI/Shell/NSMenuBridge.swift b/App/Sources/Lightamer/UI/Shell/NSMenuBridge.swift
+new file mode 100644
+index 00000000..0c7d8c5d
+--- /dev/null
++++ b/App/Sources/Lightamer/UI/Shell/NSMenuBridge.swift
+@@ -0,0 +1,674 @@
++import AppKit
++import OSLog
++import SwiftUI
++
++// ─────────────────────────────────────────────────────────────────────────────
++// NSMenuBridge (F0 spike — research/UI-STACK-SUCCESSOR-PRE §4, 2026-10-18).
++//
++// The AppKit-strangler first brick: the SwiftUI `Commands` main-menu family
++// is replaced by ONE statically built `NSApp.mainMenu` tree, consumed from
++// the same `MenuCommandSet` pure function (MenuCommandID → NSMenuItem 1:1).
++// The D-6 loop fuel (appGraphDidChange → makeMainMenu → updateMainMenu
++// rebuilding ~45 custom items per graph change) is the thing under test:
++// with the bridge ON, the SwiftUI Commands block builds NOTHING and the
++// menu updates ride explicit `menuNeedsUpdate`/observation-driven enablement
++// refreshes instead of the declarative re-eval graph.
++//
++// FLAG: `la.menu.nsmenuBridge` (UserDefaults; launch line `-la.menu.nsmenuBridge 1`
++// sets it for that launch only). DEFAULT OFF = the SwiftUI face byte-identical
++// (the whole bridge is inert — nothing below runs unless the flag is set).
++//
++// SCOPE (spike-minimal): the main-menu family only; context menus / in-panel
++// `Menu { }` stay SwiftUI. Selector dispatch routes into the app root's
++// existing command seams (the closures captured at the wiring task — the
++// command bodies are NOT rewritten; they call the same App methods the
++// SwiftUI Buttons call). Per-session-rebuilt writers stay live because every
++// action closure captures the App struct copy AFTER install (the same
++// @State-storage shape every other scene-task closure here uses).
++// ─────────────────────────────────────────────────────────────────────────────
++
++enum NSMenuBridge {
++    /// The UserDefaults key (launch-arg `-la.menu.nsmenuBridge 1` overrides).
++    static let flagKey = "la.menu.nsmenuBridge"
++
++    /// OFF by default = the current SwiftUI Commands face, byte-identical.
++    static var isEnabled: Bool {
++        UserDefaults.standard.bool(forKey: flagKey)
++    }
++}
++
++// Chained registration (spike-local): `enabled(item(...) { ... }) { predicate }`.
++@MainActor
++private func laEnabled(
++    _ item: NSMenuItem, _ controller: NSMenuBridgeController,
++    _ enabler: @escaping () -> Bool
++) -> NSMenuItem {
++    controller.register(enabled: enabler, for: item)
++    return item
++}
++
++@MainActor
++private func laState(
++    _ item: NSMenuItem, _ controller: NSMenuBridgeController,
++    _ state: @escaping () -> NSControl.StateValue
++) -> NSMenuItem {
++    controller.register(state: state, for: item)
++    return item
++}
++
++/// The AppKit side of the bridge: builds the menu tree once, refreshes
++/// enablement/toggle states through explicit observation (the research §3
++/// "AppKit 观察适配器" shape) and dispatches actions into the existing seams.
++@MainActor
++final class NSMenuBridgeController: NSObject, NSMenuDelegate, NSMenuItemValidation {
++
++    static let shared = NSMenuBridgeController()
++
++    private let appName: String = {
++        (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)
++            ?? "Lightamer"
++    }()
++    private let stompLog = Logger(subsystem: "com.kamasylvia.lightamer", category: "probe")
++
++    // MARK: - Dependencies (installed once, from the app wiring task)
++
++    struct Deps {
++        // State objects — enablement READS (class refs, live properties).
++        let editorState: EditorState
++        let sessionState: SessionState
++        let libraryProjects: LibraryProjectController
++        let agentControl: AgentControlCoordinator
++        let pasteboard: AdjustmentsPasteboard
++        let softProofState: SoftProofState
++        let legacyLibraryEnabled: Bool
++
++        // Action closures — the app root's EXISTING command seams (thin
++        // wrappers around the same methods the SwiftUI Buttons call).
++        let openImage: () -> Void
++        let openSession: (URL) -> Void
++        let newProject: () -> Void
++        let openProject: () -> Void
++        let openRecentProject: (URL) -> Void
++        let importFolder: () -> Void
++        let backupProject: () -> Void
++        let moveProject: () -> Void
++        let enterEditor: () -> Void
++        let backToLibrary: () -> Void
++        let searchLibrary: () -> Void
++        let export: () -> Void
++        let undo: () -> Void
++        let redo: () -> Void
++        let copyAdjustments: () -> Void
++        let pasteAdjustments: () -> Void
++        let pastePartial: () -> Void
++        let copyAdjustmentsDialog: () -> Void
++        let presetManager: () -> Void
++        let mcpLauncher: () -> Void
++        let filmPanel: () -> Void
++        let showSidebar: () -> Void
++        let showInspector: () -> Void
++        let toggleSoftProof: () -> Void
++        let setGamutCheck: () -> Void
++        let actualSize: () -> Void
++        let fitToScreen: () -> Void
++        let expandAllStacks: () -> Void
++        let collapseAllStacks: () -> Void
++        let toggleToolRail: () -> Void
++        let toggleScopes: () -> Void
++        let toggleAdjustmentStack: () -> Void
++        let applyRating: (Int?) -> Void
++        let applyFlag: (Int?) -> Void
++        let toggleFlag: (Int) -> Void
++        let applyColor: (Int?) -> Void
++        let aiUpscale: () -> Void
++        let aiDenoise: () -> Void
++    }
++
++    // The window-scoped focused-value box (the @FocusedValue family has no
++    // AppKit read face — the publish sites note their values here; the app
++    // is single-window so the focused workspace IS the noted workspace).
++    // READS ONLY — every WRITE still routes through the App closures.
++    private(set) var workspace: WorkspaceModel?
++    var exportPanelRequestPresent: Bool = false
++    var metadataFieldFocusedState: Bool = false
++
++    func noteWorkspace(_ model: WorkspaceModel) { workspace = model }
++    func noteExportPanelRequestPresent(_ present: Bool) {
++        exportPanelRequestPresent = present
++    }
++    func noteMetadataFieldFocused(_ focused: Bool) {
++        metadataFieldFocusedState = focused
++    }
++
++    // Registration faces for the chained helpers above.
++    func register(enabled enabler: @escaping () -> Bool, for item: NSMenuItem) {
++        itemEnablers[ObjectIdentifier(item)] = enabler
++        item.isEnabled = enabler()
++    }
++    func register(state: @escaping () -> NSControl.StateValue, for item: NSMenuItem) {
++        itemStates[ObjectIdentifier(item)] = state
++        item.state = state()
++    }
++
++    private var deps: Deps?
++    private var rootMenu: NSMenu?
++    private var installed = false
++    /// Passive counter: how often SwiftUI re-asserted its own mainMenu over
++    /// ours after install (diagnostic for the re-stomp question — no fight
++    /// is mounted; the sample evidence reads the truth).
++    private(set) var mainMenuStomps = 0
++
++    // Per-item action/enablement/state registries (ObjectIdentifier keyed —
++    // the menu tree is static; the recent-submenu items rebuild in
++    // menuNeedsUpdate and re-register).
++    private var itemActions: [ObjectIdentifier: () -> Void] = [:]
++    private var itemEnablers: [ObjectIdentifier: () -> Bool] = [:]
++    private var itemStates: [ObjectIdentifier: () -> NSControl.StateValue] = [:]
++    private var recentProjectsItem: NSMenuItem?
++    private var recentSessionsItem: NSMenuItem?
++
++    // MARK: - Install
++
++    func install(deps: Deps) {
++        guard !installed else { return }
++        installed = true
++        self.deps = deps
++
++        let root = NSMenu()
++        root.autoenablesItems = false
++        root.delegate = self
++
++        buildAppMenu(into: root)
++        buildFileMenu(into: root)
++        buildEditMenu(into: root)
++        buildViewMenu(into: root)
++        buildMetadataMenu(into: root)
++        buildImageMenu(into: root)
++        buildWindowMenu(into: root)
++        buildHelpMenu(into: root)
++
++        rootMenu = root
++        NSApp.mainMenu = root
++        refreshAll()
++        armObservation()
++    }
++
++    // MARK: - Menu tree (the Commands IA mirrored 1:1)
++
++    private func menu(_ title: String, attachedTo parent: NSMenu) -> NSMenu {
++        let m = NSMenu(title: title)
++        m.autoenablesItems = false
++        let holder = NSMenuItem(title: title, action: nil, keyEquivalent: "")
++        holder.submenu = m
++        parent.addItem(holder)
++        return m
++    }
++
++    private func item(_ parent: NSMenu, title: String,
++                      key: String? = nil, mask: NSEvent.ModifierFlags = [.command],
++                      action: (() -> Void)? = nil) -> NSMenuItem {
++        let it = NSMenuItem(
++            title: title,
++            action: action != nil ? #selector(handleMenu(_:)) : nil,
++            keyEquivalent: "")
++        if let key { it.keyEquivalent = key; it.keyEquivalentModifierMask = mask }
++        parent.addItem(it)
++        if let action {
++            itemActions[ObjectIdentifier(it)] = action
++            it.target = self
++        }
++        return it
++    }
++
++    private func separator(_ parent: NSMenu) {
++        parent.addItem(NSMenuItem.separator())
++    }
++
++    /// Whole-literal keys only (the keys already live in the catalog — the
++    /// F-2 interpolated-prefix trap family stays avoided; the extractor
++    /// cannot see these call sites but NO new keys are introduced).
++    private func localized(_ key: String) -> String {
++        String(localized: String.LocalizationValue(key))
++    }
++
++    /// The gate=false command family (MenuCommandSet — consumed verbatim).
++    private var visibleCommands: Set<MenuCommandID> {
++        MenuCommandSet.visibleCommandIDs(
++            gate: deps?.legacyLibraryEnabled ?? false, phase: .library)
++    }
++
++    // ── App menu ────────────────────────────────────────────────────────
++    private func buildAppMenu(into root: NSMenu) {
++        let m = menu(appName, attachedTo: root)
++        item(m, title: "About \(appName)") {
++            NSApp.orderFrontStandardAboutPanel()
++        }
++        separator(m)
++        item(m, title: "Settings…", key: ",") {
++            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
++        }
++        separator(m)
++        let services = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
++        let servicesMenu = NSMenu(title: "Services")
++        servicesMenu.autoenablesItems = true
++        services.submenu = servicesMenu
++        m.addItem(services)
++        NSApp.servicesMenu = servicesMenu
++        separator(m)
++        let hide = item(m, title: "Hide \(appName)", key: "h")
++        hide.action = #selector(NSApplication.hide(_:))
++        hide.target = nil
++        let hideOthers = item(m, title: "Hide Others",
++                              key: "h", mask: [.command, .option])
++        hideOthers.action = #selector(NSApplication.hideOtherApplications(_:))
++        hideOthers.target = nil
++        let showAll = item(m, title: "Show All")
++        showAll.action = #selector(NSApplication.unhideAllApplications(_:))
++        showAll.target = nil
++        separator(m)
++        let quit = item(m, title: "Quit \(appName)", key: "q")
++        quit.action = #selector(NSApplication.terminate(_:))
++        quit.target = nil
++    }
++
++    // ── File ────────────────────────────────────────────────────────────
++    private func buildFileMenu(into root: NSMenu) {
++        let m = menu("File", attachedTo: root)
++        let visible = visibleCommands
++
++        if visible.contains(.sessionNew) {
++            _ = laEnabled(item(m, title: localized("menu_new_session"),
++                               key: "N", mask: [.command, .shift]), self) { false }
++        }
++        item(m, title: localized("menu_open"), key: "o") { [weak self] in
++            self?.deps?.openImage()
++        }
++        if visible.contains(.sessionOpen) {
++            item(m, title: localized("menu_open_session"),
++                 key: "O", mask: [.command, .shift]) { [weak self] in
++                guard let self, let url = self.deps?.sessionState.recentSessions.first
++                else { return }
++                self.deps?.openSession(url)
++            }
++            recentSessionsItem = item(m, title: localized("menu_open_recent"))
++            recentSessionsItem?.isEnabled = false
++            if visible.contains(.sessionClose) {
++                separator(m)
++                _ = laEnabled(item(m, title: localized("menu_close_session"),
++                                   key: "W", mask: [.command, .shift]), self) { false }
++            }
++        }
++        separator(m)
++        _ = laEnabled(item(m, title: "New Project…", key: "n") { [weak self] in
++            self?.deps?.newProject()
++        }, self) { [weak self] in
++            self?.deps.map { !$0.agentControl.holdsControl } ?? false
++        }
++        _ = laEnabled(item(m, title: "Open Project…", key: "o",
++                           mask: [.command, .option]) { [weak self] in
++            self?.deps?.openProject()
++        }, self) { [weak self] in
++            self?.deps.map { !$0.agentControl.holdsControl } ?? false
++        }
++        recentProjectsItem = item(m, title: "Open Recent Project")
++        recentProjectsItem?.isEnabled = false
++        separator(m)
++        _ = laEnabled(item(m, title: "Import Folder…", key: "I",
++                           mask: [.command, .shift]) { [weak self] in
++            self?.deps?.importFolder()
++        }, self) { [weak self] in self?.deps?.libraryProjects.projectStore != nil }
++        separator(m)
++        _ = laEnabled(item(m, title: "Backup Project…") { [weak self] in
++            self?.deps?.backupProject()
++        }, self) { [weak self] in self?.deps?.libraryProjects.projectStore != nil }
++        _ = laEnabled(item(m, title: "Move Project…") { [weak self] in
++            self?.deps?.moveProject()
++        }, self) { [weak self] in self?.deps?.libraryProjects.projectStore != nil }
++        if visible.contains(.workspaceEnterEditor) {
++            separator(m)
++            _ = laEnabled(item(m, title: localized("menu_enter_editor"),
++                               key: "e") { [weak self] in
++                self?.deps?.enterEditor()
++            }, self) { [weak self] in self?.workspace?.phase == .library }
++            _ = laEnabled(item(m, title: localized("menu_back_to_library"),
++                               key: "w") { [weak self] in
++                self?.deps?.backToLibrary()
++            }, self) { [weak self] in self?.workspace?.phase == .editor }
++            separator(m)
++            _ = laEnabled(item(m, title: localized("menu_library_search"),
++                               key: "f") { [weak self] in
++                self?.deps?.searchLibrary()
++            }, self) { [weak self] in self?.workspace != nil }
++        }
++        separator(m)
++        _ = laEnabled(item(m, title: localized("menu_save_sidecar"), key: "s"),
++                      self) { false }
++        _ = laEnabled(item(m, title: localized("menu_export"), key: "E",
++                           mask: [.command, .shift]) { [weak self] in
++            self?.deps?.export()
++        }, self) { [weak self] in self?.exportPanelRequestPresent == true }
++    }
++
++    // ── Edit ────────────────────────────────────────────────────────────
++    private func buildEditMenu(into root: NSMenu) {
++        let m = menu("Edit", attachedTo: root)
++        _ = laEnabled(item(m, title: localized("menu_undo"), key: "z") { [weak self] in
++            self?.deps?.undo()
++        }, self) { [weak self] in
++            guard let d = self?.deps else { return false }
++            return d.editorState.canUndo && !d.libraryProjects.isReadOnly
++                && !d.agentControl.holdsControl
++        }
++        _ = laEnabled(item(m, title: localized("menu_redo"), key: "Z",
++                           mask: [.command, .shift]) { [weak self] in
++            self?.deps?.redo()
++        }, self) { [weak self] in
++            guard let d = self?.deps else { return false }
++            return d.editorState.canRedo && !d.libraryProjects.isReadOnly
++                && !d.agentControl.holdsControl
++        }
++        separator(m)
++        _ = laEnabled(item(m, title: localized("menu_copy_adjustments"), key: "C",
++                           mask: [.command, .shift]) { [weak self] in
++            self?.deps?.copyAdjustments()
++        }, self) { [weak self] in self?.deps?.editorState.loadedImageURL != nil }
++        _ = laEnabled(item(m, title: localized("menu_paste_adjustments"), key: "V",
++                           mask: [.command, .shift]) { [weak self] in
++            self?.deps?.pasteAdjustments()
++        }, self) { [weak self] in
++            guard let d = self?.deps else { return false }
++            return d.pasteboard.hasPayload && !d.libraryProjects.isReadOnly
++        }
++        _ = laEnabled(item(m, title: localized("menu_paste_partial")) { [weak self] in
++            self?.deps?.pastePartial()
++        }, self) { [weak self] in
++            guard let d = self?.deps else { return false }
++            return d.pasteboard.hasPayload && !d.libraryProjects.isReadOnly
++        }
++        separator(m)
++        _ = laEnabled(item(m, title: localized("menu_copy_adjustments_dialog")) {
++            [weak self] in self?.deps?.copyAdjustmentsDialog()
++        }, self) { [weak self] in self?.deps?.editorState.loadedImageURL != nil }
++        separator(m)
++        item(m, title: localized("menu_preset_manager")) { [weak self] in
++            self?.deps?.presetManager()
++        }
++        item(m, title: localized("menu_mcp_launcher")) { [weak self] in
++            self?.deps?.mcpLauncher()
++        }
++        separator(m)
++        // The standard text-editing family (the SwiftUI default Edit face).
++        let cut = item(m, title: "Cut", key: "x")
++        cut.action = #selector(NSText.cut(_:)); cut.target = nil
++        let copy = item(m, title: "Copy", key: "c")
++        copy.action = #selector(NSText.copy(_:)); copy.target = nil
++        let paste = item(m, title: "Paste", key: "v")
++        paste.action = #selector(NSText.paste(_:)); paste.target = nil
++        let selectAll = item(m, title: "Select All", key: "a")
++        selectAll.action = #selector(NSText.selectAll(_:)); selectAll.target = nil
++    }
++
++    // ── View ────────────────────────────────────────────────────────────
++    private func buildViewMenu(into root: NSMenu) {
++        let m = menu(localized("menu_view"), attachedTo: root)
++        item(m, title: localized("menu_show_sidebar"), key: "s",
++             mask: [.command, .option]) { [weak self] in self?.deps?.showSidebar() }
++        item(m, title: localized("menu_show_inspector"), key: "i",
++             mask: [.command, .option]) { [weak self] in self?.deps?.showInspector() }
++        item(m, title: localized("menu_show_film_panel")) { [weak self] in
++            self?.deps?.filmPanel()
++        }
++        separator(m)
++        _ = laState(item(m, title: localized("softproof_toggle"), key: "p",
++                         mask: [.command, .option]) { [weak self] in
++            self?.deps?.toggleSoftProof()
++        }, self) { [weak self] in
++            self?.deps?.softProofState.isActive == true ? .on : .off
++        }
++        _ = laEnabled(laState(item(m, title: localized("softproof_gamut_check")) {
++            [weak self] in self?.deps?.setGamutCheck()
++        }, self) { [weak self] in
++            self?.deps?.softProofState.gamutCheck == true ? .on : .off
++        }, self) { [weak self] in self?.deps?.softProofState.isActive == true }
++        separator(m)
++        item(m, title: localized("menu_actual_size"), key: "z", mask: []) {
++            [weak self] in self?.deps?.actualSize()
++        }
++        item(m, title: localized("menu_fit_to_screen"), key: "f", mask: []) {
++            [weak self] in self?.deps?.fitToScreen()
++        }
++        separator(m)
++        item(m, title: localized("menu_view_stacks_expand_all")) {
++            [weak self] in self?.deps?.expandAllStacks()
++        }
++        item(m, title: localized("menu_view_stacks_collapse_all")) {
++            [weak self] in self?.deps?.collapseAllStacks()
++        }
++        if visibleCommands.contains(.viewToolRail) {
++            separator(m)
++            _ = laState(item(m, title: localized("menu_view_tool_rail")) {
++                [weak self] in self?.deps?.toggleToolRail()
++            }, self) { [weak self] in
++                (self?.workspace?.toolRailVisible ?? false) ? .on : .off
++            }
++            _ = laState(item(m, title: localized("menu_view_scopes")) {
++                [weak self] in self?.deps?.toggleScopes()
++            }, self) { [weak self] in
++                (self?.workspace?.scopesVisible ?? false) ? .on : .off
++            }
++            _ = laState(item(m, title: localized("menu_view_adjustment_stack")) {
++                [weak self] in self?.deps?.toggleAdjustmentStack()
++            }, self) { [weak self] in
++                (self?.workspace?.adjustmentStackVisible ?? false) ? .on : .off
++            }
++        }
++    }
++
++    // ── Metadata ────────────────────────────────────────────────────────
++    private func buildMetadataMenu(into root: NSMenu) {
++        let m = menu(localized("menu_metadata"), attachedTo: root)
++        func bare(_ title: String, key: String? = nil,
++                  mask: NSEvent.ModifierFlags = [],
++                  _ action: @escaping () -> Void) {
++            let it = item(m, title: title, key: key, mask: mask, action: action)
++            register(enabled: { [weak self] in
++                self?.metadataFieldFocusedState == false
++            }, for: it)
++        }
++        bare(localized("metadata_rating_clear"), key: "0") { [weak self] in
++            self?.deps?.applyRating(nil) }
++        bare(localized("metadata_rating_1"), key: "1") { [weak self] in
++            self?.deps?.applyRating(1) }
++        bare(localized("metadata_rating_2"), key: "2") { [weak self] in
++            self?.deps?.applyRating(2) }
++        bare(localized("metadata_rating_3"), key: "3") { [weak self] in
++            self?.deps?.applyRating(3) }
++        bare(localized("metadata_rating_4"), key: "4") { [weak self] in
++            self?.deps?.applyRating(4) }
++        bare(localized("metadata_rating_5"), key: "5") { [weak self] in
++            self?.deps?.applyRating(5) }
++        separator(m)
++        bare(localized("metadata_flag_pick"), key: "p") { [weak self] in
++            self?.deps?.toggleFlag(1) }
++        bare(localized("metadata_flag_reject"), key: "x") { [weak self] in
++            self?.deps?.toggleFlag(2) }
++        bare(localized("metadata_flag_clear")) { [weak self] in
++            self?.deps?.applyFlag(nil) }
++        separator(m)
++        bare(localized("metadata_color_clear"), key: "0",
++             mask: [.command]) { [weak self] in self?.deps?.applyColor(nil) }
++        bare(localized("metadata_color_0"), key: "1",
++             mask: [.command]) { [weak self] in self?.deps?.applyColor(0) }
++        bare(localized("metadata_color_1"), key: "2",
++             mask: [.command]) { [weak self] in self?.deps?.applyColor(1) }
++        bare(localized("metadata_color_2"), key: "3",
++             mask: [.command]) { [weak self] in self?.deps?.applyColor(2) }
++        bare(localized("metadata_color_3"), key: "4",
++             mask: [.command]) { [weak self] in self?.deps?.applyColor(3) }
++        bare(localized("metadata_color_4"), key: "5",
++             mask: [.command]) { [weak self] in self?.deps?.applyColor(4) }
++        bare(localized("metadata_color_5"), key: "6",
++             mask: [.command]) { [weak self] in self?.deps?.applyColor(5) }
++    }
++
++    // ── Image ───────────────────────────────────────────────────────────
++    private func buildImageMenu(into root: NSMenu) {
++        let m = menu(localized("menu_image"), attachedTo: root)
++        let aiEnabled = { [weak self] in
++            self?.workspace?.phase == .editor
++                && self?.workspace?.editorPhase.currentImageID != nil
++        }
++        _ = laEnabled(item(m, title: localized("menu_image_ai_upscale")) {
++            [weak self] in self?.deps?.aiUpscale()
++        }, self, aiEnabled)
++        _ = laEnabled(item(m, title: localized("menu_image_ai_denoise")) {
++            [weak self] in self?.deps?.aiDenoise()
++        }, self, aiEnabled)
++    }
++
++    // ── Window ──────────────────────────────────────────────────────────
++    private func buildWindowMenu(into root: NSMenu) {
++        let m = menu("Window", attachedTo: root)
++        let mini = item(m, title: "Minimize", key: "m")
++        mini.action = #selector(NSWindow.miniaturize(_:)); mini.target = nil
++        let zoom = item(m, title: "Zoom")
++        zoom.action = #selector(NSWindow.zoom(_:)); zoom.target = nil
++        separator(m)
++        let front = item(m, title: "Bring All to Front")
++        front.action = #selector(NSApplication.arrangeInFront(_:)); front.target = nil
++        NSApp.windowsMenu = m
++    }
++
++    // ── Help ────────────────────────────────────────────────────────────
++    private func buildHelpMenu(into root: NSMenu) {
++        let m = menu("Help", attachedTo: root)
++        _ = laEnabled(item(m, title: localized("menu_help"), key: "?"), self) { false }
++        NSApp.helpMenu = m
++    }
++
++    // MARK: - Recent submenus (menuNeedsUpdate — the delegate-time rebuild)
++
++    private func rebuildRecentSubmenus() {
++        guard let deps else { return }
++        if let holder = recentProjectsItem {
++            let sub = NSMenu(title: holder.title)
++            sub.autoenablesItems = false
++            for url in deps.libraryProjects.recentProjects {
++                let it = NSMenuItem(
++                    title: url.lastPathComponent,
++                    action: #selector(handleMenu(_:)), keyEquivalent: "")
++                it.target = self
++                sub.addItem(it)
++                itemActions[ObjectIdentifier(it)] = { [weak self] in
++                    self?.deps?.openRecentProject(url)
++                }
++                itemEnablers[ObjectIdentifier(it)] = { [weak self] in
++                    self?.deps.map { !$0.agentControl.holdsControl } ?? false
++                }
++            }
++            holder.submenu = sub
++            holder.isEnabled = !deps.libraryProjects.recentProjects.isEmpty
++                && !deps.agentControl.holdsControl
++        }
++        if let holder = recentSessionsItem {
++            let sub = NSMenu(title: holder.title)
++            sub.autoenablesItems = false
++            for url in deps.sessionState.recentSessions {
++                let it = NSMenuItem(
++                    title: url.lastPathComponent,
++                    action: #selector(handleMenu(_:)), keyEquivalent: "")
++                it.target = self
++                sub.addItem(it)
++                itemActions[ObjectIdentifier(it)] = { [weak self] in
++                    self?.deps?.openSession(url)
++                }
++            }
++            holder.submenu = sub
++            holder.isEnabled = !deps.sessionState.recentSessions.isEmpty
++        }
++    }
++
++    // MARK: - Enablement / state refresh
++
++    /// One explicit refresh pass — cheap O(items) pointer writes on the
++    /// static tree (NOT the SwiftUI rebuild; this is the AppKit-side
++    /// observation adapter the research §3 sanctioned).
++    func refreshAll() {
++        guard let root = rootMenu else { return }
++        if NSApp.mainMenu !== root {
++            mainMenuStomps += 1
++            if mainMenuStomps <= 10 {
++                stompLog.info("nsmenu-bridge: mainMenu re-stomped (\(self.mainMenuStomps))")
++            }
++        }
++        processItems(in: root)
++        rebuildRecentSubmenus()
++    }
++
++    private func processItems(in menu: NSMenu) {
++        for item in menu.items {
++            if let enabler = itemEnablers[ObjectIdentifier(item)] {
++                item.isEnabled = enabler()
++            }
++            if let state = itemStates[ObjectIdentifier(item)] {
++                item.state = state()
++            }
++            if let sub = item.submenu { processItems(in: sub) }
++        }
++    }
++
++    /// The observation adapter: ONE tracked read-set; every tracked state
++    /// change schedules a refresh + re-arm (no polling timer, no AttributeGraph).
++    private func armObservation() {
++        guard let deps else { return }
++        withObservationTracking {
++            _ = deps.editorState.canUndo
++            _ = deps.editorState.canRedo
++            _ = deps.editorState.loadedImageURL
++            _ = deps.pasteboard.hasPayload
++            _ = deps.libraryProjects.isReadOnly
++            _ = deps.libraryProjects.projectStore
++            _ = deps.libraryProjects.recentProjects
++            _ = deps.agentControl.holdsControl
++            _ = deps.softProofState.isActive
++            _ = deps.softProofState.gamutCheck
++            _ = deps.sessionState.recentSessions
++            if let ws = Self.shared.workspace {
++                _ = ws.phase
++                _ = ws.editorPhase.currentImageID
++                _ = ws.toolRailVisible
++                _ = ws.scopesVisible
++                _ = ws.adjustmentStackVisible
++            }
++            _ = Self.shared.metadataFieldFocusedState
++            _ = Self.shared.exportPanelRequestPresent
++        } onChange: {
++            DispatchQueue.main.async {
++                Self.shared.refreshAll()
++                Self.shared.armObservation()
++            }
++        }
++    }
++
++    // MARK: - NSMenuDelegate / NSMenuItemValidation / dispatch
++
++    func menuNeedsUpdate(_ menu: NSMenu) {
++        refreshAll()
++    }
++
++    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
++        if let enabler = itemEnablers[ObjectIdentifier(menuItem)] {
++            return enabler()
++        }
++        return menuItem.isEnabled
++    }
++
++    @objc private func handleMenu(_ sender: NSMenuItem) {
++        // Stale-enablement backstop: a shortcut racing a state flip must not
++        // fire a command whose enablement predicate now says no.
++        if let enabler = itemEnablers[ObjectIdentifier(sender)], !enabler() {
++            return
++        }
++        itemActions[ObjectIdentifier(sender)]?()
++    }
++}
+diff --git a/App/Sources/Lightamer/UI/Shell/WorkspaceHostView.swift b/App/Sources/Lightamer/UI/Shell/WorkspaceHostView.swift
+index f4c7c69d..66bd6310 100644
+--- a/App/Sources/Lightamer/UI/Shell/WorkspaceHostView.swift
++++ b/App/Sources/Lightamer/UI/Shell/WorkspaceHostView.swift
+@@ -193,6 +193,12 @@ struct WorkspaceHostView: View {
+             ToastBarMount()
+         }
+         .focusedSceneValue(\.lightamerWorkspaceModel, workspace)
++        // F0 NSMenu spike: the AppKit side has no focused-value read face —
++        // the publish site notes the same workspace into the bridge box
++        // (READS only; every write still routes through the App closures).
++        .onAppear {
++            NSMenuBridgeController.shared.noteWorkspace(workspace)
++        }
+         // The task-dialog host (the SAME registry — dual presentation).
+         .sheet(isPresented: $isTaskDialogPresented) {
+             BackgroundTaskDialogHost(
+@@ -1827,6 +1833,15 @@ struct EditorProbeIfRequested: ViewModifier {
+                     note("film page final = \(inspectorState.filmPageActive) — staying alive")
+                     return   // no terminate — the walkthrough drives from here
+                 }
++                // F0 NSMenu spike (churn measurement seam): stay alive in the
++                // editor face after the rows load — the AR-01 F-8 idle-probe
++                // shape (the plain `-la_editor_probe` terminates, unusable as
++                // an idle probe; the measurement driver settles 60s past this
++                // marker and samples the IDLE face).
++                if ProcessInfo.processInfo.arguments.contains("-la_probe_stay") {
++                    note("staying alive for measurement")
++                    return   // no terminate — the driver kills its own pid
++                }
+             } catch {
+                 note("FAIL: \(error)")
+             }
+-- 
+2.54.0
+
