@@ -313,3 +313,9 @@ minor 族 9 项；挂账 3 项（m10 复数 / o4 翻译注释 / o6 LutPanelView
   variations）——翻案 = plan C 追加 T 项。
 - **D-M7-AR-9**：三 plan（A/B 并行 + C 最后）↔ 全串行 ∨ 单 plan——
   翻案 = 编排重排（B/C 插队合法性收回）。
+
+## 用户裁决补记（2026-10-18，plan A C 档停呈报后）
+
+- **D-AR1-10 门值修订：裁「相对门」**——D-6 探针守门改 = 同协议双构建差分 ≤ 噪声带（三份独立证据 ≤1.9%）即 PASS；绝对门 <10% 绑 D-6 上游专项（macOS 27 SwiftUI 框架缺陷，upstream-only 立场不变，M7-1 终局维持）。B/C 批探针按相对门执行。
+- **NSMenu 外科替换挂条件账**（用户问「不用 SwiftUI 用 AppKit 呢」后按推荐落）：全迁 AppKit = 净负（GPUI 同款账）不采；NSMenu 替换 SwiftUI Commands/Menu（环身份 makeMainMenu↔updateMainMenu 钉死的最深切法）挂条件账，触发 = macOS 27.1 落地仍未修 ∧ 用户判定 churn 痛到值得动；触发即立小专项（探针 + 双构建对测，C1/C2 韧性证据在案无成功保证，成则扩展不成一天收兵）。APPLE-FB-D6-DRAFT.md 用户手动提交仍为上游唯一杠杆。
+- **B/C 放行**：plan B（AR-02 M2 codemod）→ plan C（AR-03 机械批）连跑，单 executor 串行；全套终值带 3964..3972（A 已兑现 3967）。
