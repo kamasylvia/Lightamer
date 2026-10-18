@@ -327,3 +327,12 @@ ramp + 真图 100MP，全帧计时 + 分段 signpost）；③ RSS 峰值（8G �
 本文 = 预告批底稿：§3.3 规格草案 / §5 预估 / §7 推荐全部为 **charter 期可推翻的
 建议面**，非决议；正式立项以 M8-0 charter 五正本为准。dt/spektra 读解若在 charter
 期复核发现偏差，以复核为准并在本文追加勘误行（原文不改）。
+
+---
+
+## §10 勘误追加（2026-10-18 M8-0 charter 批；§9 原文不改惯例）
+
+- §4.3「schema v10 已含 `process` 键——M8 无 schema bump」：版本号引述已过时——
+  本文落笔（2026-10-17）后 M7-4（MCP2-09 note/author additive）已将 sidecar
+  schemaVersion 推进到 **v11**；`process` 键仍在册，**「M8 无 schema bump」结论
+  不变**，版本号引述以 v11 为准（charter 批登记，原文保留）。

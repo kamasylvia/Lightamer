@@ -346,9 +346,9 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 
 ---
 
-## Milestone 8（FSIM 光谱升维——ROADMAP §Milestone 8 预告块，**charter-pending：M7 收口后正式立项**；轻量 research 正本 = `phases/m8-fsim-spectral/RESEARCH-PRE.md`，2026-10-17 提前排队批〔夜间授权先例 D-07-3-T5-1，晨审可推翻〕；REQUIREMENTS 草案族 = SPEC-01..06）—— 待立项
+## Milestone 8（FSIM 光谱升维——ROADMAP §Milestone 8，2026-10-17 预告立项〔charter-pending〕→ **2026-10-18 正式 charter**〔用户「按推荐」批含「M8 charter 照常走」，夜间授权先例 D-07-3-T5-1，晨审可推翻；OQ-M8-1..7 全按推荐生效；轻量 research 正本 = `phases/m8-fsim-spectral/RESEARCH-PRE.md`；REQUIREMENTS 正式族 = SPEC-01..06；与 UI 栈迁移正交——FSIM 面板 AppKit 化若发生在 F1 编辑器迁移窗口内属迁移波内事项不属 M8〕）—— M8-0 ✅ 闭环（charter 批 2026-10-18：五正本落账 = ROADMAP §M8 块正式 charter〔UI 迁移边界声明头部 + M8 Phase 表〕+ REQUIREMENTS SPEC 族正式条目化 + STATE M8 段〔含 M7 Ledger 补翻勘误〕+ 本头部 + GOAL-STATE 续接点）；下一步 = M8-1 research 起草（数学核 + probe）
 
-- [ ] **M8-0 charter（正式立项：phase 表 / SC 门 / 范围红线 / OQ-M8-1..7 裁决）** —— pending（输入 = RESEARCH-PRE §7：核拓扑 process 单源 / tc 表自拟合 / 重积分 3D 表臂 / coupler 模糊场降采样 / 四阶段切分 / FSIM-01c 措辞修订 / UI 无 Alcedo 对标项）
+- [x] **M8-0 charter（正式立项：phase 表 / SC 门 / 范围红线 / OQ-M8-1..7 裁决）** —— ✅ 完成（2026-10-18 charter 批，doc-only 零源码；OQ-M8-1..7 生效值 = 核拓扑 process 单源〔不设 FilmRecord.engine〕/ tc 表自拟合 clean-room / 重积分 3D 表臂 / coupler 模糊场降采样 1/4 res / 四阶段切分 / FSIM-01c 措辞修订随 M8-2 / UI 无 Alcedo 对标项；晨审可推翻）
 - [ ] **M8-1 数学核 + probe**（SPEC-01/04：tc 表自拟合〔Jakob-Hanika 数学，GPL 零拷贝〕+ 逐像素 kernel 探针 + perf/内存真值 + coupler 方案裁决数据）
 - [ ] **M8-2 管线集成**（SPEC-02/03/06：sub-run 缝挂光谱核 + solve/bake 光谱域重推导 + process bump〔光谱 = current 臂，密度核冻结 legacy 臂〕+ 冻结 golden + CC BY-SA 谱面消费 + NOTICE 措辞修订）
 - [ ] **M8-3 面板接线 + golden/收口**（SPEC-05：Film 面板平移 + 宽容度 descriptor 换臂 + VALIDATION）
