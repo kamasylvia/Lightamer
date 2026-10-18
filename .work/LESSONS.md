@@ -853,3 +853,31 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **对策**（churn/探针类批次强制）：①**frontmost 先行**——一切 CPU/sample/transcript 读数前 System Events `set frontmost`（裸直启 + 未激活 = 隐性遮态）；②**双验**——CPU 读数 + 环符号**总量**（跨行求和）同采，活态带（空载 26-36% / 编辑器 80-100%）与 0.0% 完全分离，可见窗语境读到 ≈0.0% 即伪象哨兵，读数后即时对带复核；③**静默相哨兵**——「2 tick 发射 → 长静默 → 复燃沿」transcript 形 = 遮挡签名，勿把复燃沿样本当底噪；④**面机检**——涉编辑器面的 AX 腿探针必须先断言 transcript `phase=editor` 再采数；⑤「N hits」表述必须注明 grep 行数还是计数总和。
 - **适用**：一切 GUI churn/layout-loop/性能探针走查与验收（FIX2 判别探针族、churn 复测、资源监控采样）；任何「CPU 归零 = 缺陷消失」结论在过本纪律四道门之前不得入账。
 - **来源**：`phases/m7-1-shell/M7-1-HALT-REVIEW.md`（§1.2 符号总量 / §2.1 双相结构 / §2.2 三实验 / §4 纪律六条）+ `phases/m7-1-shell/M7-1-VALIDATION.md` §特殊事项 2。
+
+## L0xx-a agent 内长任务必须 nohup+disown 脱离会话形态（2026-10-17/18 两波验收实证）
+
+- **现象**：agent Bash 通道里跑的长任务（全套 `--all` 包装、探针、GUI 臂）被回收三次——M7-6 验收一路 1 次（App 腿被 kill 后 nohup 脱离重跑闭合）+ AR-01 一路 1 次（02:11 SIGKILL，exit 137，RSS 远低于门非 MEMFAIL）+ AR-02/03 zombie lane 自身工具 timeout 1 次。
+- **根因**：harness 对后台通道任务有任务级清理（会话轮转/超时上限），in-channel 长任务天然暴露在回收面下。
+- **对策**：一切 >5 分钟的构建/测试/GUI/探针任务一律 `nohup <cmd> > log 2>&1 &` + `disown`，轮询日志等完成；此纪律已固化进验收 SOP 与 automation 任务书（omp C 路模板同款）。
+- **来源**：`AR-01-ACCEPTANCE.md` 流程注记 + AR-02/03 两份 DECISIONS 环境节。
+
+## L0xx-b 并行 lane 开局即 git worktree 隔离，共享主树只读（M2-7-3 家族第三件，2026-10-18 AR-01 验收）
+
+- **现象**：并行验收 lane 二路做基线 checkout 翻了**共享主工作树**并滞留（01:41:22 reflog 钉死），炸掉一路 `--all` 的 App 束（源码 token manifest 测试读盘基线源码 → 假 fail）。
+- **根因**：两 lane 共享同一工作树，任何一方的 checkout/构建状态变更都是全局污染。
+- **对策**：并行 lane 开局即 `git worktree add <自建路径> <sha>`；共享主树在验收窗口内**只读**（只许 commit 落盘，禁 checkout/分支操作）；基线/双构建一律在各自 worktree。
+- **来源**：`AR-01-ACCEPTANCE.md` 流程注记 + 第一路事故上报。
+
+## L0xx-c 重启后复活 lane 在控制面外，判活以进程/文件活动证据为准（2026-10-18 AR-02/03 验收）
+
+- **现象**：机器重启后「零产物」的原验收 lane 被判死并重派——实际它被 harness 以脱离注册表的形态复活续跑（SendMessage/TaskStop 双盲，`No active local_agent task`），与重派 lane 三方撞车（pkill 误杀/构建容器 glob 碰撞/主树翻转三件都源于此）。
+- **根因**：「产物缺席 = worker 已死」判据不成立——harness 重启恢复可复活 worker 且不回注册表。
+- **对策**：①重启恢复调查必须查进程树 + scratch 目录文件 mtime 活动（runner 日志/构建日志），不只看产物落盘缺席；②复活 zombie 不可协调时按「收编让其跑完 ∨ 杀进程树重做」二选一，杀前核 own-lineage（本 session 派遣血统）+ §8 纪律；③协调便签可投 zombie 的 scratch 目录（是否读到的概率通道，不作为唯一依赖）。
+- **来源**：AR-02/03 验收碰撞三上报 + orchestrator 收编裁定。
+
+## L0xx-d 并行 lane 禁共享 DerivedData 容器 + mtime-glob 取 latest（2026-10-18 AR-02/03 验收）
+
+- **现象**：两 lane 先后构建，后跑 `--all` 的一方经 mtime-glob 取到对方晚 1 秒的容器——全套跑在别人构建产物上（溯源失效）；`/tmp/la-direct-tests-*.log` 共名互相覆写。
+- **根因**：test-direct 构建产物定位用 mtime-glob latest，共享 DerivedData 下 latest ≠ 自己的。
+- **对策**：并行 lane 各自指定独立 DerivedData 路径（或错峰构建 + 构建后立即记录容器指纹）；日志文件名带 lane 专属后缀；报告申明产物溯源链。
+- **来源**：第一路碰撞上报 + zombie --all 溯源注记（裁定 = 同 HEAD 等价产物信号有效，溯源降级注记）。
