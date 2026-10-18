@@ -95,7 +95,8 @@ internal struct PresetPanelView: View {
             Label(String(localized: "preset_apply_menu"), systemImage: "wand.and.stars")
                 .font(.caption)
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.button)
+        .buttonStyle(.borderless)
         .fixedSize()
         .accessibilityIdentifier("presets.apply.menu")
         .accessibilityLabel(Text("preset_apply_menu"))

@@ -221,7 +221,7 @@ internal struct SegmentEditingOverlayHost: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(.ultraThinMaterial)
-        .cornerRadius(6)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
     // MARK: generation (the confirm leg)

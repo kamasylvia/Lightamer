@@ -322,7 +322,8 @@ internal struct FilterBarView: View {
         } label: {
             Image(systemName: "plus.circle")
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.button)
+        .buttonStyle(.borderless)
         .fixedSize()
         .accessibilityIdentifier("filter.add")
     }

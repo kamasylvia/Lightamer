@@ -78,7 +78,7 @@ internal struct MaskToolbarView: View {
                             editingState.activeTool == tool
                                 ? LightamerColors.accent.opacity(0.4)
                                 : Color.clear)
-                        .cornerRadius(4)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.borderless)
                 .disabled(!hasSelection)
@@ -167,7 +167,7 @@ internal struct MaskToolbarView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(.ultraThinMaterial)
-        .cornerRadius(6)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
         .padding(.horizontal, 10)
         .padding(.bottom, 8)
         .accessibilityIdentifier("mask.toolbar")
@@ -358,7 +358,7 @@ internal struct MaskToolbarView: View {
                             aiPhase == .running
                                 ? LightamerColors.accent.opacity(0.4)
                                 : Color.clear)
-                        .cornerRadius(4)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.borderless)
                 .disabled(!hasSelection)
@@ -375,7 +375,7 @@ internal struct MaskToolbarView: View {
                     Image(systemName: "person.slash")
                         .font(.callout)
                         .frame(width: 24, height: 22)
-                        .cornerRadius(4)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.borderless)
                 .disabled(!hasSelection)
@@ -393,7 +393,7 @@ internal struct MaskToolbarView: View {
                     Image(systemName: "person.2")
                         .font(.callout)
                         .frame(width: 24, height: 22)
-                        .cornerRadius(4)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.borderless)
                 .disabled(!hasSelection)
@@ -443,7 +443,7 @@ internal struct MaskToolbarView: View {
                         editingState.segmentActive
                             ? LightamerColors.accent.opacity(0.4)
                             : Color.clear)
-                    .cornerRadius(4)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
             }
             .buttonStyle(.borderless)
             .disabled(!hasSelection)
@@ -462,7 +462,7 @@ internal struct MaskToolbarView: View {
                 Image(systemName: "arrow.down.circle.dotted")
                     .font(.callout)
                     .frame(width: 24, height: 22)
-                    .cornerRadius(4)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
             }
             .buttonStyle(.borderless)
             .disabled(!hasSelection)
@@ -480,7 +480,7 @@ internal struct MaskToolbarView: View {
                     .font(.callout)
                     .foregroundStyle(.orange)
                     .frame(width: 24, height: 22)
-                    .cornerRadius(4)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(Text("ai_download_retry"))
@@ -512,7 +512,7 @@ internal struct MaskToolbarView: View {
                 Image(systemName: "square.stack.3d.up.forward")
                     .font(.callout)
                     .frame(width: 24, height: 22)
-                    .cornerRadius(4)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
             }
             .buttonStyle(.borderless)
             .disabled(!hasSelection)
@@ -527,7 +527,7 @@ internal struct MaskToolbarView: View {
                 Image(systemName: "arrow.down.circle.dotted")
                     .font(.callout)
                     .frame(width: 24, height: 22)
-                    .cornerRadius(4)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
             }
             .buttonStyle(.borderless)
             .disabled(!armed || !hasSelection)
@@ -552,7 +552,7 @@ internal struct MaskToolbarView: View {
                     .font(.callout)
                     .foregroundStyle(.orange)
                     .frame(width: 24, height: 22)
-                    .cornerRadius(4)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(Text("ai_download_retry"))
