@@ -98,9 +98,13 @@ helper 式),同病同修,+1 文件并入——**实改 40 文件 46 处**
   基线 skip 35(全套口径)→ 本批探针族 +2(PanelParamsDecodeProbeTests
   两法,默认环境 skip)——全套终值口径 skip = 35 + 2 = 37(A 批
   零新 skip;C 批预期零新 skip——收尾净轮终账闭合)。
-- **ΔN(pass)对账:本批 +0**(探针两法默认 skip 不产 pass;plan 带
-  +0..1 的 +0 臂行使)。全批终值带 3964..3972 内按 3967(A 已兑现)+
-  0(B)+ ΔC 记账。
+- **ΔN 对账(executed 口径,终账修订)**:探针**两法** = executed
+  **+2**——plan 预算表「+0..1(PERF 腿 1,skip 腿不计)」与 action 1
+  「两法(skip 腿 = 环境门断言本身即测试法)」存在内在张力:skip 腿
+  落地为独立测试法即计入 executed。执行按「两法」字面 → **本批
+  executed ΔN = +2,越本 plan 预算带上界(+1)+1,显式申报**(全批终值
+  带 3964..3972 仍闭合——3963 + A 4 + B 2 + C 0 = 3969)。默认环境
+  下两法 skip(不产 pass;PERF 轮 env=1 下 2/0/0)。
 - 环境供件申报:首轮定向轮 **921/18/1**(LCRSettingsTests
   testRefreshBuildsSixRowsWithFailClosedReleaseFaces fail:
   `("download") is not equal to ("builtIn")`)——归因 = **AI 模型供件

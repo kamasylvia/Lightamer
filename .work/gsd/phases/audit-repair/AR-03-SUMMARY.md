@@ -27,10 +27,19 @@
   .runModal()。
 - 定向轮:`--bundle App` **921/16/0**(325s,peakRSS 2832MB——与
   AR-02 净轮逐值一致;C 批零 ΔN 证实)。
-- ΔN:**+0**;全批终值 = **3967/37/0**(对账:基线 3963/35/0 →
-  AR-01 +4 pass = 3967 → AR-02 探针 +0 pass / +2 skip → AR-03 +0;
-  全批 pass 带 3964..3972 内实现下界;skip 逐族差分 = 探针族 +2,
-  AR-02 DECISIONS D-AR2-6 申报)。
+- **全套 --all 净轮(收尾,C 后单轮,供件净轮)**:`3969/37/0`,
+  2036s,零 fail 零 MEMFAIL(峰值 IOPParity 8113MB 贴 8G 门,机检门
+  内——SPIKE 注记的贴线 bundle 口径)。逐 bundle:IOP 687/5、IOPParity
+  460/3、Layers 494/5、Library 738/4、Sessions 284/9、Export 385/5、
+  App 921/6。
+- ΔN:**C 批 +0**;全批终值对账(executed 口径)= 基线 3963 →
+  AR-01 +4 → AR-02 探针 +2(越 B 带 +0..1 上界 +1,显式申报)→
+  AR-03 +0 = **3969/37/0**(全批终值带 3964..3972 内;skip = 基线
+  35 + 探针族 2,逐族闭合)。首轮 --all(worktree 缺 input/ 本机
+  供件)= 3969/132/0——供件域 skip 漂移 +95(golden/RAW 生成物不在
+  git),拷主树 `input/` 后净轮回基线域;两轮 executed 逐值一致
+  (3969),供件漂移只动 skip 不动 pass/fail——漂移面诚实申报。
+  B 批 ΔN 口径终账修订 = AR-02 DECISIONS D-AR2-6(SUMMARY 同批修)。
 
 ## 截图对比(borderlessButton 唯一观感面)
 
