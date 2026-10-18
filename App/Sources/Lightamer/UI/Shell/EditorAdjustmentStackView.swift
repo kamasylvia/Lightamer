@@ -442,7 +442,7 @@ struct EditorAdjustmentStackView: View {
     /// One panel row (the M1 InspectorRowView host shape + session scope).
     private func row(
         for descriptor: EditorPanelDescriptor, session: InspectorEditSession
-    ) -> AnyView? {
+    ) -> InspectorRowView? {
         guard let instance = scopeInstances.first(where: {
             $0.opName == descriptor.opName
         }) else { return nil }
@@ -462,7 +462,7 @@ struct EditorAdjustmentStackView: View {
                     label: String(localized: "history_toggle"),
                     autoEnable: false)
             })
-        return AnyView(view)
+        return view
     }
 
     /// The panel display names (the M1 localizedLabel family; the default

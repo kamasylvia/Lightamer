@@ -499,12 +499,20 @@ struct LibraryInspectorView: View {
         }
     }
 
-    private func dateSpelling(_ range: ClosedRange<Date>) -> String {
+    /// One formatter for the panel's lifetime (DateFormatter allocation
+    /// is the expensive face; the format itself is the ISO fixed-length
+    /// spelling the search grammar consumes, kept verbatim per RESEARCH's
+    /// conservative ruling). Single UI entry point — thread safety holds.
+    private static let dateSpellingFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = TimeZone(identifier: "UTC")
-        return "\(formatter.string(from: range.lowerBound)) – "
-            + formatter.string(from: range.upperBound)
+        return formatter
+    }()
+
+    private func dateSpelling(_ range: ClosedRange<Date>) -> String {
+        "\(Self.dateSpellingFormatter.string(from: range.lowerBound)) – "
+            + Self.dateSpellingFormatter.string(from: range.upperBound)
     }
 }
 

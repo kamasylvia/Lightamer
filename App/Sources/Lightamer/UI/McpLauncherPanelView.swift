@@ -27,18 +27,19 @@ import SwiftUI
 /// The panel's observable state over the shared launcher core. One instance
 /// per open panel window; the core (and the log ring) outlives it, so the
 /// model re-syncs from the ring on appear.
+@Observable
 @MainActor
-final class McpLauncherPanelModel: ObservableObject {
+final class McpLauncherPanelModel {
 
-    @Published var lines: [String] = []
-    @Published var followScroll = true
-    @Published var isRunning = false
-    @Published var runningPID: Int32?
+    var lines: [String] = []
+    var followScroll = true
+    var isRunning = false
+    var runningPID: Int32?
     /// The completion face of the last observed session: `.done(writeCalls:)`
     /// = exited cleanly with the server-side write-call delta;
     /// `.failed(code:)` = a non-zero exit (the red face).
-    @Published var lastOutcome: Outcome?
-    @Published var hint: String?
+    var lastOutcome: Outcome?
+    var hint: String?
 
     enum Outcome: Equatable {
         case done(writeCalls: Int)
@@ -171,7 +172,7 @@ enum McpLauncherTemplateKeys {
 
 /// The panel view (the `mcp-launcher` window scene).
 struct McpLauncherPanelView: View {
-    @StateObject private var model = McpLauncherPanelModel()
+    @State private var model = McpLauncherPanelModel()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {

@@ -362,7 +362,6 @@ struct SettingsLCRPage: View {
     @State private var pendingActivateKey: String?
     @State private var pendingActivateName = ""
     @State private var confirmCompatReset = false
-    @State private var loaded = false
 
     var body: some View {
         Form {
@@ -374,11 +373,7 @@ struct SettingsLCRPage: View {
         }
         .formStyle(.grouped)
         .accessibilityIdentifier("settings.page.localContentRecognition")
-        .onAppear {
-            guard !loaded else { return }
-            loaded = true
-            Task { await model.refresh() }
-        }
+        .task { await model.refresh() }
         .confirmationDialog(
             String(
                 localized: "settings_lcr_activate_confirm_title",
@@ -667,7 +662,6 @@ struct SettingsACAPage: View {
     var model: ACASettingsModel = ACASettingsModel()
 
     @State private var keyBuffer = ""
-    @State private var loaded = false
 
     var body: some View {
         Form {
@@ -680,8 +674,6 @@ struct SettingsACAPage: View {
         .formStyle(.grouped)
         .accessibilityIdentifier("settings.page.advancedContentAnalysis")
         .onAppear {
-            guard !loaded else { return }
-            loaded = true
             model.load()
         }
     }

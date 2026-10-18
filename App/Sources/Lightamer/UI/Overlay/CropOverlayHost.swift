@@ -77,7 +77,7 @@ struct CropOverlayHost: View {
 
     /// The overlay's aspect preset (owned by the panel in T5; the host
     /// exposes it as state so the overlay drag locks without panel help).
-    @State var preset: CropAspectPreset = .free
+    @State private var preset: CropAspectPreset = .free
 
     var body: some View {
         if let record = cropRecord,
