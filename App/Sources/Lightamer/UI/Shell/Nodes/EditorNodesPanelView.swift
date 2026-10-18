@@ -608,8 +608,8 @@ struct NodeLockedBadge: View {
             .font(.caption2)
             .foregroundStyle(ThemeTokens.textSecondary)
             .padding(4)
-            .background(Circle().fill(ThemeTokens.cardSurface))
-            .overlay(Circle().strokeBorder(ThemeTokens.cardBorder, lineWidth: 1))
+            .background { Circle().fill(ThemeTokens.cardSurface) }
+            .overlay { Circle().strokeBorder(ThemeTokens.cardBorder, lineWidth: 1) }
             .accessibilityIdentifier(Self.marker)
     }
 }

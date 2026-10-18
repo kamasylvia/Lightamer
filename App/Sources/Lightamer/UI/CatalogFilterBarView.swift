@@ -195,7 +195,7 @@ internal struct CatalogFilterBarView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
-        .background(Capsule().fill(Color.accentColor.opacity(0.25)))
+        .background { Capsule().fill(Color.accentColor.opacity(0.25)) }
         .accessibilityIdentifier("catalog.filter.chip.\(rule.field.rawValue)")
     }
 

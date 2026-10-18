@@ -98,7 +98,7 @@ internal struct SoftProofControlView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(.ultraThinMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(LightamerColors.border, lineWidth: 1))
+        .overlay { Capsule().strokeBorder(LightamerColors.border, lineWidth: 1) }
         // The rejection surfaces through the status toast (D-26 face).
         .onChange(of: softProofState.lastRejection) { _, rejection in
             guard let rejection else { return }

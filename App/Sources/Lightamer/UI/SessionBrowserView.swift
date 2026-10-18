@@ -593,10 +593,10 @@ private struct SessionBrowserCell: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
         }
-        .overlay(
+        .overlay {
             RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(isSelected ? Color.accentColor : .clear, lineWidth: 2)
-        )
+        }
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { onDoubleClick() }
         .onTapGesture {
@@ -646,7 +646,7 @@ private struct SessionBrowserCell: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 5)
             .padding(.vertical, 1.5)
-            .background(Capsule().fill(color))
+            .background { Capsule().fill(color) }
             .accessibilityIdentifier(cellIdentifier + "." + id)
     }
 }
