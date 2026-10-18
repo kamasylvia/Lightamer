@@ -599,7 +599,7 @@ private struct RetouchLayerRowView: View {
                 .monospacedDigit()
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .background(RoundedRectangle(cornerRadius: 3).fill(.quaternary.opacity(0.4)))
+                .background { RoundedRectangle(cornerRadius: 3).fill(.quaternary.opacity(0.4)) }
                 .accessibilityLabel(Text("layers_stroke_count"))
                 .accessibilityValue("\(layer.strokes.count)")
                 .accessibilityIdentifier(rowID + ".strokes")

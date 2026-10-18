@@ -414,7 +414,7 @@ internal struct SidebarView: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
-                        .background(Capsule().fill(.orange))
+                        .background { Capsule().fill(.orange) }
                         .accessibilityIdentifier("session.orphan.count")
                 }
                 ForEach(sessionState.orphanSidecarRelPaths, id: \.self) { rel in

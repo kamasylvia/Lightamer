@@ -549,9 +549,11 @@ internal struct LightamerApp: App {
                 // D-COL2 (Plan 02-04-05): capture the editor window the
                 // moment SwiftUI places it — the coordinator follows THE
                 // WINDOW's screen (multi-display: window's screen wins).
-                .background(WindowCapture { window in
-                    pipeCoordinator.configure(window: window)
-                })
+                .background {
+                    WindowCapture { window in
+                        pipeCoordinator.configure(window: window)
+                    }
+                }
                 .task {
                     // 08-4 T3: the headroom monitor's initial query + the
                     // two screen-event observers (idempotent, app-lifetime).

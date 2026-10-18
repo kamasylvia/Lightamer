@@ -111,9 +111,10 @@ internal struct FilterBarView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(
+        .background {
             RoundedRectangle(cornerRadius: 6)
-                .fill(Color.primary.opacity(0.06)))
+                .fill(Color.primary.opacity(0.06))
+        }
         .frame(maxWidth: 240)
         .onExitCommand {
             // Esc clears the text AND drops focus.
@@ -215,7 +216,7 @@ internal struct FilterBarView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
-        .background(Capsule().fill(Color.accentColor.opacity(0.25)))
+        .background { Capsule().fill(Color.accentColor.opacity(0.25)) }
         .accessibilityIdentifier("filter.chip.\(rule.field.rawValue)")
     }
 

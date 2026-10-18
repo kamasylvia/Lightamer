@@ -333,10 +333,10 @@ private struct CatalogBrowserCell: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
         }
-        .overlay(
+        .overlay {
             RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(isSelected ? Color.accentColor : .clear, lineWidth: 2)
-        )
+        }
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { onDoubleClick() }
         .onTapGesture {
@@ -377,6 +377,6 @@ private struct CatalogBrowserCell: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 4)
             .padding(.vertical, 1)
-            .background(RoundedRectangle(cornerRadius: 3).fill(color))
+            .background { RoundedRectangle(cornerRadius: 3).fill(color) }
     }
 }

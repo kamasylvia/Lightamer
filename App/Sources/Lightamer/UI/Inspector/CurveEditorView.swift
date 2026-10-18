@@ -101,7 +101,7 @@ internal struct CurveEditorView: View {
         return Circle()
             .fill(LightamerColors.accent)
             .frame(width: 9, height: 9)
-            .overlay(Circle().stroke(LightamerColors.surface, lineWidth: 1.5))
+            .overlay { Circle().stroke(LightamerColors.surface, lineWidth: 1.5) }
             .position(
                 x: CGFloat(node.x) * size.width,
                 y: (1 - CGFloat(node.y)) * size.height

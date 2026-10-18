@@ -79,6 +79,6 @@ internal struct EDRControlView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(.ultraThinMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(LightamerColors.border, lineWidth: 1))
+        .overlay { Capsule().strokeBorder(LightamerColors.border, lineWidth: 1) }
     }
 }
