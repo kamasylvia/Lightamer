@@ -63,7 +63,8 @@ internal struct SoftProofControlView: View {
         } label: {
             capsule
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.button)
+        .buttonStyle(.borderless)
         .menuIndicator(.hidden)
         .fixedSize()
         .accessibilityIdentifier("softproof.control")

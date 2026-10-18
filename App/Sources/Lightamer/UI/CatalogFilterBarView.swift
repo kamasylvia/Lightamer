@@ -251,7 +251,8 @@ internal struct CatalogFilterBarView: View {
         } label: {
             Image(systemName: "plus.circle")
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.button)
+        .buttonStyle(.borderless)
         .fixedSize()
         .accessibilityIdentifier("catalog.filter.add")
     }

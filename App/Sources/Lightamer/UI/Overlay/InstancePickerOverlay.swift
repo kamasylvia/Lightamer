@@ -67,7 +67,7 @@ internal struct InstancePickerOverlay: View {
                             CGFloat(plane.width) / CGFloat(plane.height), contentMode: .fit)
                         .frame(width: 150)
                         .background(.black.opacity(0.6))
-                        .cornerRadius(4)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
                         .accessibilityIdentifier("ai.picker.preview")
                 }
             }
@@ -89,7 +89,7 @@ internal struct InstancePickerOverlay: View {
         .padding(14)
         .frame(width: 280)
         .background(.ultraThinMaterial)
-        .cornerRadius(8)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
         .accessibilityIdentifier("ai.picker")
         .onAppear { selection = Set(catalog.instances) }
     }

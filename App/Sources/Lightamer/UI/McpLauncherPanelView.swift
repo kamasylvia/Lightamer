@@ -281,7 +281,7 @@ struct McpLauncherPanelView: View {
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(LightamerColors.textSecondary.opacity(0.25))
             )
-            .onChange(of: model.lines.count) { _ in
+            .onChange(of: model.lines.count) { _, _ in
                 // 暂停滚动 = the follow toggle: OFF freezes the viewport.
                 guard model.followScroll else { return }
                 proxy.scrollTo("mcp.launcher.bottom", anchor: .bottom)
