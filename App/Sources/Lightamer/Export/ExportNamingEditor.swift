@@ -180,8 +180,8 @@ struct ExportNamingEditor: View {
                 if isRenaming {
                     TextField(
                         String(localized: "preset_name_label"),
-                        text: $renameName,
-                        onCommit: commitRename)
+                        text: $renameName)
+                        .onSubmit(commitRename)
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: 140)
                         .accessibilityIdentifier("export.naming.rename_field")

@@ -166,7 +166,7 @@ internal struct CatalogFilterBarView: View {
     // MARK: - Active chips row
 
     private var chipsRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal) {
             HStack(spacing: 6) {
                 ForEach(
                     Array(model.filterChips.enumerated()), id: \.offset
@@ -176,6 +176,7 @@ internal struct CatalogFilterBarView: View {
             }
             .padding(.vertical, 1)
         }
+        .scrollIndicators(.hidden)
         .accessibilityIdentifier("catalog.filter.chipsrow")
     }
 

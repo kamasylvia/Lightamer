@@ -709,10 +709,9 @@ internal struct SidebarView: View {
         .dropDestination(for: String.self) { payload, _ in
             guard let raw = payload.first,
                   let dragged = Self.draggedID(raw, prefix: Self.categoryDragPrefix)
-            else { return false }
+            else { return }
             Task { await catalogTree.moveCategory(dragged: dragged, before: node.id) }
-            return true
-        } isTargeted: { _ in }
+        }
     }
 
     /// The move-to menu: a flat depth-indented list (execution decision —
@@ -809,10 +808,9 @@ internal struct SidebarView: View {
         .dropDestination(for: String.self) { payload, _ in
             guard let raw = payload.first,
                   let dragged = Self.draggedID(raw, prefix: Self.collectionDragPrefix)
-            else { return false }
+            else { return }
             Task { await catalogTree.moveCollection(dragged: dragged, before: collection.id) }
-            return true
-        } isTargeted: { _ in }
+        }
     }
 
     private static func draggedID(_ raw: String, prefix: String) -> Int64? {
