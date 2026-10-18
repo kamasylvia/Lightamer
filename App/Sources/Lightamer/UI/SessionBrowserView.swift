@@ -538,7 +538,7 @@ private struct SessionBrowserCell: View {
                     // original to decode (never enqueue thumbnail work).
                     RoundedRectangle(cornerRadius: 6)
                         .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
-                        .foregroundColor(.orange.opacity(0.7))
+                        .foregroundStyle(.orange.opacity(0.7))
                         .aspectRatio(3.0 / 2.0, contentMode: .fit)
                 }
                 VStack {

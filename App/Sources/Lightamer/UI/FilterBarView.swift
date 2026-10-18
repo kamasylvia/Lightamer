@@ -187,7 +187,7 @@ internal struct FilterBarView: View {
     // MARK: - Active chips row (the two-way projection)
 
     private var chipsRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        ScrollView(.horizontal) {
             HStack(spacing: 6) {
                 ForEach(
                     Array(sessionState.filterChips.enumerated()), id: \.offset
@@ -197,6 +197,7 @@ internal struct FilterBarView: View {
             }
             .padding(.vertical, 1)
         }
+        .scrollIndicators(.hidden)
         .accessibilityIdentifier("filter.chipsrow")
     }
 

@@ -270,7 +270,7 @@ struct EditorNodesPanelView: View {
                     .position(x: frame.midX, y: frame.midY)
             }
         }
-        .coordinateSpace(name: Self.canvasSpace)
+        .coordinateSpace(Self.canvasSpace)
     }
 
     // MARK: - Cards (the KD-3 information face)

@@ -177,7 +177,7 @@ struct LibraryInspectorView: View {
                     .foregroundStyle(ThemeTokens.textSecondary)
             } else {
                 let peak = max(model.activity.map(\.count).max() ?? 1, 1)
-                ScrollView(.horizontal, showsIndicators: false) {
+                ScrollView(.horizontal) {
                     HStack(alignment: .bottom, spacing: 3) {
                         ForEach(model.activity, id: \.day) { entry in
                             VStack(spacing: 2) {
@@ -207,6 +207,7 @@ struct LibraryInspectorView: View {
                     }
                     .padding(.vertical, 2)
                 }
+                .scrollIndicators(.hidden)
             }
         }
         .accessibilityIdentifier("library.inspector.activity")
