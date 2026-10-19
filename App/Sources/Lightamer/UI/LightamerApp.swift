@@ -153,7 +153,14 @@ enum LightamerEntryPoint {
         if AIWorkerMain.runIfRequested() {
             return // unreachable: runIfRequested parks forever on this arm
         }
-        LightamerApp.main()
+        // F0-prime shell handover (F0P-01 T6): the GUI arm runs under the
+        // manual NSApplication lifecycle — the SwiftUI face is demoted to
+        // NSHostingView sub-content (F0PRIME: menu authority + churn 96%→0%
+        // + face survival). The fork sequence above is byte-untouched.
+        // The production entry below stays for reference but is unreachable
+        // in this build (the dead-line shape retires with P3).
+        LightamerShellMain.run()
+        _ = { LightamerApp.main() }
     }
 }
 
@@ -213,8 +220,10 @@ internal final class AppDelegate: NSObject, NSApplicationDelegate {
 /// (`viewDidMoveToWindow` also fires on window changes). The least-invasive
 /// window source — no invasive scene introspection, no AppKit window
 /// subclassing; the app root forwards the window to
-/// `PipeCoordinator.configure(window:)`.
-private struct WindowCapture: NSViewRepresentable {
+/// `PipeCoordinator.configure(window:)`. F0P-01 T6 (review m4): visibility
+/// widened internal (exactly this one change) — the transplanted
+/// LightamerShellFace reuses it.
+struct WindowCapture: NSViewRepresentable {
 
     let onWindow: (NSWindow) -> Void
 

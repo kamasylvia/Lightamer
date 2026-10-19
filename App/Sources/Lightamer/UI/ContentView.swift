@@ -135,9 +135,10 @@ internal struct ContentView: View {
     @Environment(InspectorState.self) private var inspectorState
     @Environment(MetadataController.self) private var metadataController
 
-    /// Plan 12-4 T3: the preset-manager window opener (the toolbar's
-    /// import menu hosts the entry; the Edit menu mirrors it).
-    @Environment(\.openWindow) private var openWindow
+    // F0P-01 T6 (review M1): the scene-open environment face is removed
+    // with the flip — the scene registry is absent post-flip and the last
+    // use site (the toolbar preset-manager entry) routes through
+    // ShellGraph.shared.presetManagerRequested now.
 
     /// Split-view column visibility (sidebar/inspector toggles, D-08).
     /// F0P-01 T4 (gap 3a): lifted from the local @State into
@@ -573,9 +574,13 @@ internal struct ContentView: View {
                 Divider()
                 // Plan 12-4 T3: the preset manager entry (the CRUD/
                 // import/export window; the apply face lives in the
-                // Inspector's preset panel).
+                // Inspector's preset panel). F0P-01 T6 (review M1): the
+                // scene registry is absent post-flip — the old scene-open
+                // call would silently no-op, so the button writes the graph
+                // request field; the shell face consumes it (the window
+                // controller's showWindow) and resets the flag.
                 Button(String(localized: "menu_preset_manager")) {
-                    openWindow(id: "preset-manager")
+                    ShellGraph.shared.presetManagerRequested = true
                 }
                 .accessibilityIdentifier("toolbar.preset_manager")
             } label: {
