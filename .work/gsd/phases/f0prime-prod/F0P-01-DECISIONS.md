@@ -192,3 +192,25 @@ menu.preset_manager / menu.mcp_launcher / menu.show_film_panel 三 identifier
 - Deps 接线终形 = D-F0P-01-6；⌘W 实测记录 = D-F0P-01-5.1；export 使能
   修正 = D-F0P-01-5.2；探针数据 = D-F0P-01-7.1；toolbar 缝接线形 =
   D-F0P-01-6.1；偏差累计见偏差申报节（5 项）。
+
+## 偏差申报（续，收尾批 2026-10-19）
+
+- **(deviation)-6**（收尾批，本文件追加）：blocking-1（三窗恒空白）修复
+  由**重启恢复接续完成**——原修复 agent 死于重启，其编辑（无条件
+  NSHostingView 挂载，替换 `if window.contentView == nil` 恒 false 守卫）
+  存活于工作区未提交；收尾 agent 接手只做验证 + 提交，未改代码逻辑。
+  验证链 = xcodebuild BUILD SUCCEEDED + 真 GUI spawn 三窗截图
+  （`.work/gui-acceptance/f0prime-p1/fix-verify/`：settings / preset-manager /
+  mcp-launcher 三窗内容均真实渲染非空白）+ 定向 App bundle 回归。
+- **revert 叙事两步确认**：完整回退 pre-flip = ①revert `752c5294`（壳交接
+  翻转，自含单 commit）②revert 本 fix commit（三窗无条件挂载）——两步后
+  ShellWindowControllers 与翻转前逐字节同构。
+- **第二路 major-1 路由登记**（标记应用链断 = 既有缺陷，pre-flip 对照同断；
+  非 P1 回归）：按 ACCEPTANCE-2ND 判定停手上报**既有缺陷队列**（rating/
+  color 菜单+键盘双路 × sidecar/DB/UI 三重零）；MANIFEST 面 7「4 星 + 红(⌘1)
+  应用 ✓」判定勘正 ✓→✗（唯一「点」为选中指示蓝点，未做落盘核对）；P2
+  走查面 7 判定基线据此勘正。P1 不修。
+- **第二路 major-2 路由登记**（export 页「加入选中」按钮 action 失效，
+  归属未决——pre-flip 菜单导出路由不达页，翻转回归与既有缺陷二选一未决）：
+  归 **P2 首批归因**（候选维度：makeRunAssembly guard / enqueue typed 拒绝
+  面 / hosting 桥 action 投递）；本批零源码改动未动。
