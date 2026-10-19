@@ -32,16 +32,12 @@ optional 回落 / init 参数）。
 
 ## D-F0P-01-2 NSMenuBridge 生产形三点（T3 落形记录）
 
-1. **export enabler 读集终形 = 双轨（19 reads）**：观察适配器 = review m1
-   的 18 字段全读集（canUndo/canRedo/loadedImageURL/hasPayload/isReadOnly/
-   projectStore/recentProjects/holdsControl/isActive/gamutCheck/
-   recentSessions/phase/currentImageID/toolRailVisible/scopesVisible/
-   adjustmentStackVisible/metadataFieldFocusedState/exportPanelRequestPresent）
-   **+ 第 19 读 `deps.inspectorState.exportPageActive`**（B18 page 腿直读）。
-   enabler 谓词 = `exportPanelRequestPresent（note，sheet 腿）∨
-   exportPageActive（page 腿直读）`——两腿并集恰 = pre-flip focused-binding
-   的使能语义（每个 face 恰发布一个站点：gate=true legacy 面只发布 sheet
-   腿、gate=false M2 面只发布 page 腿）。
+1. **export enabler 读集终形 = 双轨（19 reads）→ T7 实测修正为恒 enabled
+   （17 reads）**：T3 落形按 plan 规格 = review m1 的 18 字段全读集 +
+   `exportPageActive` 第 19 读、enabler = note ∨ exportPageActive；T7
+   A-arm AX 实测（D-F0P-01-5.2）证 plan 形与 pre-flip 真相冲突，修正 =
+   enabler 恒 enabled、两 export presence 读退役（终形 17 reads）。终值以
+   D-F0P-01-5 为准（本条留痕 = 规格演变轨迹）。
 2. **menu_open_session（⇧⌘O）= 新增 `openSessionPicker: () -> Void` 闭包**
    （弃「复用 openSession 零参变体」）——语义分明（picker 缝 vs 直开），
    face 侧接线 = `FileOpener.openSessionFolder` picker 形（产线正本
@@ -79,6 +75,41 @@ menu.preset_manager / menu.mcp_launcher / menu.show_film_panel 三 identifier
   files_modified 把 MANIFEST 列为 commit 文件与仓库 ignore 政策冲突，故本
   DECISIONS 文件承载 tracked 侧登记正本，MANIFEST 为 local 证据卷（路径随
   orchestrator 收尾指令用 f0prime-p1/，plan 原文 f0prime-prod/，两者并注）。
+
+## D-F0P-01-5 ⌘W 双面实测记录 + export 使能实测修正（T6 action 6 / D-F0P-3）
+
+实测方法：A/B 二进制（`/tmp/f0p1-dd-{A,B}`，独立 DerivedData）plain 启动
+后 System Events AX dump 菜单栏 + File 菜单（证据 =
+`phases/f0prime-prod/probe/logs/ax-menu/{A,B}/`）。
+
+1. **⌘W 双面语义 = 1:1 已对齐，零改**：pre-flip A 臂 File 菜单 AX 全量 16
+   项（无 SwiftUI 默认 Close Window 项）——library face 唯一 ⌘W 项 =
+   返回图库（disabled）；⌘W 在 library face = 无动作（无 Close 回落）。
+   post-flip B 臂 File 菜单同构 16 项同键同修饰（返回图库 ⌘W disabled 同）
+   ——两 face 语义逐点一致：editor face ⌘W = closeEditor（item enabled）、
+   library face ⌘W = no-op。**不补 Close 项、不创新语义**（plan 风险节
+   「按 1:1 对齐原则修 Deps」的行使结论 = 零改）。
+2. **export 使能实测修正 (deviation，晨审可推翻)**：plan T3/B17/B18 规格
+   （enabler = note ∨ exportPageActive）与实测 pre-flip 真相冲突——A 臂
+   dump 显示 导出… **launch 即 enabled=true**（两 face 都无条件发布
+   focused key；值本身是 action 载荷非使能信号）。plan 形在 launch 态
+   disabled = 主项 parity 破坏 + T7 走查面 6 的 ⇧⌘E 菜单路由必挂。修正 =
+   enabler **恒 enabled**（`{ true }`）；note 双态（B17）与 page 直读
+   （B18）转为 **action 路由**信号（壳 export 闭包的 gate fork），使能面
+   不再消费。观察适配器读集随之 19→17（16 观察字段 + metadata note box；
+   两 export presence 读退役）；ContentView 的 onChange note 写腿保留
+   （P2/P3 修剪面）。**依据 = 「壳侧唯一义务是 parity」+ plan 风险节授权
+   （实测不一致 → 按 1:1 对齐原则修 Deps）**。
+3. **AX 查询 stale 注记（非缺陷）**：passive AX dump 不触发
+   menuNeedsUpdate——workspace 条件项（搜索图库/进出编辑器/AI/stacks）在
+   dump 中呈注册期初值；用户真实打开菜单时 menuNeedsUpdate → refreshAll
+   刷新（正确面）。B dump 的 搜索图库 enabled=false 即此 artifacts。
+4. **系统组标题 zh/en 差异（登记不修）**：A 臂（SwiftUI）系统组 =
+   文件/编辑/窗口/帮助（系统本地化）+ 双 显示 菜单；B 臂（桥）= File/
+   Edit/Window/Help（桥内字面量）。F0PRIME 门① 记录的 B 臂栏形在案；
+   zh 栏自定义菜单（显示/标记/图像）两侧一致。P2 走查面 16（双语像素
+   对照）复核面；若晨审判定须 parity，桥侧系统组标题改走系统本地化串 =
+   后置微任务。
 
 ## 偏差申报（行内 (deviation) 标记累计）
 

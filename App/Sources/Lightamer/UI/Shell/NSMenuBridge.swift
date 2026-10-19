@@ -366,19 +366,20 @@ final class NSMenuBridgeController: NSObject, NSMenuDelegate, NSMenuItemValidati
         separator(m)
         _ = laEnabled(item(m, title: localized("menu_save_sidecar"), key: "s"),
                       self) { false }
-        // F0P-01 T3 (B18): the export enabler reads BOTH legs — the note box
-        // (the legacy sheet leg, two-state) OR the M2 export PAGE switch
-        // (the direct read; the page leg publishes the same focused key
-        // pre-flip). The union is the exact pre-flip enablement across both
-        // faces (each face publishes exactly one site).
+        // F0P-01 T7 (the D-F0P-3 measured alignment): the export enabler is
+        // CONSTANT-ENABLED — the A-arm AX dump (the pre-flip ground truth)
+        // shows the item enabled whenever a face is focused: both faces
+        // publish the focused key unconditionally (the value carried is the
+        // sheet flag / the page binding, consumed by the ACTION side, not
+        // the enablement). The plan's B17/B18 presence form (note ∨
+        // exportPageActive) would sit disabled at launch — a parity break
+        // on a primary item; deviation recorded in DECISIONS. The note box
+        // (B17 two-state) and the page switch remain the shell's ACTION
+        // routing signals (the gate fork in the export closure).
         _ = laEnabled(item(m, title: localized("menu_export"), key: "E",
                            mask: [.command, .shift]) { [weak self] in
             self?.deps?.export()
-        }, self) { [weak self] in
-            guard let self else { return false }
-            return self.exportPanelRequestPresent
-                || (self.deps?.inspectorState.exportPageActive ?? false)
-        }
+        }, self) { true }
     }
 
     // ── Edit ────────────────────────────────────────────────────────────
@@ -659,10 +660,12 @@ final class NSMenuBridgeController: NSObject, NSMenuDelegate, NSMenuItemValidati
         }
     }
 
-    /// The observation adapter: ONE tracked read-set (19 reads — review m1's
-    /// 18 fields plus the B18 `exportPageActive` page-leg direct read, the
-    /// DECISIONS dual-track form); every tracked state change schedules a
-    /// refresh + re-arm (no polling timer, no AttributeGraph).
+    /// The observation adapter: ONE tracked read-set (17 reads — review m1's
+    /// 16 observable fields plus the metadata-focus note box; the export
+    /// presence reads retired with the D-F0P-3 measured alignment, the
+    /// export enabler is constant-enabled — DECISIONS); every tracked state
+    /// change schedules a refresh + re-arm (no polling timer, no
+    /// AttributeGraph).
     private func armObservation() {
         guard let deps else { return }
         withObservationTracking {
@@ -677,7 +680,6 @@ final class NSMenuBridgeController: NSObject, NSMenuDelegate, NSMenuItemValidati
             _ = deps.softProofState.isActive
             _ = deps.softProofState.gamutCheck
             _ = deps.sessionState.recentSessions
-            _ = deps.inspectorState.exportPageActive
             if let ws = Self.shared.workspace {
                 _ = ws.phase
                 _ = ws.editorPhase.currentImageID
@@ -686,7 +688,6 @@ final class NSMenuBridgeController: NSObject, NSMenuDelegate, NSMenuItemValidati
                 _ = ws.adjustmentStackVisible
             }
             _ = Self.shared.metadataFieldFocusedState
-            _ = Self.shared.exportPanelRequestPresent
         } onChange: {
             DispatchQueue.main.async {
                 Self.shared.refreshAll()
