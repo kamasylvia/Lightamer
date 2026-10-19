@@ -776,3 +776,11 @@ APP	13	AgentControlCoordinatorTests.swift
 APP	3	EditorPreviewColorSpaceTests.swift
 APP	3	LightamerSliderScrubTests.swift
 APP	2	SkillsReferenceTests.swift
+# F0P-02 增行记录（2026-10-19 执行期，checker E2 测试登记纪律）：四个新测试文件
+#   随 T1-T4 commit 登记进 LightamerTestsApp（APP/App 级——壳/菜单域：NSMenu 桥
+#   树镜像/enabler、ShellGraph 迁移桥、菜单观察适配器、三窗控制器 smoke）。行内
+#   method 数以终态对账为准。运行期总数基线相应上移（3969 起算 + 本批）。
+APP	4	MenuBridgeObservationTests.swift
+APP	12	NSMenuParityTests.swift
+APP	4	ShellGraphMigrationTests.swift
+APP	2	ShellWindowControllerSmokeTests.swift

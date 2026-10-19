@@ -871,6 +871,11 @@ let project = Project(
                 "Tests/LightamerTests/HistoryRowJumpTests.swift",
                 "Tests/LightamerTests/AdjustmentTransferTests.swift",
                 "Tests/LightamerTests/CleanTerminateSentinelTests.swift",
+                // F0P-02 T1-T4: the shell-handover menu/shell test families.
+                "Tests/LightamerTests/MenuBridgeObservationTests.swift",
+                "Tests/LightamerTests/NSMenuParityTests.swift",
+                "Tests/LightamerTests/ShellGraphMigrationTests.swift",
+                "Tests/LightamerTests/ShellWindowControllerSmokeTests.swift",
                 "Tests/LightamerTests/SheetEnvironmentInjectionTests.swift",
                 "Tests/LightamerTests/ToastFaceTests.swift",
                 "Tests/LightamerTests/DrtPersistenceTests.swift",
