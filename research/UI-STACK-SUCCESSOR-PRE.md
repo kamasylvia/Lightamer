@@ -254,3 +254,46 @@ SwiftUI 壳按面渐退(每面翻转时 SwiftUI 版本留在壳后作为回退�
 | Metal 视口桥 | `App/Sources/Lightamer/UI/EditorMTKView.swift`(NSViewRepresentable;08-4 T1 EDR 双 PSO) |
 | 走查管线 | `research/XCODE27-SKILLS.md:23`;`.work/gui-acceptance/` 各 phase MANIFEST(local-only) |
 | GPUI 现状(2026-10) | Apache-2.0 / pre-1.0 breaking changes;Zed 投入收缩报道与 GPUI-CE 社区分叉;AX = AccessKit 集成起步(Zed issue #41138 / PR #51097,官方「long project」定位)——公开渠道,引入时按当时快照复核 |
+
+---
+
+## 7. Strangler 校准终版（append,2026-10-19;F0 FAIL → F0' PASS → F0'-production chartered）
+
+> 本文 §3/§4 的路线与 spike 规格草案已被两次 spike 实测校准。本节为终版口径,
+> 原文不改保留作校准轨迹;执行正本 = `phases/f0prime-prod/RESEARCH.md`(charter
+> `35a6c178`,量级 M)。
+
+### 7.1 双 spike 结论链
+
+1. **F0(NSMenu 桥)FAIL**(`spike/nsmenu-f0` `dfde03bc`;正本
+   `phases/nsmenu-spike/SPIKE.md`):三臂对测 B vs A = −0.5pp 带内——菜单桥不断环;
+   且 **macOS 27 SwiftUI 绕过 `NSApp.mainMenu`**(属性级 setter 不夺屏,像素+AX 双证)
+   ——§4.1 的「菜单桥生产化」路线在其原形上结构性失效,§3.1 的 F0 行(菜单/命令桥为
+   第一砖)**冻结并反转为壳交接前置**。
+2. **F0'(壳交接)双门 PASS**(`spike/f0prime-shell`;正本
+   `phases/nsmenu-spike/F0PRIME.md`):「SwiftUI 菜单栏宿主如何让位」的答案 =
+   **生命周期整体移除**——手动 NSApplication + delegate 托管 NSWindow,SwiftUI 降为
+   NSHostingView 子内容;此后 NSApp.mainMenu 恢复权威(自建树像素+AX 上屏、⌘M 原生
+   selector 生效),SwiftUI 面全存活(23 对象 env/四 sheet/面板缝/缩略图/MCP host)。
+3. **D-6 终局定性(churn 载体第三、第四次独立复现)**:同一编辑器面同一 MTKView,
+   生命周期在场 = 96.0% 恒烧、离场 = 0.0% 事件驱动静默——**churn 振幅载体是 SwiftUI
+   scene 生命周期自身的 re-eval 机器**(F0 排除菜单,F0' 排除面内容,双重排除收口)。
+   §3 的 F1「编辑器面 AppKit 化」对 churn 目标**无必要**——缓解杠杆在壳层。
+
+### 7.2 F1-F3 park 裁决 + F0'-production chartered
+
+- **F0 改形 = 壳交接**(非菜单桥),**F0'-production 已 chartered**(2026-10-18/19,
+  commit `35a6c178`):spike 形推生产(manual @main + NSMenuBridge 生产化 + 三次级窗
+  AppKit 化),硬性前置 = 未追踪 @Observable 读审计(churn 机器曾「顺手」re-eval 全树,
+  菜单缩放重绘缺口即实例——churn 首次被发现具有功能性,不止纯开销)。
+- **F1(编辑器面 xL)/F2(图库面 L)/F3(设置表单 S-M)park**:churn 收益已由壳交接一次
+  兑现,面迁移降级为可选后置(收益 = 菜单/窗口 chrome 归一,非 churn)——重启条件 =
+  用户判定 chrome 归一值得 xL 投入,或上游 macOS 27.x 修复不及预期且面级缺陷积累到
+  痛点。§3.1 的面序表与 §5.1 的分档估算保留作重启时的规划基线(数字需按当时 HEAD
+  复测——本节数字测于 2026-10-13)。
+- **条件账(NSMenu 外科替换)关闭**:其身份已被壳交接吞并(SPIKE §4 的「等上游」立场
+  不再成立——不是等上游修,而是壳交接绕开上游缺陷)。
+- **硬性前置的实测规模**(RESEARCH §3):审计点位 ~50,真实缺口 4(zoom 签名族/export
+  note 时机/columnVisibility 提升+三窗/toolbar 视觉差异登记)——M 批预算成立。
+- **验收正门换形**:D-6 相对门(§4.1 双构建差分)退役,**绝对门 <10% 编辑器静置 %cpu**
+  复活(B 臂基线 0.0%;L082 哨兵四门机检)。

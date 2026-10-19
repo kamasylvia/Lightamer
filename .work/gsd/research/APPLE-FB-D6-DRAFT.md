@@ -156,3 +156,68 @@ the editor face after interaction).
 1. Feedback Assistant 提交（附上表择要 2-4 件；正文直接粘贴上方英文段）。
 2. 案号回填：REQUIREMENTS SHELL-04 行 + GOAL-STATE 续接点（把「FB 案号待回填」改为 FB##########）。
 3. macOS 27.1 release notes 监测（SHELL-04 持续义务）：关键字 `menu` / `updateMainMenu` / `property graph` / `invalidation`；命中即在下一批次复测 D-6 复现配方。
+
+---
+
+## 修订节（append,2026-10-19:F0' 壳交接 spike 后的双重排除法终章——提交前并入正文)
+
+> 正本:`phases/nsmenu-spike/SPIKE.md`(F0 FAIL)+ `phases/nsmenu-spike/F0PRIME.md`
+> (F0' 双门 PASS)。本节把两次 spike 的机制证据并入报告稿——给 Apple 的复现与定位
+> 价值显著提升,建议提交时以本节替换/增补 Additional Notes 与 Steps。
+
+### 修订 1:最小复现配方升级——「壳交接」即消(96% → 0.0%)
+
+原稿的复现需要「heavy tree shape」(三段式内容行 + `.inspector` host + 双
+`safeAreaInset`),点火条件复杂且对树形手术鲁棒(Notes 已述)。F0' spike 给出了
+**结构性最小复现与结构性消除**:
+
+- **消除配方**:把 SwiftUI `App`/Scene 生命周期整体移除——`NSApplicationDelegate`
+  手动托管 NSWindow,同一 ContentView 树降级为 `NSHostingView` 子内容(零面内容改动,
+  同一 MTKView、同一 isPaused/enableSetNeedsDisplay 配置)→ 编辑器静置 %cpu 中位
+  **96.0% → 0.0%**(三轮交错对测,9/9 轮 frontmost 门 + L082 哨兵;0% 栈证 = 主线程
+  4643/4643 样本泊在 `NSApplication.run → mach_msg2_trap`,全进程 4 线程全闲)。
+- **对照配方(同一 face,仅保留 SwiftUI lifecycle)**:96.0 / 97.1 / 95.7——两臂
+  面逐字节同源(spike 为同一 wiring 逐字移植),唯一变量 = 生命周期宿主。
+- 对 triage 的含义:**不需要构造 heavy tree 也能触发**——任何常驻 SwiftUI scene
+  lifecycle + 稳态编辑面的 app 在本版本上都值得先测静置 %cpu;而「是否宿主在
+  SwiftUI scene 生命周期」是一个一行即可切换的判定开关,定位成本低。
+
+### 修订 2:双重排除法证据链(振幅载体 = scene 生命周期机器本身)
+
+| 实验 | 摘除物 | 结果 | 排除 |
+|---|---|---|---|
+| 原稿树形手术(三独立复现) | `.inspector` host / 双 `safeAreaInset` | 仍 30-36% | 排除「树形宿主件」 |
+| **F0**(`spike/nsmenu-f0`) | **菜单面整体**(Commands 45 项 → inert stub + NSMenu 桥;menu 环符号三臂一致缺席) | B vs A **−0.5pp 带内** | 排除「菜单重建环」——`makeMainMenu/updateMainMenu` 符号在场与不在场不改变振幅 |
+| **F0'**(`spike/f0prime-shell`) | **面内容差异**(同一 face 逐字移植)+ **Scene 生命周期**(手动 NSApplication) | **96.0% → 0.0%** | 定位振幅载体 = scene 生命周期自身的 ViewGraph re-eval/layout 机器(UpdateStack/sizeThatFits 族,两臂栈差分在案) |
+
+注:原稿环签名(makeMainMenu→updateMainMenu→invalidateProperties→…)在稳态编辑器面
+的 sample 中缺席(menu 环符号 ≈0/样本而 CPU 恒 ~95%,F0 §2.1)——**原稿的环栈是
+图库/idle 通用面的形态;编辑器面的 churn 是同一机器的另一种燃烧形态(无 menu 环符
+号、纯 ViewGraph/layout)**。报告稿表述建议从「menu/focus update loop」放宽为
+「**scene-graph churn**」一族,menu 环作为其在轻面上的一个具体环身份。
+
+### 修订 3:churn 机器的功能性副作用(未追踪读被 churn「顺手」续命)
+
+壳静默后暴露一个真实功能回归(生产中大概率同样存在,只是被 churn 掩盖——推断,未在
+生产复验):
+
+- **现象**:菜单命令「实际大小/适配屏幕」变异 `ViewportState.zoom` 后视口零重绘。
+  链路:变异 ✓ → 分发 ✓ → 重绘桥 = `NSViewRepresentable.updateNSView` 的 zoom 签名
+  push-once——但 `updateNSView` 是**非追踪上下文**,视图 body 对该状态无 tracked read,
+  SwiftUI 从不 re-eval 该 representable → `setNeedsDisplay` 永不武装。
+- **生产为何「看起来正常」**:96% 常驻 churn 机器持续 re-eval 全树,「顺手」替所有
+  未追踪消费者跑 updateNSView——**churn 不止是开销,它在承担失效传播的功能**。
+- 对 Apple 的定位价值:这把缺陷的影响从「性能/能耗」扩到「**正确性被开销掩盖**」——
+  修复 churn 后,所有依赖常驻 re-eval 的未追踪读点(NSViewRepresentable 族为主嫌)
+  会连环暴露为功能回归。建议修复方向注释:**churn 消除应伴随「未追踪读不再被隐式
+  续命」的迁移说明**(或提供显式的 representable invalidation 面)。
+
+### 修订 4:表单字段更新建议
+
+- Title 建议改为:`SwiftUI scene lifecycle sustains a display-cycle-locked ViewGraph
+  churn (96% CPU idle) on macOS 27; manual NSApp lifecycle eliminates it (0.0%) and
+  exposes untracked-read functional regressions it was masking`
+- Steps 增补第 8 步:the shell-handover differential above(one-line lifecycle swap,
+  zero face-content change)。
+- 附件增补:F0' 对测 logs 目录(`f0prime-logs/<arm>-<round>/`)+ 双臂 sample.txt
+  (A = UpdateStack/sizeThatFits 654-770,B = 主线程全泊 mach_msg2_trap)。
