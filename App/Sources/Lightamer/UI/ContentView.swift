@@ -140,7 +140,25 @@ internal struct ContentView: View {
     @Environment(\.openWindow) private var openWindow
 
     /// Split-view column visibility (sidebar/inspector toggles, D-08).
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    /// F0P-01 T4 (gap 3a): lifted from the local @State into
+    /// `ShellGraph.shared` — the View-menu ⌥⌘S/⌥⌘I closures write the graph
+    /// post-flip; the binding keeps the body's tracked read explicit and
+    /// the value semantics point-for-point identical (get/set delegate to
+    /// the graph field; `.all` default preserved). Writes route through
+    /// `setColumnVisibility` (a struct's computed-property setter would be
+    /// mutating, but the onChange/toolbar closures capture self immutably;
+    /// the graph write needs no mutability — the @State storage shape).
+    private var columnVisibility: NavigationSplitViewVisibility {
+        ShellGraph.shared.columnVisibility
+    }
+    private var columnVisibilityBinding: Binding<NavigationSplitViewVisibility> {
+        Binding(
+            get: { ShellGraph.shared.columnVisibility },
+            set: { ShellGraph.shared.columnVisibility = $0 })
+    }
+    private func setColumnVisibility(_ value: NavigationSplitViewVisibility) {
+        ShellGraph.shared.columnVisibility = value
+    }
 
     /// Plan 11-04: the export sheet presentation flag (the toolbar's
     /// export button raises it).
@@ -208,7 +226,7 @@ internal struct ContentView: View {
     /// untouched — gate-on reproduces the M2-2 UI exactly.
     @ViewBuilder
     private var legacyBody: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        NavigationSplitView(columnVisibility: columnVisibilityBinding) {
             SidebarView()
             // UI-SPEC dims, GUI-4 narrowed: min 150 / ideal 200 / max 240.
                 .navigationSplitViewColumnWidth(min: 150, ideal: clamped(sidebarWidth, 150, 240), max: 240)
@@ -246,7 +264,7 @@ internal struct ContentView: View {
                 comparePoint: beforeAfterState.isCompareActive
                     ? beforeAfterState.comparePointLabel : nil)
         }
-        .focusedSceneValue(\.lightamerColumnVisibility, $columnVisibility)
+        .focusedSceneValue(\.lightamerColumnVisibility, columnVisibilityBinding)
         .focusedSceneValue(\.exportPanelRequest, $exportPanelRequested)
         // F0P-01 T3 (the untracked-read gap 2, B17): the bridge's
         // export-enablement note is TWO-STATE — raise AND dismiss both reach
@@ -281,7 +299,7 @@ internal struct ContentView: View {
         }
         .onAppear {
             // D-08: restore inspector visibility from layout memory.
-            columnVisibility = inspectorVisible ? .all : .detailOnly
+            setColumnVisibility(inspectorVisible ? .all : .detailOnly)
             applyBrowserModeColumnRules()
             // Plan 16-2 T2 (RQ-16-12): 冷启动恒 Sessions — the FIRST frame
             // overwrites the persisted org-mode with the constant (恒默认做
@@ -319,7 +337,7 @@ internal struct ContentView: View {
             }
         }
         .onChange(of: inspectorVisible) { _, isVisible in
-            columnVisibility = isVisible ? .all : .detailOnly
+            setColumnVisibility(isVisible ? .all : .detailOnly)
         }
         // The browser modes HIDE the Inspector (v1 范围控制: 浏览模式整页
         // 替换 — the adjustment panels belong to the editor). Returning to
@@ -331,9 +349,9 @@ internal struct ContentView: View {
         }
         .onChange(of: browserModeRaw) { _, newValue in
             if ContentView.BrowserMode(rawValue: newValue) != .single {
-                columnVisibility = .doubleColumn
+                setColumnVisibility(.doubleColumn)
             } else {
-                columnVisibility = inspectorVisible ? .all : .detailOnly
+                setColumnVisibility(inspectorVisible ? .all : .detailOnly)
             }
         }
         // Plan 07-1 T3: the layer-B model first-launch prompt + progress +
@@ -486,9 +504,10 @@ internal struct ContentView: View {
     private func applyBrowserModeColumnRules() {
         guard columnVisibility != .detailOnly || browserMode == .single else { return }
         if browserMode != .single {
-            columnVisibility = .doubleColumn // sidebar visible, inspector hidden
+            // sidebar visible, inspector hidden
+            setColumnVisibility(.doubleColumn)
         } else {
-            columnVisibility = inspectorVisible ? .all : .detailOnly
+            setColumnVisibility(inspectorVisible ? .all : .detailOnly)
         }
     }
 
@@ -511,7 +530,7 @@ internal struct ContentView: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
             Button {
-                columnVisibility = (columnVisibility == .doubleColumn) ? .all : .doubleColumn
+                setColumnVisibility((columnVisibility == .doubleColumn) ? .all : .doubleColumn)
             } label: {
                 Image(systemName: "sidebar.leading")
             }
