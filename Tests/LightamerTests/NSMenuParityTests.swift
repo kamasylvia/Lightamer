@@ -157,8 +157,11 @@ final class NSMenuParityTests: XCTestCase {
         }
         // Top-level shape: [app, File, Edit, View, Metadata, Image, Window, Help].
         XCTAssertEqual(root.items.count, 8, "the top-level menu set drifted")
-        XCTAssertTrue(root.items[0].title.hasPrefix("About "),
-                      "the first menu must be the app menu")
+        // items[0] is the app-menu HOLDER (titled with the bundle name);
+        // its submenu opens with the About item.
+        XCTAssertTrue(
+            root.items[0].submenu?.items.first?.title.hasPrefix("About ") ?? false,
+            "the first menu must be the app menu (got \(root.items[0].title))")
         XCTAssertNotNil(topMenu(root, "File"))
         XCTAssertNotNil(topMenu(root, "Edit"))
         XCTAssertNotNil(topMenu(root, title("menu_view")))
@@ -488,9 +491,16 @@ guard !ax.isEmpty else {
         XCTAssertEqual(newProject?.isEnabled, true)
 
         // The AI family's phase × currentImageID legs (the noted workspace
-        // is this fresh controller's own box).
+        // is this fresh controller's own box). Editor without an image
+        // first (openEditor(nil) never CLEARS a set id — the image-less
+        // editor state only exists before the first image lands).
         let workspace = WorkspaceModel()
         lastInstaller?.noteWorkspace(workspace)
+        workspace.openEditor(imageID: nil)
+        lastInstaller?.refreshAll()
+        XCTAssertEqual(upscale?.isEnabled, false,
+                       "editor phase without an image must disable the AI family")
+
         workspace.openEditor(imageID: 42)
         lastInstaller?.refreshAll()
         XCTAssertEqual(upscale?.isEnabled, true)
@@ -500,11 +510,6 @@ guard !ax.isEmpty else {
         lastInstaller?.refreshAll()
         XCTAssertEqual(upscale?.isEnabled, false,
                        "library phase must disable the AI family")
-
-        workspace.openEditor(imageID: nil)
-        lastInstaller?.refreshAll()
-        XCTAssertEqual(upscale?.isEnabled, false,
-                       "editor phase without an image must disable the AI family")
     }
 
     // MARK: - 9: the metadata family (16 items) + text-entry disarm
@@ -633,9 +638,12 @@ guard !ax.isEmpty else {
         assertKey(title("metadata_rating_5"), "5", [])
         assertKey(title("metadata_flag_pick"), "p", [])
         assertKey(title("metadata_flag_reject"), "x", [])
+        // The color family's keys are the SLOT numbers (clear=⌘0,
+        // color_0=⌘1 … color_5=⌘6) — the localized titles carry the same
+        // "(⌘N)" hint.
         assertKey(title("metadata_color_clear"), "0", [.command])
-        assertKey(title("metadata_color_5"), "5", [.command])
-        assertKey(title("metadata_color_6"), "6", [.command])
+        assertKey(title("metadata_color_0"), "1", [.command])
+        assertKey(title("metadata_color_5"), "6", [.command])
     }
 
     // MARK: - 12: titles resolve beyond the key literal

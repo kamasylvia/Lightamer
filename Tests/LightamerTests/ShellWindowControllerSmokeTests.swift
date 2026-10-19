@@ -55,10 +55,15 @@ final class ShellWindowControllerSmokeTests: XCTestCase {
         defer { dismiss(window) }
 
         XCTAssertEqual(window.title, "Settings")
-        let contentType = String(describing: type(of: window.contentView))
-        XCTAssertTrue(
-            contentType.hasPrefix("NSHostingView<"),
-            "the settings content must mount through NSHostingView (got \(contentType))")
+        // type(of:) on the NSView! IUO always prints Optional<NSView> —
+        // bind first, then inspect the concrete type name.
+        if let content = window.contentView as NSView? {
+            XCTAssertTrue(
+                String(describing: type(of: content)).contains("NSHostingView"),
+                "the settings content must mount through NSHostingView (got \(type(of: content)))")
+        } else {
+            XCTFail("the settings window has no content view")
+        }
         // The settle pass: the content's first environment update runs here
         // — a missing injection traps (the shipped M2-8-3 signature).
         pump()
@@ -79,10 +84,13 @@ final class ShellWindowControllerSmokeTests: XCTestCase {
         XCTAssertEqual(
             presetWindow.title,
             String(localized: String.LocalizationValue("window_preset_manager")))
-        XCTAssertTrue(
-            String(describing: type(of: presetWindow.contentView))
-                .hasPrefix("NSHostingView<"),
-            "the preset-manager content must mount through NSHostingView")
+        if let content = presetWindow.contentView as NSView? {
+            XCTAssertTrue(
+                String(describing: type(of: content)).contains("NSHostingView"),
+                "the preset-manager content must mount through NSHostingView")
+        } else {
+            XCTFail("the preset-manager window has no content view")
+        }
         XCTAssertEqual(
             presetWindow.frame.width, 520, accuracy: 0.5,
             "the preset-manager default size drifted")
@@ -97,10 +105,13 @@ final class ShellWindowControllerSmokeTests: XCTestCase {
         XCTAssertEqual(
             mcpWindow.title,
             String(localized: String.LocalizationValue("window_mcp_launcher")))
-        XCTAssertTrue(
-            String(describing: type(of: mcpWindow.contentView))
-                .hasPrefix("NSHostingView<"),
-            "the MCP-launcher content must mount through NSHostingView")
+        if let content = mcpWindow.contentView as NSView? {
+            XCTAssertTrue(
+                String(describing: type(of: content)).contains("NSHostingView"),
+                "the MCP-launcher content must mount through NSHostingView")
+        } else {
+            XCTFail("the MCP-launcher window has no content view")
+        }
         XCTAssertEqual(
             mcpWindow.frame.width, 720, accuracy: 0.5,
             "the MCP-launcher default size drifted")
@@ -110,11 +121,17 @@ final class ShellWindowControllerSmokeTests: XCTestCase {
         presetController.showWindow(nil)
         mcpController.showWindow(nil)
         pump()
-        XCTAssertTrue(
-            String(describing: type(of: presetWindow.contentView))
-                .hasPrefix("NSHostingView<"))
-        XCTAssertTrue(
-            String(describing: type(of: mcpWindow.contentView))
-                .hasPrefix("NSHostingView<"))
+        if let content = presetWindow.contentView as NSView? {
+            XCTAssertTrue(
+                String(describing: type(of: content)).contains("NSHostingView"))
+        } else {
+            XCTFail("the preset-manager re-show lost the content view")
+        }
+        if let content = mcpWindow.contentView as NSView? {
+            XCTAssertTrue(
+                String(describing: type(of: content)).contains("NSHostingView"))
+        } else {
+            XCTFail("the MCP-launcher re-show lost the content view")
+        }
     }
 }

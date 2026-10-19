@@ -239,8 +239,8 @@ final class ShellGraphMigrationTests: XCTestCase {
         let box = mountProbe()
         defer { resetGraph() }
         pump()
-        XCTAssertEqual(box.writerSeen.first, nil,
-                       "the pre-open optional starts nil")
+        XCTAssertNil(box.writerSeen.first.flatMap { $0 },
+                     "the pre-open optional starts nil")
 
         // The per-session rebuild: a fresh writer instance lands in the
         // box; the hosted body re-reads it (identity change visible).
