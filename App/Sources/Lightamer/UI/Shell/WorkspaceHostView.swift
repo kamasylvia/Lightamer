@@ -193,6 +193,14 @@ struct WorkspaceHostView: View {
             ToastBarMount()
         }
         .focusedSceneValue(\.lightamerWorkspaceModel, workspace)
+        // F0P-01 T3 (B20): the AppKit side has no focused-value read face —
+        // the publish site notes the same workspace into the bridge box on
+        // appear (READS only; every write still routes through the shell
+        // closures). Single-window form — the D-F0P-6 always-the-main-window
+        // ruling (the keyWindow discrimination is parked).
+        .onAppear {
+            NSMenuBridgeController.shared.noteWorkspace(workspace)
+        }
         // The task-dialog host (the SAME registry — dual presentation).
         .sheet(isPresented: $isTaskDialogPresented) {
             BackgroundTaskDialogHost(

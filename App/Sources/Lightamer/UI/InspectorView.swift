@@ -428,6 +428,12 @@ internal struct MetadataInfoSection: View {
         .focusedSceneValue(
             \.metadataFieldFocused,
              Binding(get: { fieldFocused }, set: { fieldFocused = $0 }))
+        // F0P-01 T3 (B19): the bridge's bare-key disarm read — the same
+        // @FocusState the focused binding mirrors, noted into the AppKit
+        // bridge on every change (the metadata menu family's enabler).
+        .onChange(of: fieldFocused) { _, new in
+            NSMenuBridgeController.shared.noteMetadataFieldFocused(new)
+        }
         .task(id: editorState.loadedImageURL) {
             await reloadSnapshot()
         }
