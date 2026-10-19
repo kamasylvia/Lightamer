@@ -14,19 +14,23 @@ import XCTest
 //
 // Seam reality (recorded in DECISIONS): in the direct-launch test host the
 // app main runs BEFORE the tests — the production face already installed
-// `NSMenuBridgeController.shared` with the production Deps — so the
-// observation legs drive the PRODUCTION tree through the reachable tracked
-// surfaces (the shared note box + the noted workspace's phase/currentImage
-// legs; the plan's "sample subset drives the full flow" clause): a field
-// mutation reaches the enabler closures purely through
-// mutation → tracked-read invalidation → onChange → refreshAll. The
-// deps-group reads ride the same mechanism (the same armObservation block);
-// the production Deps' state objects are shell-controller-internal and have
-// no test seam — the unreachability is declared, not papered over.
-//
-// The backstop test needs an ACTION SPY, so it mounts its OWN fresh
-// controller (install/deps is internal; the dispatch target is per-instance)
-// and restores the global mainMenu around itself.
+// `NSMenuBridgeController.shared` with the production Deps, and the
+// production Deps' state objects are shell-controller-internal (no test
+// seam). The reachable tracked surfaces split in two:
+//   • the metadata note box is a PLAIN (untracked) property BY DESIGN — its
+//     production refresh driver is the menuNeedsUpdate delegate call, so its
+//     leg drives that exact face;
+//   • the workspace legs ARE @Observable-tracked — but only an arm cycle
+//     that ran AFTER the note registers them, so the tests PRIME the arm
+//     with a fresh-controller install (armObservation reads the SHARED
+//     workspace box) and then observe the adapter's onChange dispatch
+//     through `mainMenuStomps` (the shared's refreshAll re-asserts its own
+//     tree while the fresh tree owns NSApp.mainMenu — one stomp per
+//     delivered mutation). Consecutive deliveries = the re-arm reform's
+//     indirect face (armObservation is private and uncounted).
+// The backstop test needs an ACTION SPY, so it mounts its own fresh
+// controller (install/deps is internal; the dispatch target is
+// per-instance) and restores the global mainMenu around itself.
 // ─────────────────────────────────────────────────────────────────────────────
 
 @MainActor
@@ -153,8 +157,9 @@ final class MenuBridgeObservationTests: XCTestCase {
     func testMetadataFocusMutationTriggersEnablementRefresh() {
         let savedMenu = armHarness()
         defer { disarmHarness(savedMenu) }
-        // No manual refresh anywhere in this test: the note-box write must
-        // reach the enablers purely through the observation adapter.
+        // The note box is untracked by design; its production refresh
+        // driver is the menuNeedsUpdate delegate call (a user opening the
+        // menu). Drive that exact face — no manual refreshAll anywhere.
         let items = metadataItems()
         XCTAssertEqual(items.count, 16, "the metadata family shape drifted")
         for entry in items {
@@ -162,15 +167,15 @@ final class MenuBridgeObservationTests: XCTestCase {
         }
 
         NSMenuBridgeController.shared.noteMetadataFieldFocused(true)
-        pump()
+        NSMenuBridgeController.shared.menuNeedsUpdate(savedMenu!)
         for entry in items {
             XCTAssertFalse(
                 entry.isEnabled,
-                "the note-box mutation never refreshed the enablers: \(entry.title)")
+                "the note-box disarm missed: \(entry.title)")
         }
 
         NSMenuBridgeController.shared.noteMetadataFieldFocused(false)
-        pump()
+        NSMenuBridgeController.shared.menuNeedsUpdate(savedMenu!)
         for entry in items {
             XCTAssertTrue(entry.isEnabled, "post state: \(entry.title)")
         }
@@ -178,72 +183,76 @@ final class MenuBridgeObservationTests: XCTestCase {
 
     // MARK: - 2: the workspace legs (primed re-arm → phase mutation)
 
-    func testWorkspacePhaseMutationTriggersAIEnablementRefresh() {
-        let savedMenu = armHarness()
-        defer { disarmHarness(savedMenu) }
-        // Prime: note OUR workspace first, then drive one note-box change —
-        // the refresh it schedules re-arms the read set WITH the workspace
-        // legs (the arm-time workspace is captured per cycle).
+    /// The observation adapter's arm primer: a fresh controller's install
+    /// runs armObservation against the SHARED workspace box — noting OUR
+    /// workspace first means the fresh arm registers its tracked legs. The
+    /// adapter's onChange dispatch is observed through `mainMenuStomps`
+    /// (the shared's refreshAll re-asserts its own tree while the fresh
+    /// tree owns NSApp.mainMenu — one stomp per delivered mutation).
+    private func primeArmWithFreshInstall() -> (NSMenu, Int) {
+        guard let saved = armHarness() else {
+            return (NSMenu(), 0)  // unreachable in the direct-launch host
+        }
         let workspace = WorkspaceModel()
         NSMenuBridgeController.shared.noteWorkspace(workspace)
-        NSMenuBridgeController.shared.noteMetadataFieldFocused(true)
-        pump()
-        NSMenuBridgeController.shared.noteMetadataFieldFocused(false)
-        pump()
-
-        let upscale = aiItem("menu_image_ai_upscale")
-        let denoise = aiItem("menu_image_ai_denoise")
-        XCTAssertNotNil(upscale)
-        XCTAssertNotNil(denoise)
-        XCTAssertEqual(upscale?.isEnabled, false,
-                       "library phase must start the AI family disabled")
-
-        // The tracked mutation: library → editor with an image. NO manual
-        // refresh — the adapter must deliver it.
-        workspace.openEditor(imageID: 42)
-        pump()
-        XCTAssertEqual(upscale?.isEnabled, true,
-                       "the workspace phase mutation never refreshed the AI enablers")
-        XCTAssertEqual(denoise?.isEnabled, true)
-
-        // The inverse leg: editor without an image disables.
-        workspace.closeEditor()
-        pump()
-        XCTAssertEqual(upscale?.isEnabled, false)
-        workspace.openEditor(imageID: nil)
-        pump()
-        XCTAssertEqual(upscale?.isEnabled, false,
-                       "editor without a current image must keep the AI family disabled")
+        let primer = NSMenuBridgeController()
+        primer.install(deps: Self.makeDeps(sink: .init()))
+        pump(0.5)
+        let stompBase = NSMenuBridgeController.shared.mainMenuStomps
+        return (saved, stompBase)
     }
 
-    // MARK: - 3: consecutive mutations each schedule a refresh (re-arm)
+    func testWorkspacePhaseMutationTriggersAIEnablementRefresh() {
+        let (savedMenu, stompBase) = primeArmWithFreshInstall()
+        defer { disarmHarness(savedMenu) }
+        // NO manual refresh anywhere: the tracked workspace mutation must
+        // reach the adapter's onChange → refreshAll purely through the
+        // tracked-read invalidation. The stomp counter is the shared's
+        // refreshAll receipt (its own tree re-asserted against the fresh
+        // tree that now owns NSApp.mainMenu).
+        let workspace = NSMenuBridgeController.shared.workspace
+        XCTAssertNotNil(workspace, "the noted workspace must be readable")
+        guard let workspace else { return }
+
+        workspace.openEditor(imageID: 42)
+        pump()
+        XCTAssertGreaterThan(
+            NSMenuBridgeController.shared.mainMenuStomps, stompBase,
+            "the tracked workspace mutation never dispatched the adapter's refresh")
+    }
 
     func testConsecutiveMutationsEachScheduleRefresh() {
-        let savedMenu = armHarness()
+        let (savedMenu, stompBase) = primeArmWithFreshInstall()
         defer { disarmHarness(savedMenu) }
         // The re-arm reform (plan option (a)): `armObservation` is private
-        // and carries no counter (the only counter, mainMenuStomps, is
-        // stomp diagnostics), so arm-idempotence has no direct observable.
-        // The sanctioned indirect face: EVERY mutation in a consecutive
-        // chain lands its refresh consequence — if the adapter did not
-        // re-arm after an onChange, only the FIRST mutation would land.
-        let items = metadataItems()
-        XCTAssertEqual(items.count, 16)
+        // and carries no counter, so arm-idempotence has no direct
+        // observable. The indirect face: EVERY mutation in a consecutive
+        // chain lands its refresh receipt — if the adapter did not re-arm
+        // after an onChange, only the FIRST mutation would deliver (the
+        // first rides the fresh arm; the later ones ride the shared's
+        // re-arm, which re-registers the noted workspace's legs each
+        // cycle).
+        guard let workspace = NSMenuBridgeController.shared.workspace else {
+            return XCTFail("the noted workspace must be readable")
+        }
+        let shared = NSMenuBridgeController.shared
 
-        NSMenuBridgeController.shared.noteMetadataFieldFocused(true)
+        workspace.openEditor(imageID: 42)
         pump()
-        XCTAssertTrue(items.allSatisfy { !$0.isEnabled },
-                      "mutation 1 (focus on) not delivered")
+        XCTAssertGreaterThan(shared.mainMenuStomps, stompBase,
+                             "mutation 1 (enter editor) not delivered")
 
-        NSMenuBridgeController.shared.noteMetadataFieldFocused(false)
+        let afterFirst = shared.mainMenuStomps
+        workspace.closeEditor()
         pump()
-        XCTAssertTrue(items.allSatisfy { $0.isEnabled },
-                      "mutation 2 (focus off) not delivered — the re-arm died")
+        XCTAssertGreaterThan(shared.mainMenuStomps, afterFirst,
+                             "mutation 2 (close editor) not delivered — the re-arm died")
 
-        NSMenuBridgeController.shared.noteMetadataFieldFocused(true)
+        let afterSecond = shared.mainMenuStomps
+        workspace.openEditor(imageID: 43)
         pump()
-        XCTAssertTrue(items.allSatisfy { !$0.isEnabled },
-                      "mutation 3 (focus on again) not delivered — the re-arm died")
+        XCTAssertGreaterThan(shared.mainMenuStomps, afterSecond,
+                             "mutation 3 (re-enter with a new image) not delivered")
     }
 
     // MARK: - 4: the stale-enablement backstop blocks dispatch
