@@ -8,7 +8,7 @@
 > §1 壳交接生产形 / §2 菜单全族清单 / §3 未追踪读审计 / §4 @State 迁移 /
 > §5 测试兼容面 / §6 回归走查 / §7 切分 / §8 OQ / §9 锚点；file:line 经
 > planner 2026-10-18 HEAD `9a0b9530` 抽核 ~20 点亲核吻合——**转写勘误
-> 两条**随本文 §转写勘误节登记，执行以勘误为准）。
+> 三条**随本文 §转写勘误节登记（③ = review M3 增补），执行以勘误为准）。
 >
 > **特别登记一（D-F0P-5 无 QA 回切通道）**：本批**不设** env 回切门
 > （`LIGHTAMER_SHELL=legacy` 形不采纳，LibraryLegacyGate 先例不适用此域）——
@@ -24,7 +24,8 @@
 > 三轮 **0.0%** 基线（F0PRIME §2）使绝对门重新可达：**编辑器静置 %cpu
 > 中位 <10%（判据线留 10pp 余量对 0.0% 基线）+ L082 四哨兵**（frontmost
 > 先行复验 / 窗内截图可见 / 主线程样本泊 `mach_msg2_trap` / churn 符号族
-> 零）= P1 T7 + P2 T8 的机检验收正门；相对门语义并入对照（与 F0PRIME
+> 零）= P1 T7 + P2 T7 的机检验收正门（review m3：P2 的 D-6 定版 = T7，
+> 原文「P2 T8」任务号 stale）；相对门语义并入对照（与 F0PRIME
 > A 臂 96.0 留档比 ≥86pp 改进向 = 双证，非替代绝对门）。
 >
 > **编排总纲**：三 plan **串行 P1→P2→P3**（P1 内部「审计修复先于翻转」是
@@ -199,7 +200,20 @@ P2 分账 +15..23 / P3 分账 +0）。
    token 仍在、source-content guard 仍绿；重指先行反而制造「guard 指向
    桥文件 + 死码 token 并存」的双源窗口。RESEARCH §5.5「修改 2 文件」
    由此归 P3 账——**P2 = 纯增测试文件，产线零 diff**。
-3. 其余 ~20 抽核点全部吻合（±1 行内微差不影响语义）：`LightamerApp.swift`
+3. **菜单 enabler 谓词勘误（RESEARCH §2.3「7 项含 holdsControl」枚举
+   错误——review M3）**：RESEARCH §2.3 行「New/Open Project、Open
+   Recent、undo/redo、**paste 族** 7 项受 holdsControl 合取(spike 已形)」
+   把 paste 族误计入 holdsControl 合取族——产线 paste 族 enabler =
+   **hasPayload × isReadOnly 二元，无 holdsControl**（正本
+   `LightamerApp.swift:2001/:2007`
+   `.disabled(!pasteboard.hasPayload || libraryProjects.isReadOnly)`；
+   spike 桥 buildEditMenu 同形 `hasPayload && !isReadOnly`）；
+   holdsControl 合取族实为 undo/redo / New/Open Project / Open Recent
+   （holder+rows）。P2 T1 enabler 规格以本勘误为准（F0P-02 已照此
+   勘正）。**语义不变申报**：本条为勘正转写文本——产线语义现状即二元、
+   本批零改，无需用户裁决；若晨审欲**改**语义（paste 也受 agent 禁编辑）
+   = UI 行为变更超壳交接范围，须走用户裁决面。
+4. 其余 ~20 抽核点全部吻合（±1 行内微差不影响语义）：`LightamerApp.swift`
    :15-35（focused-value 键定义）/:128（entry）/:168（AppDelegate）/
    :190-201（willTerminate Notification）/:252（App struct）/:437
    （legacyLibraryEnabled let）/:507（主窗）/:1797-1799（defaultSize/
@@ -232,8 +246,10 @@ P2 分账 +15..23 / P3 分账 +0）。
 3. **无 QA 回切通道**（D-F0P-5）：禁 env 门（`LIGHTAMER_SHELL=legacy`
  形零命中）；回退单元 = git revert。
 4. **翻转 commit 必须独立可 revert**：壳交接（entry 切换 + face 搬运 +
-   bridge 装配 + menu Deps 接线）一个 commit 内聚（P1 T6）；revert 该
-   commit = SwiftUI lifecycle 完整恢复，无半态。
+   bridge 装配 + menu Deps 接线 + ContentView :551 toolbar
+   preset-manager openWindow 缝接线〔review M1——scene registry 翻转后
+   不在场的替代缝〕）一个 commit 内聚（P1 T6）；revert 该 commit =
+   SwiftUI lifecycle 完整恢复，无半态。
 5. **xcstrings 零 diff 预期**：菜单键全走既有键 `String(localized:
    String.LocalizationValue(key))` 整字面量（F0PRIME 门① zh 栏 parity
    已实证 + 系统组标题现形本就英文）；如执行中出现意外新增键 = 尾块纯

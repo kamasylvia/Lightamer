@@ -5,8 +5,8 @@ title: "plan P2 — 测试族 + 全套回归 + 16 面走查（T1 NSMenuParityTes
 wave: 2
 depends_on: ["F0P-01"]
 autonomous: true
-requirements: ["依赖 P1 闭环（壳交接翻转在位 + 审计修复四缺口已修 + probe-stay 基建在库）——C 档停确认后起跑", "调研正本 = phases/f0prime-prod/RESEARCH.md（§5 测试兼容面〔ΔN 预估 +15..+25 / 0 harness 重写 / 直启宿主等价性〕/ §6 回归走查〔D-6 门 + 16 面清单 + 三臂留档〕/ §7 切分 P2 行〔勘误②：manifest 重指归 P3，本 plan 纯增测试文件〕）", "OQ 裁决正本 = phases/f0prime-prod/CONTEXT.md（D-F0P-1..10；转写勘误①基线 3969/37/0 + ②manifest 重指时序）", "测试基线权威数 3969/37/0（勘误 RESEARCH 3905）；本 plan 分账 +15..23；全批带 +15..+25 → 终值带 3984..3994", "全套 --all = orchestrator 批准制 + 运行监视 + 8G 门 + MEMFAIL 机检；正式轮 + 两轮同值复证（M7-3 三方同值先例）", "C 档停位 = 本 plan 执行+验收闭环后停汇报；确认后 P3 起跑"]
-success_criteria: "SC 全可机检——T1：NSMenuParityTests ~10 法（菜单树镜像 × MenuCommandSet.visibleCommandIDs 双臂 gate 族可见性 / enabler 谓词 × 状态对象真值 / shortcut × DefaultKeymap / 标题非裸键——String(localized:) 解析 ≠ 键字面量）；T2：ShellGraphMigrationTests ~4 法（菜单闭包写 graph → face body 可见〔columnVisibility 桥〕/ 值型字段树外写者 / per-session optional 重建点）；T3：MenuBridgeObservationTests ~4 法（适配器 16 字段逐字段触发 / re-arm 幂等 / stale-enablement backstop BLOCKED 路径）；T4：窗控制器 smoke ~2 法（三控制器构造 + showWindow 不崩 + autosave/内容面 sanity）；T4 接线：Project.swift 显式清单恰四新测试文件 + BUNDLE-MAP 恰四行 + tuist generate 恒为该批最后一个动作（L041）；T5：直启宿主等价性 = 翻转前基线轮（T1 形二进制）+ 翻转后轮（T6 形二进制）各跑 --bundle Library，Executed/failed/skip 逐值相等；T6：全套 --all 三轮同值 `TOTAL|3969+ΔN/37/0|`（ΔN 带 +15..23 → 3984..3994——对账式；exit 0 零 MEMFAIL 七 bundle 8G 门内；skip 37 零漂移）；T7：16 面 GUI 走查 MANIFEST 全绿（RESEARCH §6.2 全清单）+ 三臂留档定版（A/B 二进制 + C 臂 dispatch trace 位）+ D-6 门定版（绝对 <10% 三轮 + 四哨兵）+ 门① 像素/AX 复证（zh/en 双语菜单栏）+ SUMMARY/DECISIONS 落盘"
+requirements: ["依赖 P1 闭环（壳交接翻转在位 + 审计修复四缺口已修 + probe-stay 基建在库）——C 档停确认后起跑", "调研正本 = phases/f0prime-prod/RESEARCH.md（§5 测试兼容面〔ΔN 预估 +15..+25 / 0 harness 重写 / 直启宿主等价性〕/ §6 回归走查〔D-6 门 + 16 面清单 + 三臂留档〕/ §7 切分 P2 行〔勘误②：manifest 重指归 P3，本 plan 纯增测试文件〕）", "OQ 裁决正本 = phases/f0prime-prod/CONTEXT.md（D-F0P-1..10；转写勘误①基线 3969/37/0 + ②manifest 重指时序 + ③paste 族 enabler 二元形——review M3）", "测试基线权威数 3969/37/0（勘误 RESEARCH 3905）；本 plan 分账 +15..23；全批带 +15..+25 → 终值带 3984..3994", "全套 --all = orchestrator 批准制 + 运行监视 + 8G 门 + MEMFAIL 机检；正式轮 + 两轮同值复证（M7-3 三方同值先例）", "C 档停位 = 本 plan 执行+验收闭环后停汇报；确认后 P3 起跑"]
+success_criteria: "SC 全可机检——T1：NSMenuParityTests ~10 法（菜单树镜像 × MenuCommandSet.visibleCommandIDs 双臂 gate 族可见性 / enabler 谓词 × 状态对象真值 / shortcut × DefaultKeymap / 标题非裸键——String(localized:) 解析 ≠ 键字面量）；T2：ShellGraphMigrationTests ~4 法（菜单闭包写 graph → face body 可见〔columnVisibility 桥，含同实例身份断言——review M2〕/ 值型字段树外写者 / per-session optional 重建点）；T3：MenuBridgeObservationTests ~4 法（适配器 18 读集逐字段触发〔review m1〕/ re-arm 幂等 / stale-enablement backstop BLOCKED 路径）；T4：窗控制器 smoke ~2 法（三控制器构造 + showWindow 不崩 + autosave/内容面 sanity）；T4 接线：Project.swift 显式清单恰四新测试文件 + BUNDLE-MAP 恰四行 + tuist generate 恒为该批最后一个动作（L041）；T5：直启宿主等价性 = 翻转前基线轮（T1 形二进制）+ 翻转后轮（T6 形二进制）各跑 --bundle Library，Executed/failed/skip 逐值相等；T6：全套 --all 三轮同值 `TOTAL|3969+ΔN/37/0|`（ΔN 带 +15..23 → 3984..3994——对账式；exit 0 零 MEMFAIL 七 bundle 8G 门内；skip 37 零漂移）；T7：16 面 GUI 走查 MANIFEST 全绿（RESEARCH §6.2 全清单）+ 三臂留档定版（A/B 二进制 + C 臂 dispatch trace 位）+ D-6 门定版（绝对 <10% 三轮 + 四哨兵）+ 门① 像素/AX 复证（zh/en 双语菜单栏）+ SUMMARY/DECISIONS 落盘"
 estimated_tests: "+15..23（NSMenuParity 8..12 + ShellGraphMigration 3..4 + MenuBridgeObservation 3..4 + 窗 smoke 1..3；执行时逐任务如实记账，越带申报理由）"
 test_bundles: [APP]
 baseline: "3969/37/0（audit-repair 收口 9898a0fb 终态 + P1 ΔN +0..2 兑现后重算——勘误 RESEARCH 3905；P1 闭环态 = 本 plan 起算基线）"
@@ -20,7 +20,7 @@ red_lines:
 files_modified:
   - Tests/LightamerTests/NSMenuParityTests.swift             # T1：新建 ~10 法（树镜像/enabler/shortcut/标题）
   - Tests/LightamerTests/ShellGraphMigrationTests.swift      # T2：新建 ~4 法（graph 写读桥/值型迁移等价）
-  - Tests/LightamerTests/MenuBridgeObservationTests.swift    # T3：新建 ~4 法（16 字段触发/re-arm/backstop）
+  - Tests/LightamerTests/MenuBridgeObservationTests.swift    # T3：新建 ~4 法（18 读集触发——review m1 /re-arm/backstop）
   - Tests/LightamerTests/ShellWindowControllerSmokeTests.swift # T4：新建 ~2 法（三控制器构造/showWindow）
   - Project.swift                                            # T4：显式清单恰四新测试文件行
   - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt # T4：恰四新行（App bundle 域）
@@ -56,15 +56,15 @@ files_modified:
 | 任务 | 测试增量 | 构成 | 落点 |
 |---|---|---|---|
 | T1 NSMenuParity | **+8..12** | 树镜像双臂 ~4 / enabler 谓词 ~3 / shortcut pin ~2 / 标题非裸键 ~1..3 | NSMenuParityTests |
-| T2 ShellGraphMigration | **+3..4** | columnVisibility 桥 ~2 / 值型树外写 ~1 / per-session optional ~1 | ShellGraphMigrationTests |
-| T3 MenuBridgeObservation | **+3..4** | 16 字段逐字段 ~2 / re-arm 幂等 ~1 / stale backstop ~1 | MenuBridgeObservationTests |
+| T2 ShellGraphMigration | **+3..4** | columnVisibility 桥 ~2（含同实例身份断言——review M2）/ 值型树外写 ~1 / per-session optional ~1 | ShellGraphMigrationTests |
+| T3 MenuBridgeObservation | **+3..4** | 18 读集逐字段 ~2（review m1）/ re-arm 幂等 ~1 / stale backstop ~1 | MenuBridgeObservationTests |
 | T4 窗 smoke + 接线 | **+1..3** | 三控制器构造/showWindow ~1..3 + Project.swift/BUNDLE-MAP 接线 | ShellWindowControllerSmokeTests |
 | **合计** | **+15..23** | P1(+0..2) + P2(+15..23) = 全批 +15..25 → 3984..3994 | App bundle 域 |
 
 ## read_first（全局，每任务开工前过一遍）
 
-- `.work/gsd/phases/f0prime-prod/CONTEXT.md`（D-F0P-1..10 + 勘误② +
-  红线 15 条）+ `F0P-01-SUMMARY.md`/`-DECISIONS.md`（P1 终账——测试 seam
+- `.work/gsd/phases/f0prime-prod/CONTEXT.md`（D-F0P-1..10 + 勘误①②③
+  + 红线 15 条）+ `F0P-01-SUMMARY.md`/`-DECISIONS.md`（P1 终账——测试 seam
   对账源）
 - `.work/gsd/phases/f0prime-prod/RESEARCH.md` §5 全节（测试兼容面：直接
   依赖点 2 文件 = P3 范围 / harness 已是 hosting 桥形 / 直启宿主等价性 /
@@ -98,9 +98,15 @@ files_modified:
      Select All + 窗菜单三件）在场断言。
   2. **enabler 谓词**（~3 法）：每注册 enabler 闭包喂状态对象真值/假值
      两腿——undo/redo（canUndo/canRedo × isReadOnly × holdsControl 合
-     取）/ paste 族（hasPayload × isReadOnly × holdsControl）/ New/Open
+     取）/ paste 族（**hasPayload × isReadOnly——无 holdsControl**，
+     review M3 勘正为产线二元形，正本 `LightamerApp.swift:2001/:2007`
+     `.disabled(!pasteboard.hasPayload || libraryProjects.isReadOnly)`；
+     holdsControl 合取族 = undo/redo/New/Open/Open Recent——CONTEXT
+     §转写勘误③）/ New/Open
      Project（holdsControl）/ export（exportPageActive 信号源）/ 标记
-     族（metadataTextEntryActive 全族禁用）/ AI 族（phase ×
+     族（metadataTextEntryActive 全族禁用——实数 **16 项** + separator，
+     review m2：rating clear+1-5=6 / flag ×3 / color clear+0-5=7，树
+     镜像以实数为准）/ AI 族（phase ×
      currentImageID）。
   3. **shortcut pin**（~2 法）：自定义 shortcut × DefaultKeymap 表逐项
      对账（SettingsPagesTests :107-125 数据级 pin 同形——keyEquivalent/
@@ -120,9 +126,13 @@ files_modified:
 ## T2 — ShellGraphMigrationTests（~4 法：graph 写读桥 / 值型迁移等价）
 
 - **action**：
-  1. **columnVisibility 桥**（~2 法）：菜单闭包写 graph.columnVisibility
+  1. **columnVisibility 桥**（~2 法，其一 = **同实例身份断言**——review
+     M2）：菜单闭包写 graph.columnVisibility
      → ContentView binding 读可见（写读桥 + 缺省 `.all` 对齐 + toggle
-     语义 doubleColumn↔all / detailOnly↔all 两腿——:2692-2702 平移等价）。
+     语义 doubleColumn↔all / detailOnly↔all 两腿——:2692-2702 平移等价）
+     + **菜单闭包（⌥⌘S/⌥⌘I 写侧）与 ContentView 读侧断言为同一 graph
+     实例**（共享实例身份断言，非仅写读桥——双实例静默失效模式：测试两
+     侧注入同一实例则测不出产线接线变异）。
   2. **值型树外写**（~1 法）：graph 值型字段（如 adjustmentTransferPresented）
      树外写者（模拟菜单闭包/delegate）→ host 树内 body 读可见（F0PRIME
      §4.4 迁移约束的回归钉——@State 存储不跨 struct copy，类实例观察是
@@ -135,10 +145,12 @@ files_modified:
 - **commit**: `test(f0p2): add shell graph migration suite (observable box write-read bridge)`
 - **回滚与偏差申报要求**：回滚 = revert 单 commit；偏差 = DECISIONS 申报。
 
-## T3 — MenuBridgeObservationTests（~4 法：16 字段触发 / re-arm / backstop）
+## T3 — MenuBridgeObservationTests（~4 法：18 读集触发〔review m1〕/ re-arm / backstop）
 
 - **action**：
-  1. **逐字段触发**（~2 法）：观察适配器 16 字段读集逐字段变异 → onChange
+  1. **逐字段触发**（~2 法）：观察适配器 **18 读集**（review m1 实数
+     ——以最终适配器源为基数，与 m6 Deps/读集定形联动）逐字段变异 →
+     onChange
      重武装触发（sample 字段子集驱动全流程：mutation → tracked read 失
      效 → enabler 刷新路径被调）；holdsControl 字段专项（disable-not-
      unmount 的 NSMenu 侧等价实现钉）。
@@ -179,7 +191,10 @@ files_modified:
 > 进制；Executed/failed/skip 逐值对账。
 
 - **action**：
-  1. 翻转前基线轮：P1 T1 commit 形构建 → `caffeinate -dis
+  1. 翻转前基线轮：P1 T1 commit 形构建（**构建配方 = `git worktree add`
+     checkout P1 T1 commit 形 + 独立 DerivedData**——review m9：现 HEAD
+     已是 T6 形不可充基线；独立 DerivedData 为 spike A/B 先例，禁与主
+     worktree 共享构建目录）→ `caffeinate -dis
      Scripts/test-direct.sh --bundle Library` → Executed/failed/skip 留
      档。
   2. 翻转后轮：P1 T6 commit 形构建（现 HEAD）→ 同配方 → 逐值对账。
@@ -223,11 +238,18 @@ files_modified:
 
 - **action**：
   1. **16 面走查**（§6.2 全清单逐项，MANIFEST 逐项记录证据）：1 启动/
-     welcome/New-Open-Recent Project 2 Import Folder + ImportModeDialog +
+     welcome/New-Open-Recent Project + ⇧⌘O open-session picker 腿
+     （menu_open_session → `FileOpener.openSessionFolder` picker 弹出
+     ——review M4 语义修正验证；gate=true legacy 通道，默认 gate=false
+     面不可达则在 legacy env 腿补验，禁静默跳过）2 Import Folder +
+     ImportModeDialog +
      进度 3 图库网格全家 4 编辑器进出双向 5 视口（含菜单 actual/fit 重
-     绘缺口1 验证）6 Inspector 全页族 7 标记 15 项 + 文本框聚焦 disarm
+     绘缺口1 验证）6 Inspector 全页族 7 标记 16 项〔review m2 实数〕 +
+     文本框聚焦 disarm
      8 undo/redo + copy/paste + versions 9 DRT + HDR 四态 + soft proof
-     10 三窗（⌘, 挂点 = 缺口3 修复验证）11 MCP stdio 27 工具冒烟 +
+     10 三窗（⌘, 挂点 = 缺口3 修复验证）+ toolbar preset-manager 腿
+     （`toolbar.preset_manager` 点击 → 窗出现——review M1 机检：翻转后
+     该按钮可用，:551 openWindow 缝接线验证）11 MCP stdio 27 工具冒烟 +
      agent control 持锁期菜单禁用面（§2.3）12 导出队列（JPEG+HEIC+WebP
      实跑）13 yiyin sheet + 拖拽 14 退出链 15 多显示器/全屏/⌘M/Dock
      reopen 16 zh/en 双语菜单栏像素对照。
@@ -242,7 +264,8 @@ files_modified:
   6. 汇报 + **C 档停**（等用户确认再放行 P3）。
 - **验收标准（机检）**：MANIFEST 16 面全绿逐项证据路径；门① 复证留档；
   三臂四文件（A/B 二进制 + trace 日志）在库；D-6 门定版数据落 DECISIONS；
-  SUMMARY ΔN 对账表闭合（全批带 3984..3994）。
+  SUMMARY ΔN 对账表闭合（全批带 3984..3994）；grep `recentSessions.first`
+  在 NSMenuBridge.swift 零命中（review M4 机检门复跑）。
 - **commit**: `test(f0p2): run 16-face walkthrough, archive arms, finalize d6 gate`
 - **回滚与偏差申报要求**：走查面任何 fail = 先归因（翻转窗内 = 修复回注
   P1 模式；窗外 = 停手上报）；D-6 门复测 ≥10% = 停手归因禁放行；禁静默
