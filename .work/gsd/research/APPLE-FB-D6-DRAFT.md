@@ -221,3 +221,64 @@ the editor face after interaction).
   zero face-content change)。
 - 附件增补:F0' 对测 logs 目录(`f0prime-logs/<arm>-<round>/`)+ 双臂 sample.txt
   (A = UpdateStack/sizeThatFits 654-770,B = 主线程全泊 mach_msg2_trap)。
+
+---
+
+## 终章（append,2026-10-20:生产化壳交接落地 + D-6 门定版终数据——呈用户提交形态)
+
+> 本节为报告稿的**提交终态补章**:壳交接已作为生产变更落地(单一 commit,
+> revert-clean),D-6 门以生产二进制定版。前三修订节(spike 双重排除法/功能性
+> 发现/表单字段建议)全部维持,数值以本节生产终数据为准。**提交动作 = 用户手
+> 动(惯例不变,本稿不代提交、不含提交渠道面)。**
+
+### 终 1:壳交接已生产化(不再是 spike 形)
+
+- **落地形态**:@main 入口 fork 的 GUI 臂尾一行切换——`LightamerShellMain.run()`
+  (手动 NSApplication + NSApplicationDelegate 托管 NSWindow + 同一 ContentView
+  树降级 NSHostingView 子内容 + 自建 NSMenu 全族 parity)。生产翻转 commit =
+  `752c5294`(恰三产线文件,`git revert` 干净应用已验——独立可回退)。
+- **全量回归**:壳交接后全套单测三轮同值 `TOTAL|3991/37/0|`(七 bundle,
+  exit 0 零 MEMFAIL);直启测试宿主等价性双轮逐值(翻转前/后二进制 Library
+  bundle 738/4/0 = 738/4/0,peakRSS 615MB 同值)——生命周期替换对宿主行为
+  零可观察影响。
+- **死码退役**:SwiftUI App/Scene/Commands 全族已从源码退役(生产二进制
+  strings 无 App struct;退役后 App bundle 943/6/0 零漂移)——「双壳并存」
+  的任何疑虑不成立:生产只存在手动 NSApplication 生命周期单选。
+
+### 终 2:D-6 门定版终数据(生产二进制,四哨兵全过)
+
+| 轮 | 二进制 | 生命周期 | %cpu 中位(30s 窗 6 采样) | 主线程泊 | churn 符号族 |
+|---|---|---|---|---|---|
+| spike A-r1..3 | spike 构建 | SwiftUI App/Scene | 96.0 / 97.1 / 95.7 | 活跃 ViewGraph/layout | UpdateStack/sizeThatFits 654-770 |
+| spike F0'-B | spike 构建 | 手动 NSApp | **0.0** ×3 | mach_msg2_trap 全泊 | 全 0 |
+| 生产 d6-B-r1..3(HEAD) | 生产构建 | 手动 NSApp | **0.0 / 0.0 / 0.0** | mach_msg2_trap 泊(4656/4655 样本,`LightamerShellMain.run → NSApplication.run` 栈证) | 全 0 |
+| 生产 d6-A-r1(pre-flip 重建) | 生产构建 | SwiftUI App/Scene | **97.6** | — | — |
+
+- **消除振幅终值:−97.6pp**(97.6 → 0.0;spike 期 −96.0pp 的生产复现,两代
+  一致)。
+- 四哨兵(L082):frontmost 先行复验 3/3 true;窗内截图编辑器面完整渲染;
+  主线程样本泊 `mach_msg2_trap`;churn 符号族(makeMainMenu/updateMainMenu/
+  appGraphDidChange/prependValue/beginTransaction/UpdateStack/sizeThatFits)
+  全 0。
+- **判读**:同一 ContentView face、零面内容改动,仅生命周期载体不同,静置
+  CPU 96-97.6% → 0.0%。载体 = SwiftUI scene 生命周期自身的 ViewGraph
+  re-eval/layout 机器(修订 2 的「scene-graph churn」族表述维持)。
+
+### 终 3:功能性发现的最终注记(修订 3 维持 + 生产侧处置)
+
+- churn 机器曾承担未追踪读的失效传播功能(菜单缩放重绘即实例)——生产侧
+  处置 = 未追踪读审计修复先行于翻转(zoom/pan/rot 构造参数化 + export
+  presence onChange 化 + 四 stub 生产化),壳交接后逐面走查复证;这同时是
+  给 Apple 的修复建议注记的实证:**churn 消除应伴随未追踪读的显式迁移**,
+  本项目已按此序执行,可作为报告的 remediation 附件。
+- 报告稿 Title/Steps/附件建议(修订 4)维持,数值替换为本节终数据
+  (96.0/97.1/95.7 → 0.0 生产定版;附件目录增
+  `phases/f0prime-prod/probe/logs/d6-{B-r1..3,A-r1}/`)。
+
+### 终 4:提交前核对清单(呈用户)
+
+- [x] 双重排除法证据链完整(F0 菜单桥 FAIL + F0' 面排除 → 载体 = 生命周期机器)
+- [x] churn 功能性发现成节(修订 3 + 生产侧处置实证)
+- [x] 壳交接终数据(97.6 → 0.0,生产二进制,四哨兵,三轮交错)
+- [x] 全量回归同值(3991/37/0 三轮)+ 宿主等价性(738/4/0 双轮)
+- [ ] **用户手动提交 Feedback Assistant**(表单值 = 修订 1 节 + 本终章数值)
