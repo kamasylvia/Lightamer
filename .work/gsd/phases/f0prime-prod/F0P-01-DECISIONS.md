@@ -111,12 +111,84 @@ menu.preset_manager / menu.mcp_launcher / menu.show_film_panel 三 identifier
    对照）复核面；若晨审判定须 parity，桥侧系统组标题改走系统本地化串 =
    后置微任务。
 
+## D-F0P-01-6 T6 翻转接线终形（review M1/m4/m6 落形 + face 增量申报）
+
+1. **ContentView :551 toolbar preset-manager 缝（review M1 二选一）= graph
+   请求字段 + face 侧观察消费**：ShellGraph 增第 11 字段
+   `presetManagerRequested`；按钮写字段（`ShellGraph.shared.
+   presetManagerRequested = true`），face `.onChange(of:
+   graph.presetManagerRequested)` 消费（window controller showWindow +
+   字段复位）。弃「ContentView init 闭包参数」（须扩 init 面超 :551 授权
+   缝）。`@Environment(\.openWindow)` 面随翻转摘除（grep 零命中）。
+2. **face 新增四属性（超 spike 两族机械变换的申报项）**：
+   `presentPresetManager/presentMcpLauncher/presentSettings: (() ->
+   Void)?`（face 是 struct 无 weak 背ref——controller 在 makeFace 传
+   `[weak self]` 闭包）+ `@FocusedBinding(\.exportPanelRequest) private
+   var focusedExportRequest: Bool?`（gate=true sheet 腿 raise = pre-flip
+   Commands 的 @FocusedBinding 角色移入 face；focused publisher 缺席时
+   （hosting 桥下未证实传播）degrade 直走 openExportPage——两 face 同缝
+   诚实降级）。装配序不变性零改（wiring task 逐字搬运）。
+3. **entry/WindowCapture**：GUI 臂尾 `LightamerShellMain.run()`（fork 序
+   四把逐字零触）+ `_ = { LightamerApp.main() }` 死行形保留（P3 退役）；
+   WindowCapture private→internal 恰一处。
+4. **shell 独立行**：styleMask `.fullScreen`（D-F0P-4）+
+   `setFrameAutosaveName("LightamerMainWindow")`（D-F0P-8）+
+   `applicationShouldHandleReopen`（D-F0P-4；reopenMainWindow = 显示现存
+   主窗或重建，D-F0P-6 恒主窗单源）；delegate 组合转发（willTerminate
+   Notification 参数类型逐字）。
+
+## D-F0P-01-7 T7 探针数据 + 走查归因（收口）
+
+1. **D-6 绝对门 = PASS**：终二进制（D-F0P-01-5.2 修正后，HEAD fb4a5728）
+   三轮 %cpu 中位 **0.0 / 0.0 / 0.0**（<10% 判据余量 90pp；F0PRIME A 臂
+   96.0 对照 = −96.0pp 复现）；L082 四哨兵全过（frontmost 3/3 true /
+   screen 编辑器面完整渲染 3/3 / 主线程 mach_msg2_trap 泊（r1 正本
+   4500/4502 样本，栈顶 `LightamerShellMain.run → NSApplication.run`）/
+   churn 符号族（UpdateStack/sizeThatFits/beginTransaction）3/3 全零）。
+   证据 = `probe/logs/B-r{1,2,3}/` 三件套 + B-prefix-r*（修正前二进制同值
+   留档）。二进制身份 strings 校验：A 无 NSMenuBridgeController / B 有 +
+   LightamerShellMain。
+2. **face-5 菜单缩放归因（走查唯一 ◑ 项，已定性非回归）**：静止编辑器面
+   默认视口路由 = `.crop`（裁剪遮罩常驻）→ `routeLocksZoom(.crop)=true`
+   → zoomLocked（D-13-CONTEXT-6③ overlay mutex v1 设计）→ zoom 菜单/
+   HUD/手势全按设计持有；**A 臂同法实测同零结果 = pre/post 完全一致**。
+   DEBUG dispatch-trace（spike d8d1380a 先例，临时脚手架已撤）实证
+   handleMenu → closure → guard 链活。缺口1（T2 修复）的重绘满验证需
+   mask/segment 路由（zoom 不锁）= P2 16 面走查深度。spike §4.3 的
+   「状态变异✓」注记据此修订：spike 观测的闭包运行 ≠ zoom 状态实际位移
+   （当时同样处于 crop-route 锁下）。
+3. **测量脚手架申报**：trace 二进制仅用于归因轮（DEBUG stderr 行 +
+   zoom/mode 打印），归因完成后 `git checkout` 撤除、零 commit 残留；
+   终验证轮跑在干净 HEAD 构建。
+4. **A 臂二进制留档**：worktree `/tmp/f0p1-wt-a`（907c373d = T1 形）+
+   DerivedData `/tmp/f0p1-dd-A`；B = `/tmp/f0p1-dd-B`（HEAD 构建）。
+   /tmp 即弃域，P2 如需复测按同配方重建（worktree add + tuist generate +
+   xcodebuild -derivedDataPath）。
+
 ## 偏差申报（行内 (deviation) 标记累计）
 
-- （暂无——T1/T2/T3 零偏差：T1 hunk byte-identity；T2 参数命名
-  `viewportSignature` = plan 示例名；T3 三改形点全按 plan 落地。）
+- **(deviation)-1**（T5，D-F0P-01-4.3）：MANIFEST 路径 = orchestrator 收尾
+  指令 `f0prime-p1/`（plan 原文 `f0prime-prod/`）；且 gui-acceptance 整域
+  gitignore（仓库政策）→ tracked 登记正本落本文件，MANIFEST 为 local 证据
+  卷。
+- **(deviation)-2**（T5 与 T6 间，chore commit `ff94f9c7`）：NSMenuBridge
+  注释三行避用私有 selector 字面串（grep gate 卫生）——独立 chore commit
+  使翻转 commit 保持恰三产线文件。
+- **(deviation)-3**（T7，`fb4a5728`）：export enabler 恒 enabled（实测
+  pre-flip 真相修正 plan B17/B18 规格，D-F0P-01-5.2）；观察读集 19→17；
+  ContentView onChange note 写腿保留（P2/P3 修剪）。
+- **(deviation)-4**（T6，D-F0P-01-6.2）：face 新增四属性（present×3 +
+  @FocusedBinding export）+ ShellGraph 第 11 字段 presetManagerRequested
+  ——review M1/m6 缝的落形，超 spike 两族机械变换面，逐项在此申报。
+- **(deviation)-5**（T7，D-F0P-01-7.2/3）：DEBUG dispatch-trace 脚手架
+  （归因轮临时、已撤、零残留）；face-5 判读修正 spike §4.3「状态变异✓」
+  注记。
 
-## T6/T7 待落节（执行至此回填）
+## T6/T7 待落节（已全部落位）
 
-- LightamerShell* 终名终账 / Deps 接线终形 / ⌘W 双面实测记录 / toolbar 缝
-  接线形（graph 请求字段 vs 闭包参数二选一）/ 探针三轮数据 / 各偏差。
+- LightamerShell* 终名终账 = **`LightamerShellMain` / `LightamerShellController` /
+  `LightamerShellDelegate` / `LightamerShellFace`**（D-F0P-15 改名纪律；
+  `F0PrimeShell` 在 App/Sources 零命中机检过）——见 D-F0P-01-6。
+- Deps 接线终形 = D-F0P-01-6；⌘W 实测记录 = D-F0P-01-5.1；export 使能
+  修正 = D-F0P-01-5.2；探针数据 = D-F0P-01-7.1；toolbar 缝接线形 =
+  D-F0P-01-6.1；偏差累计见偏差申报节（5 项）。
