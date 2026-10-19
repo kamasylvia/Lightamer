@@ -369,21 +369,6 @@ internal struct InspectorView: View {
 // digits/letters reaches the text field.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// The focused-value key the App scene reads to disarm the bare-key
-/// metadata shortcuts while the metadata fields are being typed in.
-/// `Value = Binding<Bool>` (the @FocusedBinding consumer; the 11-04
-/// export-panel key's shape).
-internal struct MetadataFieldFocusedKey: FocusedValueKey {
-    typealias Value = Binding<Bool>
-}
-
-internal extension FocusedValues {
-    var metadataFieldFocused: Binding<Bool>? {
-        get { self[MetadataFieldFocusedKey.self] }
-        set { self[MetadataFieldFocusedKey.self] = newValue }
-    }
-}
-
 internal struct MetadataInfoSection: View {
 
     @Environment(EditorState.self) private var editorState
@@ -425,9 +410,6 @@ internal struct MetadataInfoSection: View {
         .padding(.horizontal, 8)
         .frame(height: Self.entryHeight, alignment: .center)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .focusedSceneValue(
-            \.metadataFieldFocused,
-             Binding(get: { fieldFocused }, set: { fieldFocused = $0 }))
         // F0P-01 T3 (B19): the bridge's bare-key disarm read — the same
         // @FocusState the focused binding mirrors, noted into the AppKit
         // bridge on every change (the metadata menu family's enabler).

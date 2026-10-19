@@ -496,20 +496,20 @@ final class ProjectReadOnlyFaceTests: XCTestCase {
     /// through the SAME EditorState toast face the read-only open uses;
     /// nil/false stay writable (the zero-diff default).
     func testBatchPasteEntryGateBlocksAndToasts() {
-        XCTAssertTrue(LightamerApp.batchPasteBlocked(gate: { true }))
-        XCTAssertFalse(LightamerApp.batchPasteBlocked(gate: { false }))
+        XCTAssertTrue(LightamerShellFace.batchPasteBlocked(gate: { true }))
+        XCTAssertFalse(LightamerShellFace.batchPasteBlocked(gate: { false }))
         XCTAssertFalse(
-            LightamerApp.batchPasteBlocked(gate: nil),
+            LightamerShellFace.batchPasteBlocked(gate: nil),
             "the nil default must stay writable")
         let editorState = EditorState()
         editorState.projectReadOnlyGate = { true }
-        if LightamerApp.batchPasteBlocked(gate: editorState.projectReadOnlyGate) {
+        if LightamerShellFace.batchPasteBlocked(gate: editorState.projectReadOnlyGate) {
             editorState.presentToast(
-                LightamerApp.readOnlyPasteToast(holderPid: 4242))
+                LightamerShellFace.readOnlyPasteToast(holderPid: 4242))
         }
         XCTAssertEqual(
             editorState.toast,
-            LightamerApp.readOnlyPasteToast(holderPid: 4242),
+            LightamerShellFace.readOnlyPasteToast(holderPid: 4242),
             "the refusal raises the read-only toast face")
     }
 

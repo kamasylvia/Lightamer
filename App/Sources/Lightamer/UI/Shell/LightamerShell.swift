@@ -1599,6 +1599,49 @@ internal struct LightamerShellFace: View {
     /// one re-render), t+22s within-bucket jitter (no re-render).
     /// `#if DEBUG`: never ships.
     #if DEBUG
+    /// F0P-03 T1 (omp M1): the AI determinism cross-process probe migrated
+    /// off the retired App struct (the resize/sidecar/import probe family's
+    /// shell-side home — same `#if DEBUG` block). The controller's init is
+    /// the INIT-time driver call site (deterministic: pre-scene, pre-window).
+    /// Headless driver for the layer-A determinism gate's CROSS-PROCESS leg
+    /// (Plan 07-1 T2): `Lightamer -la_ai_determinism_probe <image>
+    /// <output.txt>` — runs ONE gpuPinned layer-A inference over the image,
+    /// writes "width height byteIdentity" into `<output.txt>`, and exits.
+    /// The test compares this against its own in-process run (same synthetic
+    /// PNG fixture both sides). Never ships.
+    static func runAIDeterminismProbeIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-la_ai_determinism_probe") else { return }
+        let args = Array(ProcessInfo.processInfo.arguments.dropFirst())
+        guard let imageIdx = args.firstIndex(of: "-la_ai_determinism_probe"),
+              args.count > imageIdx + 2
+        else { return }
+        let image = URL(fileURLWithPath: args[imageIdx + 1])
+        let output = URL(fileURLWithPath: args[imageIdx + 2])
+        Task<Void, Never> {
+            let probe = Logger(subsystem: "com.kamasylvia.lightamer", category: "probe")
+            do {
+                guard let data = FileManager.default.contents(atPath: image.path) as CFData?,
+                      let source = CGImageSourceCreateWithData(data, nil),
+                      let cg = CGImageSourceCreateImageAtIndex(source, 0, nil)
+                else {
+                    try? "ERROR unreadable-image".write(
+                        to: output, atomically: true, encoding: .utf8)
+                    exit(0)
+                }
+                let input = AIMaskInput(ciImage: CIImage(cgImage: cg))
+                let plane = try await AIMaskService.subjectMask(
+                    input: input, selection: .all, device: .gpuPinned)
+                let line = "\(plane.width) \(plane.height) \(plane.byteIdentity)"
+                try line.write(to: output, atomically: true, encoding: .utf8)
+                probe.info("ai determinism probe: \(line, privacy: .public)")
+            } catch {
+                try? "ERROR \(error)".write(to: output, atomically: true, encoding: .utf8)
+                probe.error("ai determinism probe FAILED: \(String(describing: error), privacy: .public)")
+            }
+            exit(0)
+        }
+    }
+
     private nonisolated(unsafe) static var resizeProbeArmed = false
     private func resizeProbeIfRequested() {
         guard ProcessInfo.processInfo.arguments.contains("-la_resize_probe") else { return }
@@ -2211,7 +2254,7 @@ final class LightamerShellController {
 
     init() {
         #if DEBUG
-        LightamerApp.runAIDeterminismProbeIfRequested()
+        LightamerShellFace.runAIDeterminismProbeIfRequested()
         #endif
     }
 
