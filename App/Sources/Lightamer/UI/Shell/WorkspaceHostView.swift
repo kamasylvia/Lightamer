@@ -1827,6 +1827,16 @@ struct EditorProbeIfRequested: ViewModifier {
                     note("film page final = \(inspectorState.filmPageActive) — staying alive")
                     return   // no terminate — the walkthrough drives from here
                 }
+                // F0' shell-spike measurement seam (the F0 probe-stay hunk,
+                // byte-identical): stay alive in the editor face after the
+                // rows load — the AR-01 F-8 idle-probe shape (the plain
+                // `-la_editor_probe` terminates, unusable as an idle probe;
+                // the measurement driver settles 60s past this marker and
+                // samples the IDLE face).
+                if ProcessInfo.processInfo.arguments.contains("-la_probe_stay") {
+                    note("staying alive for measurement")
+                    return   // no terminate — the driver kills its own pid
+                }
             } catch {
                 note("FAIL: \(error)")
             }
