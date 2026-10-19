@@ -85,6 +85,17 @@ dual_acceptance = true
 
 # 计划复审制度（2026-10-14 用户指令；消费方 = orchestrator，planner 完成后必读）
 plan_review_by_omp = true
+
+# 全阶段 omp 复审制度（2026-10-19 用户指令「恢复 omp 的复审机制，在每个 gsd 操作之后做复审」；
+# 消费方 = orchestrator，每个 GSD 阶段产物定稿后必读）
+stage_review_by_omp = true
+# 每个阶段产物定稿后，由 omp 做一轮独立复审（omp -p --thinking max --api-key Infisical OPENCODE_GO_KEY 注入 + 代理 env 10809）：
+#   research 定稿后 → omp 复审（assumptions/覆盖面/证据抽查）
+#   plan 定稿后（fixer 后）→ omp 复审（可执行性/坐标/红线）——即 plan_review_by_omp 的全阶段化扩展
+#   execute 闭环后 → omp 二次验收（= dual_acceptance 原制度，zcode PASS 后严格串行）
+#   validate/VALIDATION 后 → omp 复核
+# omp 复审结论落 <产物名>-REVIEW-OMP.md / -ACCEPTANCE-OMP.md；blocking 级回注该阶段修复轮；复审为纯文本读评可并行
+# （「严禁并发」硬约束仅限 computer-use 验收形态）；omp 长任务 nohup+disown + proxy env + px --stop 收尾。
 # planner 写完 plan 后，先交 omp 做计划复审（`omp -p --auto-approve --thinking max "<复审 prompt>"`，
 # prompt 含 plan 文件路径 + checker 前科教训），omp 复审结论与 zcode checker 并行或串行均可，
 # 两者发现合并回注修复批。双重验收（dual_acceptance）制度不变。
