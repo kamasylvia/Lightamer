@@ -94,8 +94,13 @@ stage_review_by_omp = true
 #   plan 定稿后（fixer 后）→ omp 复审（可执行性/坐标/红线）——即 plan_review_by_omp 的全阶段化扩展
 #   execute 闭环后 → omp 二次验收（= dual_acceptance 原制度，zcode PASS 后严格串行）
 #   validate/VALIDATION 后 → omp 复核
-# omp 复审结论落 <产物名>-REVIEW-OMP.md / -ACCEPTANCE-OMP.md；blocking 级回注该阶段修复轮；复审为纯文本读评可并行
-# （「严禁并发」硬约束仅限 computer-use 验收形态）；omp 长任务 nohup+disown + proxy env + px --stop 收尾。
+# omp 复审结论落 <产物名>-REVIEW-OMP.md / -ACCEPTANCE-OMP.md；blocking 级回注该阶段修复轮。
+# 并发规则（2026-10-19 用户纠偏修订）：
+#   research/plan 复审 = 纯文本读评（明令禁启 computer-use；需 GUI 验证的内容让渡给 execute/validate 阶段道），可并行；
+#   execute 二次验收 = computer-use 形态，严格串行（原 dual_acceptance 硬约束不变）；
+#   validate 复核 = **computer-use 类**（VALIDATION 实机抽验职责）——串行且持 GUI 互斥：与一切 GUI 驱动活动
+#     （其它 omp 实例/executor 探针窗/验收走查）互斥排程，两个并发 = 禁止。
+# omp 长任务 nohup+disown + proxy env + px --stop 收尾。
 # planner 写完 plan 后，先交 omp 做计划复审（`omp -p --auto-approve --thinking max "<复审 prompt>"`，
 # prompt 含 plan 文件路径 + checker 前科教训），omp 复审结论与 zcode checker 并行或串行均可，
 # 两者发现合并回注修复批。双重验收（dual_acceptance）制度不变。

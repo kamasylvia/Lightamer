@@ -14,7 +14,7 @@ Phase **execute** 阶段的执行分工固定为两级：
 
 ## 全阶段 omp 复审（2026-10-19 用户指令，强制）
 
-每个 GSD 阶段产物定稿后，由 omp 做一轮**独立复审**（config.toml [gsd] `stage_review_by_omp = true`）：research 定稿后（assumptions/覆盖面/证据抽查）→ plan 定稿后（可执行性/坐标/红线；即 `plan_review_by_omp` 的全阶段化）→ execute 闭环后（omp 二次验收 = `dual_acceptance` 原制度，zcode PASS 后**严格串行**）→ validate/VALIDATION 后（复核）。复审 = 纯文本读评（omp -p --thinking max，key = Infisical `OPENCODE_GO_KEY` + 代理 env 10809，nohup+disown）；结论落 `<产物名>-REVIEW-OMP.md` / `-ACCEPTANCE-OMP.md`，blocking 级回注该阶段修复轮。文本复审可并行；**「严禁并发」硬约束仅限 computer-use 验收形态**。omp 用后 `px --stop`。
+每个 GSD 阶段产物定稿后，由 omp 做一轮**独立复审**（config.toml [gsd] `stage_review_by_omp = true`）：research 定稿后（assumptions/覆盖面/证据抽查）→ plan 定稿后（可执行性/坐标/红线；即 `plan_review_by_omp` 的全阶段化）→ execute 闭环后（omp 二次验收 = `dual_acceptance` 原制度，zcode PASS 后**严格串行**）→ validate/VALIDATION 后（复核）。复审形态分三档（2026-10-19 用户纠偏）：research/plan = **纯文本读评**（明令禁启 computer-use；需 GUI 验证的内容让渡 execute/validate 道），可并行；execute 二次验收 = computer-use 形态，严格串行（原 dual_acceptance 硬约束不变）；validate 复核 = **computer-use 类**（实机抽验职责），串行且持 GUI 互斥——与一切 GUI 驱动活动（其它 omp 实例/executor 探针窗/验收走查）互斥排程，两个并发 = 禁止。复审调 omp -p --thinking max，key = Infisical `OPENCODE_GO_KEY` + 代理 env 10809，nohup+disown；结论落 `<产物名>-REVIEW-OMP.md` / `-ACCEPTANCE-OMP.md`，blocking 级回注该阶段修复轮。omp 用后 `px --stop`。
 
 ## 资源监控（2026-09-29 用户指令，强制）
 
