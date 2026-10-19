@@ -45,14 +45,16 @@ final class PresetManagerWindowController: NSWindowController {
 
     override func showWindow(_ sender: Any?) {
         guard let window else { return }
-        if window.contentView == nil {
-            window.contentView = NSHostingView(rootView:
-                PresetManagerWindow()
-                    .environment(presetsStore)
-                    .environment(presetController)
-                    .preferredColorScheme(.dark) // D-10: v1 forced dark
-            )
-        }
+        // F0P-01 blocking-1 fix: NSWindow's contentView getter lazily creates
+        // a default view after init, so an `== nil` guard never fired and the
+        // NSHostingView was never mounted (all three windows stayed blank).
+        // Mount unconditionally — the assignment replaces the default view.
+        window.contentView = NSHostingView(rootView:
+            PresetManagerWindow()
+                .environment(presetsStore)
+                .environment(presetController)
+                .preferredColorScheme(.dark) // D-10: v1 forced dark
+        )
         window.center()
         window.makeKeyAndOrderFront(sender)
     }
@@ -74,9 +76,9 @@ final class McpLauncherWindowController: NSWindowController {
 
     override func showWindow(_ sender: Any?) {
         guard let window else { return }
-        if window.contentView == nil {
-            window.contentView = NSHostingView(rootView: McpLauncherPanelView())
-        }
+        // Same unconditional mount as above (see the fix note in
+        // PresetManagerWindowController).
+        window.contentView = NSHostingView(rootView: McpLauncherPanelView())
         window.center()
         window.makeKeyAndOrderFront(sender)
     }
@@ -110,18 +112,18 @@ final class SettingsWindowController: NSWindowController {
 
     override func showWindow(_ sender: Any?) {
         guard let window else { return }
-        if window.contentView == nil {
-            window.contentView = NSHostingView(rootView:
-                SettingsView(legacyLibraryEnabled: legacyLibraryEnabled)
-                    .environment(catalogPreferences)
-                    .environment(pipeCoordinator)
-                    // Plan M2-10-07: the LCR page's registry + active-model
-                    // reads ride the OPEN project controller (the scene's
-                    // third injection, verbatim).
-                    .environment(libraryProjects)
-                    .preferredColorScheme(.dark) // D-10: v1 forced dark
-            )
-        }
+        // Same unconditional mount as above (see the fix note in
+        // PresetManagerWindowController).
+        window.contentView = NSHostingView(rootView:
+            SettingsView(legacyLibraryEnabled: legacyLibraryEnabled)
+                .environment(catalogPreferences)
+                .environment(pipeCoordinator)
+                // Plan M2-10-07: the LCR page's registry + active-model
+                // reads ride the OPEN project controller (the scene's
+                // third injection, verbatim).
+                .environment(libraryProjects)
+                .preferredColorScheme(.dark) // D-10: v1 forced dark
+        )
         window.center()
         window.makeKeyAndOrderFront(sender)
     }
