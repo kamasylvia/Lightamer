@@ -265,8 +265,6 @@ internal struct ContentView: View {
                 comparePoint: beforeAfterState.isCompareActive
                     ? beforeAfterState.comparePointLabel : nil)
         }
-        .focusedSceneValue(\.lightamerColumnVisibility, columnVisibilityBinding)
-        .focusedSceneValue(\.exportPanelRequest, $exportPanelRequested)
         // F0P-01 T3 (the untracked-read gap 2, B17): the bridge's
         // export-enablement note is TWO-STATE — raise AND dismiss both reach
         // the bridge (the spike's onAppear once-true shape never shipped:
@@ -823,16 +821,6 @@ private struct InspectorPageMount: ViewModifier {
                         ideal: CGFloat(min(max(inspectorWidth, 200), 460)),
                         max: 460)
             }
-            // The M2 export ROUTE: publishes the legacy menu key so the app
-            // menu's Export command enables in this face and lands on the
-            // page (the set side raises the page; the get side is the page
-            // switch itself).
-            .focusedSceneValue(\.exportPanelRequest, Binding<Bool>(
-                get: { inspectorState.exportPageActive },
-                set: { requested in
-                    guard requested else { return }
-                    inspectorState.openExportPage()
-                }))
             // AR-01 T2: the KD-1 queue rebuild rides the PROJECT-open event
             // through its own modifier (the M2 workspace has no Session
             // concept — the reset point is the project switch; the same

@@ -19,20 +19,6 @@ import SwiftUI
 // the focused-value bridge published below.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// The focused-value bridge: the App scene's menu commands (T5) read the
-/// window's WorkspaceModel through this key — the same plumbing shape as the
-/// column-visibility and export-request bindings above it.
-internal struct WorkspaceModelKey: FocusedValueKey {
-    typealias Value = WorkspaceModel
-}
-
-internal extension FocusedValues {
-    var lightamerWorkspaceModel: WorkspaceModel? {
-        get { self[WorkspaceModelKey.self] }
-        set { self[WorkspaceModelKey.self] = newValue }
-    }
-}
-
 struct WorkspaceHostView: View {
 
     /// The project lifecycle face (passed through to the library face; nil =
@@ -192,7 +178,6 @@ struct WorkspaceHostView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             ToastBarMount()
         }
-        .focusedSceneValue(\.lightamerWorkspaceModel, workspace)
         // F0P-01 T3 (B20): the AppKit side has no focused-value read face —
         // the publish site notes the same workspace into the bridge box on
         // appear (READS only; every write still routes through the shell
