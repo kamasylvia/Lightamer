@@ -112,8 +112,8 @@ final class NSMenuBridgeController: NSObject, NSMenuDelegate, NSMenuItemValidati
         let presetManager: () -> Void
         let mcpLauncher: () -> Void
         // F0P-01 T3: the Settings… (⌘,) production seam — the real window
-        // controller's showWindow (D-F0P-1; the spike's private
-        // `showSettingsWindow:` selector never ships).
+        // controller's showWindow (D-F0P-1; the spike's private settings
+        // selector never ships).
         let settings: () -> Void
         let filmPanel: () -> Void
         let showSidebar: () -> Void
@@ -256,7 +256,7 @@ final class NSMenuBridgeController: NSObject, NSMenuDelegate, NSMenuItemValidati
         }
         separator(m)
         // D-F0P-1: the REAL settings window controller (the spike's private
-        // `showSettingsWindow:` selector never ships — no API promise).
+        // settings selector never ships — no API promise).
         item(m, title: "Settings…", key: ",") { [weak self] in
             self?.deps?.settings()
         }
