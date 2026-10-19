@@ -117,17 +117,20 @@ Golden-reference regeneration against a local darktable build:
 
 ## Known issues
 
-- **Editor may spin at high CPU after reopening a project (macOS 27).**
-  On macOS 27.0 a SwiftUI menu/focus update loop (an OS framework issue —
-  your library and edits are unaffected) can leave the editor window
-  churning at high CPU and partly unresponsive after you reopen a recent
-  project. **Workaround:** minimize the Lightamer window, cover it
-  completely with another window, or press ⌘H to hide the app — the loop
-  stops and CPU drops to idle immediately. Bringing the window back to
-  the front resumes editing within about a second — no click needed.
-  A framework-level fix rests with Apple (a Feedback report is prepared
-  for submission); app-side view-tree surgery was evaluated and ruled
-  out — independent reproductions show the loop survives tree reduction.
+- **Window-level toolbar attachment differs from standard macOS apps.**
+  The editor toolbar renders inside the content face rather than
+  attaching to the window title bar in the unified style. Every toolbar
+  control works; this is purely a chrome difference introduced by the
+  manual NSApplication lifecycle (the churn-elimination shell handover).
+  A native NSToolbar re-creation is a candidate follow-up.
+
+- **The former "high CPU after reopening a project" issue no longer
+  reproduces in this app.** The upstream SwiftUI scene-lifecycle churn
+  (macOS 27) that used to pin the editor at ~96% idle CPU was eliminated
+  here by hosting the app under a manual NSApplication lifecycle; the
+  editor now idles at 0.0% CPU. The upstream framework defect itself is
+  unchanged — a Feedback report remains prepared for submission — and
+  other SwiftUI-lifecycle apps may still exhibit it.
 
 ## Development artifacts
 
