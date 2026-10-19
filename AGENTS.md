@@ -12,6 +12,10 @@ Phase **execute** 阶段的执行分工固定为两级：
 - omp 的提交即执行产出；subagent 验收发现的问题修复提交以 `fix(...)` 标注并可引用 omp 产物。
 - 人工只处理 GOAL-STATE「阻塞（需人工）」章节登记的事项。
 
+## 全阶段 omp 复审（2026-10-19 用户指令，强制）
+
+每个 GSD 阶段产物定稿后，由 omp 做一轮**独立复审**（config.toml [gsd] `stage_review_by_omp = true`）：research 定稿后（assumptions/覆盖面/证据抽查）→ plan 定稿后（可执行性/坐标/红线；即 `plan_review_by_omp` 的全阶段化）→ execute 闭环后（omp 二次验收 = `dual_acceptance` 原制度，zcode PASS 后**严格串行**）→ validate/VALIDATION 后（复核）。复审 = 纯文本读评（omp -p --thinking max，key = Infisical `OPENCODE_GO_KEY` + 代理 env 10809，nohup+disown）；结论落 `<产物名>-REVIEW-OMP.md` / `-ACCEPTANCE-OMP.md`，blocking 级回注该阶段修复轮。文本复审可并行；**「严禁并发」硬约束仅限 computer-use 验收形态**。omp 用后 `px --stop`。
+
 ## 资源监控（2026-09-29 用户指令，强制）
 
 开发过程中**持续监控 Lightamer 相关进程**（GUI app 与 test-direct.sh 直启测试宿主在活动监视器里同名，都叫 Lightamer——按命令行/父进程区分，处置线不同，见下）：
