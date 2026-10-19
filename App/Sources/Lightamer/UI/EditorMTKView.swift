@@ -73,6 +73,17 @@ internal struct EditorMTKView: NSViewRepresentable {
     /// surface, see `applyEDRDisplaySurface`).
     var drtTail: DrtSurfaceSpec?
 
+    /// F0P-01 T2 (the untracked-read gap 1): the zoom/pan/rotation
+    /// signature VALUE rides a constructor parameter now. `updateNSView`
+    /// runs OUTSIDE observation tracking, so the push-once comparison can
+    /// only see inputs the parent body evaluated — `EditorAreaView` builds
+    /// this signature in its body (the tracked read of
+    /// `viewportState.zoom/pan/rotationDegrees` is explicit there). Same
+    /// shape as the `sourceTexture` push-once below; gesture paths stay
+    /// untouched (the coordinator still mirrors the signature itself and
+    /// arms redraws directly through its view reference).
+    let viewportSignature: Coordinator.ZoomSignature
+
     func makeNSView(context: Context) -> MTKView {
         // 13-3 T2 (D-13-CONTEXT-6①): the AppKit GESTURE face — the
         // trackpad's native event stream is NSView's magnify/rotate/
@@ -126,14 +137,14 @@ internal struct EditorMTKView: NSViewRepresentable {
         }
         // 13-3 T1: the zoom/pan/rotation state push (same push-once shape
         // as the texture — a changed signature arms exactly one redraw).
+        // F0P-01 T2: the signature VALUE is the constructor parameter (the
+        // body-evaluated input above) — updateNSView itself never reads
+        // `viewportState` fields (untracked context; the churn machine used
+        // to mask this gap by re-running updateNSView on every re-eval).
         // The view's live geometry also feeds the state's remembered
         // sizes (the App-scene menu seam).
-        let signature = Coordinator.ZoomSignature(
-            zoom: viewportState.zoom,
-            pan: viewportState.pan,
-            rotationDegrees: viewportState.rotationDegrees)
-        if context.coordinator.zoomSignature != signature {
-            context.coordinator.zoomSignature = signature
+        if context.coordinator.zoomSignature != viewportSignature {
+            context.coordinator.zoomSignature = viewportSignature
             needsDisplay = true
         }
         // 08-4 T1: the EDR surface flip — property writes ONLY on change

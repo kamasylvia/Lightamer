@@ -76,6 +76,16 @@ internal struct EditorAreaView: View {
                         })
                             .transition(.opacity)
                     } else if let metalContext {
+                        // F0P-01 T2 (the untracked-read gap 1): the
+                        // zoom/pan/rotation signature is computed HERE, in
+                        // body — the tracked read of the three ViewportState
+                        // fields is explicit (this body re-evaluates on any
+                        // of them changing, and the new value reaches
+                        // EditorMTKView.updateNSView as a constructor input).
+                        // updateNSView itself is an untracked context;
+                        // without this body-level read the menu-driven zoom
+                        // changes never re-armed the viewport once the churn
+                        // machine went quiet (F0PRIME §4.3).
                         EditorMTKView(
                             device: metalContext.device,
                             commandQueue: metalContext.commandQueue,
@@ -84,7 +94,11 @@ internal struct EditorAreaView: View {
                             splitFraction: beforeAfterState.isCompareActive
                                 ? beforeAfterState.effectiveSplitFraction : nil,
                             edrActive: pipeCoordinator.edrDisplayEnabled,
-                            drtTail: pipeCoordinator.drtViewportSurface
+                            drtTail: pipeCoordinator.drtViewportSurface,
+                            viewportSignature: EditorMTKView.Coordinator.ZoomSignature(
+                                zoom: viewportState.zoom,
+                                pan: viewportState.pan,
+                                rotationDegrees: viewportState.rotationDegrees)
                         )
                         .transition(.opacity)
                         .accessibilityLabel(Text("editor_viewport"))
