@@ -248,6 +248,14 @@ internal struct ContentView: View {
         }
         .focusedSceneValue(\.lightamerColumnVisibility, $columnVisibility)
         .focusedSceneValue(\.exportPanelRequest, $exportPanelRequested)
+        // F0P-01 T3 (the untracked-read gap 2, B17): the bridge's
+        // export-enablement note is TWO-STATE — raise AND dismiss both reach
+        // the bridge (the spike's onAppear once-true shape never shipped:
+        // a sheet close left the menu item stuck). The M2 export PAGE leg
+        // is read directly by the bridge enabler (exportPageActive — B18).
+        .onChange(of: exportPanelRequested) { _, present in
+            NSMenuBridgeController.shared.noteExportPanelRequestPresent(present)
+        }
         .toolbar { toolbarContent }
         .alert(
             String(localized: "alert_decode_failed_title"),
