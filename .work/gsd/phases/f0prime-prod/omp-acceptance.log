@@ -1,0 +1,12 @@
+Working...
+终审结论：**PASS / 0 blocking + 0 major + 1 minor + 2 obs**。唯一写产物 = `.work/gsd/phases/f0prime-prod/F0P-01-ACCEPTANCE-OMP.md`（已落盘）；证据 = `.work/gui-acceptance/f0prime-p1/omp/`（7 截图 + 7 菜单 dump + cpu×2 + sample + stderr）；app 已退出，`pgrep Lightamer.app` 零残留。
+
+材料链：SUMMARY（P1 八 commit + D-6 门 0.0 三轮 + 走查 1-9/14）/ DECISIONS（D-F0P-01-1..7 + deviation ①-⑥）/ 一路 PASS（机检路线，0.0 独立复现 + revert 逐字节）/ 二路 FAIL（blocking-1 三窗空白代码级定位 + major-1 既有缺陷 + major-2 归属未决）/ fix `c4d107bf`（三窗无条件挂载，diff 逐行亲读：恰 1 文件，root view/env 链零改）/ HEAD `dd1bd494` 亲核。
+
+实机（终 HEAD 自建二进制 `/tmp/f0p1-omp-dd`，BUILD SUCCEEDED，strings 壳符号在位；供件双 DNG 亲拷；60s settle + frontmost 先行；自出 pid 81895 独占 GUI）：
+a) 静置 CPU：第一窗 1.6→1.2（中位 1.4），第二窗 0.9→0.7（中位 0.8）；churn 符号族 7 符号全 0；主线程 4394/4394 泊 `LightamerShellMain.run → NSApplication.run → mach_msg2_trap`；后台线程全泊。D-6 绝对门 <10% = PASS（余量 9.2pp）。非 0.0 = `ps %cpu` 衰减平均残留（两窗严格单调衰减），主证据链无 churn = minor-1 留痕。
+b) 三窗：Settings（10 侧栏 + 语言与主题详情）/ 预设管理器（Tone/Sunny + Web150 + 坏预设脚注）/ MCP 启动器（工具栏 + 空闲 + 暂无输出占位）——AX 真点击逐个开，三窗内容真实渲染零空白，blocking-1 修复复验闭合。
+c) 菜单七族：menubar 九项 + 七族全量 dump 存档；10 项点验全活（Settings/返回图库/进入编辑器/导出恒 enabled/复制→粘贴翻转/撤销→重做环/双窗项），标记族 16 项全 enabled，⌘W 双面语义对齐。
+d) 主链往返：⌘W 出编辑器（图库 2 缩略图 + EXIF 概览）→ ⌘E 回编辑器（返回面 vs 静置面 0.36% 像素差 = 时钟级）；导出页 ⇧⌘E 全装配再证。
+obs：①探针态中央欢迎 modal 常驻（P2 配方补点击一步）②画布 false-color 与 B-r1 同构（探针显示态非回归）。
+双路遗留 major-1/major-2 按 deviation-6 路由追认生效，不属 P1 边界。
