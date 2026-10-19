@@ -5,14 +5,14 @@ title: "plan P2 — 测试族 + 全套回归 + 16 面走查（T1 NSMenuParityTes
 wave: 2
 depends_on: ["F0P-01"]
 autonomous: true
-requirements: ["依赖 P1 闭环（壳交接翻转在位 + 审计修复四缺口已修 + probe-stay 基建在库）——C 档停确认后起跑", "调研正本 = phases/f0prime-prod/RESEARCH.md（§5 测试兼容面〔ΔN 预估 +15..+25 / 0 harness 重写 / 直启宿主等价性〕/ §6 回归走查〔D-6 门 + 16 面清单 + 三臂留档〕/ §7 切分 P2 行〔勘误②：manifest 重指归 P3，本 plan 纯增测试文件〕）", "OQ 裁决正本 = phases/f0prime-prod/CONTEXT.md（D-F0P-1..10；转写勘误①基线 3969/37/0 + ②manifest 重指时序 + ③paste 族 enabler 二元形——review M3）", "测试基线权威数 3969/37/0（勘误 RESEARCH 3905）；本 plan 分账 +15..23；全批带 +15..+25 → 终值带 3984..3994", "全套 --all = orchestrator 批准制 + 运行监视 + 8G 门 + MEMFAIL 机检；正式轮 + 两轮同值复证（M7-3 三方同值先例）", "C 档停位 = 本 plan 执行+验收闭环后停汇报；确认后 P3 起跑"]
-success_criteria: "SC 全可机检——T1：NSMenuParityTests ~10 法（菜单树镜像 × MenuCommandSet.visibleCommandIDs 双臂 gate 族可见性 / enabler 谓词 × 状态对象真值 / shortcut × DefaultKeymap / 标题非裸键——String(localized:) 解析 ≠ 键字面量）；T2：ShellGraphMigrationTests ~4 法（菜单闭包写 graph → face body 可见〔columnVisibility 桥，含同实例身份断言——review M2〕/ 值型字段树外写者 / per-session optional 重建点）；T3：MenuBridgeObservationTests ~4 法（适配器 18 读集逐字段触发〔review m1〕/ re-arm 幂等 / stale-enablement backstop BLOCKED 路径）；T4：窗控制器 smoke ~2 法（三控制器构造 + showWindow 不崩 + autosave/内容面 sanity）；T4 接线：Project.swift 显式清单恰四新测试文件 + BUNDLE-MAP 恰四行 + tuist generate 恒为该批最后一个动作（L041）；T5：直启宿主等价性 = 翻转前基线轮（T1 形二进制）+ 翻转后轮（T6 形二进制）各跑 --bundle Library，Executed/failed/skip 逐值相等；T6：全套 --all 三轮同值 `TOTAL|3969+ΔN/37/0|`（ΔN 带 +15..23 → 3984..3994——对账式；exit 0 零 MEMFAIL 七 bundle 8G 门内；skip 37 零漂移）；T7：16 面 GUI 走查 MANIFEST 全绿（RESEARCH §6.2 全清单）+ 三臂留档定版（A/B 二进制 + C 臂 dispatch trace 位）+ D-6 门定版（绝对 <10% 三轮 + 四哨兵）+ 门① 像素/AX 复证（zh/en 双语菜单栏）+ SUMMARY/DECISIONS 落盘"
+requirements: ["依赖 P1 闭环（壳交接翻转在位 + 审计修复四缺口已修 + probe-stay 基建在库）——C 档停确认后起跑", "调研正本 = phases/f0prime-prod/RESEARCH.md（§5 测试兼容面〔ΔN 预估 +15..+25 / 0 harness 重写 / 直启宿主等价性〕/ §6 回归走查〔D-6 门 + 16 面清单 + 三臂留档〕/ §7 切分 P2 行〔勘误②：manifest 重指归 P3，本 plan 纯增测试文件〕）", "OQ 裁决正本 = phases/f0prime-prod/CONTEXT.md（D-F0P-1..10；转写勘误①基线 3969/37/0 + ②manifest 重指时序 + ③paste 族 enabler 二元形——review M3；omp 复审转写批勘误④..⑦——OMP-PLAN-REVIEW 3 major/10 minor + RESEARCH-REVIEW M2-M4 落位）", "测试基线权威数 3969/37/0（勘误 RESEARCH 3905）；本 plan 分账 +15..23；全批带 +15..+25 → 终值带 3984..3994", "全套 --all = orchestrator 批准制 + 运行监视 + 8G 门 + MEMFAIL 机检；正式轮 + 两轮同值复证（M7-3 三方同值先例）", "C 档停位 = 本 plan 执行+验收闭环后停汇报；确认后 P3 起跑"]
+success_criteria: "SC 全可机检——T1：NSMenuParityTests ~10 法（菜单树镜像 × MenuCommandSet.visibleCommandIDs 双臂 gate 族可见性 / enabler 谓词 × 状态对象真值 / shortcut × DefaultKeymap / 标题非裸键——String(localized:) 解析 ≠ 键字面量 / AX 键 + softproof Toggle 态断言腿〔research-omp M4〕；树遍历缝 = install(deps:) 装配 + NSApp.mainMenu 遍历 + validateMenuItem 探针〔omp M3〕）；T2：ShellGraphMigrationTests ~4 法（菜单闭包写 graph → face body 可见〔columnVisibility 桥，含同实例身份断言——review M2〕/ 值型字段树外写者 / per-session optional 重建点）；T3：MenuBridgeObservationTests ~4 法（适配器 **17 读集**逐字段触发〔落地终形——D-F0P-01-2 T7 实测修正恒 enabled、export presence 双读退役，D-F0P-01-5 终值条款；omp m-omp-2〕/ re-arm 改形〔omp M3——二选一落 DECISIONS〕 / stale-enablement backstop BLOCKED 路径）；T4：窗控制器 smoke ~2 法（三控制器构造 + showWindow 不崩 + autosave/内容面 sanity）；T4 接线：Project.swift 显式清单恰四新测试文件 + BUNDLE-MAP 恰四行 + tuist generate 恒为该批最后一个动作（L041）；T5：直启宿主等价性 = 翻转前基线轮（T1 形二进制）+ 翻转后轮（T6 形二进制）各跑 --bundle Library（供件拷入 worktree——m-omp-6），Executed/failed/skip 逐值相等；T6：全套 --all 三轮同值 `TOTAL|3969+ΔN/37/0|`（ΔN 带 +15..23 → 3984..3994——对账式；exit 0 零 MEMFAIL 七 bundle 8G 门内；skip 37 零漂移 + **per-bundle executed/skip 向量逐值钉**〔m-omp-8〕）；T7：16 面 GUI 走查 MANIFEST 全绿（RESEARCH §6.2 全清单）+ 三臂留档定版（A/B 二进制 + C 臂 dispatch trace 位）+ D-6 门定版（绝对 <10% 三轮 + 四哨兵）+ 门① 像素/AX 复证（zh/en 双语菜单栏）+ SUMMARY/DECISIONS 落盘"
 estimated_tests: "+15..23（NSMenuParity 8..12 + ShellGraphMigration 3..4 + MenuBridgeObservation 3..4 + 窗 smoke 1..3；执行时逐任务如实记账，越带申报理由）"
 test_bundles: [APP]
 baseline: "3969/37/0（audit-repair 收口 9898a0fb 终态 + P1 ΔN +0..2 兑现后重算——勘误 RESEARCH 3905；P1 闭环态 = 本 plan 起算基线）"
 expected_all: "3969 + P1ΔN + ΔN（对账式；P2 分账 +15..23 → 全批终值带 3984..3994；skip 37 口径维持——第三种 skip 来源逐族差分申报禁静默吸收；--all 批准制 + 运行监视 + 8G 门 + MEMFAIL 机检）"
 red_lines:
-  - "共用红线正本 = CONTEXT §三 plan 红线 front-matter 15 条（FIX2③ McpServerController.swift 零 diff / 封存面零 diff / 无 QA 回切 / 翻转 commit 独立可 revert〔P1 产物，本 plan 零触〕/ xcstrings 零 diff 预期 / LocalizationValue 禁形 / disable-not-unmount / 基线 3969/37/0 / AppDelegate.swift 字节零改 / DEBUG fork 序零触 / L057 缝 .runModal( 零命中复跑 / UserDefaults 应用级零新键 / --all 批准制 + parentage / C 档门控 / LightamerShell* 改名已兑现态维持）。"
+  - "共用红线正本 = CONTEXT §三 plan 红线 front-matter 15 条（FIX2③ McpServerController.swift 零 diff / 封存面零 diff / 无 QA 回切 / 翻转 commit 独立可 revert〔P1 产物，本 plan 零触〕/ xcstrings 零 diff 预期 / LocalizationValue 禁形 / disable-not-unmount / 基线 3969/37/0 / AppDelegate 类字节零改（`LightamerApp.swift:168-216` 域 @ `9a0b9530`——仓内无 AppDelegate.swift 文件，勘误④ m-omp-10）/ DEBUG fork 序零触 / L057 缝 .runModal( 零命中复跑 / UserDefaults 应用级零新键 / --all 批准制 + parentage / C 档门控 / LightamerShell* 改名已兑现态维持）。"
   - "本 plan 产线零 diff（勘误②）：manifest face ⑤ 行重指 + batchPasteBlocked static 转移 = P3 退役范围——本 plan 纯增测试文件 + Project.swift/BUNDLE-MAP 接线，产线文件零触碰（P1 冻结态）。"
   - "测试文件域归置（M2-4-0 E2）：新测试文件按 BUNDLE-MAP 域模式归入唯一 target（壳/菜单域 = App bundle），同批更新 Project.swift 对应数组（显式清单无 glob）+ tuist generate 恒为该批最后一个动作（L041）。"
   - "--all 纪律：orchestrator 批准 + caffeinate -dis 包裹 + 运行中保持监视 + 8G 门 + MEMFAIL 机检（超门立即 kill）+ 测试宿主清理先核 parentage（ps -o ppid——测试宿主 parent = 脚本进程树，GUI 实例 parent = launchd，M2-7-3 先例）；贴线 bundle（IOP 7654 / IOPParity 5788）MEMFAIL 先查重测顺序漂移（±3% 方差）。"
@@ -20,11 +20,11 @@ red_lines:
 files_modified:
   - Tests/LightamerTests/NSMenuParityTests.swift             # T1：新建 ~10 法（树镜像/enabler/shortcut/标题）
   - Tests/LightamerTests/ShellGraphMigrationTests.swift      # T2：新建 ~4 法（graph 写读桥/值型迁移等价）
-  - Tests/LightamerTests/MenuBridgeObservationTests.swift    # T3：新建 ~4 法（18 读集触发——review m1 /re-arm/backstop）
+  - Tests/LightamerTests/MenuBridgeObservationTests.swift    # T3：新建 ~4 法（17 读集触发——落地终形 D-F0P-01-2/5〔omp m-omp-2〕/ re-arm 改形〔omp M3〕/backstop）
   - Tests/LightamerTests/ShellWindowControllerSmokeTests.swift # T4：新建 ~2 法（三控制器构造/showWindow）
   - Project.swift                                            # T4：显式清单恰四新测试文件行
   - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt # T4：恰四新行（App bundle 域）
-  - .work/gui-acceptance/f0prime-prod/MANIFEST.md            # T7：16 面走查全清单记录 + 门① 复证 + D-6 门定版数据
+  - .work/gui-acceptance/f0prime-p1/MANIFEST.md              # T7：16 面走查全清单记录 + 门① 复证 + D-6 门定版数据（整批单卷续写——P1 落地路径为准，m-omp-7）
   - .work/gsd/phases/f0prime-prod/F0P-02-SUMMARY.md          # T7：执行摘要（ΔN 终账 + 三轮同值数据 + 验收判定指针）
   - .work/gsd/phases/f0prime-prod/F0P-02-DECISIONS.md        # T7：裁定记录（测试 seam 终形 + 等价性数据 + 各偏差）
 ---
@@ -57,7 +57,7 @@ files_modified:
 |---|---|---|---|
 | T1 NSMenuParity | **+8..12** | 树镜像双臂 ~4 / enabler 谓词 ~3 / shortcut pin ~2 / 标题非裸键 ~1..3 | NSMenuParityTests |
 | T2 ShellGraphMigration | **+3..4** | columnVisibility 桥 ~2（含同实例身份断言——review M2）/ 值型树外写 ~1 / per-session optional ~1 | ShellGraphMigrationTests |
-| T3 MenuBridgeObservation | **+3..4** | 18 读集逐字段 ~2（review m1）/ re-arm 幂等 ~1 / stale backstop ~1 | MenuBridgeObservationTests |
+| T3 MenuBridgeObservation | **+3..4** | 17 读集逐字段 ~2（落地终形 omp m-omp-2）/ re-arm 改形 ~1（omp M3）/ stale backstop ~1 | MenuBridgeObservationTests |
 | T4 窗 smoke + 接线 | **+1..3** | 三控制器构造/showWindow ~1..3 + Project.swift/BUNDLE-MAP 接线 | ShellWindowControllerSmokeTests |
 | **合计** | **+15..23** | P1(+0..2) + P2(+15..23) = 全批 +15..25 → 3984..3994 | App bundle 域 |
 
@@ -87,23 +87,45 @@ files_modified:
 ## T1 — NSMenuParityTests（~10 法：树镜像 / enabler / shortcut / 标题）
 
 > 测试对象 = bridge 树构建 + enablement 求值的纯 seam（Deps 闭包注入测
-> 试替身）——不要求运行中的 NSApp 菜单栏；树构建函数须 internal 可达
-> （P1 落位形亲核，不可达 = 停手上报，禁产线改形扩 seam——那是 P1 冻结
-> 面）。
+> 试替身）——不要求运行中的 NSApp 菜单栏。**树遍历缝处方（omp M3——
+> build*Menu（:252 起全 private）/ rootMenu（:165）/ itemActions/itemEnablers
+> （:176-178 private）不可直驱，须从 internal 缝走）**：fresh
+> `NSMenuBridgeController()`（internal init 经 `@testable` 可达）+ stub
+> Deps（**8 状态对象真值 + ~40 闭包全空函数**——Deps :71-150 构造负担）
+> → `install(deps:)`（NSMenuBridge.swift:183 internal）装配（写全局
+> `NSApp.mainMenu`）→ **`NSApp.mainMenu` 遍历对账**（树镜像）+
+> **`validateMenuItem`（:705）逐项 enabler 探针**（谓词两腿）+ `register`
+> （:155-162）enabler/state 注册面（动作捕获 = itemActions ObjectIdentifier
+> 表，经 handleMenu 路径抽测）。**测试隔离显式 save/restore 形态（omp
+> M3——install 写全局 NSApp.mainMenu + armObservation 读 Self.shared 单
+> 例盒，跨法污染面）**：每法前后 save/restore `NSApp.mainMenu` + 复位
+> `NSMenuBridgeController.shared` workspace/note 盒；隔离形态落
+> DECISIONS。不可达 = 停手上报，禁产线改形扩 seam（那是 P1 冻结面）。
 
 - **action**：
   1. **树镜像**（~4 法）：gate 双臂 × `MenuCommandSet.visibleCommandIDs
-     (gate:phase:)`——bridge 构建树（测试 Deps 替身）的项集与纯函数双
+     (gate:phase:)`——bridge 构建树（树遍历缝——omp M3 处方，见节首）
+     的项集与纯函数双
      臂逐一镜像（多一项/少一项/错序 = fail）；系统族锚（Cut/Copy/Paste/
-     Select All + 窗菜单三件）在场断言。
+     Select All + 窗菜单三件）在场断言；**AX 标识断言腿**（bridge 已迁
+     AX identifier 族与产线 `menu.*` 拼写同值——D-F0P-01-3 迁移集
+     enterEditor/backToLibrary/search/copyAdjustments/stacks.expandAll/
+     collapseAll/aiUpscale/aiDenoise，随镜像法断言不增法数）+
+     **softproof Toggle state 断言腿**（laState 注册值 × softProofState
+     两腿，research-omp M4）。
   2. **enabler 谓词**（~3 法）：每注册 enabler 闭包喂状态对象真值/假值
-     两腿——undo/redo（canUndo/canRedo × isReadOnly × holdsControl 合
+     两腿（validateMenuItem 探针——omp M3 缝）——undo/redo（canUndo/
+     canRedo × isReadOnly × holdsControl 合
      取）/ paste 族（**hasPayload × isReadOnly——无 holdsControl**，
-     review M3 勘正为产线二元形，正本 `LightamerApp.swift:2001/:2007`
-     `.disabled(!pasteboard.hasPayload || libraryProjects.isReadOnly)`；
+     review M3 勘正为产线二元形，正本 `LightamerApp.swift:2003/:2008`
+     `.disabled(!pasteboard.hasPayload || libraryProjects.isReadOnly)`
+     〔行号勘正 m-omp-3〕；research-omp M2 的「补 holdsControl 合取」
+     处方**不采纳**——CONTEXT 勘误⑦裁定：语义零改为准，行为变更须
+     用户裁决面，本测试钉二元形即 AC 承接形态；
      holdsControl 合取族 = undo/redo/New/Open/Open Recent——CONTEXT
      §转写勘误③）/ New/Open
-     Project（holdsControl）/ export（exportPageActive 信号源）/ 标记
+     Project（holdsControl）/ export（恒 enabled 落地终形——D-F0P-01-2
+     T7 实测修正，omp m-omp-2 同源）/ 标记
      族（metadataTextEntryActive 全族禁用——实数 **16 项** + separator，
      review m2：rating clear+1-5=6 / flag ×3 / color clear+0-5=7，树
      镜像以实数为准）/ AI 族（phase ×
@@ -112,8 +134,10 @@ files_modified:
      对账（SettingsPagesTests :107-125 数据级 pin 同形——keyEquivalent/
      modifier mask 双面）；⌘W/⌘E/⇧⌘E/⌥⌘S/⌥⌘I/bare Z/F/⌘0-6 抽点。
   4. **标题非裸键**（~1..3 法）：每菜单项 title 经 `String(localized:)`
-     解析 ≠ 键字面量本身（裸键观感 = F-2 陷阱回归面；zh bundle 环境
-     断言）。
+     解析 ≠ 键字面量本身（裸键观感 = F-2 陷阱回归面；**en 默认 locale
+     下断言——zh bundle 环境切换无 harness 先例**（全仓测试零
+     `AppleLanguages` precedent，m-omp-9），zh parity 已由 spike 门①
+     像素证 + xcstrings 零 diff 界定；另抽查 strings 表键在场兜底）。
 - **验收标准（机检）**：
   - `--bundle App --filter NSMenuParity` 全绿；法数在 +8..12 带内。
   - `Project.swift` 恰 +1 测试文件行；测试文件零产线 import 依赖
@@ -145,17 +169,27 @@ files_modified:
 - **commit**: `test(f0p2): add shell graph migration suite (observable box write-read bridge)`
 - **回滚与偏差申报要求**：回滚 = revert 单 commit；偏差 = DECISIONS 申报。
 
-## T3 — MenuBridgeObservationTests（~4 法：18 读集触发〔review m1〕/ re-arm / backstop）
+## T3 — MenuBridgeObservationTests（~4 法：17 读集触发〔落地终形 omp m-omp-2〕/ re-arm 改形〔omp M3〕/ backstop）
 
 - **action**：
-  1. **逐字段触发**（~2 法）：观察适配器 **18 读集**（review m1 实数
-     ——以最终适配器源为基数，与 m6 Deps/读集定形联动）逐字段变异 →
-     onChange
-     重武装触发（sample 字段子集驱动全流程：mutation → tracked read 失
-     效 → enabler 刷新路径被调）；holdsControl 字段专项（disable-not-
-     unmount 的 NSMenu 侧等价实现钉）。
-  2. **re-arm 幂等**（~1 法）：同一字段连续多次变异 → 适配器不重复堆积
-     观察闭包（re-arm 计数守恒）。
+  1. **逐字段触发**（~2 法）：观察适配器 **17 读集**（落地终形 = 11
+     deps 读 + 5 workspace 读 + metadata note 盒 1——`NSMenuBridge.swift
+     :669-689` 亲核；D-F0P-01-2 T7 实测修正恒 enabled、export presence
+     双读退役，**终值以 D-F0P-01-5 为准**〔omp m-omp-2：plan 文本 18
+     stale 勘正——复审记 19 系修正前双轨规格，落地终形 17〕；仍以最终
+     适配器源为基数兜底，与 m6 Deps/读集定形联动）逐字段变异 →
+     onChange 重武装触发（sample 字段子集驱动全流程：mutation → tracked
+     read 失效 → enabler 刷新路径被调）；holdsControl 字段专项（disable-
+     not-unmount 的 NSMenu 侧等价实现钉）。
+  2. **re-arm 幂等**（~1 法，**改形——omp M3**）：原「re-arm 计数守
+     恒」字面**无可观察量**（armObservation private（:669）且仓内无 arm
+     计数器——唯一计数器 mainMenuStomps 与观察无关；P2 红线禁产线加
+     缝）→ 改形二选一落 DECISIONS：(a) 该子测降级 obs 登记让渡（
+     **plan 指引推荐**——armObservation private 红线禁产线加缝；幂等性
+     由「同字段连续变异 → onChange 恰一次调度可观察后果」间接覆盖），
+     或 (b) 以 `NSApp.mainMenu` 稳定性代理断言替代（连续变异前后
+     mainMenu 项集恒等 + validateMenuItem 全项不抛）。终形落 DECISIONS
+     申报。
   3. **stale backstop**（~1 法）：enablement 刷新与 dispatch 竞态 →
      handleMenu BLOCKED 路径（stale-enablement backstop :3047-3054 形）
      拦截断言。
@@ -194,10 +228,13 @@ files_modified:
   1. 翻转前基线轮：P1 T1 commit 形构建（**构建配方 = `git worktree add`
      checkout P1 T1 commit 形 + 独立 DerivedData**——review m9：现 HEAD
      已是 T6 形不可充基线；独立 DerivedData 为 spike A/B 先例，禁与主
-     worktree 共享构建目录）→ `caffeinate -dis
+     worktree 共享构建目录；**供件拷入 worktree = `input/` +
+     `Resources/AIModels`**——AR-02-03-ACCEPTANCE.md:52-53 audit 先例，
+     缺供件 = 假性不等价/探针 fixture 缺席，m-omp-6）→ `caffeinate -dis
      Scripts/test-direct.sh --bundle Library` → Executed/failed/skip 留
      档。
-  2. 翻转后轮：P1 T6 commit 形构建（现 HEAD）→ 同配方 → 逐值对账。
+  2. 翻转后轮：P1 T6 commit 形构建（现 HEAD）→ 同配方（含供件步）→
+     逐值对账。
   3. 不等价（Executed/failed/skip 任一漂移）= 停手上报（壳交接对测试宿
      主的未知影响面——归因禁放行）；等价 = 留档放行 T6。
 - **验收标准（机检）**：两轮日志留档 `phases/f0prime-prod/host-equivalence/`
@@ -220,11 +257,15 @@ files_modified:
      即 kill）；测试宿主清理先核 parentage。
   2. **两轮同值复证**：正式轮绿后复跑两轮，三轮 `TOTAL|…/37/0|` 同值
      （M7-3 三方同值先例）；skip 37 零漂移——第三种 skip 来源逐族差分
-     申报禁静默吸收。
+     申报禁静默吸收；**per-bundle executed/skip 向量逐值钉**（IOP 687/5
+     · Parity 460/3 · Layers 494/5 · Library 738/4 · Sessions 284/9 ·
+     Export 385/5 · App 921+P2ΔN/6——AR-02-03-ACCEPTANCE.md:50 基线向量；
+     跨 bundle skip 迁移可掩盖 TOTAL 同值，m-omp-8）。
   3. 对账：`TOTAL|3969+P1ΔN+P2ΔN/37/0|` 落带（3984..3994 窗口内 = PASS；
      越带 = 逐任务 ΔN 复核 + 越带申报）。
 - **验收标准（机检）**：三轮日志留档（`phases/f0prime-prod/all-runs/`）；
-  三轮同值 + exit 0 零 MEMFAIL + 七 bundle 峰值 8G 门内记录落 DECISIONS。
+  三轮同值 + exit 0 零 MEMFAIL + 七 bundle 峰值 8G 门内 + **per-bundle
+  executed/skip 向量三轮逐值相等**（m-omp-8 向量钉）记录落 DECISIONS。
 - **commit**: `test(f0p2): run full suite three-round same-value (3969+dn baseline)`
 - **回滚与偏差申报要求**：MEMFAIL = 立即 kill + 上报；任何 fail = 先归因
   （本批 Δfiles 窗内?）——窗外 fail = 既有缺陷停手上报；贴线 bundle
@@ -249,8 +290,9 @@ files_modified:
      8 undo/redo + copy/paste + versions 9 DRT + HDR 四态 + soft proof
      10 三窗（⌘, 挂点 = 缺口3 修复验证）+ toolbar preset-manager 腿
      （`toolbar.preset_manager` 点击 → 窗出现——review M1 机检：翻转后
-     该按钮可用，:551 openWindow 缝接线验证）11 MCP stdio 27 工具冒烟 +
-     agent control 持锁期菜单禁用面（§2.3）12 导出队列（JPEG+HEIC+WebP
+     该按钮可用，:551 openWindow 缝接线验证）11 MCP stdio **32 工具**
+     （union 全数——m-omp-1 勘正，源 RESEARCH §6.2-11「27」stale；勘误
+     ⑥）冒烟 + agent control 持锁期菜单禁用面（§2.3）12 导出队列（JPEG+HEIC+WebP
      实跑）13 yiyin sheet + 拖拽 14 退出链 15 多显示器/全屏/⌘M/Dock
      reopen 16 zh/en 双语菜单栏像素对照。
   2. **门① 像素/AX 复证**：菜单栏 8 顶项 + zh 栏 parity 配方复用
@@ -297,5 +339,11 @@ files_modified:
    D-F0P-1（T4 Settings env 三件注入断言）/ disable-not-unmount（T3
    holdsControl 专项 + SwiftUI .disabled 面零触面核）。
 4. **纪律核**：L041（tuist generate 时间序）/ 显式清单无 glob / parentage
-   一行 / skip 37 零漂移 + 第三种 skip 申报 / MEMFAIL 处置链。
-5. **SC 可机检性**：每条 SC 有命令级判据；ΔN 对账式（3984..3994 窗口）。
+   一行 / skip 37 零漂移 + 第三种 skip 申报 + per-bundle 向量逐值钉
+   （m-omp-8）/ MEMFAIL 处置链。
+5. **omp 复审批兑现核**：树遍历缝 = install/NSApp.mainMenu/validateMenuItem
+   路径 + 每法 save/restore 隔离形态（omp M3，落 DECISIONS）；T3-2 改形
+   终形落 DECISIONS（推荐 (a)）；T1 AX/Toggle 断言腿在场（research-omp
+   M4）；读集 17 与适配器源一致（m-omp-2）；供件步在 T5 配方（m-omp-6）；
+   MANIFEST 卷 = f0prime-p1 续写（m-omp-7）。
+6. **SC 可机检性**：每条 SC 有命令级判据；ΔN 对账式（3984..3994 窗口）。
