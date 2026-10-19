@@ -64,6 +64,22 @@ menu.preset_manager / menu.mcp_launcher / menu.show_film_panel 三 identifier
 未随迁（plan 授权清单外）——如 T7 走查面需要 AX 断言再补，缺项在此申报不
 静默。
 
+## D-F0P-01-4 Toolbar 差异登记（T5，D-F0P-2 接受+登记）
+
+- **差异**：窗级 `.windowToolbarStyle(.unified)`（原 HEAD
+  `LightamerApp.swift:1798`）是 Scene 生命周期属性，壳交接后缺席——toolbar
+  内容在 hosting 面内照常渲染（三 toolbar 组功能态 tracked 读全活，
+  F0PRIME §1.3 截图在案），但窗 title 区无 unified 附着形态。
+- **裁定**：接受 + 登记，不重造 NSToolbar（OQ-F0P-2 全按推荐，CONTEXT
+  D-F0P-2）；churn 收益与 toolbar 形态无关；NSToolbar delegate 重造 =
+  后置立项候选。README Known Issues 补行 = P3 T4 范围。
+- **登记落点申报 (deviation)**：走查卷 `.work/gui-acceptance/f0prime-p1/
+  MANIFEST.md` 已建（T5 配方 + 本差异行）；该目录整域 `.gitignore`（仓库
+  政策 line 79，历来 gui-acceptance 证据卷全部 local-only 不入库）——plan
+  files_modified 把 MANIFEST 列为 commit 文件与仓库 ignore 政策冲突，故本
+  DECISIONS 文件承载 tracked 侧登记正本，MANIFEST 为 local 证据卷（路径随
+  orchestrator 收尾指令用 f0prime-p1/，plan 原文 f0prime-prod/，两者并注）。
+
 ## 偏差申报（行内 (deviation) 标记累计）
 
 - （暂无——T1/T2/T3 零偏差：T1 hunk byte-identity；T2 参数命名
