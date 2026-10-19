@@ -8,7 +8,9 @@
 > §1 壳交接生产形 / §2 菜单全族清单 / §3 未追踪读审计 / §4 @State 迁移 /
 > §5 测试兼容面 / §6 回归走查 / §7 切分 / §8 OQ / §9 锚点；file:line 经
 > planner 2026-10-18 HEAD `9a0b9530` 抽核 ~20 点亲核吻合——**转写勘误
-> 三条**随本文 §转写勘误节登记（③ = review M3 增补），执行以勘误为准）。
+> 七条**随本文 §转写勘误节登记（③ = review M3 增补；④..⑦ = omp 复审
+> 转写批 2026-10-19——OMP-PLAN-REVIEW + RESEARCH-REVIEW 落位），执行
+> 以勘误为准）。
 >
 > **特别登记一（D-F0P-5 无 QA 回切通道）**：本批**不设** env 回切门
 > （`LIGHTAMER_SHELL=legacy` 形不采纳，LibraryLegacyGate 先例不适用此域）——
@@ -205,7 +207,7 @@ P2 分账 +15..23 / P3 分账 +0）。
    Recent、undo/redo、**paste 族** 7 项受 holdsControl 合取(spike 已形)」
    把 paste 族误计入 holdsControl 合取族——产线 paste 族 enabler =
    **hasPayload × isReadOnly 二元，无 holdsControl**（正本
-   `LightamerApp.swift:2001/:2007`
+   `LightamerApp.swift:2003/:2008`〔勘误⑤行号精化——m-omp-3〕
    `.disabled(!pasteboard.hasPayload || libraryProjects.isReadOnly)`；
    spike 桥 buildEditMenu 同形 `hasPayload && !isReadOnly`）；
    holdsControl 合取族实为 undo/redo / New/Open Project / Open Recent
@@ -230,6 +232,60 @@ P2 分账 +15..23 / P3 分账 +0）。
    六文件形（view 三 note 修饰符 hunks + entry 切换 + WindowCapture
    private→internal）/ patch 0003（trace）；四 stub 现形（patch 0002
    :2158-2176 + :2629 Settings selector）。
+
+5. **勘误④（AppDelegate 文件名勘误，m-omp-10，2026-10-19 omp 复审批）**：
+   仓内**无 `AppDelegate.swift` 文件**——AppDelegate 类定义在
+   `LightamerApp.swift:168-216` 域（@ `9a0b9530`；research 复审 m4 同
+   证：类声明 :175）。红线⑨ + 三 plan 转引读法 = 「AppDelegate 类（该
+   域）字节零改」，机检 = 该域 `git diff` 零 hunk；CONTEXT 红线⑨正本 +
+   F0P-02/F0P-03 转引已随批改写，**F0P-01 冻结未触**（P1 在飞——执行
+   面以本勘误为准，P1 DECISIONS 顺带追记即可）。
+6. **勘误⑤（勘误③行号精化，m-omp-3，同批）**：勘误③正文行号
+   `:2001/:2007` → **`:2003/:2008`**（9a0b9530 实测——omp 复审坐标抽查
+   #9 亲核；语义零差，勘误③正文已就地精化；F0P-02 T1 转引同批改）。
+7. **勘误⑥（omp plan 复审转写批登记，m-omp-1/2/4/6/7，2026-10-19）**：
+   - **m-omp-1 工具数**：MCP stdio 工具数 27 → **32**（union 全数，
+     M7-5 `all32`——`McpFinalSnapshotTests.swift:270` 亲核；源
+     RESEARCH §6.2-11 行 stale〔RESEARCH.md:386〕，RESEARCH 正文不返
+     工、执行以本数为准）；F0P-02 T7 面 11 已随批改 32。
+   - **m-omp-2 读集终数勘定**：观察适配器读集 18 stale——omp 复审记
+     「落地 19（双轨）」，**终值以落地代码 + D-F0P-01-2 T7 实测修正
+     为准 = 17 reads**（恒 enabled、export presence 双读退役；
+     `NSMenuBridge.swift:669-689` 亲核 = 11 deps 读 + 5 workspace 读 +
+     1 metadata note 盒；D-F0P-01-5 终值条款在案）；F0P-02 全文
+     18 → 17（T3 标题/action/ΔN 表/SC/files_modified 注记）。
+   - **m-omp-4 willTerminate 机检读法**：F0P-01 T6 SC「转发形恰一处」
+     grep 按字面命中 3（shell def + App def + App 注释）——机检读法 =
+     转发**调用点** `\.applicationWillTerminate\(` 在 `LightamerShell
+     .swift` 恰一处；F0P-01 冻结未触、P1 验收已过 T7——本勘误为读法
+     留痕（P1 DECISIONS 顺带追记即可）。
+   - **m-omp-6 worktree 供件步**：worktree 二进制配方须加「供件拷入
+     `input/` + `Resources/AIModels`」一步（AR-02-03-ACCEPTANCE.md
+     :52-53 audit 先例——缺供件 = 假性不等价/探针 fixture 缺席）；
+     F0P-01 :450-452 冻结未触留痕；F0P-02 T5 已随批补。
+   - **m-omp-7 MANIFEST 卷形态**：P1 落地 `.work/gui-acceptance/
+     f0prime-p1/MANIFEST.md`（整批单卷）——F0P-01 :33 冻结未触留痕；
+     F0P-02 files_modified/T7 引用随批改指 f0prime-p1 续写；单卷 vs
+     分卷裁定 = **整批单卷续写**（P2 DECISIONS 注记承接）。
+8. **勘误⑦（research-omp 复审路由项落位登记，2026-10-19）**：
+   - **M1（测试基线 3905→3969/37/0）**：已由勘误①承接——omp research
+     复审追认，零动作。
+   - **M2（paste 族补 holdsControl 合取）**：**处方不采纳**——与勘误③
+     语义零改裁定冲突（桥 paste 两臂 `NSMenuBridge.swift:413/:419`
+     `hasPayload && !isReadOnly` 二元形亲核无 holdsControl；research
+     复审自身亦证产线无合取）；paste 语义变更属 UI 行为变更，须走
+     用户裁决面（勘误③显式申报不变）；**P2 AC 承接形 = F0P-02 T1
+     enabler 二元形测试钉**（已在位）。
+   - **M3（P3 退役清单展开）**：P3 承接 = F0P-03 T1 action 1/2（4
+     static 全列 + `displayPlaneHash` 安全删除注记〔壳 :1980 自带副本〕
+     + `PanoFailureCopy`/`McpWriteFaceBox`/`LightamerEntryPoint` 文件
+     域原地保留去向表 + probe armed 旗标 :2451/:2488/:2725 对账）——
+     已随批入 plan。
+   - **M4（bridge AX/Close/Toggle）**：P1 腿已落（AX 迁移集 =
+     D-F0P-01-3 在案；Close 项 = **实测零改**——D-F0P-01-5.1 A 臂 AX
+     dump 证产线本无 Close Window 项、「不补 Close 项、不创新语义」
+     行使结论）；P2 腿承接 = F0P-02 T1 AX 键断言 + softproof Toggle
+     态断言腿——已随批入 plan。
 
 ## 三 plan 红线 front-matter（共用正本，三 plan 逐条引用）
 
@@ -266,8 +322,10 @@ P2 分账 +15..23 / P3 分账 +0）。
    行）重指 = P3 退役同 commit（勘误②）。
 8. **测试基线权威数 = `3969/37/0`**（勘误 RESEARCH 3905；skip 37 = 35 基
    线 + 探针族 2，零漂移口径；第三种 skip 来源逐族差分申报禁静默吸收）。
-9. **AppDelegate.swift（生产 AppDelegate 定义所在文件）字节零改**（D-F0P-9
-   组合转发——delegate 新类型组合它，不改它）。
+9. **AppDelegate 类字节零改**（`LightamerApp.swift:168-216` 域 @
+   `9a0b9530`——**仓内无 `AppDelegate.swift` 文件**，勘误④ m-omp-10；
+   D-F0P-9 组合转发——delegate 新类型组合它，不改它；机检 = 该域
+   `git diff` 零 hunk）。
 10. **DEBUG fork 序零触**：entry 四把 fork（DEBUG flock fixture ×2 → MCP
     headless → AI worker → GUI）逐字保留（McpProjectToolsetTests 的
     STDIN_FILENO dup2 纪律依赖此序；壳交接只动 GUI 臂尾行）。
@@ -301,3 +359,10 @@ P2 分账 +15..23 / P3 分账 +0）。
 - **D-F0P-10**：FB P3 收尾 ↔ 提前呈稿。
 - **勘误②**：manifest 重指随 P3 退役原子落地 ↔ 按 §7 P2 行提前到 P2
   （双源窗口，不建议）。
+- **OMP-M2 键命运**（P3 T1）：`ExportPanelRequestKey` 定义保留（(a)
+  复审推荐案采纳——壳 :94 @FocusedBinding 活依赖 + 发布面四摘除后
+  honest-degrade 零行为面）↔ 删键 + 壳 face 改 graph/note 直连（(b)
+  ——含 :94 重指，多一壳侧 hunk）。
+- **OMP-M3 T3-2 改形**（P2 T3）：re-arm 子测降级 obs 登记让渡（(a)
+  plan 指引推荐——armObservation private 红线禁产线加缝）↔
+  NSApp.mainMenu 稳定性代理断言（(b)）。
