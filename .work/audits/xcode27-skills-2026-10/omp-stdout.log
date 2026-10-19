@@ -1,0 +1,77 @@
+Working...
+# C 路审计交卷：PASS / 3 error + 25 major + 127 minor + 44 obs
+
+落盘正本：`.work/audits/xcode27-skills-2026-10/OMP-FINDINGS.md`（50881B）。114/114 文件逐文件全文深读（41156 行，无抽样）。`git status` 确认：除审计产物目录外零改动（其余 untracked 均为他人文件）。以下为全部审计结论一次性完整输出。
+
+判定基线：swiftui-specialist 8 refs + whats-new-27 2 refs 全文先读；房内约定优先；只读，未跑构建/测试；行为级一律 obs +「需运行时验证」。
+
+## error（3）——房规插值构键禁令 + 抽取链断（catalog 现状手工在册，行为正确）
+
+- [E1] error · `UI/Overlay/InstancePickerOverlay.swift:53` · `"ai_picker_subject_n \(instance)"` 经 `String.LocalizationValue(...)` 运行时构 key；catalog 仅手工在册 `ai_picker_subject_n %lld`（extractionState: manual），裸键缺席，构建期抽取已断。出处：房规插值禁令 + localization.md「Localizing Variables」。修复：静态 format 字面量 `String(localized: "ai_picker_subject_n \(instance)")` 或显式 switch。
+- [E2] error · `State/LayerEditingState.swift:45`（消费点 `UI/Overlay/MaskToolbarView.swift:85`）· `MaskTool.labelKey = "mask_tool_\(rawValue)"` 插值拼装（`followEdges` 驼峰尤脆）。修复：`labelKey` 改显式 switch 静态字面量。
+- [E3] error · `State/LayerEditingState.swift:75,102`（消费点 `MaskToolbarView.swift:144`、`LayersPanelView.swift:397`）· `MaskOverlayStyle.labelKey` / `MaskCommand.labelKey` 插值拼装（`onBlack`/`duplicateAndInvert`）。修复：同 E2。判 error 理由：定义点在 State 层 enum（审计面外），`CaseIterable` 新增 case 即静默断键。
+
+## major（25）
+
+动态键族（同族，定义/调用在审计面内、调用点静态可枚举，判 major）：
+- [J1] `UI/CullingView.swift:76-99` · body 路径逐次新建 `CullingPaneModel` + 无 `id:` 的 `.task` 只首跑一次；pair 切换新 pane 永不加载（调用点 ContentView:448 无 pair 级 `.id`）。出处：dataflow.md「Model objects」+ foreach.md「Don't create a new id」。修复：`.task(id: pairKey)` 或 `onChange(of: pair)` 按 pairKey 持有。
+- [J2] `UI/FilterBarView.swift:165-185` · `chipButton(labelKey:)` 运行时 `String(LocalizationValue(labelKey))`。修复：改接 `LocalizedStringResource`。
+- [J3] `Export/ExportInspectorView.swift:534` · `"export_format_" + kind.rawValue` 拼键（L058 注释自述规避仍被禁）。修复：显式 switch。
+- [J4] `UI/Inspector/SigmoidPanelView.swift:121` · `preset.0` 变量构 key。修复：presets 携 `LocalizedStringResource`。
+- [J5] `UI/Inspector/ToneEqualPanelView.swift:84` · `band.0` 变量构 key。修复：bands 加静态 label 字段。
+- [J6] `UI/Inspector/MaskGroupsPanelView.swift:337` · `commitSlider` 内 `LocalizationValue(labelKey)`。修复：调用点直传字面量，删 String 中转。
+- [J7] `UI/Inspector/EqualizerPanelView.swift:51` · `Self.bands[i].0` 变量构 key。修复：静态资源数组。
+- [J8] `UI/Inspector/LuminanceColorRangePanelView.swift:332` · `labelKey` 变量构 key。修复：`labelKey: String` 改 `label: LocalizedStringResource`。
+- [J9] `UI/InspectorRowView.swift:73` · `Text(LocalizedStringKey(model.toggleValueKey))` 运行时包 key。修复：按 `enabled` 显式 switch。
+- [J10] `UI/InspectorRowView.swift:80` · `Text(LocalizedStringKey(label))` 对已解析串二次查表。修复：`Text(label)`。
+- [J11] `UI/Inspector/PresetPanelView.swift:107` · `String(localized:) + " \(name)"` 拼接组句。修复：`Text("preset_apply \(name)")`。
+- [J12] `UI/Shell/FilmPanelView.swift:384-393` · `latitude_share_value` defaultValue 内嵌已解析内层串，源文本随 locale 固化，`%` 硬编码。修复：外层真 format 键 + comment。
+- [J13] `UI/EDRControlView.swift:46` · `String(format:)` 嵌套 `String(localized:)` 插值。修复：`Text("edr_headroom_label \(headroom, format: .number…)", comment:)`。
+
+数据流/KD-4/结构：
+- [J14] `Export/ExportPanelView.swift:261,278-279,299-303` · body 链直读 `UserDefaults.standard`（PostExportActions 三键）。违反 KD-4。修复：收进注入式 store。
+- [J15] `Library/ImportModeDialog.swift:85,149` · app-root sheet 裸读 `@Environment(AgentControlCoordinator.self)`。违反 sheet 规则。修复：init 注入 `holdsControl: Bool`。
+- [J16] `UI/Overlay/InstancePickerOverlay.swift:34-36,100-129` · `combinedPlane` 每 body 重跑 CPU 读取 + 重建 plane 级 RGBA/CGImage。修复：selection 键缓存或下沉 model。
+- [J17] `UI/Shell/Nodes/EditorNodesPanelView.swift:82-117` · 600+ 行单失效边界，mix live-tick 整链逐 tick 重估。修复：header/Canvas/单卡抽独立 View。
+- [J18] `UI/SidebarView.swift:182-206` · 1000+ 行单失效边界（全 sections + 4 dialog + `.task(id:)`，`flatRows()` 连带）。修复：按 section 抽 View，dialog 状态下沉。
+- [J19] `UI/FilterBarView.swift:45-82,86-202` + `UI/EditorAreaView.swift:61-328` · 章节级 `private var` 共享父边界；EditorArea 主干 200+ 行内联 switch。修复：每节提窄输入 struct。
+- [J20] `UI/Inspector/MaskGroupsPanelView.swift:88-149` · `groupCard(_:)` @ViewBuilder 私有函数含 ForEach/分支读 `editorState`。修复：抽 `MaskGroupCardView`。
+- [J21] `UI/Inspector/RetouchPanelView.swift:90-227` · 7 个 `private var` 分区直读 `editingState`。修复：工具区/列表区抽独立 View。
+
+ForEach/软废弃：
+- [J22] `UI/CatalogBrowserView.swift:81` · `ForEach(…, id: \.element)` 整行 struct 深哈希（已有 `row.id`/`pathHash`）。修复：`id: \.id`。
+- [J23] `Export/ExportPanelView.swift:174` · `ForEach(state.recipe.indices, id: \.self)` 可增删数组。修复：variant 稳定 id。
+- [J24] `UI/FilterBarView.swift:192-196` · `ForEach(Array(enumerated()), id: \.offset)`。修复：`Rule` 稳定身份键。
+- [J25] `UI/EmptyStateView.swift:52-62` · 非 builder `.background(_:)`/`.overlay(_:)` 已软废弃。修复：trailing 闭包重载。
+
+## minor（127，家族合并计条）
+
+结构-计算属性分区（structure.md）：N-S1 ExportInspector 五 section（:37）；N-S2 ExportNamingEditor（:53）；N-S3 ExportPanel 四节（:168）；N-S4 ExportQueueFaceView（:87）；N-S5 GlobalSearchDialog（:36）；N-S6 LibraryInspectorView（:43）；N-S7 面板 helper 工厂（ChannelMixerRGB:146、ColorBalanceRGB:275、ColorWheels:67、CurveEditor:99）；N-S8 FilmicRGB auto 按钮（:134）；N-S9 Hls targetHueRow（:156）；N-S10 Liquify 三控件（:103）；N-S11 LayersPanel toolbar/baseRow（:112）；N-S12 Luminance section 函数（:70）；N-S13 McpLauncherPanel（:188）；N-S14 MaskOverlayHost maskCanvas（:112）；N-S15 MaskToolbarView 四分区（:67）；N-S16 SegmentEditing counterBadge/controlBar（:180）；N-S17 PresetManagerWindow row（:190）；N-S18 SessionBrowserView 500+ 行内联（:110）；N-S19 AdjustmentTransferView 五窗格（:78）；N-S20 BackgroundTaskBarView 行方法（:95）；N-S21 ColorMatchPanel 五区（:58）；N-S22 EditorAdjustmentStackView（:125）；N-S23 EditorToolRailView（:76）；N-S24 EditorWorkspaceShellView（:126）；N-S25 FilmPanel header/enableEntry（:71）；N-S26 VersionsPanelView（:97）；N-S27 EnhanceDialog（:89）；N-S28 YiyinPanelView（:104）。修复一律：抽窄输入独立 `View` 类型。
+
+init/body 高代价：N-I1..15 面板 init 内 `params(of:)` JSON 解码 26 处（Dehaze:24、DenoiseProfile:53、Equalizer:25、Exposure:28、FilmicRGB:31、Flip:30、GradeScalar 六处、Grain:26、HighpassSoften:28 双解码、Hls:32、Lens:37、Levels:25、Liquify:36、LocalContrast:23、Lut:39、AgX:23、Bilateral:28、Bloom:20、ChannelMixer:21、ChannelMixerRGB:28、ColorContrast:18、ColorWheels:29、ColorZones:36、Crop:26、Ashift:29、Colisa:18；params 小 struct 故 minor）；N-I16 SettingsView:97 页 model 内联构造；N-I17 EnhanceDialog:225 body 期逐像素 `displayImage`；N-I18 SoftProofControlView:39 磁盘枚举每 body 两次。
+
+数据流：N-D1 LibraryGridCellView 整行传值（:297）；N-D2 MaskToolbarView 闭包 Binding 六处（:120）；N-D3 AdjustmentTransfer sourceBinding（:131）；N-D4 ColorMatch weight/strength 闭包 Binding（:150）；N-D5 ColorMatch onChange 挂 ScrollView 作用域（:91）；N-D6 EditorAdjustmentStack 两 onChange（:94）；N-D7 LightamerApp:15 手写 FocusedValueKey 样板（改 `@Entry`）；N-D8 LightamerApp:1761 onChange one-shot toast；N-D9 EditorWorkspaceShell onChange（:106）；N-D10 EditorNodesPanel onChange（:93）；N-D11 FilmPanel 三 section 读整 `record` struct（:124）；N-D12 RawDecodePanel `isReloading` 只写不读（:37）；N-D14 EditorToolRail `historyRows` 每 body 重建（:199）；N-D15 Sidebar `flatRows()`/内联 filter O(n²)（:632）；N-D16 PresetManagerWindow `grouped`（:44）；N-D17 InspectorView:224 内联 filter；N-D18 PresetPanel `categorySections`（:138）。
+
+ForEach：N-F1 LibraryInspectorView 四处 `id: \.offset`（:111）；N-F2 Equalizer `0..<count`（:49）；N-F3 CurveEditor `nodes.indices`（:44，静态切换 harm 有限）；N-F4 Hls binCount（:159）；N-F5 Liquify `paths.indices`（:52，钳位兜底）；N-F6 MaskToolbar popover item 有损哈希 id（:404）；N-F7 PresetManagerWindow `id: \.category` 可改名（:179）；N-F8 PresetPanel category nil/空串 id 碰撞（:132）；N-F9 FilmPanel Optional id 碰撞（:138）；N-F10 FilmstripView 应补 `Identifiable`（:219）；N-F11 LutPanel `.id(libraryRevision)` 丢折叠态（:82）。
+
+本地化：N-L1 history label eager 解析 15 文件（Dehaze:38、DenoiseProfile:109、Equalizer:59、Exposure:43、FilmicRGB:46、Flip:70、GradeScalar:51、Grain:41、HighpassSoften:45、Hls:188、Lens:62、Levels:97、Liquify:140、LocalContrast:38、Lut:261；修复：`label:` 改 `LocalizedStringResource`）；N-L2 LightamerSlider `label: String` 根因（:20）；N-L3 面板 label 即时解析（AgX:33 等）；N-L4 Slider readout `String(format:)`（:134）；N-L5 DenoiseProfile `profileValueString`（:299）；N-L6 Luminance `Cz %.3f`（:202）；N-L7 Lens 两处 String 中转（:44）；N-L8 LayersPanel `blendLabel -> String`（:43）；N-L9 `Text("\(count)")`（:597）；N-L10 LutPanel `+` 拼句（:248）；N-L11 Retouch `strokeLabel`（:294）；N-L12 Retouch `centerString`（:307）；N-L13 Monochrome 硬编码英文 AX（:184）；N-L14 eager 可改字面量组（SkinSmooth:122、Vignette:174、PastePartialDialog:109、PresetPanel:95）；N-L15 MaskOverlayHost commitLabelKey（:535）；N-L16 EditorAdjustmentStack note（:273）；N-L17 SessionBrowser pickerKey（:317）；N-L18 SegmentEditing 拼句（:170）；N-L19 PresetManagerWindow 拼句（:158）；N-L20 MaskToolbar 数字格式（:238）；N-L21 ColorMatch 数字格式（:156）；N-L22 EditorNodeHeader EXIF 单位（:94）；N-L23 FilmPanel readout（:187）；N-L24 EditorNodesPanel `%lld%`（:456）；N-L25 RawDecodePanel（:86）；N-L26 `"未知"` 硬编码中文两处（WorkspaceHostView:1642、LibraryProjectController:649）；N-L27 `.textCase(.uppercase)` 三处（AdjustmentTransfer:307、LibraryInspector:445、RelinkSheet:111）；N-L28 数字/单位硬编码家族（ExportInspector:659 等六处）；N-L29 `Button("\(n)")` 纯数字（CatalogBrowser:225 等）；N-L30 LightamerApp 菜单 verbatim 英文六处（:1867）；N-L31 Culling `Text(pane.id)`（:269）；N-L32 ExportPanel depthPicker（:663）；N-L33 对话框定宽家族（ImportModeDialog:151 等九处）；N-L34 固定磅值家族（SettingsPages:716 等）；N-L35 内插键缺 comment 家族；N-L36 EnhanceDialog 全文件中文裸字面量。N-K1 ContentView `@AppStorage` body 直读（:100，惯用形态 minor）。
+
+## obs（44）
+
+手势/D-H1：O-1 ColorBalanceRGB hue-disc `translation==.zero` 判 begin（:385）；O-2 CurveEditor 取消路径漏 begin（:114）；O-3 Monochrome wheel 双击吞没（:167）；O-4 Luminance bandSlider 无 begin leg（:336）；O-5 LightamerSlider scrub/双击竞态（:87）；O-6 TextOverlay ColorPicker setter 频率（:61）；O-7 Liquify 末笔丢失（:142）；O-8 RawDecodePanel 每 tick commit（:224）；O-9/O-10 面板 init 快照多 tick 基（Monochrome:30、AgX:143 等）；O-11 EditorMTKView `updateNSView` 写模型（:153）；O-12 双 onTapGesture（LibraryGridView:184、FilmstripView:196）；O-13 Filmstrip 首帧闪空（:196）。环境/订阅：O-14 InspectorView FocusedValue Binding（:376）；O-15 addFaceEntries opName 唯一假设（:211）；O-16 WorkspaceHostView app-root sheet 裸继承（:248，实机可用不记 violation）；O-17 MaskToolbar 层级 sheet 不触发规则（:181）；O-18 Sidebar @AppStorage 双点存放（:114）；O-19 McpLauncher model 动作读 defaults 合规（:98）；O-20 SettingsPages overridesTick 伪依赖（:925）；O-21 RelinkSheet snapshot 驱动不可见（:218）；O-22 SettingsDisplays NSScreen 采样（:1142）；O-23 WorkspaceModel currentRow 线性扫（:173）；O-24 ScopePanel 主线程 getBytes（:213）；O-25 InspectorState eyedropper 覆盖（:242）；O-26 init 自建标准 suite（ImportModeDialog:99、ExportInspector:34）；O-27/O-28/O-29 必需宽依赖三处（MaskOverlayHost:81、SegmentEditing:50、DrtPanel:156）；O-30 Retouch 整值输入（:28）；O-31 Overlay body 内联解码三处。跨 slice/组织：O-32 chipLabel 对账关闭（CatalogFilterBar:185）；O-33 IOPPanelProvider AnyView 擦除（:44）；O-34 全面板 `ModuleInstance` 宽输入有意 tradeoff；O-35 LutPanel 内联过滤（:304）；O-36 WorkspaceHostView 1837 行组织成本；O-37 TopBar 闭包重建（:622）；O-38 Culling transition 无 animation（:55）；O-39 `.font(.system(size:weight:))` 软废弃疑似（待对 SDK 头）；O-40 单字母徽标 + 尾块纪律（CatalogBrowser:285）；O-41 ContentView legacyBody 冻结（:210）；O-42 Yiyin zhName 产品决策（:527）；O-43 LightamerApp 装配链（:507）；O-44 壳交接照记（slice-05 无 lifecycle 层）。
+
+## 合规肯定项（防误报）
+
+显式 switch 静态键全族合规（V14）：mode.labelKey、titleKey、sortLabel、pickerKey、SizingMode.labelKey、FaceState.labelKey、rating/color、colorspaceLabel、DRT switch；抽查 20+ 键 catalog 在册。`LocalizationValue(显式switch静态值)`（Sidebar:151、Yiyin:303）非拼 key 形态，合规。verbatim opt-out、`Text("key")` 字面、`.task(id:)`+stale-guard、`State(initialValue:)` 播种、disable-not-unmount、D-H1 三件套、`AnyShapeStyle` 三元、`defaultValue` 双语 key 全部合规。KD-4：slice-01/02/03 零直读 PASS；`YiyinSheetMetrics` 为注入范例。`panelView` AnyView 非 ForEach 行不计。overlay/background 全 trailing 闭包。Form/Slider/Picker/`confirmationDialog(presenting:)`/新 `onChange` 全现行 API。
+
+## 七维阴性声明（未发现）
+
+@State macro 三陷阱零命中；条件式 `.if` modifier 无定义无调用；custom environment/focused 闭包值零命中；`TupleView` 硬编码/`overlay(ShapeStyle…)` 直接传参/MapKit 空 builder/Charts 深分支零命中（floor 27，back-deploy 超时不适用）；`withAnimation` 缺失类零条；单孩 `Group` 零命中。
+
+## 验收清单
+
+- [x] 114 文件全覆盖（实读 114/114，41156 行；清单见 slices/FINDINGS-0*.md）
+- [x] 每个 finding 带 file:line
+- [x] 结论头 `PASS / 3 error + 25 major + 127 minor + 44 obs`
+- [x] OMP-FINDINGS.md 已落盘
+- [x] 零源码/测试/构建文件改动（git 确认）
