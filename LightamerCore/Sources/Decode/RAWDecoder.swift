@@ -239,7 +239,10 @@ public actor RAWDecoder {
                 capture: capture,
                 segmentationSkyMatte: skyMatte,
                 decoderVersionUsed: used,
-                contentDedupeID: Self.contentDedupeID(for: url)
+                contentDedupeID: Self.contentDedupeID(for: url),
+                embeddedGeometry: (Self.isDNGUTI(Self.utiForFile(at: url))
+                    && DNGOpcodeProbe.probe(url: url))
+                    ? .detected : .unknown
             )
         } onCancel: {
             // The ObjC CIRAW decode cannot be interrupted synchronously; the
@@ -361,7 +364,8 @@ public actor RAWDecoder {
             capture: capture,
             segmentationSkyMatte: nil,
             decoderVersionUsed: .v8, // n/a for raster; field is non-optional
-            contentDedupeID: Self.contentDedupeID(for: url)
+            contentDedupeID: Self.contentDedupeID(for: url),
+            embeddedGeometry: .notApplicable // raster chain: no embedded-geometry concept (X1)
         )
     }
 
@@ -445,6 +449,14 @@ public actor RAWDecoder {
         if uti == UTType.tiff.identifier { return true }
         guard let type = UTType(uti) else { return false }
         return type.conforms(to: .tiff)
+    }
+
+    /// The DNG family check (LENS-01 T2, X1): the two Adobe entries in
+    /// `rawUTIs` — the DNG opcode probe (and the `.detected`/`.unknown`
+    /// branch at the RAW construction site) applies ONLY to the DNG
+    /// container; every other RAW stays `unknown` by construction.
+    internal static func isDNGUTI(_ uti: String) -> Bool {
+        uti == "com.adobe.raw-image" || uti == "public.adobe-dng"
     }
 
     /// RAW routing: static set membership OR conformance to

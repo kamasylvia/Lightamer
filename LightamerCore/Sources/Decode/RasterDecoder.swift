@@ -126,7 +126,8 @@ public enum RasterDecoder {
                 decoderVersionUsed: .v8,
                 contentDedupeID: RAWDecoder.contentDedupeID(for: url),
                 rasterColor: description,
-                rasterNative: nil)
+                rasterNative: nil,
+                embeddedGeometry: .notApplicable) // TIFF chain: no embedded geometry (X1)
         }
 
         // The native byte leg.
@@ -143,7 +144,8 @@ public enum RasterDecoder {
             decoderVersionUsed: .v8,
             contentDedupeID: RAWDecoder.contentDedupeID(for: url),
             rasterColor: description,
-            rasterNative: native)
+            rasterNative: native,
+            embeddedGeometry: .notApplicable) // TIFF chain: no embedded geometry (X1)
     }
 
     // MARK: - The negotiation-window payload (M4-1-02 T2, KD-3)
