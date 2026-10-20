@@ -135,6 +135,10 @@ internal struct LensPanelView: View {
     /// LENS-02 T3: the resolved-scale readout cache (OFF the body path).
     @State private var resolvedScaleValue: Float = 1
     @State private var scaleUnsupported: Bool = false
+    /// LENS-02 T4: the pending selection for the detected-confirmation
+    /// alert (D-LENS-2 v1 face — a selection on a detected document lands
+    /// ONLY after the user confirms).
+    @State private var pendingSelection: LensProfileCandidate?
 
     private let params: LensModule.Params
 
@@ -354,14 +358,18 @@ internal struct LensPanelView: View {
                 Text("panel_lens_scale_section")
             }
 
-            // ── §3 Lensfun match (actions + first-run download) ──
+            // ── §3 Lensfun profile browser + actions (LENS-02 T4): the
+            // Apply/Clear buttons are RETIRED — Apply's semantics are
+            // absorbed by the browser selection; Clear survives as the
+            // return-to-manual arm shown ONLY while the lensfun source is
+            // active. The detected-confirmation alert (D-LENS-2 v1 face)
+            // gates every selection on a detected document.
             Section {
                 if hasData {
-                    HStack {
-                        Button(String(localized: "panel_lens_apply_match")) {
-                            applyMatch()
-                        }
-                        .accessibilityIdentifier("inspector.lens.applyMatch")
+                    LensProfileBrowserView(params: params, edit: edit) { candidate in
+                        requestSelection(candidate)
+                    }
+                    if params.source == .lensfun {
                         Button(String(localized: "panel_lens_clear")) {
                             clearToManual()
                         }
@@ -396,6 +404,22 @@ internal struct LensPanelView: View {
         .accessibilityIdentifier("inspector.panel.lens")
         .task(id: params) {
             refreshMatchState()
+        }
+        .alert(
+            String(localized: "panel_lens_detected_confirm_title"),
+            isPresented: Binding(
+                get: { pendingSelection != nil },
+                set: { if !$0 { pendingSelection = nil } }),
+            presenting: pendingSelection
+        ) { candidate in
+            Button(String(localized: "panel_lens_detected_confirm_apply")) {
+                commitSelection(candidate)
+            }
+            Button(String(localized: "panel_lens_detected_confirm_cancel"), role: .cancel) {
+                pendingSelection = nil
+            }
+        } message: { _ in
+            Text(String(localized: "panel_lens_detected_confirm_body"))
         }
     }
 
@@ -491,23 +515,32 @@ internal struct LensPanelView: View {
         }
     }
 
-    /// Apply the match: flip `source` to lensfun (the resolve happens in
-    /// the pipe's process — the SAME kernel as manual, D-G1 unified exit).
-    /// Exactly ONE commit; unresolvable at render → identity + log (D5).
-    private func applyMatch() {
+    /// LENS-02 T4: the browser selection entry — a DETECTED document
+    /// routes through the confirmation alert (unconfirmed = params never
+    /// touched); every other judgment commits directly.
+    private func requestSelection(_ candidate: LensProfileCandidate) {
         guard hasData else { return }
-        var p = params
-        p.source = .lensfun
         notice = nil
-        applyDiscrete(p)
+        if LensProfileBrowserModel.needsConfirmation(embedded: params.embeddedGeometry) {
+            pendingSelection = candidate
+        } else {
+            commitSelection(candidate)
+        }
     }
 
-    /// Clear back to manual (keeps slider values, drops the lensfun source).
+    /// The selection commit: ONE discrete edit (source = .lensfun + the
+    /// picked model; the resolve rides the memo path — no snapshot write
+    /// here, LENS-04 T1's scope).
+    private func commitSelection(_ candidate: LensProfileCandidate) {
+        pendingSelection = nil
+        applyDiscrete(LensProfileBrowserModel.selectedParams(base: params, candidate: candidate))
+    }
+
+    /// Clear back to manual (keeps every stored value, drops the lensfun
+    /// source — the retired Clear button's surviving arm, model-owned).
     private func clearToManual() {
-        var p = params
-        p.source = .manual
         notice = nil
-        applyDiscrete(p)
+        applyDiscrete(LensProfileBrowserModel.clearedParams(base: params))
     }
 
     /// First-run download (background; failure toasts, editing unblocked).

@@ -799,3 +799,4 @@ IOP	6	LensPerCorrectionTests.swift
 IOP	4	LensAutoApplyTests.swift
 IOP	6	LensAutoCropTests.swift
 IOPP	3	LensScaleGoldenTests.swift
+APP	8	LensProfileBrowserTests.swift

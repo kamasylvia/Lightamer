@@ -136,6 +136,7 @@ DEFAULT_ALLOWLIST: tuple[str, ...] = (
     "settings_placeholder",          # superseded by settings_placeholder_*
     "smart_album_no_chips_hint",     # retired M1 smart-album hint
     "toast_session_index_failed",    # retired M1 session-index toast
+    "panel_lens_apply_match",        # retired LENS-02 T4 (Apply absorbed by the profile browser selection)
 )
 
 KEY_SHAPE = re.compile(r"^[a-z][a-z0-9_]+$")

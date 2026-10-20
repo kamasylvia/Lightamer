@@ -106,6 +106,20 @@ public struct LensMatchedProfile: Sendable {
     }
 }
 
+/// One scored library row for the profile browser (LENS-02 T4; the
+/// ordering/confidence annotation lives in the App-side model).
+public struct LensCandidateRow: Sendable, Equatable {
+    public let maker: String
+    public let model: String
+    public let score: Int
+
+    public init(maker: String, model: String, score: Int) {
+        self.maker = maker
+        self.model = model
+        self.score = score
+    }
+}
+
 /// The hardened-match result (NOT a persisted face — the panel readout
 /// consumes it through `LensfunStore.matchOutcome`). Mirrors the RawLab
 /// state machine: ambiguous = same-top-score multiple candidates
@@ -645,6 +659,27 @@ public struct LensfunStore: Sendable {
         case .noLens: return .noLens
         case .missingFocal: return .missingFocal
         }
+    }
+
+    /// The whole-library scored rows for the profile browser (LENS-02 T4):
+    /// every lens entry's best model score against the search term (rows
+    /// with score > 0 only, UNSORTED — the App-side model owns the
+    /// ordering/confidence annotation). nil = no database installed.
+    public static func candidateRows(search: String) -> [LensCandidateRow]? {
+        lock.lock(); let db = _db; lock.unlock()
+        guard let db else { return nil }
+        var rows: [LensCandidateRow] = []
+        for entry in db.lenses {
+            var score = 0
+            for m in entry.models {
+                score = max(score, LensfunMatch.modelScore(exif: search, candidate: m, maker: entry.maker))
+            }
+            if score > 0 {
+                rows.append(LensCandidateRow(
+                    maker: entry.maker, model: entry.models.first ?? "", score: score))
+            }
+        }
+        return rows
     }
 
     /// Camera cropfactor lookup (LENS-01 T3, X4 priority tier 2): unique
