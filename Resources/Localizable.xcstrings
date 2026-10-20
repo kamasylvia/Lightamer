@@ -32898,6 +32898,74 @@
         }
       }
     }
+  },
+  "panel_lens_enabled" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Enable lens correction"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "启用镜头校正"
+        }
+      }
+    }
+  },
+  "panel_lens_apply_distortion" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Apply distortion"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "应用畸变校正"
+        }
+      }
+    }
+  },
+  "panel_lens_apply_tca" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Apply chromatic aberration"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "应用色差校正"
+        }
+      }
+    }
+  },
+  "panel_lens_apply_vignette" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Apply vignetting"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "应用渐晕校正"
+        }
+      }
+    }
   }
   },
   "version": "1.0"

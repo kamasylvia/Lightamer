@@ -247,6 +247,23 @@ internal struct LensPanelView: View {
                         lensKey: params.lensKey))
                 }
                 .accessibilityIdentifier("inspector.lens.reset")
+
+                // LENS-02 T1 (D-LENS-7): the enable + per-correction family
+                // switches (Alcedo apply_* alignment) — each flip is ONE
+                // discrete commit; the manual slider storage above is never
+                // touched (the gate rides the resolved coefficients).
+                Toggle(String(localized: "panel_lens_enabled"),
+                       isOn: boolBinding(\.enabled))
+                    .accessibilityIdentifier("inspector.toggle.lens.enabled")
+                Toggle(String(localized: "panel_lens_apply_distortion"),
+                       isOn: boolBinding(\.applyDistortion))
+                    .accessibilityIdentifier("inspector.toggle.lens.applyDistortion")
+                Toggle(String(localized: "panel_lens_apply_tca"),
+                       isOn: boolBinding(\.applyTCA))
+                    .accessibilityIdentifier("inspector.toggle.lens.applyTCA")
+                Toggle(String(localized: "panel_lens_apply_vignette"),
+                       isOn: boolBinding(\.applyVignette))
+                    .accessibilityIdentifier("inspector.toggle.lens.applyVignette")
             } header: {
                 Text("panel_lens_manual_section")
             }
@@ -317,6 +334,20 @@ internal struct LensPanelView: View {
         if let record = PanelEditing.updated(instance, params: p, as: LensModule.self) {
             edit.applyDiscrete(record, label: String(localized: "history_lens"))
         }
+    }
+
+    /// LENS-02 T1: the nil-defaulting Bool binding (nil renders as ON —
+    /// the additive default face); each flip is ONE discrete commit.
+    private func boolBinding(_ keyPath: WritableKeyPath<LensModule.Params, Bool?>) -> Binding<Bool> {
+        Binding(
+            get: { params[keyPath: keyPath] ?? true },
+            set: { v in
+                var p = params
+                p[keyPath: keyPath] = v
+                if let record = PanelEditing.updated(instance, params: p, as: LensModule.self) {
+                    edit.applyDiscrete(record, label: String(localized: "history_lens"))
+                }
+            })
     }
 
     // MARK: - Lensfun match (discrete one-commit each)
