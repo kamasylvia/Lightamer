@@ -800,3 +800,5 @@ IOP	4	LensAutoApplyTests.swift
 IOP	6	LensAutoCropTests.swift
 IOPP	3	LensScaleGoldenTests.swift
 APP	8	LensProfileBrowserTests.swift
+IOP	7	LensProjectionResolveTests.swift
+IOPP	7	LensProjectionGoldenTests.swift

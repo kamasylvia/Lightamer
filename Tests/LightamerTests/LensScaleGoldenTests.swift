@@ -85,9 +85,12 @@ final class LensScaleGoldenTests: XCTestCase {
     }
 
     /// The CPU kernel-twin (float64, texel-center bilinear, clamped taps)
-    /// with the POST-MAP ×1/scale sample offset.
+    /// with the L3 evaluation order (×1/scale → projection fold → the
+    /// distortion radius → per-channel TCA — the Alcedo live order).
     private func cpuReference(
-        width: Int, height: Int, u: LensWarpUniforms, img: (Int, Int) -> SIMD4<Float>
+        width: Int, height: Int, u: LensWarpUniforms,
+        source srcProj: LensProjection, target tgtProj: LensProjection,
+        img: (Int, Int) -> SIMD4<Float>
     ) -> [Float] {
         var out = [Float](repeating: 0, count: width * height * 4)
         let half = Double(u.halfW.x)
@@ -96,8 +99,11 @@ final class LensScaleGoldenTests: XCTestCase {
             for ox in 0..<width {
                 let ix0 = Double(ox) + Double(u.oroi.x) - Double(u.iroi.x)
                 let iy0 = Double(oy) + Double(u.oroi.y) - Double(u.iroi.y)
-                let dx = ix0 - (Double(u.center.x) - Double(u.iroi.x))
-                let dy = iy0 - (Double(u.center.y) - Double(u.iroi.y))
+                let dx0 = ix0 - (Double(u.center.x) - Double(u.iroi.x))
+                let dy0 = iy0 - (Double(u.center.y) - Double(u.iroi.y))
+                let folded = LensProjection.fold(dx0 * invS, dy0 * invS, source: srcProj, target: tgtProj)
+                let dx = folded.0
+                let dy = folded.1
                 let ru = (dx * dx + dy * dy).squareRoot() / half
                 let ru2 = ru * ru
                 let dpoly = 1 + Double(u.dist.x) * ru + Double(u.dist.y) * ru2
@@ -122,7 +128,10 @@ final class LensScaleGoldenTests: XCTestCase {
                 }
                 let ccx = Double(u.center.x) - Double(u.iroi.x)
                 let ccy = Double(u.center.y) - Double(u.iroi.y)
-                let f = rd / max(ru, 1e-12) * invS
+                // dx/dy are the ALREADY-scaled-and-folded coords (invS
+                // rode the fold above) — a second ×invS here was the
+                // double-scale bug (the 1.25-twin red face).
+                let f = rd / max(ru, 1e-12)
                 let fr = f * sR, fb = f * sB
                 let sx = ccx + dx * fr, sy = ccy + dy * fr
                 let gx = ccx + dx * f, gy = ccy + dy * f
@@ -144,7 +153,8 @@ final class LensScaleGoldenTests: XCTestCase {
             vk1: -0.3, vk2: 0.1, vk3: 0,
             centerX: Float(width) / 2, centerY: Float(height) / 2, halfW: Float(width) / 2,
             oroiX: 0, oroiY: 0, iroiX: 0, iroiY: 0,
-            inW: Int32(width), inH: Int32(height), scale: scale)
+            inW: Int32(width), inH: Int32(height), scale: scale,
+            sourceProjection: "rectilinear", targetProjection: "rectilinear")
     }
 
     /// THE DEFAULT-NEUTRAL GATE (red line 12, L2 face): scale = 1 must be
@@ -162,7 +172,10 @@ final class LensScaleGoldenTests: XCTestCase {
         try await dispatch(metal, input: input, output: output, uniforms: u)
         await drain(metal)
         let got = readback(metal, tex: output, width: width, height: height)
-        let expected = cpuReference(width: width, height: height, u: u, img: testPattern(width, height))
+        let expected = cpuReference(
+            width: width, height: height, u: u,
+            source: .rectilinear, target: .rectilinear,
+            img: testPattern(width, height))
         var compared = 0, maxDiff: Float = 0
         for i in 0..<(width * height) {
             for ch in 0..<3 {
@@ -190,6 +203,7 @@ final class LensScaleGoldenTests: XCTestCase {
         let got = readback(metal, tex: output, width: width, height: height)
         let expected = cpuReference(
             width: width, height: height, u: u,
+            source: .rectilinear, target: .rectilinear,
             img: testPattern(width, height))
         var compared = 0, maxDiff: Float = 0
         for i in 0..<(width * height) {
@@ -209,16 +223,27 @@ final class LensScaleGoldenTests: XCTestCase {
     func testScaleNarrowsFieldOfView() {
         let width = 100, height = 100
         let corner = (x: Float(width - 1), y: Float(height - 1))
-        let k = LensModule.manualKernelParams(
-            LensModule.Params(distortionK1: -0.08, tcaR: 0.002, source: .manual))
-        let s1 = LensModule.edgeSample(x: corner.x, y: corner.y, scale: 1, bufW: width, bufH: height, k: k)
-        let s125 = LensModule.edgeSample(x: corner.x, y: corner.y, scale: 1.25, bufW: width, bufH: height, k: k)
+        // The ZERO-distortion face: the exact 1/scale ratio (the L3 order
+        // folds scale BEFORE the distortion radius, so the ratio is
+        // exactly 1/s only when the polynomial is identity).
+        let flat = LensModule.manualKernelParams(
+            LensModule.Params(tcaR: 0.002, source: .manual))
+        let f1 = LensModule.edgeSample(x: corner.x, y: corner.y, scale: 1, bufW: width, bufH: height, k: flat)
+        let f125 = LensModule.edgeSample(x: corner.x, y: corner.y, scale: 1.25, bufW: width, bufH: height, k: flat)
         let c: Float = Float(width) / 2
-        let d1 = (s1[1].x - c) * (s1[1].x - c) + (s1[1].y - c) * (s1[1].y - c)
-        let d2 = (s125[1].x - c) * (s125[1].x - c) + (s125[1].y - c) * (s125[1].y - c)
+        let df1 = (f1[1].x - c) * (f1[1].x - c) + (f1[1].y - c) * (f1[1].y - c)
+        let df2 = (f125[1].x - c) * (f125[1].x - c) + (f125[1].y - c) * (f125[1].y - c)
+        XCTAssertEqual((df2.squareRoot()) / (df1.squareRoot()), 1 / 1.25, accuracy: 1e-5,
+                       "zero-distortion scale ratio = exactly 1/scale")
+        // The DISTORTION face: narrowing direction only (the ratio rides
+        // the polynomial at the folded radius).
+        let warped = LensModule.manualKernelParams(
+            LensModule.Params(distortionK1: -0.08, tcaR: 0.002, source: .manual))
+        let w1 = LensModule.edgeSample(x: corner.x, y: corner.y, scale: 1, bufW: width, bufH: height, k: warped)
+        let w125 = LensModule.edgeSample(x: corner.x, y: corner.y, scale: 1.25, bufW: width, bufH: height, k: warped)
+        let d1 = (w1[1].x - c) * (w1[1].x - c) + (w1[1].y - c) * (w1[1].y - c)
+        let d2 = (w125[1].x - c) * (w125[1].x - c) + (w125[1].y - c) * (w125[1].y - c)
         XCTAssertLessThan(d2, d1, "scale 1.25 must sample closer to the center (narrowing)")
-        // And the exact ratio: 1/scale on the offset.
-        XCTAssertEqual((d2.squareRoot()) / (d1.squareRoot()), 1 / 1.25, accuracy: 1e-5)
     }
 
     private func testPattern(_ width: Int, _ height: Int) -> (Int, Int) -> SIMD4<Float> {
