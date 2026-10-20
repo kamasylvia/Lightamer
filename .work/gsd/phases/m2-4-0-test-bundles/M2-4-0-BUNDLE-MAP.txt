@@ -784,3 +784,10 @@ APP	4	MenuBridgeObservationTests.swift
 APP	12	NSMenuParityTests.swift
 APP	4	ShellGraphMigrationTests.swift
 APP	2	ShellWindowControllerSmokeTests.swift
+# LENS-01 增行记录（2026-10-20 执行期，checker E2 测试登记纪律）：新测试文件随
+#   各自任务 commit 登记进对应 bundle（归属按 front-matter 判定：
+#   ExifLensFieldsTests = IOP/Core 级 EXIF 接线断言——readCaptureMetadata 纯读；
+#   DNGOpcodeProbeTests = IOP/Core 级探针表驱动；LensMatchHardeningTests /
+#   LensfunMemoTests = IOP/Core 级匹配纯函数；LensPanelReadoutTests = APP/App 级
+#   readout 模型）。行内 method 数以终态对账为准。运行期总数基线相应上移。
+IOP	4	ExifLensFieldsTests.swift
