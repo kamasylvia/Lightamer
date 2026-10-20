@@ -32779,7 +32779,126 @@
           }
         }
       }
+    },
+  "panel_lens_embedded_detected" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Vendor lens correction DETECTED in this file (DNG opcode list) — Lensfun auto-apply stays off to avoid double correction."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "检测到本文件含厂商镜头校正（DNG opcode 列表）——Lensfun 自动应用保持关闭，避免双重校正。"
+        }
+      }
     }
+  },
+  "panel_lens_embedded_unknown" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Embedded correction state NOT DETECTABLE (vendor RAW) — enable Lensfun only after confirming the vendor correction is absent."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "内嵌校正状态不可探测（厂商 RAW）——确认厂商校正不存在后再启用 Lensfun。"
+        }
+      }
+    }
+  },
+  "panel_lens_embedded_notapplicable" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Not applicable: raster image carries no embedded lens-geometry concept — Lensfun is safe to use."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "不适用：栅格图像无内嵌镜头几何概念——可放心使用 Lensfun。"
+        }
+      }
+    }
+  },
+  "panel_lens_match_matched" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Matched profile"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "匹配到配置"
+        }
+      }
+    }
+  },
+  "panel_lens_match_ambiguous" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Ambiguous: multiple profiles tie — pick one in the profile browser."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "歧义：多个配置同分——请在配置浏览器中手动选择。"
+        }
+      }
+    }
+  },
+  "panel_lens_match_nolens" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "No matching lens profile at the confidence threshold."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "置信度阈值内无匹配镜头配置。"
+        }
+      }
+    }
+  },
+  "panel_lens_match_nodatabase" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "No lens database installed."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "未安装镜头数据库。"
+        }
+      }
+    }
+  }
   },
   "version": "1.0"
 }

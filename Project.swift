@@ -848,6 +848,7 @@ let project = Project(
                 "Tests/LightamerTests/McpRegistrySnapshotTests.swift",
                 "Tests/LightamerTests/McpControlToolsetTests.swift",
                 "Tests/LightamerTests/AgentControlCoordinatorTests.swift",
+                "Tests/LightamerTests/LensPanelReadoutTests.swift",
                 "Tests/LightamerTests/MaskDefaultBehaviorTests.swift",
                 "Tests/LightamerTests/MaskGroupsPanelTests.swift",
                 "Tests/LightamerTests/MaskItemSemanticsTests.swift",

@@ -81,14 +81,34 @@ public struct LensKernelParams: Sendable {
     }
 }
 
-/// The hardened-match result (process-internal return shape, NOT a
-/// persisted face — the panel readout consumes it through
-/// `LensfunStore.matchCommitted`). Mirrors the RawLab state machine:
-/// ambiguous = same-top-score multiple candidates REJECTED, never
-/// guessed (D-LENS-4). Top-level (shared by `LensfunMatch` and
-/// `LensfunStore`).
-enum LensMatchOutcome: Sendable {
-    case matched(entry: LensEntry, score: Int)
+/// The matched-profile display face (public — the App panel readout
+/// consumes the outcome through `LensfunStore.matchOutcome`; the resolve
+/// face reaches the underlying entry through the INTERNAL index, valid
+/// within one store stamp).
+public struct LensMatchedProfile: Sendable {
+    public let maker: String
+    /// The first model variant (the display name).
+    public let model: String
+    public let cropFactor: Double
+    /// The entry slot in the installed db (internal — NOT a stable id;
+    /// every consumer re-resolves through the store in the same stamp).
+    let entryIndex: Int
+
+    public init(maker: String, model: String, cropFactor: Double, entryIndex: Int) {
+        self.maker = maker
+        self.model = model
+        self.cropFactor = cropFactor
+        self.entryIndex = entryIndex
+    }
+}
+
+/// The hardened-match result (NOT a persisted face — the panel readout
+/// consumes it through `LensfunStore.matchOutcome`). Mirrors the RawLab
+/// state machine: ambiguous = same-top-score multiple candidates
+/// REJECTED, never guessed (D-LENS-4). Top-level (shared by
+/// `LensfunMatch` and `LensfunStore`).
+public enum LensMatchOutcome: Sendable {
+    case matched(LensMatchedProfile, score: Int)
     /// Multiple entries tie at the top score — refuse (RawLab
     /// `FindLenses` semantics; wrong correction beats no correction).
     case ambiguous(score: Int)
@@ -197,9 +217,9 @@ enum LensfunMatch {
     ) -> LensMatchOutcome {
         LensfunMatch.scanCounter += 1
         guard lens != nil && !(lens ?? "").isEmpty else { return .missingFocal }
-        var best: (entry: LensEntry, score: Int)?
+        var best: (profile: LensMatchedProfile, score: Int)?
         var bestCount = 0
-        for entry in db.lenses {
+        for (entryIndex, entry) in db.lenses.enumerated() {
             guard entry.cropfactor > 0, imageCrop > 0 else { continue }
             // The CROP GATE — with a real camera imageCrop this actually
             // rejects full-frame lens strings against APS-C calibration
@@ -217,7 +237,12 @@ enum LensfunMatch {
                 }
             }
             if score > (best?.score ?? 0) {
-                best = (entry, score); bestCount = 1
+                best = (
+                    LensMatchedProfile(
+                        maker: entry.maker, model: entry.models.first ?? "",
+                        cropFactor: entry.cropfactor, entryIndex: entryIndex),
+                    score)
+                bestCount = 1
             } else if score == best?.score, score > 0 {
                 bestCount += 1
             }
@@ -227,7 +252,7 @@ enum LensfunMatch {
         // bands — browser-ordering hints only, never auto-selected.
         guard best.score >= autoApplyThreshold else { return .noLens }
         if bestCount > 1 { return .ambiguous(score: best.score) }
-        return .matched(entry: best.entry, score: best.score)
+        return .matched(best.profile, score: best.score)
     }
 
     /// RawLab `FindCameras` semantics (D-LENS-4): the camera entry must be
@@ -558,7 +583,7 @@ public struct LensfunStore: Sendable {
     /// the full-library scan (matchHardened bumps the scan counter) →
     /// memo store. The scoring runs OUTSIDE the lock (the NSLock discipline:
     /// no heavy work under the lock — only table reads/writes).
-    static func matchOutcome(_ params: LensModule.Params) -> LensMatchOutcome? {
+    public static func matchOutcome(_ params: LensModule.Params) -> LensMatchOutcome? {
         lock.lock()
         let db = _db
         let stamp = _dbStamp
@@ -572,10 +597,8 @@ public struct LensfunStore: Sendable {
         let outcome = matchCommitted(params, in: db)
         let memoValue: MemoOutcome
         switch outcome {
-        case .matched(let entry, let score):
-            guard let index = db.lenses.firstIndex(where: { $0.maker == entry.maker && $0.models == entry.models })
-            else { return outcome }
-            memoValue = .matched(index: index, score: score)
+        case .matched(let profile, let score):
+            memoValue = .matched(index: profile.entryIndex, score: score)
         case .ambiguous(let score): memoValue = .ambiguous(score: score)
         case .noLens: memoValue = .noLens
         case .missingFocal: memoValue = .missingFocal
@@ -608,7 +631,12 @@ public struct LensfunStore: Sendable {
         switch memo {
         case .matched(let index, let score):
             guard db.lenses.indices.contains(index) else { return .noLens }
-            return .matched(entry: db.lenses[index], score: score)
+            let entry = db.lenses[index]
+            return .matched(
+                LensMatchedProfile(
+                    maker: entry.maker, model: entry.models.first ?? "",
+                    cropFactor: entry.cropfactor, entryIndex: index),
+                score: score)
         case .ambiguous(let score): return .ambiguous(score: score)
         case .noLens: return .noLens
         case .missingFocal: return .missingFocal
@@ -652,7 +680,12 @@ public struct LensfunStore: Sendable {
     public static func resolveCommitted(
         _ params: LensModule.Params, width: Int, height: Int
     ) -> LensKernelParams? {
-        guard case .matched(let entry, _) = matchOutcome(params) else { return nil }
+        guard case .matched(let profile, _) = matchOutcome(params) else { return nil }
+        // The profile's INTERNAL index is valid within this stamp (the
+        // outcome was produced against the same captured db).
+        lock.lock(); let currentDB = _db; lock.unlock()
+        guard let currentDB, currentDB.lenses.indices.contains(profile.entryIndex) else { return nil }
+        let entry = currentDB.lenses[profile.entryIndex]
         let focal = Double(params.focalLength ?? 0)
         let cameraCrop = params.imageCrop ?? 1.0
         return LensfunMatch.resolve(
