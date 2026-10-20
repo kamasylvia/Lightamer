@@ -499,12 +499,32 @@ public final class LensModule: IOPModule {
         if isNeutral(committed) { input = roi; return }
         let bufW = Double(piece.dscIn.width), bufH = Double(piece.dscIn.height)
         let corners = borderPoints(roi: roi, step: 8)
-        var xm = Double.greatestFiniteMagnitude, ym = Double.greatestFiniteMagnitude
+var xm = Double.greatestFiniteMagnitude, ym = Double.greatestFiniteMagnitude
         var xM = -Double.greatestFiniteMagnitude, yM = -Double.greatestFiniteMagnitude
-        for (x, y) in corners {
-            let q = forwardPoint(x: x, y: y, bufW: bufW, bufH: bufH)
-            xm = min(xm, q.x); xM = max(xM, q.x)
-            ym = min(ym, q.y); yM = max(yM, q.y)
+        // LENS-03 T2 (04-04 D7 注记兑现): the RESOLVED (lensfun) face
+        // widens to the TRUE per-channel union — R/G/B each mapped through
+        // the same gated kernel coefficients (edgeSample, which also rides
+        // the scale face), the three AABBs unioned (dt `:1697-1790`'s
+        // 6-coord face). The MANUAL face keeps the G-channel approximation
+        // (the manual TCA sliders are sub-pixel-to-pixel — DECISIONS
+        // D-L3-1); a resolve miss falls through to it too.
+        if committed.source == .lensfun,
+           let kernel = currentKernelParams(bufW: Int(bufW), bufH: Int(bufH)) {
+            let scale = roiFaceScale(bufW: Int(bufW), bufH: Int(bufH))
+            for (x, y) in borderPoints(roi: roi, step: 8) {
+                for s in LensModule.edgeSample(
+                    x: Float(x), y: Float(y), scale: scale,
+                    bufW: Int(bufW), bufH: Int(bufH), k: kernel) {
+                    xm = min(xm, Double(s.x)); xM = max(xM, Double(s.x))
+                    ym = min(ym, Double(s.y)); yM = max(yM, Double(s.y))
+                }
+            }
+        } else {
+            for (x, y) in borderPoints(roi: roi, step: 8) {
+                let q = forwardPoint(x: x, y: y, bufW: bufW, bufH: bufH)
+                xm = min(xm, q.x); xM = max(xM, q.x)
+                ym = min(ym, q.y); yM = max(yM, q.y)
+            }
         }
         // LENS-02 T3: the scale contraction rides ONLY the explicitly
         // enabled faces (auto on / user > 1) — the default (scale 1) is
