@@ -6,11 +6,11 @@ wave: 3
 depends_on: ["LENS-02"]
 autonomous: true
 requirements: ["charter = UQ-R4（8bd94370）——渲染确定性收口波（H-L2 根治）+ 全批验收面", "research 正本 = phases/lens-01-lensfun/RESEARCH.md（b2b31909）§Persistence/§Test Strategy/§Plan Split L4 行", "OQ 裁决正本 = 同目录 CONTEXT.md（D-LENS-3 + X3 + hazards H-L1/H-L2 + 红线 15 条）", "基线 3991/37/0 + LENS-01/02 终态（对账式）；本 plan 分账 +12..16", "并行注记 = 与 LENS-03 并行（T1/T3/T4 可先行）；T2 process version 裁决消费 LENS-02/03 全部语义变更 = 03 闭环后串行垫底；C 档停 = 两 plan 各自闭环后一并汇报停", "全套 --all 对账轮归本 plan 收口（orchestrator 批准制 + 8G 门 + MEMFAIL 机检）"]
-success_criteria: "SC 全可机检——T1：LensCoefficientSnapshot（15 系数 + profile id + score + dbTag）Params additive + 写入点恰三处（Apply/auto-apply/browser）+ 消费序（snapshot 在先零 DB 依赖；nil = live resolve legacy 恒等）+ Re-match 动作（失效→重匹配→新快照单 commit）+ dbTag 不折 paramsHash 断言 + 零漂移负测；T2：process version 裁决 = 02/03 全部语义变更逐项过 bump 纪律三问（预期默认中性 = 不 bump；任何默认观感漂移 = bump v2 + 新旧 golden 对）——裁决表 + 证据落 DECISIONS；T3：lens on/off 缓存隔离回归（paramsHash 变化 → pipe cache miss，RawLab 教训移植）；T4：golden 收口（projection/scale 归 IOPParity 总账）+ RawLab 无头渲染抽样对账（非 CI 门，抽查形态，evidence 落档）；T5：100MP perf probe（LIGHTAMER_PERF_PROBE + queue fence；lens 全平面单帧耗时 + memo 前后对比；budget = ashift/flip warp 族同阶）+ 全套 --all 对账轮（批准制）"
+success_criteria: "SC 全可机检——T1：LensCoefficientSnapshot（15 系数 + profile id + score + dbTag）Params additive + 写入点恰二处（auto-apply 命中/browser 选型——面板 Apply 已于 LENS-02 T4 退役 (review M1)）+ 消费序（snapshot 在先零 DB 依赖；nil = live resolve legacy 恒等）+ Re-match 动作（失效→重匹配→新快照单 commit）+ dbTag strip-on-hash 不折 paramsHash 断言 (review m2) + 零漂移负测；T2：process version 裁决 = 02/03 全部语义变更逐项过 bump 纪律三问（**七项含 LENS-01 匹配硬化对 legacy `.lensfun` 档 (review M3)**；预期默认中性 = 不 bump；任何默认观感漂移 = bump v2 + 新旧 golden 对）——裁决表 + 证据落 DECISIONS；T3：lens on/off 缓存隔离回归（paramsHash 变化 → pipe cache miss，RawLab 教训移植）；T4：golden 收口（projection/scale 归 IOPParity 总账）+ RawLab 无头渲染抽样对账（非 CI 门，抽查形态，evidence 落档）；T5：100MP perf probe（LIGHTAMER_PERF_PROBE + queue fence；lens 全平面单帧耗时 + memo 前后对比；budget 带 = ashift/flip warp 族实测锚定带值，登记绝对 ms + 相对倍率 (review m9)）+ 全套 --all 对账轮（批准制）"
 estimated_tests: "+12..16（T1 +5..7 / T2 +2..4〔默认中性 golden 对〕/ T3 +1..2 / T4 +2..3〔抽查对账 fixtures 级〕/ T5 0〔probe 族 skip-gated〕；越带申报理由；skip 增量逐族申报）"
 test_bundles: [IOP, IOPParity]
 baseline: "3991/37/0 + LENS-01/02 终态（对账式）"
-expected_all: "全批终值带 = 3991 + 60..90 = 4051..4081（LENS-01 +14..20 / LENS-02 +18..28 / LENS-03 +16..26 / LENS-04 +12..16；本 plan 收口轮跑全套 --all 对账：exit 0 零 MEMFAIL 七 bundle 8G 门内，skip 增量 = probe 族申报）"
+expected_all: "全批终值带 = 3991 + 59..88 = 4050..4079（LENS-01 +13..18〔B1 下修〕/ LENS-02 +18..28 / LENS-03 +16..26 / LENS-04 +12..16；本 plan 收口轮跑全套 --all 对账：exit 0 零 MEMFAIL 七 bundle 8G 门内，skip 增量 = probe 族申报）"
 red_lines:
   - "共用红线正本 = CONTEXT §四 plan 红线 front-matter 15 条；本 plan 特别面 = LightamerSidecar 零 diff（快照骑 paramsData，schema 零 bump——CONTEXT 勘误① v11 现行）；RenderProcess 触碰限于 T2 裁决臂（bump 与否的编译面——预期零改）。"
   - "H-L2 硬门：快照落地后渲染与 DB 版本解耦——DB 更新不得改变任何已快照文档渲染（T1 消费序测试钉死）；legacy 档（snapshot nil）live resolve 行为逐字节不变。"
@@ -27,6 +27,7 @@ files_modified:
   - Tests/LightamerTests/LensDefaultNeutralGoldenTests.swift  # T2：新建（IOPParity——默认中性 golden 对）
   - Tests/LightamerTests/LensPerfProbeTests.swift             # T5：新建（IOPParity——skip-gated probe 族）
   - Project.swift                                             # T6：四个新测试文件入数组
+  - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt  # T6：四个新测试文件落域登记行 (review m4)
   - .work/gsd/phases/lens-01-lensfun/LENS-04-SUMMARY.md       # T6（含全批 ΔN 总账 + --all 对账表）
   - .work/gsd/phases/lens-01-lensfun/LENS-04-DECISIONS.md     # T6（process version 裁决表 + 对账数值来源 + 偏差）
 ---
@@ -58,7 +59,7 @@ files_modified:
 | T4 golden 收口 + 抽查 | **+2..3** | RawLab 无头抽样对账 fixtures 级（非 CI） | IOPParity |
 | T5 perf probe | **0**（skip 族） | probe skip 增量申报（+1..2 skip） | IOPParity |
 | T6 收口 | **0** | docs + Project.swift + tuist generate + --all 对账 | — |
-| **合计** | **+12..16** | 全批总账 4051..4081 | 四新测试文件 |
+| **合计** | **+12..16** | 全批总账 4050..4079（B1 下修后——CONTEXT 勘误③） | 四新测试文件 |
 
 ## 已定裁决（生效值，硬约束，不得重开）
 
@@ -66,7 +67,8 @@ files_modified:
    = 显式 Re-match 才生效。
 2. **消费序**：`source == .lensfun && snapshot != nil` → 快照直用；
    snapshot nil → live resolve（legacy 恒等）。
-3. **dbTag = 审计字段不折 paramsHash**（X3——DB 更新不抖 hash）。
+3. **dbTag = 审计字段不折 paramsHash**（X3——strip-on-hash 机制钉死
+   (review m2)：stableHash 输入 = snapshot 剥 dbTag 编码）。
 4. **T2 预期 = 不 bump**（02/03 全部增量默认中性）；漂移 = 停手上报。
 5. **L1 memo 保持**（LENS-01 T4）——快照与 memo 并存（快照命中零 memo
    查询；miss 才走 memo/live 路径）。
@@ -105,25 +107,28 @@ files_modified:
      hex，LENS-03 T3 dbTag 读出面消费）。
   2. `Params` additive `snapshot: LensCoefficientSnapshot?`（默认 nil，
      encodeIfPresent）；零漂移专测随批。
-  3. bake 三写入点：面板 Apply（T3 硬化匹配成功即 bake）/ auto-apply 命
-     中（reloadDefaults 后首匹配 commit——或 reloadDefaults 内同步匹配
-     + bake，终形 DECISIONS 二选一申报）/ browser 选型；Re-match 按钮 =
-     失效快照 → 当前 DB 重匹配 → 新快照单 commit（miss = 快照清除 +
-     readout miss 态）。
+  3. bake 写入点恰二处 ((review M1)——面板 Apply 已于 LENS-02 T4 退役，
+     「三处」为退役前口径)：auto-apply 命中（reloadDefaults 后首匹配
+     commit——或 reloadDefaults 内同步匹配 + bake，终形 DECISIONS 二选
+     一申报）/ browser 选型（含 detected 确认选型——同一 browser 缝）；
+     Re-match 按钮 = 失效快照 → 当前 DB 重匹配 → 新快照单 commit（miss
+     = 快照清除 + readout miss 态）。
   4. 消费序改造 `resolveUniforms`：snapshot 非 nil 直用（构造 uniforms
      ——centerX/Y 默认折算沿用）；nil → memo/live resolve（legacy 恒
-     等）；`dbTag` 不折 paramsHash 断言（同 params 改 dbTag → hash 不
-     变——X3 测试钉死）。
+     等）；`dbTag` 不折 paramsHash 断言——机制 = **strip-on-hash**
+     （stableHash 输入 = snapshot 剥 dbTag 编码；同 params 改 dbTag →
+     hash 不变，X3 测试钉死；生产路径 dbTag 仅 Re-match〔本身即新
+     commit〕变 = 防御性断言 (review m2)）。
   5. 测试：round-trip（bake → params JSON → decode → uniforms 恒等）+
      消费序双臂（snapshot 在先零 DB 依赖——uninstall DB 后渲染不变断
      言；nil → live 路径旧行为恒等）+ 零漂移负测 + Re-match 流转 +
-     dbTag 不折 hash。
+     dbTag strip-on-hash 不折 hash。
 - **验收标准（机检）**：
   - 构建绿；默认 params encode == 旧 JSON 逐字节（零漂移专测）。
   - 消费序测试在册（uninstall-DB 后已快照文档渲染逐字节不变 = H-L2 钉
     死门）。
-  - grep：bake 写入点恰三处（Apply/auto-apply/browser）；Re-match 恰一
-    入口。
+  - grep：bake 写入点恰二处（auto-apply 命中/browser 选型 (review M1)
+    ——Apply 旧 action 零残留）；Re-match 恰一入口。
   - 既有 LensMatchHardeningTests/LensfunDBTests 零回归。
 - **commit**: `feat(lens04): persist resolved lensfun coefficients in params snapshot`
 - **回滚与偏差申报要求**：回滚 = revert 单 commit（回 live resolve 态
@@ -163,7 +168,10 @@ files_modified:
      染同参参考帧 → 抽样比对（容忍带按插值/解码差异宽定，机制注记非门
      ）；evidence（命令 + 数值 + 差异注记）落 `.work/gsd/phases/
      lens-01-lensfun/evidence/rawlab-sampling/`；非 CI 门（跨仓路径不可
-     CI 依赖——注释钉死）。
+     CI 依赖——注释钉死）。**独立性边界注记 (review m8)**：projection/
+     scale golden = Alcedo 源转录 CPU 参考 + kernel 同源对表——同笔转
+     录的系统性误读会自消，本抽查即唯一真独立对账面；「延后供件」降级
+     路径不得用于静默跳过（维持）。
   3. dt 侧维持合成参考（无 lens 腿，既定结论不翻案）。
 - **验收标准（机检）**：golden 清单在 SUMMARY 总表；evidence 目录在库
   （命令 + 数值）；比对脚本/fixtures 落 evidence（可复跑）。
@@ -184,19 +192,28 @@ fork-point 契约）；LENS-02/03 SUMMARY（语义变更清单 + 各自默认中
 ；M6-2 VALIDATION（seam 形态）；CONTEXT D-LENS-3 快照判定第三目。
 
 - **action**：
-  1. 语义变更逐项过三问裁决表（scale/toggle/auto-apply/投影/ROI/快照
-     六项 × 三问）——每项裁决 + 证据（默认参数恒等 golden 指针）落
+  1. 交叉收口核验（M5）：核 LENS-03 T1 投影已折入 LENS-02 建的
+     auto-crop 边框映射与 resolved-scale readout（并行波交叉点——未折
+     入 = 停回 LENS-03 T1 补线，禁带缺口裁决 (review M5/评审 §7)）。
+  2. 语义变更逐项过三问裁决表（scale/toggle/auto-apply/投影/ROI/快照/
+     **LENS-01 匹配硬化对 legacy `.lensfun` 档**——七项 × 三问 (review
+     M3)；第七项 = LENS-01 T3 硬化改变既有 `source == .lensfun` 文档
+     live resolve（snapshot nil 恒走 live，无快照保护）：命中→miss =
+     校正静默消失、系数变 = 观感变；预期裁决 = 按缺陷修复原位收（硬化
+     即正确行为）+ 登记 + 面板 Re-match 提示；若判 look-change 则按
+     bump 纪律全套）——每项裁决 + 证据（默认参数恒等 golden 指针）落
      DECISIONS。
-  2. 默认中性 golden 对（IOPParity）：lens 默认 off 文档 + scale=1 +
+  3. 默认中性 golden 对（IOPParity）：lens 默认 off 文档 + scale=1 +
      rectilinear 全链渲染逐字节对照（批前批后同 fixture）；非 RAW 文档
      零行为（红线 12 终验）。
-  3. **发现任何默认观感漂移 = 停手上报 orchestrator**（裁决 bump v2 +
+  4. **发现任何默认观感漂移 = 停手上报 orchestrator**（裁决 bump v2 +
      新旧 golden 对 or 修回中性——禁自裁）。
-  4. AGENTS.md「process 账本」行复核（不 bump = 零改；bump = 按纪律四步
+  5. AGENTS.md「process 账本」行复核（不 bump = 零改；bump = 按纪律四步
      全套）。
-- **验收标准（机检）**：裁决表六项在 DECISIONS；默认中性 golden 对在册
-  且逐字节相等；`RenderProcess.swift` 预期零 diff（不 bump 结论的机检
-  面——有 diff = 裁决翻转，须 orchestrator 记录在案）。
+- **验收标准（机检）**：裁决表七项在 DECISIONS（含匹配硬化 legacy 档项
+  (review M3)）；默认中性 golden 对在册且逐字节相等；
+  `RenderProcess.swift` 预期零 diff（不 bump 结论的机检面——有 diff =
+  裁决翻转，须 orchestrator 记录在案）。
 - **commit**: `test(lens04): adjudicate process version neutrality for lens batch`
 - **回滚与偏差申报要求**：漂移发现 = 停手上报（禁静默）；bump 翻转 =
   orchestrator 批准记录前置；禁静默不 bump（裁决表缺项 = 流程违规）。
@@ -210,9 +227,9 @@ fork-point 契约）；LENS-02/03 SUMMARY（语义变更清单 + 各自默认中
 - **action**：
   1. `LensPerfProbeTests`（skip-gated）：100MP float32 平面 lens 全平面
      dispatch 单帧耗时（全开 + 投影 fisheye 重例）+ memo 前后对比（
-     LENS-01 T4 收益实证）；queue fence 先行（L014）；budget = warp 族
-     （ashift/flip）同阶（具体带值以 04-04/ashift 实测为锚，DECISIONS
-     登记）。
+     LENS-01 T4 收益实证）；queue fence 先行（L014）；budget 带 = 以
+     04-04/ashift 实测为锚登记**带值**，执行批登记时同时给**绝对 ms 与
+     相对倍率**（禁「同阶」事后解释 (review m9)）。
   2. 全套 `--all` 对账轮：orchestrator 批准 → `Scripts/machine-guard.sh`
      过门 → caffeinate -dis + test-direct.sh --all（七 bundle）→ 8G 门
      + MEMFAIL 机检 → **三轮同值**（M7-3 先例）→ 对账表 = 3991 + 01/02
@@ -229,13 +246,14 @@ fork-point 契约）；LENS-02/03 SUMMARY（语义变更清单 + 各自默认中
 
 ## T6 — 收口（全批 ΔN 总账 + docs）
 
-- **action**：四新测试文件入数组；`tuist generate` 恒末位；SUMMARY（全
-  批 ΔN 总账 = 01+02+03+04 分账精确和 + --all 对账表 + skip 申报）+
-  DECISIONS（T2 裁决表 + probe 数据 + 偏差汇编）；GUI 走查申报（面板五
-  段 + browser + 接力 crop + Re-match——MANIFEST 形态归验收批，本 plan
-  记申报行）；**C 档停汇报**（与 LENS-03 一并）。
-- **验收标准（机检）**：SUMMARY/DECISIONS 在库；对账精确；xcstrings/
-  zh-audit 双 PASS 留档。
+- **action**：四新测试文件入数组 + BUNDLE-MAP 四行登记 (review m4)；
+  `tuist generate` 恒末位；SUMMARY（全批 ΔN 总账 = 01+02+03+04 分账精
+  确和 + --all 对账表 + skip 申报）+ DECISIONS（T2 裁决表七项 + probe
+  数据〔绝对 ms + 相对倍率 (review m9)〕+ 偏差汇编）；GUI 走查申报（面
+  板五段 + browser + detected 确认 + 接力 crop + Re-match——MANIFEST
+  形态归验收批，本 plan 记申报行）；**C 档停汇报**（与 LENS-03 一并）。
+- **验收标准（机检）**：SUMMARY/DECISIONS 在库；对账精确；BUNDLE-MAP
+  登记行在库 (review m4)；xcstrings/zh-audit 双 PASS 留档。
 - **commit**: `docs(lens04): close out lens batch with delta-n ledger and adjudication`
 - **回滚与偏差申报要求**：ΔN 越带 = SUMMARY 申报；禁漏 tuist generate。
 
@@ -260,8 +278,9 @@ fork-point 契约）；LENS-02/03 SUMMARY（语义变更清单 + 各自默认中
 
 1. **Goal-backward**：RESEARCH 缺口表全表 ↔ 四 plan 映射完备性（本 plan
    收口 = H-L1/H-L2 终账 + 全批验收）；§Persistence 快照推荐 ↔ T1。
-2. **OQ 兑现核**：D-LENS-3（T1 消费序 + dbTag 不折 hash + Re-match）/
-   X3 五点逐条 / T2 bump 纪律三问表。
+2. **OQ 兑现核**：D-LENS-3（T1 消费序 + dbTag strip-on-hash + Re-match
+   ）/ X3 五点逐条 / T2 bump 纪律三问表七项（含匹配硬化 legacy 档
+   (review M3)）。
 3. **红线核**：LightamerSidecar/RenderProcess（预期）零 diff；probe
    fence 证据；--all 三轮同值 + 分账精确和；skip 申报。
 4. **SC 可机检性**：uninstall-DB 恒等断言 = H-L2 机检正门；对账表数字

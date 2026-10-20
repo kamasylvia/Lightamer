@@ -6,13 +6,13 @@ wave: 2
 depends_on: ["LENS-01"]
 autonomous: true
 requirements: ["charter = UQ-R4（8bd94370）——FEAT-DEV-07 的 enable+scale+auto-detection UX 波", "research 正本 = phases/lens-01-lensfun/RESEARCH.md（b2b31909）§Route Matrix 吸收件 2/§Geometry Seam/§UI-UX/§Plan Split L2 行", "OQ 裁决正本 = 同目录 CONTEXT.md（D-LENS-1/-5/-7 + X5/X6 + 红线 15 条）", "基线 3991/37/0；本 plan 分账 +18..28（含 LENS-01 终态增量后的对账式）", "C 档停位 = 本 plan 执行+验收闭环后停汇报；确认后 LENS-03/04 并行波起跑"]
-success_criteria: "SC 全可机检——T1：Params.enabled additive（nil=true）+ applyDistortion/applyTCA/applyVignette 三 toggle（默认 true）+ 中性谓词扩展 + 系数族门控组合逻辑纯函数 + 零漂移负测；T2：UserDefaults 恰一新键 lensfun.autoApply（默认 false，注入式读法）+ reloadDefaults auto 臂（生效域 = embeddedGeometry == .notApplicable 硬守卫）+ 表驱动测试；T3：LensWarpUniforms.scale 标量（默认 1.0）+ kernel 采样 ×1/scale + modifyROIIn 边框同步 + LensAutoCrop.minimumScale（RawLab 二分 GPL 移植 + 版权头）+ user 滑杆 + resolved readout + 接力 crop 按钮（Crop 面板单源）+ scale golden（IOPParity）；T4：profile browser 五段改造 §4（搜索 + 候选 + matched 置顶 + 40 档低置信标注）+ Apply/Clear 退役终形 + 40 分档不自动入选维持；T5：xcstrings 新键尾块 + zh-audit 双 PASS + AGENTS.md UserDefaults 键登记"
+success_criteria: "SC 全可机检——T1：Params.enabled additive（nil=true）+ applyDistortion/applyTCA/applyVignette 三 toggle（默认 true）+ 中性谓词扩展 + 系数族门控组合逻辑纯函数 + 零漂移负测；T2：UserDefaults 恰一新键 lensfun.autoApply（默认 false，注入式读法）+ reloadDefaults auto 臂（生效域 = embeddedGeometry == .notApplicable 硬守卫）+ 表驱动测试；T3：LensWarpUniforms.scale 标量（默认 1.0）+ kernel 采样 ×1/scale 施于映射后采样偏移 (review m6) + modifyROIIn 边框同步 + LensAutoCrop.minimumScale（RawLab 二分 GPL 移植 + 版权头）+ user 滑杆 + resolved readout + 接力 crop 按钮（Crop 面板单源）+ scale golden（IOPParity）；T4：profile browser 五段改造 §4（搜索 + 候选 + matched 置顶 + 40 档低置信标注）+ Apply/Clear 退役终形 + 40 分档不自动入选维持 + detected 态确认文案（D-LENS-2 v1 面属主 (review M2)）；T5：xcstrings 新键尾块 + zh-audit 双 PASS + AGENTS.md UserDefaults 键登记"
 estimated_tests: "+18..28（T1 +3..5 / T2 +2..4 / T3 +7..11〔含 scale golden〕/ T4 +4..6 / T5 +2〔键族面〕；越带申报理由）"
 test_bundles: [IOP, IOPParity, APP]
 baseline: "3991/37/0 + LENS-01 终态（对账式——LENS-01-SUMMARY ΔN 终账为起算基）"
 expected_all: "LENS-01 终态 + ΔN（LENS-02 分账 +18..28；--all 归 orchestrator 批准制——本 plan 验收 = 构建 + 定向 bundle〔IOP/IOPParity/App〕，全套归 LENS-04 收口轮）"
 red_lines:
-  - "共用红线正本 = CONTEXT §四 plan 红线 front-matter 15 条；本 plan 特别面 = LensKernels.metal 改动限于 scale 标量采样坐标一处（投影数学 = LENS-03 域，本 plan 零触投影）；LensWarpUniforms 结构改动 = 纯尾插标量 + 对齐面复核（80 字节 struct 对齐纪律）。"
+  - "共用红线正本 = CONTEXT §四 plan 红线 front-matter 15 条；本 plan 特别面 = LensKernels.metal 改动限于 scale 标量采样坐标一处（投影数学 = LENS-03 域，本 plan 零触投影）；LensWarpUniforms 结构改动 = 纯尾插标量 + 对齐面复核（结构实为 104 字节 stride 112——`LensModule.swift:54-55`「80-byte」注释即错随批更正 (review m1)）。"
   - "UserDefaults 恰一键 lensfun.autoApply（红线 11）；注入式读法（KD-4——LensModule init 直读 .standard + 测试注入缝；面板 body 零直读）。"
   - "RawLab 二分移植合规（红线 7）：LensAutoCrop.swift 版权头 + 修改标注（NOTICE 条目登记归 LENS-03 T4 汇总，本 plan DECISIONS 预登记移植件清单）。"
   - "裁切真相单源：接力 crop 只写 Crop 面板建议框（CropModule 24.5 域），禁第二裁切实现（D-LENS-5）；crop_bounds/CIRCLE 零命中。"
@@ -26,6 +26,8 @@ files_modified:
   - App/Sources/Lightamer/UI/Inspector/LensProfileBrowser.swift # T4：新建——browser 段（搜索+候选列表，View 薄壳 + 模型可测）
   - App/Sources/Lightamer/UI/Shell/EditorAreaView.swift       # T3：接力 crop 缝（如走 canvas 侧则随 actual 申报；建议框填入 Crop 面板的既定缝）
   - Resources/Localizable.xcstrings                           # T5：panel_lens §2/§3/§4 新键尾块纯插入
+  - AGENTS.md                                                 # T5：UserDefaults 键族节 lensfun.autoApply 登记（M2-2 格式 (review m4)）
+  - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt  # T6：五个新测试文件落域登记行 (review m4)
   - Tests/LightamerTests/LensPerCorrectionTests.swift         # T1：新建（IOP）
   - Tests/LightamerTests/LensAutoApplyTests.swift             # T2：新建（IOP）
   - Tests/LightamerTests/LensAutoCropTests.swift              # T3：新建（IOP——二分纯函数）
@@ -38,7 +40,7 @@ files_modified:
 
 # Plan LENS-02 — plan L2：enable/per-correction/scale/auto-apply/profile browser
 
-> **裁决正本** = `CONTEXT.md`（D-LENS-1/-5/-7 + X5/X6）；规格正本 =
+> **裁决正本** = `CONTEXT.md`（D-LENS-1/-2/-5/-7 + X5/X6）；规格正本 =
 > `RESEARCH.md`（§Route Matrix 吸收件 2〔RawLab auto-crop〕/§Geometry
 > Seam/§UI-UX 五段终表/§Plan Split L2 行）。本 plan 首触
 > `LensKernels.metal`（scale 标量一处）——投影数学零触（LENS-03 域）。
@@ -59,7 +61,7 @@ files_modified:
 | T1 enable/per-correction | **+3..5** | toggle 组合门控 + 中性谓词 + 零漂移负测 | IOP |
 | T2 auto-apply | **+2..4** | 生效域硬守卫表驱动 + 注入读法 | IOP |
 | T3 scale + auto-crop | **+7..11** | 二分边界 golden + kernel scale golden + ROI 联动 + 接力换算 | IOP + IOPParity |
-| T4 profile browser | **+4..6** | 搜索/排序/低置信标注/选型 commit | App |
+| T4 profile browser | **+4..6** | 搜索/排序/低置信标注/选型 commit + detected 确认文案 (review M2) | App |
 | T5 键族收口 | **+2** | zh-audit 双 PASS + 键族断言 | App |
 | T6 收口 | **0** | docs + Project.swift + tuist generate | — |
 | **合计** | **+18..28** | 起算基 = LENS-01 终态 | 五新测试文件 |
@@ -72,11 +74,13 @@ files_modified:
 3. **vignetting 纳入三 toggle，默认 on**（D-LENS-7）。
 4. **kernel 单 pass 零结构改**（X5）——scale = 采样坐标标量。
 5. **40 分档仅 browser 排序提示**（D-LENS-4 延续——browser 低置信标注）。
+6. **detected 态覆盖 = browser 选型 + 确认文案，无独立确认 UI**（D-LENS-2
+   v1 面属主 = 本 plan T4——(review M2)）。
 
 ## read_first（全局，每任务开工前过一遍）
 
-- `.work/gsd/phases/lens-01-lensfun/CONTEXT.md`（D-LENS-1/-5/-7 + X5/X6
-  + 红线 15 条）
+- `.work/gsd/phases/lens-01-lensfun/CONTEXT.md`（D-LENS-1/-2/-5/-7 +
+  X5/X6 + 红线 15 条）
 - `.work/gsd/phases/lens-01-lensfun/RESEARCH.md` §Route Decision Matrix
   吸收件 2 / §Geometry Pipeline Seam / §UI-UX / §Plan Split L2 行
 - RawLab `lutools/src/core/lens_correction.cpp:196-247`（auto-crop 二分
@@ -156,7 +160,9 @@ files_modified:
      zoom ×1.25 粗探至 8 + 18 轮二分 + ×1.00001 余量；超 8 = nil
      （UnsupportedInput 语义）；文件头 = RawLab 版权 + 修改标注（§X8）。
   2. `LensWarpUniforms` += `scale: Float`（默认 1.0，纯尾插 + 对齐复
-     核）；kernel 采样坐标 `×1/scale`（半径约定零改——面核头注释）；
+     核）；kernel 采样坐标 `×1/scale` **施于映射后采样偏移**（畸变/投
+     影后的终坐标——纯视场收窄，非畸变前缩 ru；投影侧折叠序 = LENS-03
+     T1 钉死 (review m6/M5)）（半径约定零改——面核头注释）；
      `modifyROIIn` 边框点乘 1/scale 后再 AABB+2px。
   3. `Params` additive：`autoScale: Bool?`（nil = true）+ `userScale:
      Float?`（nil = 1.0）；resolved scale 折算 = auto ? LensAutoCrop :
@@ -174,7 +180,8 @@ files_modified:
   - LensAutoCrop.swift 版权头三件套在位（grep RawLab/Modified/NOTICE
     指针）；DECISIONS 预登记移植件清单含本件。
   - scale=1 golden 恒等（默认中性零行为门）；scale golden 门内（1e-5
-    warp 级）。
+    warp 级）；scale 语义 golden 钉死（映射后采样偏移——scale=1.25 例
+    视场收窄方向断言 (review m6)）。
   - `crop_bounds`/`CIRCLE` 零命中（D-LENS-5 机检）。
 - **commit**: `feat(lens02): add auto and user scale with rawlab bisection autocrop`
 - **回滚与偏差申报要求**：回滚 = revert 单 commit（scale=1 默认 = 零行
@@ -197,10 +204,17 @@ files_modified:
      body 零业务逻辑。
   3. Apply/Clear 按钮退役：Apply 语义由选型吸收；Clear = 回 manual 保
      留为 browser 空/禁用臂（终形 DECISIONS 申报）。
-  4. 测试：排序/置顶/低置信标注/选型 commit/搜索去抖纯面。
+  4. detected 态确认文案（D-LENS-2 v1 面属主 (review M2)）：detected
+     文档 browser 选型 = 确认文案（「该图已含厂商镜头校正，选型将叠加
+     Lensfun 校正」）→ 确认后才置 source=.lensfun；未确认 = 不置（互
+     斥守卫面——D-LENS-1「detected 需显式操作」的 v1 覆盖实现）。
+  5. 测试：排序/置顶/低置信标注/选型 commit/搜索去抖纯面 + detected
+     确认文案臂（确认 → 置 source；取消 → 不置）。
 - **验收标准（机检）**：
   - 构建绿；grep：`applyMatch()` 旧按钮 action 零命中（退役完成；
     Clear 语义新形态 DECISIONS 在案）；browser 模型恰一文件。
+  - detected 确认文案面在册（未确认不置 source 断言——D-LENS-2 v1 面
+    属主收口 (review M2)）。
   - body 零全库打分（打分在模型层 + 缓存——browser 打开时一次，输入变
     化去抖重跑）。
   - `--bundle App` 定向零回归；T5 键族一并收口。
@@ -230,7 +244,8 @@ files_modified:
   `--bundle App` 定向全绿；ΔN 对账（+18..28）；SUMMARY/DECISIONS 落盘；
   **C 档停汇报**（并行波放行点）。
 - **验收标准（机检）**：定向三 bundle 全绿；Project.swift diff = 恰五
-  行；SUMMARY/DECISIONS 在库。
+  行；BUNDLE-MAP 登记行在库 (review m4)；AGENTS.md 登记行在库；
+  SUMMARY/DECISIONS 在库。
 - **commit**: `test(lens02): register lens scale and browser suites and close out l2`
 - **回滚与偏差申报要求**：ΔN 越带 = SUMMARY 申报；禁漏 tuist generate。
 
@@ -252,7 +267,8 @@ files_modified:
 
 1. **Goal-backward**：RESEARCH 缺口表「enable/scale」两行 ↔ T1/T3；
    auto-detection UX 面 ↔ T2/T4。
-2. **OQ 兑现核**：D-LENS-1（T2 硬守卫双负例 + 恰一键）/ D-LENS-5（接
+2. **OQ 兑现核**：D-LENS-1（T2 硬守卫双负例 + 恰一键）/ D-LENS-2（T4
+   detected 确认文案——v1 面属主收口 (review M2)）/ D-LENS-5（接
    力 + crop_bounds 零命中）/ D-LENS-7（T1 三 toggle 含 vignette）。
 3. **红线核**：LensKernels.metal 恰一处 diff；LensAutoCrop 版权头三件
    套；UserDefaults 恰一键 + 零 body 直读；scale=1 恒等 golden。

@@ -8,8 +8,9 @@
 > `RESEARCH.md`（§Summary / §Baseline / §Mutex / §Auto-Detection /
 > §Geometry Seam / §Persistence / §UI-UX / §Test Strategy / §Plan Split /
 > §OQ）；planner 2026-10-20 HEAD `b2b31909` 抽核 ~20 点亲核吻合——
-> **转写勘误两条**随 §转写勘误节登记（①sidecar schema v10→v11；②测试
-> 基线权威数 3991/37/0 登记），执行以勘误为准。
+> **转写勘误三条**随 §转写勘误节登记（①sidecar schema v10→v11；②测试
+> 基线权威数 3991/37/0 登记；③CaptureMetadata EXIF 字段存在性——
+> review B1），执行以勘误为准。
 >
 > **特别登记一（hazards 三条，消解绑定到 plan，§Hazards 正表）**：
 > ①per-render 全库匹配（现役 `process` 每次 run 全库线性打分）→ LENS-01
@@ -29,11 +30,14 @@
 > process 期）→ **LENS-02**（enable/per-correction/scale/auto-crop/
 > profile browser）→ **LENS-03**（projection + 数据分发 + NOTICE）串行；
 > **LENS-04**（系数快照 + process version 裁决 + 测试收口 + perf probe）
-> 依赖 LENS-02、与 LENS-03 **并行**（触碰面不相交：03 = kernel 投影数学
-> + 数据分发面；04 = params 持久化 + 验收面；唯一共享收口点 = LENS-04
-> T2 process version 裁决消费 02/03 全部语义变更，故 04 的裁决任务在
-> 03 闭环后执行——排程上 04 先行任务〔T1 快照/T3 缓存隔离〕可与 03 并
-> 行，T2 串行垫底）。**C 档门控：每 plan 执行+验收闭环后停汇报**，等用
+> 依赖 LENS-02、与 LENS-03 **并行排程但串行交错执行**（单重活机；
+> **相交文件清单 = `LensPanelView.swift` / `Localizable.xcstrings` /
+> `Project.swift`**——各自批内串行落盘 + tuist generate 恒末位，禁并
+> 行起跑 (review m7)；唯一共享收口点 = LENS-04 T2 process version 裁决
+> 消费 02/03 全部语义变更，故 04 的裁决任务在 03 闭环后执行——排程上
+> 04 先行任务〔T1 快照/T3 缓存隔离〕可与 03 交错，T2 串行垫底，且 T2
+> 裁决前核 LENS-03 T1 投影已折入 02 建的 auto-crop 边框映射——M5 交叉
+> 收口点）。**C 档门控：每 plan 执行+验收闭环后停汇报**，等用
 > 户确认再放行下一 plan（charter 门 + AGENTS 暂停机制）；并行波 = 两
 > plan 各自闭环后一并汇报停。全套 `--all` = orchestrator 批准制 + 运行
 > 监视 + 8G 门 + MEMFAIL 机检兜底（AGENTS 资源监控节）；执行批一切重活
@@ -47,11 +51,11 @@
 全落地 + 双重校正互斥三态探测（detected/unknown/notApplicable）+ 系数快
 照持久化（渲染与 DB 版本彻底解耦）+ 数据钉版分发与 CC-BY-SA-3.0 归属。
 验收形态：构建绿 + 定向 bundle 全绿 + 全套 `--all` 对账（基线
-**3991/37/0**，ΔN **+60..90** → 终值带 **4051..4081**，skip 增量逐族申
+**3991/37/0**，ΔN **+59..88** → 终值带 **4050..4079**，skip 增量逐族申
 报）+ 互斥状态机表驱动 + projection/scale golden（GPL 同源对表）+
 100MP perf probe（fence 纪律）+ 面板五段 GUI 走查。四 plan 分账：
-LENS-01 +14..20 / LENS-02 +18..28 / LENS-03 +16..26 / LENS-04 +12..16
-（合计 +60..90；越带申报理由）。
+LENS-01 +13..18 / LENS-02 +18..28 / LENS-03 +16..26 / LENS-04 +12..16
+（合计 +59..88；越带申报理由；LENS-01 分账含 B1 下修——勘误③）。
 
 ## 决议（D-LENS-1..8，生效值，硬约束，执行中不重开）
 
@@ -61,8 +65,9 @@ LENS-01 +14..20 / LENS-02 +18..28 / LENS-03 +16..26 / LENS-04 +12..16
   ——厂商 RAW 无可靠检测面，自动开 = 高概率双补）；开关 = UserDefaults
   `lensfun.autoApply`（默认 false，本批唯一新应用级键）；**生效域钉死 =
   `embeddedGeometry == .notApplicable`（raster/TIFF 链）**——detected/
-  unknown 恒需显式 Apply（互斥硬守卫不受开关影响，RESEARCH §Mutex 三态
-  行为表）；开关读法走注入式 defaults（KD-4 惯例：`LensModule` init 直
+  unknown 恒需显式操作（browser 选型；detected 态出确认文案 = D-LENS-2
+  v1 面——「显式 Apply」为退役前词汇 (review M2)）（互斥硬守卫不受开
+  关影响，RESEARCH §Mutex 三态行为表）；开关读法走注入式 defaults（KD-4 惯例：`LensModule` init 直
   读 `.standard` + 测试注入缝；面板 body 零直读）。
 - 理由一句：错误的双补比没有校正更伤信任，且不可检测面架构性恒存。
 - 证据：RESEARCH §Mutex + §OQ-1；RawLab per-photo 默认关同判
@@ -74,7 +79,9 @@ LENS-01 +14..20 / LENS-02 +18..28 / LENS-03 +16..26 / LENS-04 +12..16
 ### D-LENS-2 覆盖语义 = v1 只做 Lensfun 侧「强制启用」；解码侧 per-image override 挂 v1.x（OQ-LENS-2）
 
 - **裁决 = RESEARCH §OQ 推荐**：detected 态逃生门 = 面板「强制启用」
-  （确认文案 + source 直接置 lensfun——Lensfun 侧覆盖，v1 面）；
+  （确认文案 + source 直接置 lensfun——Lensfun 侧覆盖，v1 面）；**v1
+  面属主 = LENS-02 T4**（detected 态文档 browser 选型出确认文案，无
+  独立确认 UI (review M2)）；
   **解码侧** override（`RAWTechnicalOverrides.vendorLensCorrection=false`
   → CIRAW 跳过嵌入校正 → 重解码）= **v1.x parked，本批四 plan 不执行**
   ，设计契约钉死于 §X2 供后续批接手。
@@ -192,8 +199,12 @@ LENS-01 +14..20 / LENS-02 +18..28 / LENS-03 +16..26 / LENS-04 +12..16
 - `DecodedImage` additive optional `embeddedGeometry:
   EmbeddedGeometryState?`（新枚举 `detected/unknown/notApplicable`，Core
   定义、IOP 可读——IOP → Core 依赖方向既有）。
-- 三腿赋值：RAW DNG = 探针（任一 tag 存在 = detected）；RAW 非 DNG =
-  unknown；raster/TIFF 腿（M4-1）= notApplicable。
+- 构造点赋值（**DecodedImage 构造点全 4 处**：`RAWDecoder.swift:236`
+  RAW 腿〔内含 DNG/非 DNG 条件分支〕、`:358` 退役 decodeRaster 腿〔=
+  notApplicable 同步赋值——不赋 = nil「未判定」，与 raster 腿语义矛
+  盾，禁 (review M6)〕、`RasterDecoder.swift:121/:138` TIFF 两腿）：
+  RAW DNG = 探针（任一 tag 存在 = detected）；RAW 非 DNG = unknown；
+  raster/TIFF 全部构造点 = notApplicable。
 - 消费：`LensModule.reloadDefaults` 把判定折进 `Params` additive
   `embeddedGeometry`（D6 自描述哲学——params 携带 resolve 上下文；面板
   §1 readout 经 params 读，无第二缝）；nil = pre-batch 档 → 面板显示
@@ -224,28 +235,43 @@ LENS-01 +14..20 / LENS-02 +18..28 / LENS-03 +16..26 / LENS-04 +12..16
 - 消费序：`source == .lensfun && snapshot != nil` → 直用快照（零 DB 依
   赖）；`snapshot == nil` → 现役 live resolve（legacy 档字节级行为不
   变）。
-- 写入点恰三处：面板 Apply / auto-apply 命中 / browser 选型；「Re-match」
-  动作 = 失效快照 → 按当前 DB 重匹配 → 新快照一次 commit（终形 LENS-04
-  DECISIONS 申报）。
-- dbTag 语义：审计字段，不折 paramsHash（DB 更新不抖 hash——与 D-LENS-3
-  快照语义自洽）。
+- 写入点恰二处：auto-apply 命中 / browser 选型（含 detected 确认选型
+  ——同一 browser 缝；面板 Apply 已于 LENS-02 T4 退役，「恰三处」为
+  退役前口径 (review M1)；detected 覆盖面属主 = LENS-02 T4 (review
+  M2)）；「Re-match」动作 = 失效快照 → 按当前 DB 重匹配 → 新快照一次
+  commit（终形 LENS-04 DECISIONS 申报）。
+- dbTag 语义：审计字段，不折 paramsHash——机制钉死 = `stableHash` 输
+  入取 **strip-on-hash 变体**（snapshot 编码前剥 dbTag），DB 更新
+  （dbTag 变）不抖 hash/pipe cache (review m2)；生产路径 dbTag 仅显式
+  Re-match（本身即新 commit）时变，断言为防御性钉死——与 D-LENS-3 快
+  照语义自洽。
 
-### X4 crop gate 修复接线（LENS-01 T3）
+### X4 crop gate 修复接线（LENS-01 T1/T3）
 
-- EXIF 补字段：`CaptureMetadata` += `focalLengthIn35mm: Double?`
-  （ImageIO `kCGImagePropertyExifFocalLenIn35mmFilm`）+ `lensMake:
-  String?`（ExifAux dict）——tolerant additive，旧档 decode 零漂移负测
-  随批。
-- imageCrop 终式（优先序见 D-LENS-4）；35mm 推导缺 focal 时弃用（除零
-  守卫）。
+- **勘误③（review B1）**：两字段**既有**——`focalLength35mm: Double?`
+  （`CaptureMetadata.swift:58`，ImageIO
+  `kCGImagePropertyExifFocalLenIn35mmFilm`）+ `lensMake: String?`
+  （:78），且已在 decode 腿接线（`RAWDecoder.swift:550/:563-577`，08-3
+  yiyin 批；LensMake 出处 = **主 EXIF dict**
+  `kCGImagePropertyExifLensMake` + aux 回落——D-08-3-T2-1 已纠正
+  「ExifAux dict LensMake」旧说）。RESEARCH §Auto-Detection「EXIF 缺口
+  补两字段」段**作废**；本批复用既有字段零产线 diff（或仅测试暴露接
+  线缺口时的最小防御补线），引用一律 `focalLength35mm` 拼写（禁
+  `focalLengthIn35mm` 重名新声明——双字段双真相违单源）。
+- imageCrop 终式（优先序见 D-LENS-4）；35mm 推导
+  （`focalLength35mm/focal`）缺 focal 时弃用（除零守卫）。
 - `Params` additive 记录 resolve 输入（cameraMaker/cameraModel/
   imageCrop: optional——与 snapshot 同批字节纪律）。
 
 ### X5 scale 折算（LENS-02 T3）
 
 - `LensWarpUniforms` += `scale: Float`（默认 1.0）；kernel 采样坐标
-  ×1/scale；`modifyROIIn` 边框点同步缩放；kernel 仍单 pass（无结构改，
-  80 字节 struct 对齐面随批复核）。
+  ×1/scale；`modifyROIIn` 边框点同步缩放；kernel 仍单 pass（无结构改
+  ；结构实为 **104 字节 stride 112**——`LensModule.swift:54-55`
+  「80-byte struct」注释即错，随批更正 (review m1)）。
+- scale 施于**映射后采样偏移**（畸变/投影后的终采样坐标 ×1/scale——
+  纯视场收窄；非畸变前缩 ru，观感不同 (review m6)）；scale×投影折叠
+  序 = LENS-03 T1 钉死（M5）。
 - auto scale = `LensAutoCrop.minimumScale`（IOP 纯函数，RawLab 二分移植
   + GPL 合规头 §X8）；user scale 滑杆 + resolved readout；auto/user 互
   斥（Alcedo `use_user_scale_` 语义）。
@@ -259,8 +285,9 @@ LENS-01 +14..20 / LENS-02 +18..28 / LENS-03 +16..26 / LENS-04 +12..16
   MissingFocal/NotApplicable）/ §2 enable + per-correction 三 toggle /
   §3 scale（auto 开关 + user 滑杆 + resolved readout + 接力 crop 按钮）
   / §4 profile browser（搜索 + 候选列表 + matched 置顶；40 分档条目可
-  见但标注「低置信」不自动入选）/ §5 数据管理（DB 版本/条目数 readout
-  + 更新按钮；设置项迁 Settings 归 LENS-03）。
+  见但标注「低置信」不自动入选；**detected 态文档选型 = 确认文案臂**
+  ——D-LENS-2 v1 面属主 (review M2)）/ §5 数据管理（DB 版本/条目数
+  readout + 更新按钮；设置项迁 Settings 归 LENS-03）。
 - Apply/Clear 两按钮退役进 browser（Clear 语义 = 回 manual，保留为
   browser 空/禁用臂——终形 LENS-02 DECISIONS 申报）。
 - 交互纪律：D-H1 拖拽三件 + 单 discrete commit 键族 `history_lens`/
@@ -289,7 +316,10 @@ LENS-01 +14..20 / LENS-02 +18..28 / LENS-03 +16..26 / LENS-04 +12..16
 - golden 合法化：GPL 同源后 projection/scale 参考可与 Alcedo
   `lens_calib.metal` / RawLab 二分直接对表——对表数值入 plan evidence
   ，不入 CI 门（跨仓路径不可 CI 依赖）；dt 侧维持合成参考（无 lens 腿
-  ，`LensParityTests.swift:14-27` 既定结论）。
+  ，`LensParityTests.swift:14-27` 既定结论）。**同笔转录注记 (review
+  m8)**：projection/scale CPU 参考 = Alcedo 源转录 + kernel 同源对表
+  ——同笔转录的系统性误读会自消，真独立对账只有 LENS-04 T4 RawLab 抽
+  查（非 CI）；其「延后供件」降级路径不得用于静默跳过（维持）。
 
 ## Hazards（三条，登记 + 消解绑定）
 
@@ -310,10 +340,21 @@ LENS-01 +14..20 / LENS-02 +18..28 / LENS-03 +16..26 / LENS-04 +12..16
 2. **测试基线权威数登记（RESEARCH 仅给 ΔN +60..90，未给绝对数）**：权威
    基线 = **`3991/37/0`**（f0prime 批终态——F0P-02 三轮同值
    `TOTAL|3991/37/0|`，P3 退役零 ΔN；`.work/gsd/phases/f0prime-prod/
-   F0P-02-SUMMARY.md:12,:99` 亲核）。全套预期 = **3991 + ΔN（+60..90 →
-   终值带 4051..4081）**；skip 37 = 基线 + 本批 perf probe 族增量逐族申
+   F0P-02-SUMMARY.md:12,:99` 亲核）。全套预期 = **3991 + ΔN**（批时原
+   值 +60..90 → 4051..4081；**勘误③ B1 下修后生效值 = +59..88 → 终值
+   带 4050..4079**）；skip 37 = 基线 + 本批 perf probe 族增量逐族申
    报禁静默吸收。四 plan 以本数为正本。
-3. 其余 ~20 抽核点全部吻合（±1 行微差不影响语义）：`LensModule.swift`
+3. **CaptureMetadata EXIF 字段存在性勘误（review B1，2026-10-20 评审
+   批）**：原抽核记「`CaptureMetadata.swift` :10-37（无 35mm/
+   lensMake）」= 失实——:10-37 只扫 struct 头段，:49-84 追加尾段（08-2
+   /08-3 yiyin 六字段批）含 `focalLength35mm`（:58）与 `lensMake`
+   （:78），且已在 `RAWDecoder.swift:550/:563-577` 接线（LensMake =
+   主 EXIF dict + aux 回落，D-08-3-T2-1 纠正注记在源）。对本批影响 =
+   LENS-01 T1 由「补两字段」改「复用既有字段 + 测试钉接线」（接线断言
+   而非新声明），X4/ΔN（T1 +2..4 → +1..2，分账 +14..20 → +13..18，
+   终值带 4050..4079）随批修订；RESEARCH §Auto-Detection EXIF 缺口段
+   作废。
+4. 其余 ~20 抽核点全部吻合（±1 行微差不影响语义）：`LensModule.swift`
    :57-74（divergence 登记）/:151-156（slot 13.0 + flags）/:170-178
    （reloadDefaults 默认 off）/ :261-295（modifyROIIn AABB+2px+clamp）
    / :318-329（pointMapSegment）/ :335-346（resolveUniforms →
@@ -325,8 +366,8 @@ LENS-01 +14..20 / LENS-02 +18..28 / LENS-03 +16..26 / LENS-04 +12..16
    / :431-446（fallbackEntry ≥40）；`LensPanelView.swift` :42-50（§1 静
    态文案）/ :226-237（stub matchName=key）/ :240-256（Apply/Clear）；
    `RAWDecoder.swift` :39（RAWTechnicalOverrides）/:216-221（vendor lens
-   correction 键恒默认 true）；`CaptureMetadata.swift` :10-37（无
-   35mm/lensMake）；`RenderProcess.swift` :25-44（bump 纪律）/:89
+   correction 键恒默认 true）；`CaptureMetadata.swift`（勘误③——:10-37
+   头段引用未覆盖 :49-84 追加尾段，35mm/lensMake 既有且已接线）；`RenderProcess.swift` :25-44（bump 纪律）/:89
    （current = v1）；`Registry.swift` :39-50（disabled 集无 lens）/
    :238-241（注册 13.0）；`LensfunDownloadService.swift` :35-37
    （master.zip 不钉版）/ :39（customPathKey）；`LightamerShell.swift`
