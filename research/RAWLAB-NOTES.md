@@ -1,7 +1,7 @@
 # RawLab 调研（2026-10-20，用户令「dancancer/RawLab 更新了，查新版本有什么功能我们不具备」）
 
 - 仓库：`github.com/dancancer/RawLab`，**最新 0.8.2（2026-10-20 发布）**；跨四平台（macOS/Windows/Android/iOS）共享 C++17 核 + 各平台原生编辑器；自养 RAW 解码（LibRaw + 固定版 Adobe DNG SDK + JXL）。
-- **许可证 = GPL-3.0**（+ 阿里云 RUM SDK 链接例外）→ 与 darktable/Alcedo 同类：**只读参考、代码零复制**纪律适用。
+- **许可证 = GPL-3.0**（+ 阿里云 RUM SDK 链接例外）→ 与 darktable/Alcedo 同类。**勘误（2026-10-20 晚，用户裁「我们也切到 GPL」）：本项目已切 GPL-3.0，RawLab 从「只读零复制」升级为「同许可合规复制可用」（保留原版权声明 + 许可证文本 + 标注修改）——UQ-R1..R6 落地时可直接参照/复用其实现。**
 - 开发形态：`codex/*` 分支丛林 = AI 辅助高频迭代（0.5→0.8.2 十天五个版本）；0.8.1 起**使用统计默认开启**（RUM SDK，数据存境内）——我们不采。
 
 ## 0.5→0.8.2 功能弧（changelog 正本）

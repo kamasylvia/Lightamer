@@ -203,4 +203,7 @@ party font is embedded with this application.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+**GPL-3.0** — see [LICENSE](LICENSE). The project was MIT-licensed through
+v0.8-era builds; it was relicensed to GPL-3.0 by the sole copyright holder on
+2026-10-20 (historical MIT text archived at `research/LICENSE-MIT-2026-archive.txt`
+in the development history). Third-party provenance and notices: see [NOTICE](NOTICE).

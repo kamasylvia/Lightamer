@@ -1,7 +1,17 @@
 Lightamer
 Copyright 2026 the Lightamer authors
 
-This project is licensed under the MIT License (see LICENSE).
+This project is licensed under the **GNU General Public License v3.0**
+(see LICENSE). It was originally MIT-licensed; the sole copyright holder
+relicensed it to GPL-3.0 on 2026-10-20. Historical MIT text:
+`research/LICENSE-MIT-2026-archive.txt` (development history).
+
+Consequence for GPL-licensed upstream references (darktable, Alcedo Studio,
+SpektraLab, RawLab, open-display-transform): same-license incorporation is
+now permitted under GPL-3.0 compliance — preserve original copyright and
+license text, and mark modifications. Earlier "read-only / zero-copy"
+statements below are historical records of how the code base was built
+before the relicensing and remain accurate for the code as it exists.
 
 ==============================================================================
 Third-party provenance
