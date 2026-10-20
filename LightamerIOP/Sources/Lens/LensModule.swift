@@ -125,6 +125,20 @@ public final class LensModule: IOPModule {
         /// The mutex judgment carried with the params (X1 self-describing
         /// params — the panel §1 readout reads THIS, no second seam).
         public var embeddedGeometry: EmbeddedGeometryState?
+        // LENS-02 T1 (D-LENS-7, Alcedo apply_* alignment): the enable +
+        // per-correction family switches. All additive optional with the
+        // nil = TRUE default — the default params JSON stays byte-identical
+        // and the render behavior of every pre-L2 document is unchanged.
+        /// The whole-module enable (nil = true). false = the neutral face
+        /// (the neutral predicate reads it — the pipe blits identity).
+        public var enabled: Bool?
+        /// Distortion family gate (dc1..dc4; nil = true).
+        public var applyDistortion: Bool?
+        /// TCA family gate (the six vr/cr/br/vb/cb/bb terms; nil = true).
+        public var applyTCA: Bool?
+        /// Vignetting family gate (vk1..vk3; nil = true; D-LENS-7 keeps
+        /// vignetting IN the trio).
+        public var applyVignette: Bool?
 
         public init(
             distortionK1: Float = 0,
@@ -141,7 +155,11 @@ public final class LensModule: IOPModule {
             cameraMaker: String? = nil,
             cameraModel: String? = nil,
             imageCrop: Double? = nil,
-            embeddedGeometry: EmbeddedGeometryState? = nil
+            embeddedGeometry: EmbeddedGeometryState? = nil,
+            enabled: Bool? = nil,
+            applyDistortion: Bool? = nil,
+            applyTCA: Bool? = nil,
+            applyVignette: Bool? = nil
         ) {
             self.distortionK1 = distortionK1
             self.distortionK2 = distortionK2
@@ -158,6 +176,10 @@ public final class LensModule: IOPModule {
             self.cameraModel = cameraModel
             self.imageCrop = imageCrop
             self.embeddedGeometry = embeddedGeometry
+            self.enabled = enabled
+            self.applyDistortion = applyDistortion
+            self.applyTCA = applyTCA
+            self.applyVignette = applyVignette
         }
 
         /// The neutral identity (cache-neutral seed).
@@ -184,6 +206,13 @@ public final class LensModule: IOPModule {
     private var committed: Params = Params()
 
     public init() {}
+
+    /// The committed-storage testing seam (LENS-02 T1 — the gate tests
+    /// write the committed face directly; commitParams is the production
+    /// writer, this is the test-only mirror).
+    func setCommittedForTesting(_ params: Params) {
+        committed = params
+    }
 
     /// Fresh images: neutral OFF (anti-double-correction — the (a) layer:
     /// CIRAW already applied the embedded correction, so the manual layer
@@ -224,8 +253,12 @@ public final class LensModule: IOPModule {
 
     /// Neutral predicate over the OPTICAL coefficients (D5): all-zero
     /// distortion/TCA-offset/vignette. `source` excluded (a lensfun resolve
-    /// that lands all-zero is equally identity). `internal` for tests.
+    /// that lands all-zero is equally identity). LENS-02 T1: the enable
+    /// arm — `enabled == false` is neutral REGARDLESS of the stored
+    /// coefficients (the module is off; the pipe blits identity and the
+    /// cache key stays neutral). `internal` for tests.
     func isNeutral(_ p: Params) -> Bool {
+        if p.enabled == false { return true }
         let e = Self.neutralEps
         return abs(p.distortionK1) < e
             && abs(p.distortionK2) < e
@@ -236,20 +269,53 @@ public final class LensModule: IOPModule {
             && abs(p.vignetteK3) < e
     }
 
+    /// The per-correction family gate (LENS-02 T1, D-LENS-7 — applied to
+    /// the RESOLVED kernel coefficients, AFTER resolve / BEFORE uniforms:
+    /// the manual slider STORAGE is never touched, only the render face).
+    /// nil = true default means the default params pass through untouched.
+    /// `static` + `internal` = the testable pure shape (the acceptance
+    /// grep pins exactly one `gated(` declaration).
+    static func gated(_ k: LensKernelParams, params: Params) -> LensKernelParams {
+        var out = k
+        if params.enabled == false {
+            return LensKernelParams()
+        }
+        if params.applyDistortion == false {
+            out.dc1 = 0; out.dc2 = 0; out.dc3 = 0; out.dc4 = 0
+        }
+        if params.applyTCA == false {
+            out.vr = 1; out.cr = 0; out.br = 0
+            out.vb = 1; out.cb = 0; out.bb = 0
+        }
+        if params.applyVignette == false {
+            out.vk1 = 0; out.vk2 = 0; out.vk3 = 0
+        }
+        return out
+    }
+
     /// The kernel uniforms for the committed manual params at the run
-    /// geometry (D2 exact mapping; TCA offsets → vr/vb scales).
+    /// geometry (D2 exact mapping; TCA offsets → vr/vb scales), routed
+    /// through the L2 family gate (LENS-02 T1 — one gate point for both
+    /// coefficient arms).
     /// `internal` for the parity tests' hand checks.
     func manualUniforms(bufW: Int, bufH: Int, roiIn: ROI) -> LensWarpUniforms {
+        // The oroi=0 seed keeps the pre-L2 shape: the caller rebases via
+        // `rebased(roiOut:)` (resolveUniforms manual arm).
+        manualKernelParams().uniforms(
+            bufW: bufW, bufH: bufH, roiIn: roiIn,
+            roiOut: ROI(x: 0, y: 0, width: 0, height: 0, scale: roiIn.scale))
+    }
+
+    /// The committed manual coefficients as kernel params (the gated face
+    /// LENS-02 T1 shares with the lensfun arm).
+    private func manualKernelParams() -> LensKernelParams {
         let p = committed
-        return LensWarpUniforms(
-            dc1: 0, dc2: p.distortionK1, dc3: 0, dc4: p.distortionK2,
-            vr: 1 + p.tcaR, cr: 0, br: 0,
-            vb: 1 + p.tcaB, cb: 0, bb: 0,
-            vk1: p.vignetteK1, vk2: p.vignetteK2, vk3: p.vignetteK3,
-            centerX: Float(bufW) / 2, centerY: Float(bufH) / 2,
-            halfW: Float(bufW) / 2,
-            oroiX: 0, oroiY: 0, iroiX: Int32(roiIn.x), iroiY: Int32(roiIn.y),
-            inW: Int32(bufW), inH: Int32(bufH))
+        return LensModule.gated(
+            LensKernelParams(
+                dc2: p.distortionK1, dc4: p.distortionK2,
+                vr: 1 + p.tcaR, vb: 1 + p.tcaB,
+                vk1: p.vignetteK1, vk2: p.vignetteK2, vk3: p.vignetteK3),
+            params: p)
     }
 
     /// Forward radial map at the GREEN channel (ROI legs all use G — the
@@ -375,8 +441,11 @@ public final class LensModule: IOPModule {
         if committed.source == .lensfun {
             guard let params = await LensfunStore.resolveCommitted(
                 committed, width: bufW, height: bufH) else { return nil }
-            return params.uniforms(
-                bufW: bufW, bufH: bufH, roiIn: roiIn, roiOut: roiOut)
+            // LENS-02 T1: the family gate rides the resolved coefficients
+            // (after resolve, before uniforms — one gate point shared with
+            // the manual arm).
+            return LensModule.gated(params, params: committed)
+                .uniforms(bufW: bufW, bufH: bufH, roiIn: roiIn, roiOut: roiOut)
         }
         return manualUniforms(bufW: bufW, bufH: bufH, roiIn: roiIn)
             .rebased(roiOut: roiOut)
