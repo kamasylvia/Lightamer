@@ -892,3 +892,7 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 
 ## L0xx-d 勘误（2026-10-20）：「并行 lane 独立 DerivedData」处方撤回
 - 原处方解决了 mtime-glob 拿错容器，但代价 = 容器爆炸（21 个/22GB）成为 L0xx-e 饥饿燃料。**替代 = 构建产物交接**（executor 一次构建 → BUILD-HANDOFF.txt 显式路径 → lane 消费）；日志 lane 专属后缀条款维持。
+
+## L0xx-e 补注（2026-10-20 当晚）：守门 G3 阈值校准 1GB→4GB
+- **现象**：guard v1 的 G3「swap 已用 <1GB」在空闲机上也 BLOCK——二路验收 vmmap 定位 swap 平台 = 常驻用户进程惰性冷页（Finder 773M/Qsync 532M/Resilio 229M/zen 206M/ZCode 渲染 102M ≈2.1GB），只在被触碰时换回，swapused 不会自行跌穿 1GB；一路观察到的「200MB/14min 回落」是杀测试宿主后的主动清理期假象。
+- **修正**：G3 → <4GB（拦「swap 奔向盘满」的失控态，不拦冷页地板）；活压力信号由 G2（可用内存 ≥30%）承担。教训 = **静态 swapused 不是压力指标**，设门须先量本机地板。
