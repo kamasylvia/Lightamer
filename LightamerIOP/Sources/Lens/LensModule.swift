@@ -178,6 +178,13 @@ public final class LensModule: IOPModule {
         // per-photo autoCrop=true default notwithstanding.
         public var autoScale: Bool?
         public var userScale: Float?
+        // LENS-03 T1 (D-LENS-8): the projection faces. targetProjection
+        // (nil = rectilinear identity — the default-neutral face); the
+        // reserved slots decode leniently to rectilinear. sourceProjection
+        // rides the resolved kernel (LensKernelParams) at render time and
+        // lands in params at the snapshot batch (LENS-04 T1).
+        public var targetProjection: String?
+        public var sourceProjection: String?
 
         public init(
             distortionK1: Float = 0,
@@ -200,7 +207,9 @@ public final class LensModule: IOPModule {
             applyTCA: Bool? = nil,
             applyVignette: Bool? = nil,
             autoScale: Bool? = nil,
-            userScale: Float? = nil
+            userScale: Float? = nil,
+            targetProjection: String? = nil,
+            sourceProjection: String? = nil
         ) {
             self.distortionK1 = distortionK1
             self.distortionK2 = distortionK2
@@ -223,6 +232,8 @@ public final class LensModule: IOPModule {
             self.applyVignette = applyVignette
             self.autoScale = autoScale
             self.userScale = userScale
+            self.targetProjection = targetProjection
+            self.sourceProjection = sourceProjection
         }
 
         /// The neutral identity (cache-neutral seed).
@@ -420,13 +431,17 @@ public final class LensModule: IOPModule {
     public static func resolvedScalePreview(
         params: Params, bufW: Int, bufH: Int
     ) -> (scale: Float, unsupported: Bool) {
-        let kernel: LensKernelParams
+        var kernel: LensKernelParams
         if params.source == .lensfun {
-            guard let resolved = LensfunStore.resolveCommitted(params, width: 2, height: 2)
+            guard var resolved = LensfunStore.resolveCommitted(params, width: 2, height: 2)
             else { return (1, false) }
+            resolved.targetProjectionRaw = params.targetProjection
             kernel = gated(resolved, params: params)
         } else {
-            kernel = manualKernelParams(params)
+            var k = LensModule.manualKernelParams(params)
+            k.targetProjectionRaw = params.targetProjection
+            k.sourceProjectionRaw = params.sourceProjection
+            kernel = k
         }
         if params.autoScale ?? false {
             let s = LensAutoCrop.minimumScale(width: bufW, height: bufH) { x, y, scale in
@@ -579,7 +594,10 @@ public final class LensModule: IOPModule {
             // LENS-02 T1: the family gate rides the resolved coefficients
             // (after resolve, before uniforms — one gate point shared with
             // the manual arm).
-            let gated = LensModule.gated(params, params: committed)
+            var gated = LensModule.gated(params, params: committed)
+            // LENS-03 T1: the projection fold (target from params; source
+            // from the entry type the resolve carried).
+            gated.targetProjectionRaw = committed.targetProjection
             // LENS-02 T3: the resolved scale rides the GATED coefficients
             // (the bisection must see exactly what the kernel will apply).
             let scale = scaleFromKernel(bufW: bufW, bufH: bufH, kernel: gated)
@@ -609,16 +627,23 @@ public final class LensModule: IOPModule {
     }
 
     /// The per-channel (R, G, B) edge sample for the auto-crop closure —
-    /// the EXACT kernel sampling math (distortion → per-channel radius
-    /// scale → ×1/scale on the POST-map sample offset, X5/review m6).
-    /// `static` for the pure-test face.
+    /// the EXACT kernel sampling math in the L3 evaluation order
+    /// (×1/scale → projection fold → distortion radius → per-channel
+    /// TCA scale; the Alcedo live order). `static` for the pure-test face.
     static func edgeSample(
         x: Float, y: Float, scale: Float, bufW: Int, bufH: Int, k: LensKernelParams
     ) -> [(x: Float, y: Float)] {
         let cx = Float(bufW) / 2, cy = Float(bufH) / 2
         let halfW = Float(bufW) / 2
         let dx = (x - cx) / halfW, dy = (y - cy) / halfW
-        let ru = (dx * dx + dy * dy).squareRoot()
+        let invS = 1 / scale
+        let src = LensProjection.decodeLenient(k.sourceProjectionRaw ?? k.sourceProjection)
+        let tgt = LensProjection.decodeLenient(k.targetProjectionRaw)
+        let foldedD = LensProjection.fold(
+            Double(dx) * Double(invS), Double(dy) * Double(invS),
+            source: src, target: tgt)
+        let fx = Float(foldedD.0), fy = Float(foldedD.1)
+        let ru = (fx * fx + fy * fy).squareRoot()
         guard ru > 1e-12 else { return [(x, y), (x, y), (x, y)] }
         let ru2 = ru * ru
         let dpoly = 1 + k.dc1 * ru + k.dc2 * ru2 + k.dc3 * ru2 * ru + k.dc4 * ru2 * ru2
@@ -626,10 +651,9 @@ public final class LensModule: IOPModule {
         let rd2 = rd * rd
         let sR = k.vr + k.cr * rd + k.br * rd2
         let sB = k.vb + k.cb * rd + k.bb * rd2
-        let invS = 1 / scale
         func pt(_ s: Float) -> (x: Float, y: Float) {
             let f = rd * s / ru
-            return (cx + dx * halfW * f * invS, cy + dy * halfW * f * invS)
+            return (cx + fx * halfW * f, cy + fy * halfW * f)
         }
         return [pt(sR), pt(1), pt(sB)]
     }
@@ -723,6 +747,8 @@ struct LensWarpUniforms {
     var iroi: SIMD2<Float>
     var inSize: SIMD2<Int32>
     var scale: SIMD2<Float>  // (scale, 0-pad) — L2-T3 tail insert
+    var sourceProj: SIMD2<Int32>  // (source enum raw, target enum raw) — L3-T1
+    var targetProj: SIMD2<Int32>  // reserved padding to 16B alignment
 
     init(dc1: Float, dc2: Float, dc3: Float, dc4: Float,
          vr: Float, cr: Float, br: Float,
@@ -730,7 +756,8 @@ struct LensWarpUniforms {
          vk1: Float, vk2: Float, vk3: Float,
          centerX: Float, centerY: Float, halfW: Float,
          oroiX: Float, oroiY: Float, iroiX: Int32, iroiY: Int32,
-         inW: Int32, inH: Int32, scale: Float = 1.0) {
+         inW: Int32, inH: Int32, scale: Float = 1.0,
+         sourceProjection: String? = nil, targetProjection: String? = nil) {
         self.dist = SIMD4(dc1, dc2, dc3, dc4)
         self.tcaR = SIMD4(vr, cr, br, 0)
         self.tcaB = SIMD4(vb, cb, bb, 0)
@@ -741,6 +768,10 @@ struct LensWarpUniforms {
         self.iroi = SIMD2(Float(iroiX), Float(iroiY))
         self.inSize = SIMD2(inW, inH)
         self.scale = SIMD2(scale, 0)
+        let srcRaw = Int32(LensProjection.decodeLenient(sourceProjection).slotIndex)
+        let tgtRaw = Int32(LensProjection.decodeLenient(targetProjection).slotIndex)
+        self.sourceProj = SIMD2(srcRaw, tgtRaw)
+        self.targetProj = SIMD2(0, 0)
     }
 
     /// Re-base the output origin (L020: per-run roiOut differs from the

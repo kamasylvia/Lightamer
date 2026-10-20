@@ -354,6 +354,21 @@ internal struct LensPanelView: View {
                 }
                 .disabled(resolvedScaleValue <= 1.0001)
                 .accessibilityIdentifier("inspector.lens.relayCrop")
+
+                // LENS-03 T1 (D-LENS-8): the TARGET projection picker —
+                // rectilinear identity base + the four ACTIVE types; the
+                // reserved slots are hidden (unreachable until activated).
+                Picker(String(localized: "panel_lens_target_projection"),
+                       selection: projectionBinding)
+                {
+                    Text(String(localized: "panel_lens_projection_rectilinear"))
+                        .tag("rectilinear")
+                    ForEach(LensProjection.active, id: \.rawValue) { p in
+                        Text(String(localized: String.LocalizationValue(projectionCopyKey(p))))
+                            .tag(p.rawValue)
+                    }
+                }
+                .accessibilityIdentifier("inspector.picker.lens.targetProjection")
             } header: {
                 Text("panel_lens_scale_section")
             }
@@ -448,6 +463,32 @@ internal struct LensPanelView: View {
 
     /// LENS-02 T1: the nil-defaulting Bool binding (nil renders as ON —
     /// the additive default face); each flip is ONE discrete commit.
+    /// LENS-03 T1: the target-projection picker binding (nil ≡
+    /// rectilinear; each pick is ONE discrete commit).
+    private var projectionBinding: Binding<String> {
+        Binding(
+            get: { params.targetProjection ?? "rectilinear" },
+            set: { v in
+                var p = params
+                p.targetProjection = (v == "rectilinear") ? nil : v
+                if let record = PanelEditing.updated(instance, params: p, as: LensModule.self) {
+                    edit.applyDiscrete(record, label: String(localized: "history_lens"))
+                }
+            })
+    }
+
+    /// The static per-type copy key (the V14 explicit-switch discipline).
+    private func projectionCopyKey(_ p: LensProjection) -> String {
+        switch p {
+        case .fisheye: return "panel_lens_projection_fisheye"
+        case .equisolid: return "panel_lens_projection_equisolid"
+        case .stereographic: return "panel_lens_projection_stereographic"
+        case .orthographic: return "panel_lens_projection_orthographic"
+        case .rectilinear: return "panel_lens_projection_rectilinear"
+        case .panoramic, .equirectangular, .thoby: return "panel_lens_projection_rectilinear"
+        }
+    }
+
     private func boolBinding(_ keyPath: WritableKeyPath<LensModule.Params, Bool?>) -> Binding<Bool> {
         Binding(
             get: { params[keyPath: keyPath] ?? true },

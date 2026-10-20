@@ -33171,6 +33171,108 @@
       }
     }
   },
+  "panel_lens_target_projection" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Target projection"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "目标投影"
+        }
+      }
+    }
+  },
+  "panel_lens_projection_rectilinear" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Rectilinear (none)"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "直线(无)"
+        }
+      }
+    }
+  },
+  "panel_lens_projection_fisheye" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Fisheye"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "鱼眼"
+        }
+      }
+    }
+  },
+  "panel_lens_projection_equisolid" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Equisolid"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "等立体角"
+        }
+      }
+    }
+  },
+  "panel_lens_projection_stereographic" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Stereographic"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "立体投影"
+        }
+      }
+    }
+  },
+  "panel_lens_projection_orthographic" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Orthographic"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "正交投影"
+        }
+      }
+    }
+  },
   "panel_lens_auto_scale" : {
     "extractionState" : "manual",
     "localizations" : {

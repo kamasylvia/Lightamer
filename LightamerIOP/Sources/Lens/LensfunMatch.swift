@@ -49,6 +49,13 @@ import LightamerCore
 /// Kernel-unit resolved coefficients (the (c)→(b) unified exit — feeds
 /// `LensWarpUniforms` exactly like the manual path).
 public struct LensKernelParams: Sendable {
+    /// The SOURCE projection carried from the entry `<type>` (LENS-03 T1 —
+    /// the kernel fold reads it; empty/nil = rectilinear identity).
+    var sourceProjection: String?
+    /// The run-time projection spellings the uniforms stamp carries
+    /// (decoded leniently at the resolveUniforms seam; nil = rectilinear).
+    var targetProjectionRaw: String?
+    var sourceProjectionRaw: String?
     var dc1: Float = 0
     var dc2: Float = 0
     var dc3: Float = 0
@@ -81,7 +88,11 @@ public struct LensKernelParams: Sendable {
             oroiX: Float(roiOut.x), oroiY: Float(roiOut.y),
             iroiX: Int32(roiIn.x), iroiY: Int32(roiIn.y),
             inW: Int32(bufW), inH: Int32(bufH),
-            scale: scale)
+            scale: scale,
+            sourceProjection: LensProjection.decodeLenient(
+                sourceProjectionRaw ?? sourceProjection).rawValue,
+            targetProjection: LensProjection.decodeLenient(
+                targetProjectionRaw).rawValue)
     }
 }
 
@@ -97,13 +108,30 @@ public struct LensMatchedProfile: Sendable {
     /// The entry slot in the installed db (internal — NOT a stable id;
     /// every consumer re-resolves through the store in the same stamp).
     let entryIndex: Int
+    /// The entry `<type>` (LENS-03 T1 — the no-target refusal face; empty
+    /// = the rectilinear default).
+    let projectionHint: String?
 
     public init(maker: String, model: String, cropFactor: Double, entryIndex: Int) {
         self.maker = maker
         self.model = model
         self.cropFactor = cropFactor
         self.entryIndex = entryIndex
+        self.projectionHint = nil
     }
+
+    init(maker: String, model: String, cropFactor: Double, entryIndex: Int,
+         projectionHint: String?) {
+        self.maker = maker
+        self.model = model
+        self.cropFactor = cropFactor
+        self.entryIndex = entryIndex
+        self.projectionHint = projectionHint
+    }
+
+    /// The type spelling for the refusal face (nil/empty = rectilinear).
+    var modelProjectionHint: String? { projectionHint }
+    var sourceProjectionRaw: String? { projectionHint }
 }
 
 /// One scored library row for the profile browser (LENS-02 T4; the
@@ -258,7 +286,8 @@ enum LensfunMatch {
                 best = (
                     LensMatchedProfile(
                         maker: entry.maker, model: entry.models.first ?? "",
-                        cropFactor: entry.cropfactor, entryIndex: entryIndex),
+                        cropFactor: entry.cropfactor, entryIndex: entryIndex,
+                        projectionHint: entry.type?.lowercased()),
                     score)
                 bestCount = 1
             } else if score == best?.score, score > 0 {
@@ -339,11 +368,19 @@ enum LensfunMatch {
     static func resolve(
         entry: LensEntry, focal: Double, aperture: Double?,
         distance: Double?, crop imageCrop: Double,
-        imageWidth: Int, imageHeight: Int
+        imageWidth: Int, imageHeight: Int,
+        targetProjection: String? = nil
     ) -> LensKernelParams? {
-        // Non-rectilinear projections do not fit this kernel (D3 scope).
-        if let t = entry.type?.lowercased(),
-           t != "rectilinear" && t != "" { return nil }
+        // LENS-03 T1 (D-LENS-8): the non-rectilinear REFUSAL is lifted —
+        // an entry `<type>` folds into the kernel's sourceProjection (the
+        // projection fold handles the re-mapping); the CALLER decides via
+        // targetProjection (unset = the conservative rectilinear-only
+        // face, enforced in resolveCommitted — no target set means a
+        // non-rectilinear source has nowhere to land, and the old blit-
+        // identity refusal stands).
+        if let t = entry.type?.lowercased(), t != "rectilinear" && t != "" {
+            guard targetProjection != nil else { return nil }
+        }
         let aspect = entry.aspectRatio > 0 ? entry.aspectRatio : 1.5
         let realFocal = realFocalFor(entry: entry, focal: focal)
         // NS·HW: normalized→kernel-unit fold (resolution-free).
@@ -400,6 +437,7 @@ enum LensfunMatch {
             haveAny = true
         }
         guard haveAny else { return nil }
+        out.sourceProjection = entry.type?.lowercased()
         if let c = entry.center {
             // XML center is in lensfun normalized units → kernel pixels.
             out.centerX = Float(c.x / normScale + w / 2)
@@ -653,7 +691,8 @@ public struct LensfunStore: Sendable {
             return .matched(
                 LensMatchedProfile(
                     maker: entry.maker, model: entry.models.first ?? "",
-                    cropFactor: entry.cropfactor, entryIndex: index),
+                    cropFactor: entry.cropfactor, entryIndex: index,
+                    projectionHint: entry.type?.lowercased()),
                 score: score)
         case .ambiguous(let score): return .ambiguous(score: score)
         case .noLens: return .noLens
@@ -720,6 +759,13 @@ public struct LensfunStore: Sendable {
         _ params: LensModule.Params, width: Int, height: Int
     ) -> LensKernelParams? {
         guard case .matched(let profile, _) = matchOutcome(params) else { return nil }
+        // LENS-03 T1: no target projection set + a non-rectilinear entry =
+        // the conservative refusal (the pre-L3 face, blit identity).
+        if params.targetProjection == nil,
+           let t = profile.sourceProjectionRaw ?? profile.modelProjectionHint,
+           t != "rectilinear", t != "" {
+            return nil
+        }
         // The profile's INTERNAL index is valid within this stamp (the
         // outcome was produced against the same captured db).
         lock.lock(); let currentDB = _db; lock.unlock()
@@ -731,7 +777,8 @@ public struct LensfunStore: Sendable {
             entry: entry, focal: focal,
             aperture: params.aperture.map(Double.init),
             distance: nil, crop: cameraCrop,
-            imageWidth: width, imageHeight: height)
+            imageWidth: width, imageHeight: height,
+            targetProjection: params.targetProjection)
     }
 
     /// BROWSER-ORDERING ONLY (D-LENS-4, LENS-01 T3): the 40-tier second

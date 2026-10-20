@@ -82,7 +82,124 @@ struct LensWarpUniforms {
     float2 iroi;    // roiIn.xy (input window origin in the input frame)
     int2   inSize;  // input plane dims (bounds for the outside test)
     float2 scale;   // (scale, pad) — L2-T3 scale compensation (1.0 = none)
+    int2   srcTgt;  // (source slot, target slot) — L3-T1 (0 = rectilinear)
+    int2   projPad; // 16B alignment pad
 };
+
+// ── PROJECTION PAIRS (L3-T1; Alcedo lens_calib.metal same-source port —
+// GPL-3.0, Portions Copyright 2026 Yurun Zi; see NOTICE "Alcedo Studio").
+// Four ACTIVE types (fisheye/equisolid/stereographic/orthographic) +
+// the rectilinear identity; the three reserved slots (panoramic/
+// equirectangular/thoby) are compile-present but unreachable (D-LENS-8).
+// Domain: center-relative coords in the kernel's u unit — the same
+// angle-domain shape as Alcedo's normScale domain (a global scale factor
+// does not change the projection-function form). ──
+
+constant float kProjEps  = 1e-8f;
+constant float kProjHuge = 1.6e16f;
+
+// slot ids (LensProjection.slotIndex; 0 = the uniforms' rectilinear face)
+enum ProjSlot {
+    kRectilinear   = 0,
+    kFisheye       = 2,
+    kOrthographic  = 5,
+    kStereographic = 6,
+    kEquisolid     = 7,
+};
+
+inline float2 projToERect(float2 in, int projection) {
+    switch (projection) {
+        case ProjSlot::kFisheye: {          // Alcedo ApplyProjectionFishEyeERect
+            const float r  = length(in);
+            if (r <= kProjEps) { return float2(0.0f); }
+            const float s  = sin(r) / r;
+            const float vx = cos(r);
+            const float vy = s * in.x;
+            return float2(atan2(vy, vx), atan(s * in.y / sqrt(vx * vx + vy * vy)));
+        }
+        case ProjSlot::kOrthographic: {     // Alcedo ApplyProjectionOrthographicERect
+            const float r     = length(in);
+            const float theta = (r < 1.0f) ? asin(r) : (M_PI_F * 0.5f);
+            const float phi   = atan2(in.y, in.x);
+            const float s     = (theta <= kProjEps) ? 1.0f : (sin(theta) / theta);
+            const float vx    = cos(theta);
+            const float vy    = s * theta * cos(phi);
+            return float2(atan2(vy, vx), atan(s * theta * sin(phi) / sqrt(vx * vx + vy * vy)));
+        }
+        case ProjSlot::kStereographic: {    // Alcedo ApplyProjectionStereographicERect
+            const float rh   = length(in);
+            const float c    = 2.0f * atan(rh / 2.0f);
+            const float sinc = sin(c);
+            const float cosc = cos(c);
+            if (fabs(rh) <= kProjEps) { return float2(0.0f, kProjHuge); }
+            const float outY = asin(in.y * sinc / rh);
+            const float outX = (fabs(cosc) >= kProjEps || fabs(in.x) >= kProjEps)
+                ? atan2(in.x * sinc, cosc * rh) : kProjHuge;
+            return float2(outX, outY);
+        }
+        case ProjSlot::kEquisolid: {        // Alcedo ApplyProjectionEquisolidERect
+            const float r     = length(in);
+            const float theta = (r < 2.0f) ? (2.0f * asin(r / 2.0f)) : (M_PI_F * 0.5f);
+            const float phi   = atan2(in.y, in.x);
+            const float s     = (theta <= kProjEps) ? 1.0f : (sin(theta) / theta);
+            const float vx    = cos(theta);
+            const float vy    = s * theta * cos(phi);
+            return float2(atan2(vy, vx), atan(s * theta * sin(phi) / sqrt(vx * vx + vy * vy)));
+        }
+        case ProjSlot::kRectilinear:        // Alcedo ApplyProjectionRectERect
+        default: {
+            return float2(atan2(in.x, 1.0f), atan2(in.y, sqrt(1.0f + in.x * in.x)));
+        }
+    }
+}
+
+inline float2 projFromERect(float2 in, int projection) {
+    switch (projection) {
+        case ProjSlot::kFisheye: {          // Alcedo ApplyProjectionERectFishEye
+            const float ksp = 2.0f / (1.0f + cos(in.y) * cos(in.x));
+            return float2(ksp * cos(in.y) * sin(in.x), ksp * sin(in.y));
+        }
+        case ProjSlot::kOrthographic: {     // Alcedo ApplyProjectionERectOrthographic
+            float x = in.x;
+            float theta = -in.y + (M_PI_F * 0.5f);
+            if (theta < 0.0f) { theta = -theta; x += M_PI_F; }
+            if (theta > M_PI_F) { theta = 2.0f * M_PI_F - theta; x += M_PI_F; }
+            const float s      = sin(theta);
+            const float vx     = s * sin(x);
+            const float vy     = cos(theta);
+            const float theta2 = atan2(sqrt(vx * vx + vy * vy), s * cos(x));
+            const float phi2   = atan2(vy, vx);
+            const float rho    = sin(theta2);
+            return float2(rho * cos(phi2), rho * sin(phi2));
+        }
+        case ProjSlot::kStereographic: {    // Alcedo ApplyProjectionERectStereographic
+            const float cosPhi = cos(in.y);
+            const float ksp    = 2.0f / (1.0f + cosPhi * cos(in.x));
+            return float2(ksp * cosPhi * sin(in.x), ksp * sin(in.y));
+        }
+        case ProjSlot::kEquisolid: {        // Alcedo ApplyProjectionERectEquisolid
+            if (fabs(cos(in.y) * cos(in.x) + 1.0f) <= kProjEps) {
+                return float2(kProjHuge);
+            }
+            const float k1 = sqrt(2.0f / (1.0f + cos(in.y) * cos(in.x)));
+            return float2(k1 * cos(in.y) * sin(in.x), k1 * sin(in.y));
+        }
+        case ProjSlot::kRectilinear:        // Alcedo ApplyProjectionERectRect
+        default: {
+            return float2(tan(in.x), 1.0f / (tan(in.y) * cos(in.x)));
+        }
+    }
+}
+
+// The backward fold: output(target-domain) point → equirect → the
+// source-domain sample point (Alcedo ApplyProjectionTransform pair;
+// identity when the two coincide or either is rectilinear-equal).
+inline float2 projFold(float2 in, int sourceSlot, int targetSlot) {
+    if (sourceSlot == targetSlot || (sourceSlot == ProjSlot::kRectilinear && targetSlot == ProjSlot::kRectilinear)) {
+        return in;
+    }
+    return projFromERect(projToERect(in, targetSlot), sourceSlot);
+}
 
 static inline float4 lens_sample_clamped(
     texture2d<float, access::read> inTex,
@@ -122,12 +239,22 @@ kernel void lens_manual_warp(
     const float ix0 = ox - u.iroi.x;
     const float iy0 = oy - u.iroi.y;
 
-    // Normalized radius around the optical center (u units).
+    // Center-relative output coords (u units); ru = the FOLDED radius
+    // (post scale/projection — the distortion polynomial's domain).
     const float dx = ix0 - (u.center.x - u.iroi.x);
     const float dy = iy0 - (u.center.y - u.iroi.y);
-    const float ru = length(float2(dx, dy)) / u.halfW.x;
+    float2 folded = float2(dx, dy);
+    {   // L3-T1: scale then projection (both exact identities at defaults).
+        const float invScale0 = 1.0f / max(u.scale.x, 1e-6f);
+        folded = projFold(folded * invScale0, u.srcTgt.x, u.srcTgt.y);
+    }
+    const float ru = length(folded) / u.halfW.x;
 
-    // Distortion: Rd = Ru·(1 + dc1·Ru + dc2·Ru² + dc3·Ru³ + dc4·Ru⁴).
+    // ── g = the folded sample vector (scale → projection, above); the
+    // distortion/TCA/vignette segments below are byte-identical to the
+    // pre-L3 math (D3 order — pure addition of the projection prefix).
+
+    // Distortion at the folded radius: Rd = Ru·(1 + dc1·Ru + … + dc4·Ru⁴).
     const float ru2 = ru * ru;
     const float dpoly = 1.0f + u.dist.x * ru + u.dist.y * ru2
         + u.dist.z * ru2 * ru + u.dist.w * ru2 * ru2;
@@ -139,17 +266,12 @@ kernel void lens_manual_warp(
     const float sB = u.tcaB.x + u.tcaB.y * rd + u.tcaB.z * rd2;
     // Green rides the distortion radius (lensfun leaves G unscaled).
 
-    // Sample coords per channel (center-relative, scaled, re-based).
-    const float2 dc = float2(dx, dy);
-    // L2-T3 (X5/review m6): the scale applies to the POST-MAP sample
-    // offset (distortion/TCA-projected final coords ×1/scale around the
-    // optical center — a pure field-of-view narrowing, NOT a pre-map
-    // radius shrink). scale=1 is the exact pre-L2 identity (the default
-    // neutral golden pins this).
-    const float invScale = 1.0f / max(u.scale.x, 1e-6f);
-    const float2 pr = dc * (rd * sR / max(ru, 1e-12f)) * invScale;
-    const float2 pg = dc * (rd / max(ru, 1e-12f)) * invScale;
-    const float2 pb = dc * (rd * sB / max(ru, 1e-12f)) * invScale;
+    // Sample coords per channel (center-relative, re-based; the folded
+    // unit vector × the per-channel radius).
+    const float2 dc = folded;
+    const float2 pr = dc * (rd * sR / max(ru, 1e-12f));
+    const float2 pg = dc * (rd / max(ru, 1e-12f));
+    const float2 pb = dc * (rd * sB / max(ru, 1e-12f));
     const float2 cc = u.center - u.iroi;
     const float srx = cc.x + pr.x, sry = cc.y + pr.y;
     const float sgx = cc.x + pg.x, sgy = cc.y + pg.y;
