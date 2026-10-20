@@ -32966,6 +32966,23 @@
         }
       }
     }
+  },
+  "panel_lens_auto_apply" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Auto-apply match on new raster images (opt-in)"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "新栅格图像自动应用匹配（需手动开启）"
+        }
+      }
+    }
   }
   },
   "version": "1.0"

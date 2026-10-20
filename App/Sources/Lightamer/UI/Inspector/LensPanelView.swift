@@ -117,6 +117,9 @@ internal struct LensPanelView: View {
     @State private var matchReadout: LensPanelReadout = .idle
     @State private var hasData: Bool = LensfunStore.isInstalled
     @State private var downloading: Bool = false
+    /// LENS-02 T2: the auto-apply toggle state (read ONCE at init through
+    /// the injected setting face — body never touches UserDefaults).
+    @State private var autoApply: Bool
 
     private let params: LensModule.Params
 
@@ -124,6 +127,7 @@ internal struct LensPanelView: View {
         self.instance = instance
         self.edit = edit
         self.params = PanelEditing.params(of: instance, as: LensModule.self) ?? LensModule.Params()
+        _autoApply = State(initialValue: LensAutoApplySetting.read())
     }
 
     var body: some View {
@@ -264,6 +268,17 @@ internal struct LensPanelView: View {
                 Toggle(String(localized: "panel_lens_apply_vignette"),
                        isOn: boolBinding(\.applyVignette))
                     .accessibilityIdentifier("inspector.toggle.lens.applyVignette")
+
+                // LENS-02 T2 (D-LENS-1): the opt-in auto-apply (default
+                // FALSE; effective domain = raster chain only — the hard
+                // guard lives in reloadDefaults). Persists via the setting
+                // face; affects NEW images only (per-image params rule).
+                Toggle(String(localized: "panel_lens_auto_apply"),
+                       isOn: $autoApply)
+                    .onChange(of: autoApply) { _, v in
+                        LensAutoApplySetting.write(v)
+                    }
+                    .accessibilityIdentifier("inspector.toggle.lens.autoApply")
             } header: {
                 Text("panel_lens_manual_section")
             }
