@@ -81,7 +81,34 @@ public struct LensKernelParams: Sendable {
     }
 }
 
+/// The hardened-match result (process-internal return shape, NOT a
+/// persisted face — the panel readout consumes it through
+/// `LensfunStore.matchCommitted`). Mirrors the RawLab state machine:
+/// ambiguous = same-top-score multiple candidates REJECTED, never
+/// guessed (D-LENS-4). Top-level (shared by `LensfunMatch` and
+/// `LensfunStore`).
+enum LensMatchOutcome: Sendable {
+    case matched(entry: LensEntry, score: Int)
+    /// Multiple entries tie at the top score — refuse (RawLab
+    /// `FindLenses` semantics; wrong correction beats no correction).
+    case ambiguous(score: Int)
+    /// No candidate reached the auto-apply threshold (includes the
+    /// crop-gated-out and 40-tier cases).
+    case noLens
+    /// The caller carries no lens EXIF string at all.
+    case missingFocal
+    // `noDatabase` is the store-level state (LensfunStore.isInstalled
+    // == false) — the readout maps it before matching is attempted.
+}
+
 enum LensfunMatch {
+
+    /// The auto/committed auto-apply match threshold (D-LENS-4): the
+    /// contains tier (60) and up qualifies for the AUTOMATIC channel; the
+    /// word-overlap tier (40) stays visible in the profile browser as a
+    /// low-confidence ordering hint but NEVER auto-selects. Single
+    /// declaration point (the acceptance grep pins this).
+    static let autoApplyThreshold = 60
 
     // MARK: - Normalization (04-RESEARCH §4c)
 
@@ -152,6 +179,75 @@ enum LensfunMatch {
             if score > (best?.score ?? 0) { best = (entry, score) }
         }
         return best?.entry
+    }
+
+    /// The HARDENED auto-channel match (D-LENS-4, LENS-01 T3): the full
+    /// parameter path (maker/model/imageCrop real values — the pre-T3
+    /// `resolveCommitted` passed nil/nil/1.0, so the crop gate never
+    /// bit), the ≥60 threshold tier (40 word-overlap NEVER auto-selects),
+    /// and the RawLab ambiguity refusal (top-score ties REJECTED).
+    static func matchHardened(
+        maker: String?, model: String?, lens: String?,
+        imageCrop: Double, in db: LensfunDB
+    ) -> LensMatchOutcome {
+        guard lens != nil && !(lens ?? "").isEmpty else { return .missingFocal }
+        var best: (entry: LensEntry, score: Int)?
+        var bestCount = 0
+        for entry in db.lenses {
+            guard entry.cropfactor > 0, imageCrop > 0 else { continue }
+            // The CROP GATE — with a real camera imageCrop this actually
+            // rejects full-frame lens strings against APS-C calibration
+            // sets (the pre-T3 1.0 hardcode disabled it de facto).
+            guard imageCrop / entry.cropfactor >= 0.96 else { continue }
+            var score = 0
+            if let lens, !lens.isEmpty {
+                for m in entry.models {
+                    score = max(score, modelScore(exif: lens, candidate: m, maker: entry.maker))
+                }
+                if let maker, !maker.isEmpty,
+                   entry.maker.lowercased().contains(maker.lowercased())
+                    || maker.lowercased().contains(entry.maker.lowercased()) {
+                    if score > 0 { score += 5 }
+                }
+            }
+            if score > (best?.score ?? 0) {
+                best = (entry, score); bestCount = 1
+            } else if score == best?.score, score > 0 {
+                bestCount += 1
+            }
+        }
+        guard let best else { return .noLens }
+        // Threshold tier: below 60 = the word-overlap (40) / weak (20)
+        // bands — browser-ordering hints only, never auto-selected.
+        guard best.score >= autoApplyThreshold else { return .noLens }
+        if bestCount > 1 { return .ambiguous(score: best.score) }
+        return .matched(entry: best.entry, score: best.score)
+    }
+
+    /// RawLab `FindCameras` semantics (D-LENS-4): the camera entry must be
+    /// UNIQUE — zero hits or multiple hits both yield nil (the imageCrop
+    /// priority chain then falls through to 1.0 at the resolve site).
+    static func uniqueCameraCrop(
+        maker: String?, model: String?, in db: LensfunDB
+    ) -> Double? {
+        var hits: [CameraEntry] = []
+        for cam in db.cameras {
+            guard cam.cropfactor > 0 else { continue }
+            var makerOK = true
+            if let maker, !maker.isEmpty {
+                makerOK = cam.maker.lowercased().contains(maker.lowercased())
+                    || maker.lowercased().contains(cam.maker.lowercased())
+            }
+            guard makerOK else { continue }
+            guard let model, !model.isEmpty else { continue }
+            let modelHit = cam.models.contains { m in
+                modelScore(exif: model, candidate: m, maker: cam.maker) >= autoApplyThreshold
+            }
+            guard modelHit else { continue }
+            hits.append(cam)
+        }
+        guard hits.count == 1, let cam = hits.first else { return nil }
+        return cam.cropfactor
     }
 
     // MARK: - Focal interpolation (Hermite, auxfun.cpp)
@@ -405,30 +501,60 @@ public struct LensfunStore: Sendable {
         return _db != nil
     }
 
-    /// Resolve committed params → kernel params (D6, sync snapshot read).
+    /// Camera cropfactor lookup (LENS-01 T3, X4 priority tier 2): unique
+    /// camera hit only (RawLab `FindCameras`); nil = absent/ambiguous/absent
+    /// DB — the caller falls through the priority chain.
+    public static func cameraCrop(maker: String?, model: String?) -> Double? {
+        lock.lock(); let db = _db; lock.unlock()
+        guard let db else { return nil }
+        return LensfunMatch.uniqueCameraCrop(maker: maker, model: model, in: db)
+    }
+
+    /// The hardened match face for the committed params (LENS-01 T3): the
+    /// full-parameter auto channel with the ≥60 tier and the ambiguity
+    /// refusal. The panel readout consumes the outcome; the resolve face
+    /// consumes only the matched entry.
+    static func matchCommitted(
+        _ params: LensModule.Params, in db: LensfunDB
+    ) -> LensMatchOutcome {
+        let focal = Double(params.focalLength ?? 0)
+        guard focal > 0 else { return .missingFocal }
+        let key = params.lensKey ?? ""
+        return LensfunMatch.matchHardened(
+            maker: params.cameraMaker, model: params.cameraModel,
+            lens: key.isEmpty ? nil : key,
+            imageCrop: params.imageCrop ?? 1.0, in: db)
+    }
+
+    /// Resolve committed params → kernel params (D6, sync snapshot read;
+    /// LENS-01 T3 hardening: the FULL parameter path — maker/model/
+    /// imageCrop read from the params (nil = the 1.0 status-quo fallback
+    /// ONLY after the earlier priority tiers came up empty), the ≥60
+    /// threshold tier, the ambiguity refusal, and the resolve crop
+    /// argument is the CAMERA imageCrop (review m5: the pre-T3 code passed
+    /// `entry.cropfactor` — the LENS calibration crop — where resolve's
+    /// contract self-documents the camera cropfactor; the wrong crop
+    /// mis-scaled the NS·HW fold).
     public static func resolveCommitted(
         _ params: LensModule.Params, width: Int, height: Int
     ) -> LensKernelParams? {
         lock.lock(); let db = _db; lock.unlock()
         guard let db else { return nil }
+        guard case .matched(let entry, _) = matchCommitted(params, in: db) else { return nil }
         let focal = Double(params.focalLength ?? 0)
-        guard focal > 0 else { return nil }
-        let key = params.lensKey ?? ""
-        let entry = LensfunMatch.match(
-            maker: nil, model: nil, lens: key.isEmpty ? nil : key,
-            imageCrop: 1.0, in: db)
-            ?? fallbackEntry(key: key, db: db)
-        guard let entry else { return nil }
-        let crop = entry.cropfactor > 0 ? entry.cropfactor : 1.0
+        let cameraCrop = params.imageCrop ?? 1.0
         return LensfunMatch.resolve(
             entry: entry, focal: focal,
             aperture: params.aperture.map(Double.init),
-            distance: nil, crop: crop,
+            distance: nil, crop: cameraCrop,
             imageWidth: width, imageHeight: height)
     }
 
-    /// Second-chance match on the raw lens key (the match() lens-axis
-    /// miss ledger path).
+    /// BROWSER-ORDERING ONLY (D-LENS-4, LENS-01 T3): the 40-tier second
+    /// chance survives ONLY as the profile browser's low-confidence
+    /// ordering hint (LENS-02 T4) — it has LOST its auto-selection
+    /// qualification (no production caller; the resolveCommitted path now
+    /// goes through `matchHardened`, which floors the auto channel at 60).
     private static func fallbackEntry(key: String, db: LensfunDB) -> LensEntry? {
         guard !key.isEmpty else { return nil }
         var best: (entry: LensEntry, score: Int)?

@@ -113,6 +113,18 @@ public final class LensModule: IOPModule {
         public var focalLength: Float?
         public var aperture: Float?
         public var lensKey: String?
+        // LENS-01 T3 (X4): the resolve INPUT face — the hardened match
+        // reads maker/model/imageCrop from here (all additive optional,
+        // encodeIfPresent: the default params JSON stays byte-identical).
+        public var cameraMaker: String?
+        public var cameraModel: String?
+        /// The camera crop factor (X4 priority chain baked at
+        /// reloadDefaults: 35mm-derivation > unique camera-hit cropfactor >
+        /// nil → the resolve site's 1.0 status-quo fallback).
+        public var imageCrop: Double?
+        /// The mutex judgment carried with the params (X1 self-describing
+        /// params — the panel §1 readout reads THIS, no second seam).
+        public var embeddedGeometry: EmbeddedGeometryState?
 
         public init(
             distortionK1: Float = 0,
@@ -125,7 +137,11 @@ public final class LensModule: IOPModule {
             source: LensSource = .off,
             focalLength: Float? = nil,
             aperture: Float? = nil,
-            lensKey: String? = nil
+            lensKey: String? = nil,
+            cameraMaker: String? = nil,
+            cameraModel: String? = nil,
+            imageCrop: Double? = nil,
+            embeddedGeometry: EmbeddedGeometryState? = nil
         ) {
             self.distortionK1 = distortionK1
             self.distortionK2 = distortionK2
@@ -138,6 +154,10 @@ public final class LensModule: IOPModule {
             self.focalLength = focalLength
             self.aperture = aperture
             self.lensKey = lensKey
+            self.cameraMaker = cameraMaker
+            self.cameraModel = cameraModel
+            self.imageCrop = imageCrop
+            self.embeddedGeometry = embeddedGeometry
         }
 
         /// The neutral identity (cache-neutral seed).
@@ -169,12 +189,29 @@ public final class LensModule: IOPModule {
     /// CIRAW already applied the embedded correction, so the manual layer
     /// must not add more). The EXIF snapshot rides along for the (c) layer
     /// (D6 — resolve inputs baked here so params stay self-describing).
+    /// LENS-01 T3: the hardened-match inputs fold here too — maker/model
+    /// straight from capture; imageCrop per the X4 priority chain (35mm
+    /// derivation with the divide-by-zero guard > unique camera-hit
+    /// cropfactor > nil, the resolve site's 1.0 fallback); the mutex
+    /// judgment carries from the decode (X1).
     public func reloadDefaults(image: DecodedImage) async -> Params {
         let cap = image.capture
         let lensKey = cap.lensModel
         let focal = cap.focalLength.map { Float($0) }
         let aperture = cap.aperture.map { Float($0) }
-        return Params(source: .off, focalLength: focal, aperture: aperture, lensKey: lensKey)
+        let imageCrop: Double?
+        if let f35 = cap.focalLength35mm, let f = cap.focalLength, f > 0 {
+            imageCrop = Double(f35) / Double(f)
+        } else if let crop = LensfunStore.cameraCrop(
+            maker: cap.cameraMake, model: cap.cameraModel) {
+            imageCrop = crop
+        } else {
+            imageCrop = nil
+        }
+        return Params(
+            source: .off, focalLength: focal, aperture: aperture, lensKey: lensKey,
+            cameraMaker: cap.cameraMake, cameraModel: cap.cameraModel,
+            imageCrop: imageCrop, embeddedGeometry: image.embeddedGeometry)
     }
 
     /// Park the working copy, hash the RAW params (D-H4). No uniforms
