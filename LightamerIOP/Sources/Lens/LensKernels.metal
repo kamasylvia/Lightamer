@@ -50,6 +50,9 @@ using namespace metal;
 // POST-distortion radius (lensfun callback chain: distortion 750 → TCA
 // 500 in `ApplySubpixelGeometryDistortion`, sequential on one buffer).
 // Vignette first (dt `:1194-1206`), at the post-distortion radius.
+// SCALE (L2-T3/X5): ×1/scale on the POST-map sample offset (after
+// distortion/TCA — a pure field-of-view narrowing); the projection fold
+// order is pinned in LENS-03 T1 (projection → ... → ×1/scale last).
 //
 // CENTER: frame center (dscIn/2). The lensfun `<center>` element is
 // absent from the shipped v1 subset (and rare upstream); LensfunDB parses
@@ -78,6 +81,7 @@ struct LensWarpUniforms {
     float2 oroi;    // roiOut.xy (output window origin in the full frame)
     float2 iroi;    // roiIn.xy (input window origin in the input frame)
     int2   inSize;  // input plane dims (bounds for the outside test)
+    float2 scale;   // (scale, pad) — L2-T3 scale compensation (1.0 = none)
 };
 
 static inline float4 lens_sample_clamped(
@@ -137,9 +141,15 @@ kernel void lens_manual_warp(
 
     // Sample coords per channel (center-relative, scaled, re-based).
     const float2 dc = float2(dx, dy);
-    const float2 pr = dc * (rd * sR / max(ru, 1e-12f));
-    const float2 pg = dc * (rd / max(ru, 1e-12f));
-    const float2 pb = dc * (rd * sB / max(ru, 1e-12f));
+    // L2-T3 (X5/review m6): the scale applies to the POST-MAP sample
+    // offset (distortion/TCA-projected final coords ×1/scale around the
+    // optical center — a pure field-of-view narrowing, NOT a pre-map
+    // radius shrink). scale=1 is the exact pre-L2 identity (the default
+    // neutral golden pins this).
+    const float invScale = 1.0f / max(u.scale.x, 1e-6f);
+    const float2 pr = dc * (rd * sR / max(ru, 1e-12f)) * invScale;
+    const float2 pg = dc * (rd / max(ru, 1e-12f)) * invScale;
+    const float2 pb = dc * (rd * sB / max(ru, 1e-12f)) * invScale;
     const float2 cc = u.center - u.iroi;
     const float srx = cc.x + pr.x, sry = cc.y + pr.y;
     const float sgx = cc.x + pg.x, sgy = cc.y + pg.y;
