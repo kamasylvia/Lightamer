@@ -110,6 +110,11 @@ enum LensfunMatch {
     /// declaration point (the acceptance grep pins this).
     static let autoApplyThreshold = 60
 
+    /// Full-scan counter for the memo tests (LENS-01 T4): incremented once
+    /// per `matchHardened` invocation — a memo hit must NOT touch it.
+    /// Test-only observability (never read on production paths).
+    nonisolated(unsafe) static var scanCounter = 0
+
     // MARK: - Normalization (04-RESEARCH §4c)
 
     /// Lowercase + trim + collapse whitespace + strip the aperture
@@ -190,6 +195,7 @@ enum LensfunMatch {
         maker: String?, model: String?, lens: String?,
         imageCrop: Double, in db: LensfunDB
     ) -> LensMatchOutcome {
+        LensfunMatch.scanCounter += 1
         guard lens != nil && !(lens ?? "").isEmpty else { return .missingFocal }
         var best: (entry: LensEntry, score: Int)?
         var bestCount = 0
@@ -477,28 +483,136 @@ public struct LensfunStore: Sendable {
     /// The installed snapshot (nil = absent → downgrade to manual).
     private static let lock: NSLock = NSLock()
     private static nonisolated(unsafe) var _db: LensfunDB?
+    // ── The match memo (LENS-01 T4, hazard H-L1 first stage) ──
+    // process used to re-run the full-library linear scan EVERY render
+    // (LensModule.resolveUniforms → resolveCommitted → matchHardened over
+    // ~thousands of entries × string scoring per slider tick). The memo
+    // caches the MATCH RESULT (entry identity + score + failure state) —
+    // NOT the resolved coefficients: the resolve polynomial evaluation is
+    // cheap and size-free (review M4), while the memo key deliberately
+    // carries NO width/height (the result is size-independent by
+    // construction; the center-resolution coupling dies with the
+    // result-level memo). Invalidated wholesale on install/uninstall.
+    private static nonisolated(unsafe) var _memo: [UInt64: MemoOutcome] = [:]
+    private static nonisolated(unsafe) var _memoOrder: [UInt64] = []
+    /// The DB instance identity — bumped on every install/uninstall so a
+    /// DB swap can never serve entries from the previous library.
+    private static nonisolated(unsafe) var _dbStamp: UInt64 = 0
+    /// LRU capacity (the LutLibraryStore precedent).
+    static let memoCapacity = 32
+
+    /// The memoized outcome face (entry identity = the lens INDEX in the
+    /// installed db — valid within one stamp).
+    private enum MemoOutcome {
+        case matched(index: Int, score: Int)
+        case ambiguous(score: Int)
+        case noLens
+        case missingFocal
+    }
+
     /// Install the store from a directory (app launch / settings change).
     /// Returns false when the directory holds no parseable XML.
     @discardableResult
     public static func install(directory: URL) -> Bool {
         let db = LensfunDBLoader.load(directory: directory)
         guard !db.lenses.isEmpty else { return false }
-        lock.lock(); _db = db; lock.unlock()
+        lock.lock(); _db = db; _dbStamp &+= 1; _memo = [:]; _memoOrder = []; lock.unlock()
         return true
     }
 
     /// Install directly from a parsed DB (tests + previews).
     static func install(db: LensfunDB) {
-        lock.lock(); _db = db; lock.unlock()
+        lock.lock(); _db = db; _dbStamp &+= 1; _memo = [:]; _memoOrder = []; lock.unlock()
     }
 
     /// Remove the store (data deleted / path unset).
-    public static func uninstall() { lock.lock(); _db = nil; lock.unlock() }
+    public static func uninstall() {
+        lock.lock(); _db = nil; _dbStamp &+= 1; _memo = [:]; _memoOrder = []; lock.unlock()
+    }
 
     /// Snapshot predicate for the downgrade path (sync — no async hop).
     public static var isInstalled: Bool {
         lock.lock(); defer { lock.unlock() }
         return _db != nil
+    }
+
+    // MARK: - The memo (matching-input-keyed, size-independent)
+
+    /// The memo key: FNV-1a over the MATCHING INPUT face (maker/model/
+    /// lensKey/imageCrop/focal — the fields matchHardened reads). Deliberate
+    /// exclusions: aperture/distance only feed the resolve, never the
+    /// match; width/height never (the result is size-independent).
+    private static func memoKey(_ params: LensModule.Params) -> UInt64 {
+        var h = StableHash.hash("lightamer.lensfun.memo.v1")
+        for s in [params.cameraMaker, params.cameraModel, params.lensKey] {
+            h = Data((s ?? "").utf8).withUnsafeBytes { StableHash.combine(h, $0) }
+        }
+        for v in [params.imageCrop ?? -1, Double(params.focalLength ?? -1)] {
+            var bits = v.bitPattern
+            h = withUnsafeBytes(of: &bits) { StableHash.combine(h, $0) }
+        }
+        return h
+    }
+
+    /// The store-path match face: memo-hit → the cached outcome; miss →
+    /// the full-library scan (matchHardened bumps the scan counter) →
+    /// memo store. The scoring runs OUTSIDE the lock (the NSLock discipline:
+    /// no heavy work under the lock — only table reads/writes).
+    static func matchOutcome(_ params: LensModule.Params) -> LensMatchOutcome? {
+        lock.lock()
+        let db = _db
+        let stamp = _dbStamp
+        lock.unlock()
+        guard let db else { return nil }
+        let key = memoKey(params)
+        // Hit probe (lock inside; LRU touch).
+        if let cached = memoRead(key, stamp: stamp) {
+            return materialize(cached, db: db)
+        }
+        let outcome = matchCommitted(params, in: db)
+        let memoValue: MemoOutcome
+        switch outcome {
+        case .matched(let entry, let score):
+            guard let index = db.lenses.firstIndex(where: { $0.maker == entry.maker && $0.models == entry.models })
+            else { return outcome }
+            memoValue = .matched(index: index, score: score)
+        case .ambiguous(let score): memoValue = .ambiguous(score: score)
+        case .noLens: memoValue = .noLens
+        case .missingFocal: memoValue = .missingFocal
+        }
+        memoWrite(key, memoValue, stamp: stamp)
+        return outcome
+    }
+
+    private static func memoRead(_ key: UInt64, stamp: UInt64) -> MemoOutcome? {
+        lock.lock(); defer { lock.unlock() }
+        guard stamp == _dbStamp, let value = _memo[key] else { return nil }
+        _memoOrder.removeAll { $0 == key }
+        _memoOrder.append(key)
+        return value
+    }
+
+    private static func memoWrite(_ key: UInt64, _ value: MemoOutcome, stamp: UInt64) {
+        lock.lock(); defer { lock.unlock() }
+        guard stamp == _dbStamp else { return }
+        _memo[key] = value
+        _memoOrder.removeAll { $0 == key }
+        _memoOrder.append(key)
+        while _memoOrder.count > memoCapacity {
+            let evicted = _memoOrder.removeFirst()
+            _memo[evicted] = nil
+        }
+    }
+
+    private static func materialize(_ memo: MemoOutcome, db: LensfunDB) -> LensMatchOutcome {
+        switch memo {
+        case .matched(let index, let score):
+            guard db.lenses.indices.contains(index) else { return .noLens }
+            return .matched(entry: db.lenses[index], score: score)
+        case .ambiguous(let score): return .ambiguous(score: score)
+        case .noLens: return .noLens
+        case .missingFocal: return .missingFocal
+        }
     }
 
     /// Camera cropfactor lookup (LENS-01 T3, X4 priority tier 2): unique
@@ -538,9 +652,7 @@ public struct LensfunStore: Sendable {
     public static func resolveCommitted(
         _ params: LensModule.Params, width: Int, height: Int
     ) -> LensKernelParams? {
-        lock.lock(); let db = _db; lock.unlock()
-        guard let db else { return nil }
-        guard case .matched(let entry, _) = matchCommitted(params, in: db) else { return nil }
+        guard case .matched(let entry, _) = matchOutcome(params) else { return nil }
         let focal = Double(params.focalLength ?? 0)
         let cameraCrop = params.imageCrop ?? 1.0
         return LensfunMatch.resolve(

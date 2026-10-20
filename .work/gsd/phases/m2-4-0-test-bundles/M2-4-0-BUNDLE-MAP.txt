@@ -793,3 +793,4 @@ APP	2	ShellWindowControllerSmokeTests.swift
 IOP	4	ExifLensFieldsTests.swift
 IOP	10	DNGOpcodeProbeTests.swift
 IOP	9	LensMatchHardeningTests.swift
+IOP	6	LensfunMemoTests.swift
