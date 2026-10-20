@@ -6,7 +6,7 @@ wave: 3
 depends_on: ["LENS-02"]
 autonomous: true
 requirements: ["charter = UQ-R4（8bd94370）——FEAT-DEV-07 的 projection + profile database（数据面）收口波", "research 正本 = phases/lens-01-lensfun/RESEARCH.md（b2b31909）§Route Matrix 吸收件 1/§Upstream Facts/§Plan Split L3 行", "OQ 裁决正本 = 同目录 CONTEXT.md（D-LENS-6/-8 + X7/X8 + hazards H-L3 + 红线 15 条）", "基线 3991/37/0 + LENS-01/02 终态（对账式）；本 plan 分账 +16..26", "C 档停位 = 与 LENS-04 并行波各自闭环后一并汇报停", "H-L3 不可延后件：NOTICE/许可归属随本 plan 落地，禁延后"]
-success_criteria: "SC 全可机检——T1：LensProjection（8 槽枚举 + 四型激活 fisheye/equisolid/stereographic/orthographic + rectilinear 恒等基态；Alcedo GPL 移植 + 版权头）+ LensKernels.metal 投影数学（source/target 投影段）+ Params additive（targetProjection/sourceProjection，默认 rectilinear 恒等）+ resolve() 非 rectilinear 硬拒解除（target 未设维持保守）+ 面板 target picker + projection golden（Alcedo 同源对表数值入 evidence）；T2：modifyROIIn resolved-XML 路径真三通道 union（D7 注记兑现，纯 CPU 边框映射）；T3：Resources/Lensfun 钉版快照 + README（来源+SHA+日期+unmodified）+ folderReference + seeder（哨兵字节等跳过）+ 优先序 customPath > 种子 > 下载 > absent + 设置面手动检查更新（tar.bz2 + SHA 校验失败拒绝 + L057 缝）+ SHA/优先序单测；T4：NOTICE 三条目（lensfun CC-BY-SA + Alcedo + RawLab）+ Resources/Licenses/Lensfun 全套文本 + fixtures README 一致性复核"
+success_criteria: "SC 全可机检——T1：LensProjection（8 槽枚举 + 四型激活 fisheye/equisolid/stereographic/orthographic + rectilinear 恒等基态；Alcedo GPL 移植 + 版权头）+ LensKernels.metal 投影数学（source/target 投影段）+ Params additive（targetProjection/sourceProjection，默认 rectilinear 恒等）+ resolve() 非 rectilinear 硬拒解除（target 未设维持保守）+ 面板 target picker + projection golden（Alcedo 同源对表数值入 evidence）+ 投影×auto-crop 边框映射接线 golden 一例 (review M5)；T2：modifyROIIn resolved-XML 路径真三通道 union（D7 注记兑现，纯 CPU 边框映射）；T3：Resources/Lensfun 钉版快照 + README（来源+SHA+日期+unmodified）+ folderReference + seeder（哨兵字节等跳过）+ 优先序 customPath > 种子 > 下载 > absent + 设置面手动检查更新（tar.bz2 + SHA 校验失败拒绝 + L057 缝）+ SHA/优先序单测〔App bundle——被测类型 LensfunDataDistribution/DownloadService = App Session 域，IOP target 不可 import App (review m3)〕；T4：NOTICE 三条目（lensfun CC-BY-SA + Alcedo + RawLab）+ Resources/Licenses/Lensfun 全套文本 + fixtures README 一致性复核"
 estimated_tests: "+16..26（T1 +9..14〔投影 golden 四型 + 恒等负测 + 硬拒解除回归〕/ T2 +1..2 / T3 +5..8〔SHA/seeder/优先序〕/ T4 0 docs；越带申报理由）"
 test_bundles: [IOP, IOPParity, APP]
 baseline: "3991/37/0 + LENS-01/02 终态（对账式）"
@@ -32,8 +32,9 @@ files_modified:
   - Resources/Localizable.xcstrings                           # T1/T3：投影 picker + 数据管理新键尾块纯插入
   - Tests/LightamerTests/LensProjectionGoldenTests.swift      # T1：新建（IOPParity——四型 golden + 恒等负测）
   - Tests/LightamerTests/LensProjectionResolveTests.swift     # T1：新建（IOP——硬拒解除/枚举槽位/params 折入）
-  - Tests/LightamerTests/LensfunDistributionTests.swift       # T3：新建（IOP——SHA 校验/优先序/seeder 哨兵）
+  - Tests/LightamerTests/LensfunDistributionTests.swift       # T3：新建（**App** bundle——被测类型 LensfunDataDistribution/DownloadService = App Session 域，IOP target 不可 import App (review m3)）
   - Project.swift                                             # T5：Resources/Lensfun + Licenses folderReference + 三个新测试文件入数组
+  - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt  # T5：三个新测试文件落域登记行 (review m4)
   - .work/gsd/phases/lens-01-lensfun/LENS-03-SUMMARY.md       # T5
   - .work/gsd/phases/lens-01-lensfun/LENS-03-DECISIONS.md     # T5（对表数值来源 + 键清单 + 偏差）
 ---
@@ -44,10 +45,12 @@ files_modified:
 > `RESEARCH.md`（§Route Decision Matrix 吸收件 1 / §Upstream Facts /
 > §Plan Split L3 行「projection 可拆独立波；NOTICE/许可件不可延后」）。
 >
-> **并行注记**：本 plan 与 LENS-04 并行（触碰面不相交：本 plan =
-> kernel 投影数学 + 数据分发 + NOTICE；04 = params 持久化 + 验收面）；
-> **C 档停 = 两 plan 各自闭环后一并汇报**。两 plan 串行执行机（单重活
-> 制）下按 orchestrator 排程交错，产物面互不阻塞。
+> **并行注记**：本 plan 与 LENS-04 并行排程但**串行交错执行**（单重活
+> 机；**相交文件清单 = `LensPanelView.swift` / `Localizable.xcstrings`
+> / `Project.swift`**——各自批内串行落盘 + tuist generate 恒末位，禁
+> 并行起跑 (review m7)）；LENS-04 T2 裁决前须收口本 plan T1 的投
+> 影×auto-crop 接线（M5 交叉点）；**C 档停 = 两 plan 各自闭环后一并汇
+> 报**。
 >
 > **裁定权归属钉**：无用户裁决分支；扩面触发（8 型全量激活 / CIRCLE /
 > 自动更新 / 链库 lensfun）= 停手上报。
@@ -60,7 +63,7 @@ files_modified:
 |---|---|---|---|
 | T1 投影移植 | **+9..14** | 四型 golden + rectilinear 恒等 + 硬拒解除 + 枚举槽位 + params 折入 | IOPParity + IOP |
 | T2 TCA ROI union | **+1..2** | 三通道 union 边框断言 | IOP |
-| T3 数据分发 | **+5..8** | SHA 校验/优先序/seeder 哨兵/更新失败降级 | IOP（纯面）+ App |
+| T3 数据分发 | **+5..8** | SHA 校验/优先序/seeder 哨兵/更新失败降级 | App（被测类型 App Session 域 (review m3)） |
 | T4 NOTICE/许可 | **0** | docs-only（机检 = grep 三条目） | — |
 | T5 收口 | **0** | docs + Project.swift + tuist generate | — |
 | **合计** | **+16..26** | 起算基 = LENS-02 终态 | 三新测试文件 |
@@ -112,7 +115,9 @@ files_modified:
      Alcedo 版权 + 修改标注 + NOTICE 指针（§X8 三件套）。
   2. `LensKernels.metal` 投影数学段：source/target 投影映射（Alcedo
      metal 同源对表移植；求值序 = source 投影归一 → 畸变/TCA/渐晕既有
-     段 → target 投影——与 Alcedo 语义对齐，头注释钉死求值序修订）。
+     段 → target 投影 → **×1/scale 施于映射后终采样偏移**（scale×投影
+     折叠序钉死——LENS-02 T3 采样语义的投影侧锚 (review m6/M5)）——
+     与 Alcedo 语义对齐，头注释钉死求值序修订）。
   3. `Params` additive：`targetProjection: String?`（nil = rectilinear
      恒等）+ `sourceProjection: String?`（resolve 时自 entry `<type>`
      折入）；encodeIfPresent 零漂移专测随批。
@@ -121,17 +126,23 @@ files_modified:
      现状拒绝（blit identity + log）。
   5. 面板 target picker（§3 段尾追加：rectilinear 基态 + 四激活型；
      预留槽不可选或隐藏——DECISIONS 申报终形）。
-  6. 测试：四型 golden（IOPParity——合成参考 = Alcedo metal 数学同源对
+  6. 投影 × auto-crop 接线（M5）：`LensAutoCrop.minimumScale` 边框映射
+     函数入参折 source/target 投影段（函数入参已泛化——LENS-02 时刻只
+     含畸变/TCA，本任务接线 + golden 一例）；resolved-scale readout 同
+     源折投影——防投影+autoScale 同开算出不足 scale 露边 (review M5)。
+  7. 测试：四型 golden（IOPParity——合成参考 = Alcedo metal 数学同源对
      表，对表数值来源入 DECISIONS；门 1e-5 warp 级）+ rectilinear 恒
      等负测（默认/显式基态逐字节）+ 硬拒解除双臂（target 设/未设）+
-     枚举穷举编译面（未激活槽 switch unreachable 断言）+ params 零漂
-     移负测。
+     枚举穷举编译面（未激活槽 switch unreachable 断言）+ 投影×auto-crop
+     边框映射 golden 一例 (review M5) + params 零漂移负测。
 - **验收标准（机检）**：
   - 构建绿；LensProjection.swift 版权头三件套 grep 在位。
   - 四型 golden 在册且对表数值来源落 DECISIONS；rectilinear 默认恒等
     （默认中性零行为门）。
   - grep：投影枚举恰 8 case；未激活 3 槽有显式注记；`resolve()` 拒绝
     臂带 target 未设条件。
+  - 投影×auto-crop 接线 golden 一例在册（含投影的 minimumScale 例——
+    M5 收口 (review M5)）。
   - `--bundle IOPParity` + `--bundle IOP` 定向零回归。
 - **commit**: `feat(lens03): port alcedo projection math for four fisheye types`
 - **回滚与偏差申报要求**：回滚 = revert 单 commit（默认 rectilinear =
@@ -193,7 +204,8 @@ seeder（AGENTS.md M2-5）；`LensfunDownloadService.swift` 全文（优先序
   - 优先序测试四态在册；SHA 篡改拒绝测试在册；seeder 三例在册。
   - grep：`folderReference(path: "Resources/Lensfun")` 恰一处；
     customPathKey 零改（键名 diff 零命中）。
-  - `--bundle IOP` 定向零回归。
+  - `--bundle App` 定向零回归（LensfunDistributionTests 落 App bundle
+    (review m3)）；`--bundle IOP` 产线域零回归。
 - **commit**: `feat(lens03): bundle pinned lensfun snapshot with sha-verified update channel`
 - **回滚与偏差申报要求**：回滚 = revert 单 commit（回下载态）；偏差
   （支持目录布局/更新 UI 落点）= DECISIONS 申报；**禁自动更新/后台拉取**
@@ -224,12 +236,15 @@ seeder（AGENTS.md M2-5）；`LensfunDownloadService.swift` 全文（优先序
 
 ## T5 — 收口（Project.swift + tuist generate + docs）
 
-- **action**：三个新测试文件入数组（IOPParity ×1 / IOP ×2）+
-  Resources 两条 folderReference；`tuist generate` 恒末位；定向 bundle
-  全绿（IOP/IOPParity/App——App 因 §5 数据管理段）；ΔN 对账（+16..26）
-  ；SUMMARY/DECISIONS 落盘；与 LENS-04 一并 **C 档停汇报**。
+- **action**：三个新测试文件入数组（IOPParity ×1 / IOP ×1 / App ×1——
+  LensfunDistributionTests 落 App (review m3)）+ Resources 两条
+  folderReference + BUNDLE-MAP 三行登记 (review m4)；`tuist generate`
+  恒末位；定向 bundle 全绿（IOP/IOPParity/App——App 因 §5 数据管理段
+  + 分发测试落域）；ΔN 对账（+16..26）；SUMMARY/DECISIONS 落盘；与
+  LENS-04 一并 **C 档停汇报**。
 - **验收标准（机检）**：定向 bundle 全绿；Project.swift diff = 恰测试
-  三行 + resources 两行；SUMMARY/DECISIONS 在库。
+  三行 + resources 两行；BUNDLE-MAP 登记行在库 (review m4)；
+  SUMMARY/DECISIONS 在库。
 - **commit**: `test(lens03): register projection and distribution suites and close out l3`
 - **回滚与偏差申报要求**：ΔN 越带 = SUMMARY 申报；禁漏 tuist generate；
   xcstrings 新键（T1/T3 面板面）随批尾块插入 + 双 PASS（并入 T5 收口
