@@ -78,6 +78,29 @@ public enum LensKernel {
     public static let functionName = "lens_manual_warp"
 }
 
+/// The auto-apply user setting (LENS-02 T2, D-LENS-1): the ONE new
+/// application-level UserDefaults key of the lens batch, default FALSE —
+/// a wrong double-correction is worse than no correction. The read is
+/// injected (KD-4): `LensModule.autoApplyReader` is the only consumer;
+/// the panel/settings never read the key in a body.
+public enum LensAutoApplySetting {
+    /// The registered key (the batch's single application-level addition —
+    /// the AGENTS.md UserDefaults key ledger row rides LENS-02 T5).
+    public static let defaultsKey = "lensfun.autoApply"
+
+    /// The typed read with the missing-key = false face (an out-of-domain
+    /// value reads through `bool` as false — the safe default).
+    public static func read(_ defaults: UserDefaults = .standard) -> Bool {
+        guard defaults.object(forKey: defaultsKey) != nil else { return false }
+        return defaults.bool(forKey: defaultsKey)
+    }
+
+    /// The write face (the panel/settings toggle; explicit Bool only).
+    public static func write(_ value: Bool, _ defaults: UserDefaults = .standard) {
+        defaults.set(value, forKey: defaultsKey)
+    }
+}
+
 /// Where the committed coefficients came from (panel文案 + resolve path).
 public enum LensSource: String, Codable, Hashable, Sendable {
     /// Nothing applied (default; neutral ⇒ cache-neutral).
@@ -214,6 +237,12 @@ public final class LensModule: IOPModule {
         committed = params
     }
 
+    /// The auto-apply reader seam (LENS-02 T2, KD-4 injection form): the
+    /// production default reads UserDefaults ONCE per reloadDefaults via
+    /// `LensAutoApplySetting.read`; tests replace this closure. The panel
+    /// never reads UserDefaults in body.
+    var autoApplyReader: () -> Bool = { LensAutoApplySetting.read() }
+
     /// Fresh images: neutral OFF (anti-double-correction — the (a) layer:
     /// CIRAW already applied the embedded correction, so the manual layer
     /// must not add more). The EXIF snapshot rides along for the (c) layer
@@ -223,6 +252,12 @@ public final class LensModule: IOPModule {
     /// derivation with the divide-by-zero guard > unique camera-hit
     /// cropfactor > nil, the resolve site's 1.0 fallback); the mutex
     /// judgment carries from the decode (X1).
+    /// LENS-02 T2 (D-LENS-1): the auto-apply arm — opt-in via the
+    /// `lensfun.autoApply` default-false key, and the EFFECTIVE DOMAIN IS
+    /// `embeddedGeometry == .notApplicable` ONLY (the raster/TIFF chain):
+    /// detected/unknown/nil are the hard guard and NEVER auto-trigger
+    /// (a wrong double-correction beats a missing one). A match miss
+    /// renders identity (the memo path status quo) — no error face.
     public func reloadDefaults(image: DecodedImage) async -> Params {
         let cap = image.capture
         let lensKey = cap.lensModel
@@ -237,8 +272,14 @@ public final class LensModule: IOPModule {
         } else {
             imageCrop = nil
         }
+        var source: LensSource = .off
+        if autoApplyReader(),
+           image.embeddedGeometry == .notApplicable,
+           let key = lensKey, !key.isEmpty {
+            source = .lensfun
+        }
         return Params(
-            source: .off, focalLength: focal, aperture: aperture, lensKey: lensKey,
+            source: source, focalLength: focal, aperture: aperture, lensKey: lensKey,
             cameraMaker: cap.cameraMake, cameraModel: cap.cameraModel,
             imageCrop: imageCrop, embeddedGeometry: image.embeddedGeometry)
     }
