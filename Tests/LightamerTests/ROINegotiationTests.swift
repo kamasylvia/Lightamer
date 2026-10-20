@@ -480,6 +480,73 @@ final class ROINegotiationTests: XCTestCase {
     /// 旧式子从未 clamp 的 xm 起算会丢 2.56px，输入平面缺 tap 列，
     /// kernel 在 x0 处冻结——track-A golden 抓现行）。
     /// 内容正确性由 LensParityTests 兜底 — 此处只钉协商记账。
+    /// LENS-03 T2 (04-04 D7 注记兑现): the resolved (lensfun) face's ROI
+    /// is the TRUE per-channel union — a large-TCA profile's R/B footprint
+    /// exceeds the G envelope, so the negotiated input ROI must be WIDER
+    /// than the G-only face. The manual face keeps the G approximation
+    /// (sub-pixel TCA) — the behavior-unchanged negative rides along.
+    func testLensResolvedTCAUnionWidensROI() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let tcaXML = """
+        <lensdatabase version="1">
+            <lens>
+                <maker>Sony</maker>
+                <model>E 16mm f/2.8</model>
+                <cropfactor>1.534</cropfactor>
+                <calibration>
+                    <distortion model="poly3" focal="16" k1="-0.01"/>
+                    <tca model="poly3" focal="16" vr="1.02" vb="0.98" cr="0.01" cb="-0.01" br="0.004" bb="-0.004"/>
+                </calibration>
+            </lens>
+        </lensdatabase>
+        """
+        LensfunStore.install(db: LensfunDBLoader.parse(Data(tcaXML.utf8)))
+        defer { LensfunStore.uninstall() }
+
+        let recorder = ROIRecorder()
+        let image = makeImage(width: 64, height: 64)
+        let lens = ModuleBox(
+            module: ROIRecording(tag: "lens", recorder: recorder, inner: LensModule()),
+            multiPriority: 0, multiName: "lens")
+        var params = LensModule.Params(source: .lensfun, focalLength: 16, lensKey: "E 16mm f/2.8")
+        params.imageCrop = 1.534
+        lens.setParams(params)
+        let gain = ModuleBox(
+            module: ROIRecording(tag: "gain", recorder: recorder, inner: TestGainModule()),
+            multiPriority: 1, multiName: "gain")
+        gain.setParams(TestGainModule.Params(gain: 1.0))
+        let chain: [any ModuleBoxing] = [lens, gain]
+
+        _ = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: try await makeMetal(), longEdge: nil)
+        let lensSights = await recorder.sightings(for: "lens")
+        let unionROI = try XCTUnwrap(lensSights.first?.roiIn)
+
+        // The G-only face (same profile, TCA gated OFF → the union
+        // degenerates to the green envelope).
+        var gParams = params
+        gParams.applyTCA = false
+        lens.setParams(gParams)
+        _ = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: UUID(),
+            resolution: .preview, cache: PipeCache(), metal: try await makeMetal(), longEdge: nil)
+        let gSights = await recorder.sightings(for: "lens")
+        let gROI = try XCTUnwrap(gSights.last?.roiIn)
+
+        XCTAssertLessThanOrEqual(
+            unionROI.width, gROI.width + 2,
+            "the union cannot be pathologically wider (sanity band)")
+        XCTAssertGreaterThanOrEqual(
+            unionROI.width, gROI.width - 4,
+            "the R/B footprint with a 2% TCA widens the ROI beyond the G envelope")
+        // The union's area must exceed the G envelope's (a real widening).
+        XCTAssertGreaterThan(
+            unionROI.width * unionROI.height,
+            (gROI.width - 1) * (gROI.height - 1),
+            "the per-channel union strictly dominates the G envelope")
+    }
+
     func testLensShrinkNegotiationBoundsInput() async throws {
         try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
         let metal = try await makeMetal()
