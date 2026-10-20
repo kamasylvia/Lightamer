@@ -32,6 +32,25 @@
 - Faces 网络整体 GPU 化的「GPU 批处理 + CPU-only 回退开关 + 限速使用」模式（`0242a75b`/`f625c74c`）——M2AI 推理 worker 设计前翻一次实现即弃。
 - 蒙版笔刷 Shift-click 直线笔画（`e5c6e17b`）——我方笔刷若建，Lightroom 惯例对齐。
 
+## 候选区（RawLab，正本 = `research/RAWLAB-NOTES.md`，2026-10-20 用户裁「六缺口按推荐优先级入队」）
+
+来源 = `github.com/dancancer/RawLab`（GPL-3.0，跨四平台共享 C++17 核，0.5→0.8.2 十天五版；已加为第七参考项目，正式克隆 `/Volumes/UNITEK/Documents/Development/RawLab`）。推荐优先级即下表序：
+
+| # | 候选 | 上游版本 | 我方缺口 | 规模 | 备注 |
+|---|---|---|---|---|---|
+| UQ-R1 | **渲染 float32 DNG 导出**（单图+批量，baked 调整，保留捕获元数据，尺寸/方向更新） | 0.7.0 | 导出矿阵六格式无 DNG | M | 路线 = TIFF/EP 标签自写或 Adobe DNG SDK（许可链须查——SDK 许可与 GPL 参考纪律分离评估）；用户价值 = 下游 LR/C1 可续编 |
+| UQ-R2 | **透视校正（keystone）**：裁切/旋转/摆正族邻接扩展，Metal warp | 0.8.0 | parity 零条目（有 crop/rotate/straighten/flip 无透视） | S-M | dt `ashift` 算法参考；与 crop 面几何管线同缝 |
+| UQ-R3 | **一键自动曝光 + 新片打开默认嵌入预览曝光匹配** | 0.6.0 | parity 零条目 | S | UX 感知件（新片打开即近相机 JPEG 观感）；saved-baseline 兼容语义照抄 |
+| UQ-R4 | **Lensfun 数据只读镜头校正落地**（profile 数据 + Metal warp + 手动选型 + 自动裁切） | 0.7.0 | FEAT-DEV-07 Partial（仅嵌入 opcodes） | M | 既定 v1 立场兑现（FEAT-DEV-07 验收目标 = Alcedo 同款 profile database + auto-detection）；RawLab 生产实证数据路线可行 |
+| UQ-R5 | **可续传批量导出**（冻结设置 + 跨重启恢复 + 取消 + 失败重试） | README/0.8.x | 我们有 retry 无跨重启续传 | S-M | 导出队列持久化面（M2-9 队列的 disk-backed 扩展） |
+| UQ-R6 | **主配方系统**（多调整 + 24 HSL 打包预设 + 0-200% 强度同缩 LUT + 风格图） | 0.6.0 | 预设面 = LUT/导出/复制粘贴，缺「调整包+强度缩放」形态（Alcedo 亦无） | M | 14 配方+29 创意 look 的打包形态参照；强度缩放语义（当前值同缩）注意与既有 preset 语义对齐 |
+
+### 架构不可达注记（不计缺口，永续备查）
+DCP 外部 profile 导入（CIRAW 不接受外部 DCP，FEAT-DEV-04 既定 out-of-scope）/ Nikon HE/ARW6、X3F、JXL-DNG 解码（Apple 解码覆盖决定）/ 跨平台四端 / RUM 使用统计（不采）。
+
+### 顺路消解注记
+R5 随 F0'-prod 顺路 14 项中 2 项（N-D7/N-L30）将随 P3 退役自然消解——与 RawLab 六候选无交集。
+
 ## 已兑现
 
 - **UQ-A2**（2026-10-17，M7-4-01 `2af9b17d`）：encodeStage additive `exclusiveFinalWrite` + 同目录隐藏 tmp + link() EEXIST → `BaseNameOccupiedError` 复用 + encoder-error 清理腿改道（exclusive 臂 destination 不可触）+ `$jobNamingCarrier` encode 腿递缝；**我方分歧申报 = 保留 render 步快照检查**（成本门非正确性门——与上游 6203791 删 exists() 检查不同构，DECISIONS §3）；exFAT 类卷 EOPNOTSUPP → encodeFailed 兜底（行为变化申报；**EOPNOTSUPP 降级回 plain rename 的可选项在此挂账**——外置卷实测需要时立项，勿静默）。
