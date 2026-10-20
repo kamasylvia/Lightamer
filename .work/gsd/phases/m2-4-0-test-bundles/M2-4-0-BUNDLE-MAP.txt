@@ -791,7 +791,7 @@ APP	2	ShellWindowControllerSmokeTests.swift
 #   LensfunMemoTests = IOP/Core 级匹配纯函数；LensPanelReadoutTests = APP/App 级
 #   readout 模型）。行内 method 数以终态对账为准。运行期总数基线相应上移。
 IOP	4	ExifLensFieldsTests.swift
-IOP	10	DNGOpcodeProbeTests.swift
+IOP	12	DNGOpcodeProbeTests.swift
 IOP	9	LensMatchHardeningTests.swift
 IOP	6	LensfunMemoTests.swift
 APP	5	LensPanelReadoutTests.swift
