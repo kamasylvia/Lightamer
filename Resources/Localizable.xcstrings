@@ -33001,6 +33001,176 @@
       }
     }
   },
+  "panel_lens_browser_search_placeholder" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Search lens profiles…"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "搜索镜头配置…"
+        }
+      }
+    }
+  },
+  "panel_lens_browser_scoring" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Scoring…"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "打分中…"
+        }
+      }
+    }
+  },
+  "panel_lens_browser_empty" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Type to search the lens database."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "输入以搜索镜头数据库。"
+        }
+      }
+    }
+  },
+  "panel_lens_browser_no_match" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "No profile matches the search."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "无匹配配置。"
+        }
+      }
+    }
+  },
+  "panel_lens_browser_low_confidence" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "low confidence"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "低置信"
+        }
+      }
+    }
+  },
+  "panel_lens_browser_truncated" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "More rows hidden — refine the search."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "更多条目已隐藏——请细化搜索。"
+        }
+      }
+    }
+  },
+  "panel_lens_detected_confirm_title" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Vendor correction detected"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "检测到厂商校正"
+        }
+      }
+    }
+  },
+  "panel_lens_detected_confirm_body" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "This image already carries the vendor lens correction. Selecting a Lensfun profile will STACK a second correction on top of it."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "此图已含厂商镜头校正。选择 Lensfun 配置将在其上叠加第二重校正。"
+        }
+      }
+    }
+  },
+  "panel_lens_detected_confirm_apply" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Stack anyway"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "仍然叠加"
+        }
+      }
+    }
+  },
+  "panel_lens_detected_confirm_cancel" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Cancel"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "取消"
+        }
+      }
+    }
+  },
   "panel_lens_auto_scale" : {
     "extractionState" : "manual",
     "localizations" : {
