@@ -6,7 +6,9 @@
 # 判据（全部满足才放行）：
 #   G1 无其它 xcodebuild / test-direct 宿主 / Lightamer 测试宿主在跑（机器级单重活）
 #   G2 系统可用内存 ≥ 30%（memory_pressure 口径）
-#   G3 交换已用 < 1GB
+#   G3 交换已用 < 4GB（v1.1 校准 2026-10-20：本机常驻用户进程〔Finder/Qsync/Resilio/zen〕的惰性冷页 ≈2.1GB
+#      长期驻 swap 且只在被触碰时换回——静态 swapused 不反映压力；重启病理发生在 swap 奔向盘满的失控态，
+#      4GB 门拦失控不拦地板；活压力信号由 G2 可用内存承担）
 #   G4 Data 卷可用 ≥ 25GB
 set -u
 WAIT=0; [ "${1:-}" = "--wait" ] && WAIT="${2:-1800}"
@@ -17,7 +19,7 @@ check() {
   local freepct; freepct=$(memory_pressure 2>/dev/null | awk '/System-wide memory free percentage/{gsub("%","",$NF); print $NF}')
   [ -n "$freepct" ] && [ "$freepct" -lt 30 ] && fails+=("G2 可用内存=${freepct}%<30%")
   local swapmb; swapmb=$(sysctl -n vm.swapusage 2>/dev/null | sed -E 's/.*used = ([0-9.]+)M.*/\1/')
-  [ -n "$swapmb" ] && [ "${swapmb%.*}" -ge 1024 ] && fails+=("G3 交换已用=${swapmb}M≥1GB")
+  [ -n "$swapmb" ] && [ "${swapmb%.*}" -ge 4096 ] && fails+=("G3 交换已用=${swapmb}M≥4GB")
   local availgb; availgb=$(df -g /System/Volumes/Data 2>/dev/null | awk 'NR==2{print $4}')
   [ -n "$availgb" ] && [ "$availgb" -lt 25 ] && fails+=("G4 Data 卷可用=${availgb}GB<25GB")
   if [ ${#fails[@]} -eq 0 ]; then echo "GUARD PASS (heavy=0 free=${freepct:-?}% swap=${swapmb:-?}M disk=${availgb:-?}GB)"; return 0; fi
