@@ -56,6 +56,14 @@ public struct DecodedImage: Sendable {
     /// carries only `rasterColor`; every pre-existing path is nil).
     public let rasterNative: RasterNativePixels?
 
+    /// The embedded-geometry mutex state (Plan LENS-01 T2, X1) — stamped at
+    /// EVERY construction site (RAW leg: DNG probe → `.detected` else
+    /// `.unknown`; raster/TIFF legs: `.notApplicable`). nil = pre-batch
+    /// synthetic constructions (tests/previews that never decoded a file) —
+    /// the panel reads it as the neutral "undetermined" face, never a
+    /// conclusion.
+    public let embeddedGeometry: EmbeddedGeometryState?
+
     public enum DecoderVersion: String, Codable, Sendable {
         case v8
         case v9
@@ -69,7 +77,8 @@ public struct DecodedImage: Sendable {
         decoderVersionUsed: DecoderVersion,
         contentDedupeID: UInt64? = nil,
         rasterColor: RasterColorDescription? = nil,
-        rasterNative: RasterNativePixels? = nil
+        rasterNative: RasterNativePixels? = nil,
+        embeddedGeometry: EmbeddedGeometryState? = nil
     ) {
         self.ciImage = ciImage
         self.rawTech = rawTech
@@ -79,5 +88,6 @@ public struct DecodedImage: Sendable {
         self.contentDedupeID = contentDedupeID
         self.rasterColor = rasterColor
         self.rasterNative = rasterNative
+        self.embeddedGeometry = embeddedGeometry
     }
 }
