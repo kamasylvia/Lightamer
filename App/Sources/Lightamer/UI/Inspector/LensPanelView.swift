@@ -3,21 +3,109 @@ import LightamerIOP
 import SwiftUI
 
 // ─────────────────────────────────────────────────────────────────────────
-// Lens panel (Plan 04-04-T3) — the IOP-GEO-03 Inspector surface, three
-// sections mirroring the D-G1 three layers:
+// Lens panel (Plan 04-04-T3; LENS-01 T5 upgrades §1) — the IOP-GEO-03
+// Inspector surface, three sections mirroring the D-G1 three layers:
 //
-//  ① Embedded status ((a) layer): CIRAW already applied the embedded
-//     correction for supported lenses — manual defaults OFF to avoid
-//     double-correction (the known tradeoff, 04-04-DECISIONS D-04-04-T0-1).
+//  ① Embedded status ((a) layer): the mutex judgment readout
+//     (params.embeddedGeometry — detected/unknown/notApplicable/nil
+//     undetermined) + the REAL match preview (LensfunStore.matchOutcome
+//     through the hardened memoized face — no more key-echo stub).
 //  ② Manual sliders ((b) layer): distortion k1/k2, TCA R/B, devignette
 //     k1/k2/k3 — D-H1 drag trio, exactly ONE commit per gesture.
-//  ③ Lensfun match ((c) layer): match status (hit name / miss / no data)
-//     + Apply/Clear discrete buttons + first-run download.
+//  ③ Lensfun match ((c) layer): match actions (Apply/Clear) + first-run
+//     download (the profile browser replaces Apply/Clear in LENS-02 T4).
 //
 // D-H1 wiring: sliders are the drag-begin/tick/end trio (zero history
 // during the drag, exactly ONE commit at the end); Apply/Clear/download
 // are discrete one-commit edits. Values READ from the instance record.
 // ─────────────────────────────────────────────────────────────────────────
+
+/// The §1 readout pure model (LENS-01 T5): maps the params' mutex judgment
+/// + the hardened match outcome onto display states + STATIC copy keys.
+/// View-only consumption; testable without a store (the outcome is
+/// injected). All copy keys are static literals — the interpolated-key
+/// localization trap (M2-9 F-2) is banned here.
+enum LensPanelReadout: Equatable {
+    // The embedded-geometry mutex face.
+    case embeddedDetected
+    case embeddedUnknown
+    case embeddedNotApplicable
+    /// nil judgment (pre-batch synthetic constructions) — the neutral
+    /// face, never a conclusion.
+    case embeddedUndetermined
+
+    // The match-state-machine face.
+    case matched(name: String, score: Int)
+    case ambiguous
+    case noLens
+    case noDatabase
+    /// No lens EXIF string at all (the panel_no_exif notice face).
+    case idle
+
+    /// The static copy key for the state (zh/en via Localizable.xcstrings;
+    /// matched renders its name+score beside the label).
+    var copyKey: String {
+        switch self {
+        case .embeddedDetected: return "panel_lens_embedded_detected"
+        case .embeddedUnknown: return "panel_lens_embedded_unknown"
+        case .embeddedNotApplicable: return "panel_lens_embedded_notapplicable"
+        case .embeddedUndetermined: return "panel_lens_embedded_note"
+        case .matched: return "panel_lens_match_matched"
+        case .ambiguous: return "panel_lens_match_ambiguous"
+        case .noLens: return "panel_lens_match_nolens"
+        case .noDatabase: return "panel_lens_match_nodatabase"
+        case .idle: return "panel_lens_no_exif"
+        }
+    }
+
+    /// The mutex judgment mapping (X1: the panel reads the params field,
+    /// no second seam).
+    static func embedded(_ state: EmbeddedGeometryState?) -> LensPanelReadout {
+        switch state {
+        case .detected: return .embeddedDetected
+        case .unknown: return .embeddedUnknown
+        case .notApplicable: return .embeddedNotApplicable
+        case nil: return .embeddedUndetermined
+        }
+    }
+
+    /// The match-state mapping (hasData=false → noDatabase BEFORE any
+    /// matching; missing lens EXIF → idle; otherwise the hardened
+    /// outcome verbatim).
+    static func match(
+        params: LensModule.Params, hasData: Bool, outcome: LensMatchOutcome?
+    ) -> LensPanelReadout {
+        guard hasData else { return .noDatabase }
+        guard params.lensKey != nil && !(params.lensKey ?? "").isEmpty else { return .idle }
+        guard let outcome else { return .noDatabase }
+        switch outcome {
+        case .matched(let profile, let score):
+            let name = profile.maker.isEmpty
+                ? profile.model
+                : profile.maker + " " + profile.model
+            return .matched(name: name, score: score)
+        case .ambiguous: return .ambiguous
+        case .noLens: return .noLens
+        case .missingFocal: return .idle
+        }
+    }
+
+    /// The full frozen key set (the localization ledger face — the panel
+    /// tests pin exactly these; panel_lens_embedded_note and
+    /// panel_lens_no_exif are the PRE-EXISTING keys reused for the
+    /// undetermined/idle faces, zero historical-key touching).
+    static let allCopyKeys: Set<String> = [
+        "panel_lens_embedded_detected",
+        "panel_lens_embedded_unknown",
+        "panel_lens_embedded_notapplicable",
+        "panel_lens_embedded_note",
+        "panel_lens_match_matched",
+        "panel_lens_match_ambiguous",
+        "panel_lens_match_nolens",
+        "panel_lens_match_nodatabase",
+        "panel_lens_no_exif",
+    ]
+}
 
 internal struct LensPanelView: View {
 
@@ -25,7 +113,8 @@ internal struct LensPanelView: View {
     let edit: InspectorEditSession
 
     @State private var notice: String?
-    @State private var matchName: String?
+    @State private var embeddedReadout: LensPanelReadout = .embeddedUndetermined
+    @State private var matchReadout: LensPanelReadout = .idle
     @State private var hasData: Bool = LensfunStore.isInstalled
     @State private var downloading: Bool = false
 
@@ -39,12 +128,28 @@ internal struct LensPanelView: View {
 
     var body: some View {
         Form {
-            // ── §1 embedded status ──
+            // ── §1 embedded status + match state machine (LENS-01 T5) ──
             Section {
-                Text(String(localized: "panel_lens_embedded_note"))
-                    .font(.caption2)
-                    .foregroundStyle(LightamerColors.textTertiary)
-                    .accessibilityIdentifier("inspector.lens.embeddedNote")
+                HStack {
+                    Image(systemName: "circlebadge")
+                        .font(.caption2)
+                    Text(String(localized: String.LocalizationValue(embeddedReadout.copyKey)))
+                        .font(.caption2)
+                }
+                .foregroundStyle(LightamerColors.textTertiary)
+                .accessibilityIdentifier("inspector.lens.embeddedReadout")
+                HStack {
+                    Text(String(localized: String.LocalizationValue(matchReadout.copyKey)))
+                        .font(.caption)
+                    if case .matched(let name, let score) = matchReadout {
+                        Text(verbatim: "\(name) · \(score)")
+                            .font(.caption)
+                            .foregroundStyle(LightamerColors.textPrimary)
+                    }
+                }
+                .foregroundStyle(matchReadout == .noDatabase
+                    ? LightamerColors.textTertiary : LightamerColors.textPrimary)
+                .accessibilityIdentifier("inspector.lens.matchReadout")
             } header: {
                 Text("panel_lens_embedded_section")
             }
@@ -146,15 +251,9 @@ internal struct LensPanelView: View {
                 Text("panel_lens_manual_section")
             }
 
-            // ── §3 Lensfun match ──
+            // ── §3 Lensfun match (actions + first-run download) ──
             Section {
                 if hasData {
-                    if let matchName {
-                        Text(matchName)
-                            .font(.caption)
-                            .foregroundStyle(LightamerColors.textPrimary)
-                            .accessibilityIdentifier("inspector.lens.matchName")
-                    }
                     HStack {
                         Button(String(localized: "panel_lens_apply_match")) {
                             applyMatch()
@@ -222,18 +321,21 @@ internal struct LensPanelView: View {
 
     // MARK: - Lensfun match (discrete one-commit each)
 
-    /// Refresh the §3 status line from the store + EXIF snapshot (read-only).
+    /// Refresh the §1 readouts (read-only; NOT a body-evaluation path —
+    /// the values cache into @State and refresh only on panel appear /
+    /// image switch / post-download). LENS-01 T5: the REAL match preview
+    /// through the hardened memoized face (the pre-T5 stub echoed the raw
+    /// EXIF key — `matchName = key` — retired).
     private func refreshMatchState() {
         hasData = LensfunStore.isInstalled
-        guard hasData else { matchName = nil; return }
-        guard let key = params.lensKey, !key.isEmpty else {
-            matchName = nil
+        embeddedReadout = .embedded(params.embeddedGeometry)
+        let outcome = hasData ? LensfunStore.matchOutcome(params) : nil
+        matchReadout = .match(params: params, hasData: hasData, outcome: outcome)
+        if case .idle = matchReadout {
             notice = String(localized: "panel_lens_no_exif")
-            return
+        } else {
+            notice = nil
         }
-        // Match probe is synchronous (snapshot read, no pipe involvement).
-        matchName = key
-        notice = nil
     }
 
     /// Apply the match: flip `source` to lensfun (the resolve happens in

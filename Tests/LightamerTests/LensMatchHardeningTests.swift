@@ -108,8 +108,8 @@ final class LensMatchHardeningTests: XCTestCase {
         let apsc = LensfunMatch.matchHardened(
             maker: "Canon", model: nil, lens: "Canon EF-S 24mm f/2.8 STM",
             imageCrop: 1.62, in: db)
-        guard case .matched(let entry, _) = apsc else { return XCTFail("expected matched, got \(apsc)") }
-        XCTAssertEqual(entry.cropfactor, 1.622)
+        guard case .matched(let profile, _) = apsc else { return XCTFail("expected matched, got \(apsc)") }
+        XCTAssertEqual(profile.cropFactor, 1.622)
     }
 
     // MARK: - Threshold tier (40 loses auto-selection, 60 keeps it)
@@ -141,10 +141,10 @@ final class LensMatchHardeningTests: XCTestCase {
         let sixty = LensfunMatch.matchHardened(
             maker: "Sony", model: nil, lens: "E 16mm f2.8 gm", imageCrop: 1.5,
             in: Self.db(Self.sonyXML))
-        guard case .matched(let entry, let score) = sixty else {
+        guard case .matched(let profile, let score) = sixty else {
             return XCTFail("expected matched at the 60 tier, got \(sixty)")
         }
-        XCTAssertEqual(entry.maker, "Sony")
+        XCTAssertEqual(profile.maker, "Sony")
         XCTAssertGreaterThanOrEqual(score, 60)
     }
 
@@ -191,11 +191,13 @@ final class LensMatchHardeningTests: XCTestCase {
         params.imageCrop = 1.5 // the CAMERA crop (the entry carries 1.534)
         let out = LensfunStore.resolveCommitted(params, width: 6000, height: 4000)
         let entry = try XCTUnwrap(Self.db(Self.sonyXML).lenses.first)
+        _ = entry
+        let dbEntry = try XCTUnwrap(Self.db(Self.sonyXML).lenses.first)
         let directCamera = try XCTUnwrap(LensfunMatch.resolve(
-            entry: entry, focal: 16, aperture: 2.8, distance: nil, crop: 1.5,
+            entry: dbEntry, focal: 16, aperture: 2.8, distance: nil, crop: 1.5,
             imageWidth: 6000, imageHeight: 4000))
         let directEntry = LensfunMatch.resolve(
-            entry: entry, focal: 16, aperture: 2.8, distance: nil, crop: 1.534,
+            entry: dbEntry, focal: 16, aperture: 2.8, distance: nil, crop: 1.534,
             imageWidth: 6000, imageHeight: 4000)
         // The resolve site must fold the CAMERA crop — bit-identical to
         // the direct camera-crop call, and DIFFERENT from the pre-T3
