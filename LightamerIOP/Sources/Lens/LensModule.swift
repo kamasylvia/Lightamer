@@ -51,7 +51,7 @@ import Metal
 // frame and the center stays exact under roiHint sub-windows too.
 //
 // UNIFORMS per-run via shared MTLBuffer (D2 — needs bufIn size for the
-// center/halfW; `piece.data = nil`). 80-byte struct, all members 4/8/16
+// center/halfW; `piece.data = nil`). 112-byte struct (104 data + the L2 scale tail), all members 4/8/16
 // aligned (the ashift `float hinv[9]` packing postmortem applies).
 //
 // INTENTIONAL DIVERGENCES:
@@ -162,6 +162,22 @@ public final class LensModule: IOPModule {
         /// Vignetting family gate (vk1..vk3; nil = true; D-LENS-7 keeps
         /// vignetting IN the trio).
         public var applyVignette: Bool?
+        // LENS-02 T3 (D-LENS-5, X5): the scale compensation. autoScale
+        // (nil = FALSE — see the deviation note below) runs the RawLab
+        // bisection per run; userScale (nil = 1.0) is the manual slider;
+        // the two are mutually exclusive (Alcedo use_user_scale_
+        // semantics). The RESOLVED scale is run-derived (size-dependent)
+        // and never persisted — only these two inputs ride the params.
+        // DEVIATION (LENS-02 DECISIONS D-L2-1): the plan's T3 sketch
+        // wrote "nil = true", but that face CONTRADICTS the plan's own
+        // red line 12 (default-neutral: scale = 1 renders byte-identical)
+        // and the L4-T2 adjudication expectation ("scale 默认 1.0") — an
+        // auto run on a border-overflowing warp REWRITES the pre-L2
+        // render (the track-A pincushion goldens, max-rel 1507). The
+        // effective default is FALSE: auto-crop is opt-in, RawLab's
+        // per-photo autoCrop=true default notwithstanding.
+        public var autoScale: Bool?
+        public var userScale: Float?
 
         public init(
             distortionK1: Float = 0,
@@ -182,7 +198,9 @@ public final class LensModule: IOPModule {
             enabled: Bool? = nil,
             applyDistortion: Bool? = nil,
             applyTCA: Bool? = nil,
-            applyVignette: Bool? = nil
+            applyVignette: Bool? = nil,
+            autoScale: Bool? = nil,
+            userScale: Float? = nil
         ) {
             self.distortionK1 = distortionK1
             self.distortionK2 = distortionK2
@@ -203,6 +221,8 @@ public final class LensModule: IOPModule {
             self.applyDistortion = applyDistortion
             self.applyTCA = applyTCA
             self.applyVignette = applyVignette
+            self.autoScale = autoScale
+            self.userScale = userScale
         }
 
         /// The neutral identity (cache-neutral seed).
@@ -235,6 +255,33 @@ public final class LensModule: IOPModule {
     /// writer, this is the test-only mirror).
     func setCommittedForTesting(_ params: Params) {
         committed = params
+    }
+
+    /// The gated kernel coefficients for the SCALE faces — the lensfun
+    /// arm resolves through the memoized store AT THE REAL RUN SIZE (the
+    /// distortion/TCA coefficients carry the resolution-dependent NS·HW
+    /// fold — a wrong size is a wrong polynomial; only the center STAMP
+    /// defers to the uniforms stage). nil = the resolve miss → scale 1.
+    func currentKernelParams(bufW: Int, bufH: Int) -> LensKernelParams? {
+        if committed.source == .lensfun {
+            return LensfunStore.resolveCommitted(committed, width: bufW, height: bufH)
+                .map { LensModule.gated($0, params: committed) }
+        }
+        return LensModule.manualKernelParams(committed)
+    }
+
+    /// The ROI-face scale (LENS-02 T3): only the EXPLICITLY enabled faces
+    /// — the auto bisection (at the real run size) or the user slider.
+    /// Default (both off/nil) = 1 = the pre-L2 ROI byte-for-byte.
+    func roiFaceScale(bufW: Int, bufH: Int) -> Float {
+        if committed.autoScale ?? false {
+            guard let kernel = currentKernelParams(bufW: bufW, bufH: bufH) else { return 1 }
+            return LensAutoCrop.minimumScale(width: bufW, height: bufH) { x, y, scale in
+                Self.edgeSample(
+                    x: x, y: y, scale: scale, bufW: bufW, bufH: bufH, k: kernel)
+            } ?? 1
+        }
+        return max(committed.userScale ?? 1, 1)
     }
 
     /// The auto-apply reader seam (LENS-02 T2, KD-4 injection form): the
@@ -350,13 +397,44 @@ public final class LensModule: IOPModule {
     /// The committed manual coefficients as kernel params (the gated face
     /// LENS-02 T1 shares with the lensfun arm).
     private func manualKernelParams() -> LensKernelParams {
-        let p = committed
-        return LensModule.gated(
+        LensModule.manualKernelParams(committed)
+    }
+
+    /// The params-parameterized manual face (the static shape the App-side
+    /// scale preview and the tests share).
+    static func manualKernelParams(_ p: Params) -> LensKernelParams {
+        gated(
             LensKernelParams(
                 dc2: p.distortionK1, dc4: p.distortionK2,
                 vr: 1 + p.tcaR, vb: 1 + p.tcaB,
                 vk1: p.vignetteK1, vk2: p.vignetteK2, vk3: p.vignetteK3),
             params: p)
+    }
+
+    /// The App-side resolved-scale preview (LENS-02 T3): the SAME math as
+    /// `resolvedScale` parameterized by a params value instead of the
+    /// committed storage — the panel readout runs it OFF the body path
+    /// (cached into @State on refresh). `(scale, unsupported)` — the auto
+    /// arm reports unsupported (nil bisection verdict) so the readout can
+    /// mark the fallback face.
+    public static func resolvedScalePreview(
+        params: Params, bufW: Int, bufH: Int
+    ) -> (scale: Float, unsupported: Bool) {
+        let kernel: LensKernelParams
+        if params.source == .lensfun {
+            guard let resolved = LensfunStore.resolveCommitted(params, width: 2, height: 2)
+            else { return (1, false) }
+            kernel = gated(resolved, params: params)
+        } else {
+            kernel = manualKernelParams(params)
+        }
+        if params.autoScale ?? false {
+            let s = LensAutoCrop.minimumScale(width: bufW, height: bufH) { x, y, scale in
+                edgeSample(x: x, y: y, scale: scale, bufW: bufW, bufH: bufH, k: kernel)
+            }
+            return (s ?? 1, s == nil)
+        }
+        return (max(params.userScale ?? 1, 1), false)
     }
 
     /// Forward radial map at the GREEN channel (ROI legs all use G — the
@@ -411,7 +489,23 @@ public final class LensModule: IOPModule {
         for (x, y) in corners {
             let q = forwardPoint(x: x, y: y, bufW: bufW, bufH: bufH)
             xm = min(xm, q.x); xM = max(xM, q.x)
-            ym = min(ym, q.y); yM = max(yM, q.y)
+            ym = min(ym, q.y); yM = max(ym, q.y)
+        }
+        // LENS-02 T3: the scale contraction rides ONLY the explicitly
+        // enabled faces (auto on / user > 1) — the default (scale 1) is
+        // byte-identical to the pre-L2 ROI (red line 12). The border map
+        // stays the MANUAL-coefficient G face (the pre-L2 semantics: a
+        // pure-lensfun document short-circuits at isNeutral above and
+        // keeps the verbatim ROI — the oversized ROI is the conservative
+        // direction; registered in LENS-02 DECISIONS).
+        let scale = roiFaceScale(bufW: Int(bufW), bufH: Int(bufH))
+        if scale > 1 {
+            let invScale = 1.0 / Double(scale)
+            let ccx = bufW / 2, ccy = bufH / 2
+            xm = ccx + (xm - ccx) * invScale
+            xM = ccx + (xM - ccx) * invScale
+            ym = ccy + (ym - ccy) * invScale
+            yM = ccy + (yM - ccy) * invScale
         }
         // dt `:1791-1793`: 2px interpolation margin (bilinear tap = 1,
         // TCA channel spread folds into the same margin in v1). The WIDTH
@@ -485,11 +579,59 @@ public final class LensModule: IOPModule {
             // LENS-02 T1: the family gate rides the resolved coefficients
             // (after resolve, before uniforms — one gate point shared with
             // the manual arm).
-            return LensModule.gated(params, params: committed)
-                .uniforms(bufW: bufW, bufH: bufH, roiIn: roiIn, roiOut: roiOut)
+            let gated = LensModule.gated(params, params: committed)
+            // LENS-02 T3: the resolved scale rides the GATED coefficients
+            // (the bisection must see exactly what the kernel will apply).
+            let scale = scaleFromKernel(bufW: bufW, bufH: bufH, kernel: gated)
+            return gated.uniforms(
+                bufW: bufW, bufH: bufH, roiIn: roiIn, roiOut: roiOut, scale: scale)
         }
-        return manualUniforms(bufW: bufW, bufH: bufH, roiIn: roiIn)
+        let k = LensModule.manualKernelParams(committed)
+        let scale = scaleFromKernel(bufW: bufW, bufH: bufH, kernel: k)
+        return k.uniforms(
+            bufW: bufW, bufH: bufH, roiIn: roiIn,
+            roiOut: ROI(x: 0, y: 0, width: 0, height: 0, scale: roiIn.scale),
+            scale: scale)
             .rebased(roiOut: roiOut)
+    }
+
+    /// The resolved scale from an ALREADY-RESOLVED kernel (the render
+    /// arms — no second resolve; the bisection sees exactly what the
+    /// kernel will apply).
+    func scaleFromKernel(bufW: Int, bufH: Int, kernel: LensKernelParams) -> Float {
+        if committed.autoScale ?? false {
+            return LensAutoCrop.minimumScale(width: bufW, height: bufH) { x, y, scale in
+                Self.edgeSample(
+                    x: x, y: y, scale: scale, bufW: bufW, bufH: bufH, k: kernel)
+            } ?? 1
+        }
+        return max(committed.userScale ?? 1, 1)
+    }
+
+    /// The per-channel (R, G, B) edge sample for the auto-crop closure —
+    /// the EXACT kernel sampling math (distortion → per-channel radius
+    /// scale → ×1/scale on the POST-map sample offset, X5/review m6).
+    /// `static` for the pure-test face.
+    static func edgeSample(
+        x: Float, y: Float, scale: Float, bufW: Int, bufH: Int, k: LensKernelParams
+    ) -> [(x: Float, y: Float)] {
+        let cx = Float(bufW) / 2, cy = Float(bufH) / 2
+        let halfW = Float(bufW) / 2
+        let dx = (x - cx) / halfW, dy = (y - cy) / halfW
+        let ru = (dx * dx + dy * dy).squareRoot()
+        guard ru > 1e-12 else { return [(x, y), (x, y), (x, y)] }
+        let ru2 = ru * ru
+        let dpoly = 1 + k.dc1 * ru + k.dc2 * ru2 + k.dc3 * ru2 * ru + k.dc4 * ru2 * ru2
+        let rd = ru * dpoly
+        let rd2 = rd * rd
+        let sR = k.vr + k.cr * rd + k.br * rd2
+        let sB = k.vb + k.cb * rd + k.bb * rd2
+        let invS = 1 / scale
+        func pt(_ s: Float) -> (x: Float, y: Float) {
+            let f = rd * s / ru
+            return (cx + dx * halfW * f * invS, cy + dy * halfW * f * invS)
+        }
+        return [pt(sR), pt(1), pt(sB)]
     }
 
     /// dt CPU/CL legs: neutral or unresolvable → blit identity (D5). Else
@@ -515,7 +657,7 @@ public final class LensModule: IOPModule {
             try blitIdentity(input: input, output: output, roiIn: roiIn, roiOut: roiOut, metal: metal)
             return
         }
-        // Upload through a shared MTLBuffer (NOT setBytes: 80-byte struct —
+        // Upload through a shared MTLBuffer (NOT setBytes: 112-byte struct —
         // the ashift postmortem: stack-addressed setBytes raced the
         // async-committed encoder on this host).
         guard let buffer = metal.device.makeBuffer(
@@ -566,8 +708,10 @@ public final class LensModule: IOPModule {
     }
 }
 
-/// Swift mirror of the MSL `LensWarpUniforms` struct — 4×float4 + 4×float2 +
-/// int2 = 80 bytes. Every member is 4/8/16-byte aligned on both sides.
+/// Swift mirror of the MSL `LensWarpUniforms` struct — 4×float4 + 5×float2 +
+/// int2 = 112 bytes (104 data + the L2-T3 scale tail; the pre-L2
+/// "80-byte" comment was wrong — the struct was 104/stride 112 all along,
+/// review m1). Every member is 4/8/16-byte aligned on both sides.
 struct LensWarpUniforms {
     var dist: SIMD4<Float>   // dc1, dc2, dc3, dc4
     var tcaR: SIMD4<Float>   // vr, cr, br, pad
@@ -578,6 +722,7 @@ struct LensWarpUniforms {
     var oroi: SIMD2<Float>
     var iroi: SIMD2<Float>
     var inSize: SIMD2<Int32>
+    var scale: SIMD2<Float>  // (scale, 0-pad) — L2-T3 tail insert
 
     init(dc1: Float, dc2: Float, dc3: Float, dc4: Float,
          vr: Float, cr: Float, br: Float,
@@ -585,7 +730,7 @@ struct LensWarpUniforms {
          vk1: Float, vk2: Float, vk3: Float,
          centerX: Float, centerY: Float, halfW: Float,
          oroiX: Float, oroiY: Float, iroiX: Int32, iroiY: Int32,
-         inW: Int32, inH: Int32) {
+         inW: Int32, inH: Int32, scale: Float = 1.0) {
         self.dist = SIMD4(dc1, dc2, dc3, dc4)
         self.tcaR = SIMD4(vr, cr, br, 0)
         self.tcaB = SIMD4(vb, cb, bb, 0)
@@ -595,6 +740,7 @@ struct LensWarpUniforms {
         self.oroi = SIMD2(oroiX, oroiY)
         self.iroi = SIMD2(Float(iroiX), Float(iroiY))
         self.inSize = SIMD2(inW, inH)
+        self.scale = SIMD2(scale, 0)
     }
 
     /// Re-base the output origin (L020: per-run roiOut differs from the

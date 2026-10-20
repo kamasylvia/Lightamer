@@ -66,8 +66,11 @@ public struct LensKernelParams: Sendable {
     var centerY: Float = 0
 
     /// Stamp the run geometry (center defaults to frame center when the
-    /// XML carries no `<center>`).
-    func uniforms(bufW: Int, bufH: Int, roiIn: ROI, roiOut: ROI) -> LensWarpUniforms {
+    /// XML carries no `<center>`); `scale` = the LENS-02 T3 resolved
+    /// scale (1.0 default = the pre-L2 face).
+    func uniforms(
+        bufW: Int, bufH: Int, roiIn: ROI, roiOut: ROI, scale: Float = 1.0
+    ) -> LensWarpUniforms {
         LensWarpUniforms(
             dc1: dc1, dc2: dc2, dc3: dc3, dc4: dc4,
             vr: vr, cr: cr, br: br, vb: vb, cb: cb, bb: bb,
@@ -77,7 +80,8 @@ public struct LensKernelParams: Sendable {
             halfW: Float(bufW) / 2,
             oroiX: Float(roiOut.x), oroiY: Float(roiOut.y),
             iroiX: Int32(roiIn.x), iroiY: Int32(roiIn.y),
-            inW: Int32(bufW), inH: Int32(bufH))
+            inW: Int32(bufW), inH: Int32(bufH),
+            scale: scale)
     }
 }
 

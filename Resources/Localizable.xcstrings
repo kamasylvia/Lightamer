@@ -32983,6 +32983,125 @@
         }
       }
     }
+  },
+  "panel_lens_scale_section" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Scale"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "缩放补偿"
+        }
+      }
+    }
+  },
+  "panel_lens_auto_scale" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Auto scale (border compensation)"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "自动缩放（边框补偿）"
+        }
+      }
+    }
+  },
+  "panel_lens_user_scale" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "User scale"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "手动缩放"
+        }
+      }
+    }
+  },
+  "panel_lens_scale_unsupported" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Borders cannot fit even at zoom 8 — compensation unavailable."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "放大 8 倍仍无法收进边框——补偿不可用。"
+        }
+      }
+    }
+  },
+  "panel_lens_scale_readout" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Resolved scale"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "解析缩放"
+        }
+      }
+    }
+  },
+  "panel_lens_relay_crop" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Relay suggested crop to Crop panel"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "将建议裁切接力到裁切面板"
+        }
+      }
+    }
+  },
+  "panel_lens_relay_no_crop" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "No crop module in the chain — nothing to relay to."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "链中无裁切模块——无处接力。"
+        }
+      }
+    }
   }
   },
   "version": "1.0"

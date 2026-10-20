@@ -797,3 +797,5 @@ IOP	6	LensfunMemoTests.swift
 APP	5	LensPanelReadoutTests.swift
 IOP	6	LensPerCorrectionTests.swift
 IOP	4	LensAutoApplyTests.swift
+IOP	6	LensAutoCropTests.swift
+IOPP	3	LensScaleGoldenTests.swift

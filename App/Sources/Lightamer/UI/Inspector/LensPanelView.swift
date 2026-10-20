@@ -105,6 +105,18 @@ enum LensPanelReadout: Equatable {
         "panel_lens_match_nodatabase",
         "panel_lens_no_exif",
     ]
+
+    // MARK: LENS-02 T3 — the relay-crop conversion
+
+    /// The suggested crop window for a resolved scale (the center 1/s
+    /// window, normalized) — the RELAY semantics (D-LENS-5): the framing
+    /// truth stays in the Crop module; this only computes the suggestion.
+    /// scale ≤ 1 → the full frame (no relay needed).
+    static func relayCropRect(scale: Float) -> (left: Float, top: Float, right: Float, bottom: Float) {
+        guard scale > 1 else { return (0, 0, 1, 1) }
+        let inset = (1 - 1 / scale) / 2
+        return (inset, inset, 1 - inset, 1 - inset)
+    }
 }
 
 internal struct LensPanelView: View {
@@ -120,6 +132,9 @@ internal struct LensPanelView: View {
     /// LENS-02 T2: the auto-apply toggle state (read ONCE at init through
     /// the injected setting face — body never touches UserDefaults).
     @State private var autoApply: Bool
+    /// LENS-02 T3: the resolved-scale readout cache (OFF the body path).
+    @State private var resolvedScaleValue: Float = 1
+    @State private var scaleUnsupported: Bool = false
 
     private let params: LensModule.Params
 
@@ -283,6 +298,62 @@ internal struct LensPanelView: View {
                 Text("panel_lens_manual_section")
             }
 
+            // ── §2.5 scale (LENS-02 T3, D-LENS-5): auto bisection + user
+            // slider + resolved readout + the relay-crop button. The
+            // resolved scale value caches into @State (refreshed OFF the
+            // body path with the other readouts).
+            Section {
+                Toggle(String(localized: "panel_lens_auto_scale"),
+                       isOn: boolBinding(\.autoScale))
+                    .accessibilityIdentifier("inspector.toggle.lens.autoScale")
+                LightamerSlider(
+                    label: String(localized: "panel_lens_user_scale"),
+                    value: Double(params.userScale ?? 1),
+                    range: 1...4,
+                    defaultValue: 1,
+                    readoutFormat: "%.3f",
+                    onDragBegin: { edit.beginEditing() },
+                    onChange: {
+                        var p = params
+                        p.userScale = Float($0)
+                        if let record = PanelEditing.updated(instance, params: p, as: LensModule.self) {
+                            edit.update(record)
+                        }
+                    },
+                    onDragEnd: { edit.endEditing(label: String(localized: "history_lens")) },
+                    onReset: {
+                        var p = params
+                        p.userScale = nil
+                        applyDiscrete(p)
+                    },
+                    accessibilityID: "inspector.slider.lens.userScale"
+                )
+                .disabled(params.autoScale ?? false)
+                if scaleUnsupported {
+                    Text(String(localized: "panel_lens_scale_unsupported"))
+                        .font(.caption2)
+                        .foregroundStyle(LightamerColors.textTertiary)
+                        .accessibilityIdentifier("inspector.lens.scaleUnsupported")
+                }
+                HStack {
+                    Text(String(localized: "panel_lens_scale_readout"))
+                        .font(.caption)
+                        .foregroundStyle(LightamerColors.textTertiary)
+                    Text(verbatim: String(format: "%.4f", resolvedScaleValue))
+                        .font(.caption)
+                        .foregroundStyle(LightamerColors.textPrimary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("inspector.lens.scaleReadout")
+                Button(String(localized: "panel_lens_relay_crop")) {
+                    relayCropToCropPanel()
+                }
+                .disabled(resolvedScaleValue <= 1.0001)
+                .accessibilityIdentifier("inspector.lens.relayCrop")
+            } header: {
+                Text("panel_lens_scale_section")
+            }
+
             // ── §3 Lensfun match (actions + first-run download) ──
             Section {
                 if hasData {
@@ -323,7 +394,7 @@ internal struct LensPanelView: View {
         .scrollContentBackground(.hidden)
         .background(LightamerColors.surface)
         .accessibilityIdentifier("inspector.panel.lens")
-        .task {
+        .task(id: params) {
             refreshMatchState()
         }
     }
@@ -381,6 +452,42 @@ internal struct LensPanelView: View {
             notice = String(localized: "panel_lens_no_exif")
         } else {
             notice = nil
+        }
+        refreshScaleReadout()
+    }
+
+    /// LENS-02 T3: the resolved-scale readout (the full-frame face —
+    /// OFF the body evaluation path, same cache discipline as the match
+    /// readout). Frame size from the decoded capture (nil = skip — the
+    /// readout stays at the 1.0 default).
+    private func refreshScaleReadout() {
+        guard let image = edit.detectionSourceImage(),
+              let w = image.capture.width, let h = image.capture.height, w > 1, h > 1
+        else { return }
+        let result = LensModule.resolvedScalePreview(
+            params: params, bufW: w, bufH: h)
+        resolvedScaleValue = result.scale
+        scaleUnsupported = result.unsupported
+    }
+
+    /// LENS-02 T3: the relay-crop action (D-LENS-5) — write the suggested
+    /// center window into the CROP module record (the sibling-instance
+    /// seam, D-08-CONTEXT-3) as ONE discrete commit. The framing truth
+    /// stays in Crop; the lens panel only suggests.
+    private func relayCropToCropPanel() {
+        guard let cropInstance = edit.siblingInstance(opName: "crop"),
+              var cropParams = PanelEditing.params(of: cropInstance, as: CropModule.self)
+        else {
+            edit.presentToast(String(localized: "panel_lens_relay_no_crop"))
+            return
+        }
+        let rect = LensPanelReadout.relayCropRect(scale: resolvedScaleValue)
+        cropParams.left = rect.left
+        cropParams.top = rect.top
+        cropParams.right = rect.right
+        cropParams.bottom = rect.bottom
+        if let record = PanelEditing.updated(cropInstance, params: cropParams, as: CropModule.self) {
+            edit.applyDiscrete(record, label: String(localized: "history_crop"))
         }
     }
 
