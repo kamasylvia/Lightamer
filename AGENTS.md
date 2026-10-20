@@ -24,6 +24,10 @@ Phase **execute** 阶段的执行分工固定为两级：
 - **测试宿主口径（M2-4-0 落地 + SPIKE 门修订，2026-09-30）**：全套回归经 `Scripts/test-direct.sh --all` 分 7 个域 bundle 跑（一条命令，逐 bundle 独立宿主进程），峰值 RSS 由脚本按 `/usr/bin/time -l` ru_maxrss（内核精确口径）机检 MEMFAIL，**运行门 = 8G**（`RSS_LIMIT_MB=8192`）。原 <3G 门经 SPIKE（commit `70e09e5`）**证伪为错定门槛**：by-design GB 级重测（100MP golden/parity 族，验证对象 = 100MP float32 平面）单类自峰 TilingOverlap 7865 / HDR 5913 / QuickLook 4589MB + ~1.4G 框架分页一次性地板，<3G 数学不可达、与 bundle 划分无关，真实跨测残留仅 0.18-2.4MB/test（证据正本 = `.work/gsd/phases/m2-4-0-test-bundles/M2-4-0-SPIKE.md`）。**全套 `--all` 轮仍须 orchestrator 批准 + 运行中保持监视**（现另有 MEMFAIL 机检兜底，>8G 或内存压力转红仍立即 kill）；定向单 bundle 轮（`--bundle <name>`）可常跑，机检兜底；贴线 bundle（IOP 7654 / IOPParity 5788）连续 MEMFAIL 先查重测顺序漂移（±3% 方差，SPIKE 注记）。旧单宿主 2165 连跑已废（历史事件：10.4G 未响应 / 7.5G 用户强杀）。
 - 巡检 cron 每次运行附带查一眼 Lightamer 进程资源（`ps aux | grep -i lightamer`）。
 
+## 机器级并发上限（2026-10-20 用户指令，强制——三次 watchdog 重启根因修复）
+
+**根因**（2026-10-18 16:53 / 10-19 13:38 / 10-20 20:48 三次重启 + 10-20 15:34 WindowServer watchdog 杀 GUI 会话）：16GB 机器上并行重活（双路验收各自构建 + 独立 DerivedData〔21 容器 22GB〕+ 测试宿主 8GB 峰 + GUI 实例 + zg 索引/omp）→ 内存耗尽、交换落在 90% 满的 Data 卷 → 系统守护饥饿（configd IPMonitorQueue 60s 无响应 = watchdog 终止原因）→ 用户态 watchdog 杀 WindowServer / 内核 watchdog 硬重启（无 panic 文件、日志零持久化为其签名）。**规则**：全机同时至多一个重活进程族；双路验收**串行**；一切重活前过 `Scripts/machine-guard.sh`（G1-G4 四门，`--wait` 轮询）；**构建产物交接**（executor 构建一次 → `BUILD-HANDOFF.txt` → lane 消费，禁重建）——撤回「每 lane 独立 DerivedData」处方；lane 收口清自建容器/worktree；DerivedData >8GB 巡检告警；px 代理每 omp 会话一开一关禁反复切换。config.toml [gsd] `machine_single_heavy = true`。
+
 ## 暂停机制（2026-09-24 用户指令，Phase 7 起强制）
 
 **`.work/config.toml [gsd]` 开关**（2026-09-24 起替代旧 PAUSE 文件）——两个字段，消费方每任务边界与派发前必读：
