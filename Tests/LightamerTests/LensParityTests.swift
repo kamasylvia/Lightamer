@@ -293,6 +293,10 @@ final class LensParityTests: XCTestCase {
         LensfunStore.install(db: db)
         defer { LensfunStore.uninstall() }
         var viaParams = LensModule.Params(source: .lensfun, focalLength: 16, aperture: 2.8, lensKey: "E 16mm f/2.8")
+        // LENS-01 T3 hardening: the match now reads the CAMERA imageCrop
+        // through the 0.96 gate — this fixture's camera is the 1.534-crop
+        // body (the pre-T3 nil→1.0 fallback would gate-miss and blit).
+        viaParams.imageCrop = 1.534
         let (via, _, _) = try await runLensPipe(image: image, params: viaParams, metal: metal)
         // Door 2: manual params with the IDENTICAL kernel coefficients.
         // (dc1/dc3 have no manual slider — the unified kernel carries them;
@@ -341,6 +345,9 @@ final class LensParityTests: XCTestCase {
             """
         LensfunStore.install(db: LensfunDBLoader.parse(Data(vigXML.utf8)))
         vigLens.lensKey = "Vig Only"
+        // LENS-01 T3 hardening: the camera crop rides params (the gate
+        // reads it — nil→1.0 would miss the 1.534 entry).
+        vigLens.imageCrop = 1.534
         let (d1, w1, h1) = try await runLensPipe(image: image, params: vigManual, metal: metal)
         let (d2, w2, h2) = try await runLensPipe(image: image, params: vigLens, metal: metal)
         XCTAssertEqual(w1, w2)

@@ -32,8 +32,9 @@ import Foundation
 // ─────────────────────────────────────────────────────────────────────────
 
 /// The three-state judgment for embedded geometry (X1; Core-single-source —
-/// the IOP side reads this, never re-declares it).
-public enum EmbeddedGeometryState: Sendable {
+/// the IOP side reads this, never re-declares it). String-Codable: the
+/// LensModule.Params additive field rides the params JSON.
+public enum EmbeddedGeometryState: String, Codable, Sendable {
     /// An embedded geometry-correction opcode list is present — the decoded
     /// pixels are assumed corrected (CIRAW's vendor-lens-correction key
     /// defaults on).
