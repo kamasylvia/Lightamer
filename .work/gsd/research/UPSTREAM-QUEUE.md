@@ -41,7 +41,7 @@
 | UQ-R1 | **渲染 float32 DNG 导出**（单图+批量，baked 调整，保留捕获元数据，尺寸/方向更新） | 0.7.0 | 导出矿阵六格式无 DNG | M | 路线 = TIFF/EP 标签自写或 Adobe DNG SDK（许可链须查——SDK 许可与 GPL 参考纪律分离评估）；用户价值 = 下游 LR/C1 可续编 |
 | UQ-R2 | **透视校正（keystone）**：裁切/旋转/摆正族邻接扩展，Metal warp | 0.8.0 | parity 零条目（有 crop/rotate/straighten/flip 无透视） | S-M | dt `ashift` 算法参考；与 crop 面几何管线同缝 |
 | UQ-R3 | **一键自动曝光 + 新片打开默认嵌入预览曝光匹配** | 0.6.0 | parity 零条目 | S | UX 感知件（新片打开即近相机 JPEG 观感）；saved-baseline 兼容语义照抄 |
-| UQ-R4 | **Lensfun 数据只读镜头校正落地**（profile 数据 + Metal warp + 手动选型 + 自动裁切） | 0.7.0 | FEAT-DEV-07 Partial（仅嵌入 opcodes） | M | 既定 v1 立场兑现（FEAT-DEV-07 验收目标 = Alcedo 同款 profile database + auto-detection）；RawLab 生产实证数据路线可行 |
+| UQ-R4 | **Lensfun 数据只读镜头校正落地**（profile 数据 + Metal warp + 手动选型 + 自动裁切） | 0.7.0 | FEAT-DEV-07 Partial（仅嵌入 opcodes） | M | 既定 v1 立场兑现（FEAT-DEV-07 验收目标 = Alcedo 同款 profile database + auto-detection）；RawLab 生产实证数据路线可行 —— **⬆ 2026-10-20 用户令「要 Lensfun 落地」→ 拉正立项 LENS-01，research 在飞**（GPL 切换后 dt lens.cc/RawLab 实现可同许可移植；Lensfun = 库 LGPL-3 + 数据 CC-BY-SA-3.0，数据归属独立处理） |
 | UQ-R5 | **可续传批量导出**（冻结设置 + 跨重启恢复 + 取消 + 失败重试） | README/0.8.x | 我们有 retry 无跨重启续传 | S-M | 导出队列持久化面（M2-9 队列的 disk-backed 扩展） |
 | UQ-R6 | **主配方系统**（多调整 + 24 HSL 打包预设 + 0-200% 强度同缩 LUT + 风格图） | 0.6.0 | 预设面 = LUT/导出/复制粘贴，缺「调整包+强度缩放」形态（Alcedo 亦无） | M | 14 配方+29 创意 look 的打包形态参照；强度缩放语义（当前值同缩）注意与既有 preset 语义对齐 |
 
