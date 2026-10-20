@@ -86,6 +86,18 @@ dual_acceptance = true
 # 计划复审制度（2026-10-14 用户指令；消费方 = orchestrator，planner 完成后必读）
 plan_review_by_omp = true
 
+# 机器级并发上限（2026-10-20 用户指令「三次意外重启先查根因解决再推进」→ 根因 = 并行重活致 16GB 机器内存/交换饥饿 → watchdog 重启）
+machine_single_heavy = true
+# 全机同时至多 **一个**重活进程族（xcodebuild / test-direct 全套 / Lightamer 测试宿主 / GUI 走查实例）：
+#   - 双路验收改 **串行**（lane 1 收口后再派 lane 2）；executor 与任何 acceptance lane 不并行；
+#   - 文本类 agent（research/plan/评审/omp 文本复审）可并行，但不得起构建/测试/GUI；
+#   - 一切重活起跑前必过 `Scripts/machine-guard.sh`（G1 无并发重活 / G2 可用内存≥30% / G3 交换<1GB / G4 Data 卷≥25GB；--wait 轮询）；
+#   - 构建产物 **交接而非重建**：executor 构建一次 → 写 `.work/gsd/phases/<phase>/BUILD-HANDOFF.txt`（容器绝对路径 + HEAD sha）→ 验收 lane 消费该路径，禁各自重建；
+#     （撤回 2026-10-18 L0xx-d「每 lane 独立 DerivedData」处方——它造成 21 容器/22GB 爆炸，是本次饥饿的直接燃料）
+#   - lane 收口必清自建 DerivedData/worktree；DerivedData 总量 >8GB = 巡检告警；
+#   - 代理 px --start/--stop 每 omp 会话各一次，禁逐调用反复切换（configd/IPMonitor 曾在 watchdog 事件中为受害者）。
+# 探针/走查读数纪律（L082）不变；资源监控节（AGENTS.md）同步升级为机器级。
+
 # 全阶段 omp 复审制度（2026-10-19 用户指令「恢复 omp 的复审机制，在每个 gsd 操作之后做复审」；
 # 消费方 = orchestrator，每个 GSD 阶段产物定稿后必读）
 stage_review_by_omp = true

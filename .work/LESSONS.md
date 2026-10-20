@@ -881,3 +881,14 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **根因**：test-direct 构建产物定位用 mtime-glob latest，共享 DerivedData 下 latest ≠ 自己的。
 - **对策**：并行 lane 各自指定独立 DerivedData 路径（或错峰构建 + 构建后立即记录容器指纹）；日志文件名带 lane 专属后缀；报告申明产物溯源链。
 - **来源**：第一路碰撞上报 + zombie --all 溯源注记（裁定 = 同 HEAD 等价产物信号有效，溯源降级注记）。
+
+## L0xx-e 三次 watchdog 重启根因 = 并行重活致内存/交换饥饿（2026-10-20 用户令停线查因）
+
+- **现象**：2026-10-18 16:53 / 10-19 13:38 / 10-20 20:48 三次意外重启（前两次无 shutdown 记录 = 硬重启；第三次 shutdown 卡死 → `shutdown_stall` 报告 → watchdog 完成重启）+ 10-20 15:34 WindowServer `userspace_watchdog_timeout` ×2 杀 GUI 会话（xcodebuild/configd/IPNExtension 同分钟崩）。**无 kernel panic 文件、重启前日志零持久化**（logd 自身被饿死）。
+- **根因**：16GB 机器 + Data 卷 90% 满（交换空间紧）上并行重活——双路验收 lane 各自构建（+ L0xx-d 处方「每 lane 独立 DerivedData」→ **21 个 Lightamer 容器 22GB**）+ 测试宿主峰 8GB + GUI 走查实例 + zg 全仓索引（16min 高负载）+ omp → 内存耗尽 → 交换饥饿 → 系统守护（configd IPMonitorQueue）60s 拿不到调度 = watchdog 终止判据成立 → 轻则杀 WindowServer、重则内核 watchdog 硬重启。每次重启时刻都对应 ≥2 个重活 worker 并行（10-18 三 lane 撞车期 / 10-19 P1 executor+双 omp 复审 / 10-20 20:48 双 lane 刚起双构建）。
+- **对策**（已落 config `machine_single_heavy` + AGENTS 新节 + `Scripts/machine-guard.sh`）：①全机单重活（双路验收串行；executor 与 lane 不并行；文本 agent 可并行但禁起构建/测试/GUI）②重活前守门脚本四门（无并发重活/可用内存≥30%/交换<1GB/Data≥25GB，`--wait` 轮询）③**构建产物交接**（`BUILD-HANDOFF.txt` 容器路径 + sha，lane 消费不重建——同时解决 L0xx-d 的 glob 碰撞，**撤回独立 DerivedData 处方**）④lane 收口清自建容器/worktree；DerivedData >8GB 告警 ⑤代理每会话一开一关。
+- **诊断方法沉淀**：`last reboot`/`last shutdown` 分硬软重启；`/Library/Logs/DiagnosticReports/` 全类型按 mtime 排（shutdownStall / *_watchdog_timeout.spin / *.diag 比 .panic 更常见）；spin 报告 `Reason:` 行直指 watchdog 受害服务；agent transcript grep reboot/shutdown 排除自杀；`memory_pressure`/`vm.swapusage`/`df`/DerivedData 容器计数四件定量。
+- **来源**：本次停线取证（orchestrator 主会话）+ config/AGENTS 同批落盘。
+
+## L0xx-d 勘误（2026-10-20）：「并行 lane 独立 DerivedData」处方撤回
+- 原处方解决了 mtime-glob 拿错容器，但代价 = 容器爆炸（21 个/22GB）成为 L0xx-e 饥饿燃料。**替代 = 构建产物交接**（executor 一次构建 → BUILD-HANDOFF.txt 显式路径 → lane 消费）；日志 lane 专属后缀条款维持。
