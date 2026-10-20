@@ -489,7 +489,7 @@ public final class LensModule: IOPModule {
         for (x, y) in corners {
             let q = forwardPoint(x: x, y: y, bufW: bufW, bufH: bufH)
             xm = min(xm, q.x); xM = max(xM, q.x)
-            ym = min(ym, q.y); yM = max(ym, q.y)
+            ym = min(ym, q.y); yM = max(yM, q.y)
         }
         // LENS-02 T3: the scale contraction rides ONLY the explicitly
         // enabled faces (auto on / user > 1) — the default (scale 1) is
