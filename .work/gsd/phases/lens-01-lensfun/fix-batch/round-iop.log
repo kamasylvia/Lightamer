@@ -1,0 +1,16 @@
+BUNDLE|IOP|753/5/1|peakRSS=7173MB|437s|sampling=time
+  ↳ IOP FAILED（fail；host exit=1 仅参考）— 完整输出: /tmp/la-direct-tests-IOP.log
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ROINegotiationTests.swift:576: error: -[LightamerTestsIOP.ROINegotiationTests testLensResolvedTCAUnionWidensROI] : XCTAssertGreaterThanOrEqual failed: ("18") is less than ("19") - the R/B footprint with a 6% TCA widens the ROI beyond the G envelope
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ROINegotiationTests.swift:579: error: -[LightamerTestsIOP.ROINegotiationTests testLensResolvedTCAUnionWidensROI] : XCTAssertGreaterThanOrEqual failed: ("18") is less than ("19") - the vertical union widening rides the same contract
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testLensResolvedTCAUnionWidensROI]' failed (6.400 seconds).
+--
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testSharpenBackwardExpandsUpstream]' started.
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testSharpenBackwardExpandsUpstream]' passed (0.005 seconds).
+Test Suite 'ROINegotiationTests' failed at 2026-10-21 14:06:55.553.
+--
+Test Suite 'VisionDetectTests' passed at 2026-10-21 14:08:20.624.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.723 (0.723) seconds
+Test Suite 'LightamerTestsIOP.xctest' failed at 2026-10-21 14:08:20.624.
+	 Executed 753 tests, with 5 tests skipped and 3 failures (0 unexpected) in 433.225 (433.270) seconds
+Test Suite 'All tests' failed at 2026-10-21 14:08:20.624.
+TOTAL|753/5/1|437s

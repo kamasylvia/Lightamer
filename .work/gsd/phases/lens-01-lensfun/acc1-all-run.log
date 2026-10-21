@@ -1,0 +1,18 @@
+START Wed Oct 21 12:21:57 CST 2026
+GUARD PASS (heavy=0 free=82% swap=3953.25M disk=27GB)
+133 |             expected: [
+
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+BUILD_RC=0
+BUNDLE|IOP|752/5/0|peakRSS=6509MB|449s|sampling=time
+BUNDLE|IOPParity|474/6/0|peakRSS=5856MB|786s|sampling=time
+BUNDLE|Layers|494/5/0|peakRSS=812MB|158s|sampling=time
+BUNDLE|Library|738/4/0|peakRSS=626MB|80s|sampling=time
+BUNDLE|Sessions|284/9/0|peakRSS=1203MB|59s|sampling=time
+BUNDLE|Export|385/5/0|peakRSS=4957MB|206s|sampling=time
+BUNDLE|App|961/6/0|peakRSS=2832MB|433s|sampling=time
+TOTAL|4088/40/0|2171s
+OK (direct launch, no testmanagerd)
+END Wed Oct 21 13:02:29 CST 2026 rc=0

@@ -194,6 +194,12 @@ let project = Project(
                 // folder reference (the seeder reads version_1/ as a
                 // unit; the per-file SHA manifest ships beside it).
                 .folderReference(path: "Resources/Lensfun"),
+                // LENS-01 fix batch (review m-2): the license texts ride
+                // as a folder reference too — the plan's second Resources
+                // folderReference; the bundle carries the attribution
+                // set (Lensfun CC-BY-SA + Alcedo + RawLab NOTICE) beside
+                // the data it covers.
+                .folderReference(path: "Resources/Licenses"),
                 "Resources/TestFixtures/**",
             ],
             dependencies: [

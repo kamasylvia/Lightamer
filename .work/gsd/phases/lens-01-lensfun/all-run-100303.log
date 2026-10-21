@@ -1,0 +1,21 @@
+START Wed Oct 21 10:03:03 CST 2026 container=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi
+BUNDLE|IOP|752/5/0|peakRSS=7396MB|428s|sampling=time
+BUNDLE|IOPParity|474/6/0|peakRSS=5953MB|756s|sampling=time
+BUNDLE|Layers|494/5/0|peakRSS=815MB|160s|sampling=time
+BUNDLE|Library|738/4/1|peakRSS=902MB|80s|sampling=time
+  ↳ Library FAILED（fail；host exit=1 仅参考）— 完整输出: /tmp/la-direct-tests-Library.log
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LibraryThumbnailBridgeTests.swift:454: error: -[LightamerTestsLibrary.LibraryThumbnailBridgeTests testPrioritizeReordersQueuedProductions] : XCTAssertEqual failed: ("Optional(2)") is not equal to ("Optional(1)") - A ran first (it held the slot)
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LibraryThumbnailBridgeTests.swift:455: error: -[LightamerTestsLibrary.LibraryThumbnailBridgeTests testPrioritizeReordersQueuedProductions] : XCTAssertEqual failed: ("Optional(1)") is not equal to ("Optional(2)") - the unpromoted B ran last
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testPrioritizeReordersQueuedProductions]' failed (3.269 seconds).
+--
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testTierBWithoutAWiredRenderLegMisses]' started.
+Test Case '-[LightamerTestsLibrary.LibraryThumbnailBridgeTests testTierBWithoutAWiredRenderLegMisses]' passed (0.001 seconds).
+Test Suite 'LibraryThumbnailBridgeTests' failed at 2026-10-21 10:25:44.396.
+--
+Test Suite 'XMPWriterTests' passed at 2026-10-21 10:26:48.188.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'LightamerTestsLibrary.xctest' failed at 2026-10-21 10:26:48.188.
+	 Executed 738 tests, with 4 tests skipped and 2 failures (0 unexpected) in 79.601 (79.651) seconds
+Test Suite 'All tests' failed at 2026-10-21 10:26:48.188.
+TOTAL|2458/20/1|1424s
+END Wed Oct 21 10:26:48 CST 2026 rc=1

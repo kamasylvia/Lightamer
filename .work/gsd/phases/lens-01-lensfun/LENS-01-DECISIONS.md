@@ -60,3 +60,31 @@ LensParityTests `testUnifiedExitMatchesManual` 的两 fixture params 补 `imageC
 - ΔN +36 越带(+13..18)——SUMMARY 申报(表驱动密度,非膨胀)。
 - plan 预写行号漂移(D-L1-3)——拓扑等价兑现。
 - 其余零偏差。
+
+## 修复批(B-1 + M-1 + 顺手 minor;2026-10-20,验收 `LENS-01-ACCEPTANCE.md` 1 blocking + 1 major + 4 minor)
+
+### F-1(B-1)`isNeutral` 语义扩展 = 「手动滑杆中性 **且** 无激活 lensfun 校正」
+
+- 机理:旧谓词只看手动滑杆存储;本批三条主写入路径(auto-apply / browser 选型 / 快照 bake)全不写滑杆 → 零滑杆 lensfun 文档在 `process()`/`modifyROIIn`/`pointMapSegment` 三门恒 identity blit——「选型即校正」在渲染面静默 no-op;既有测试全绿为自消结构(直调 resolveUniforms / 手工抄滑杆 / `_ = (via, man)` 丢弃)。
+- 终式(LensModule.isNeutral):`enabled == false` 臂保持最前;手动七系数全零后,`source == .lensfun` 时 **snapshot ≠ nil ∨ `LensfunStore.resolveCommitted` 可解析命中 → 非中性**;resolve miss = 中性(数据缺席降级保持静默 identity,免逐帧 warning 刷屏;resolve nil-ness 与尺寸无关——match + target-refusal + DB 在场三因子,探针尺寸任意)。`.off`/`.manual` 语义不变(红线 12 默认中性不受扰;真手动全零 + 无选型 = identity blit 短路不回归)。
+- 配套:
+  - `pointMapSegment` 加零系数守卫——零滑杆 lensfun 文档保持 1:1 蒙版映射(B-1 不下放到 mask 面;lensfun-warp 蒙版映射 = 已登记后续面);手动 TCA/vignette-only 档由零系数段改回 nil(同为恒等,语义更诚实)。
+  - 新 golden `testPureLensfunZeroSliderDocRendersThroughProcessGate`(LensParityTests):真 pipe(process 面)零滑杆 lensfun 渲染 ≠ 输入(行为级证明)+ 与同系数手动门逐字节恒等(poly3-only profile 落手动可拼子集);`testLensfunResolveMissKeepsSilentIdentityFace` 钉 miss 面渲染级恒等;`testNeutralPredicateReadsActivatedLensfun`(LensPerCorrectionTests)六臂 truth table(命中/快照零 DB/miss/.off/.manual/enabled-off)。
+  - 自消结构消解:`testUnifiedExitMatchesManual` 的 `_ = (via, man)` 丢弃改为真断言(lensfun 门渲染 ≠ 输入);`testLensResolvedTCAUnionWidensROI`(ROINegotiationTests)改双臂可比形——子窗 roiHint(全帧 clamp 会重吞 union 增量)+ 强 TCA(vr=1.06)+ 中性 verbatim 锚臂,双臂为可证计算面,严格加宽断言替代 verbatim==verbatim 假绿带。
+
+### F-2(M-1)fisheye-from-equirect 双侧重转录 = Alcedo 真等距式
+
+- 旧臂(Swift `LensProjection.fromEquirect(.fisheye)` 与 Metal `projFromERect kFisheye`)= 立体式 ksp 公式,与自家 stereographic 臂逐字相同(Alcedo `ApplyProjectionERectStereographic` 误标 `ApplyProjectionERectFishEye`);defish 主用例径向误差 y=1.0rad 时 +9.3%。golden CPU twin 同笔转录同错同源自消。
+- 终式 = Alcedo `ApplyProjectionERectFishEye`(lens_calib.metal :219-238)逐式重转录:theta 反射骨架 + `theta2 = atan2(hypot(vx,vy), s·cos x)` + 输出 = theta2·单位向量(等距:盘半径=极角),Swift Double / Metal float 双侧;归属注释与 Portions Copyright 头保持。
+- 配套 golden(独立真相,非同源 twin):`testFisheyeFromEquirectIsEquidistantNotStereographic`(轴上 r(θ)=θ 含 y=1.0;离轴球面恒等式半径+方向;stereographic 轴上 2·tan(θ/2) 对照,两臂互异)+ `testFisheyeProjectionRoundTripIdentity`(equirect→fisheye→equirect 往返恒等,双向网格含 y=1.0 边界,门 1e-9;stereographic 对自身往返沿带对照)。既有 kernel-vs-CPU-twin 对表四法不变(双侧同批重转录后继续钉 kernel==CPU;链路 = 往返恒等钉 CPU 公式真,twin 钉 kernel==CPU → kernel 真)。
+
+### F-3(minor 三件)
+
+- m-1:`LensKernels.metal` 头注释 SCALE 段随 D-L3-3 求值序修订(×1/scale 施于中心相对输出坐标、先于投影折;L2「映射后偏移」面退役注记)——plan T1 action 2 漏改补齐。
+- m-2:`Project.swift` 补 `.folderReference(path: "Resources/Licenses")`(plan L3 T5 明文第二条;bundle 级归属面齐全)。
+- m-3:BUNDLE-MAP lens 族八行计数同步(LensParity 7→9、LensPerCorrection 6→7、LensProjectionGolden 7→9 为本批新增;LensAutoCrop 6→7、LensScaleGolden 3→4、LensDefaultNeutral 2→3、LensProfileBrowser 8→7、LensfunDistribution 7→6 为验收 m-3 存量 stale)。
+- m-4(LENS-02 T5/T6 单 commit)不涉产线,验收已判「登记备查」,本批不动。
+
+### F-4 process version 裁决(修复批)
+
+见 `LENS-04-DECISIONS.md` 裁决表第 9 行:**不 bump**(缺陷修复律 + 改动面自 04-04 以来从未生效过——identity blit / 误标公式无任何已交付观感可冻结;渲染前修复,无存量文档承载旧行为)。
