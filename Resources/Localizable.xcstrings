@@ -33273,6 +33273,142 @@
       }
     }
   },
+  "settings_lensfun_section" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Lens Data"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "镜头数据"
+        }
+      }
+    }
+  },
+  "settings_lensfun_dbtag" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Database tag"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "数据库标识"
+        }
+      }
+    }
+  },
+  "settings_lensfun_check_update" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Check for Database Updates"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "检查数据库更新"
+        }
+      }
+    }
+  },
+  "settings_lensfun_updating" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Checking for updates…"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "正在检查更新…"
+        }
+      }
+    }
+  },
+  "settings_lensfun_updated" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Database updated."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "数据库已更新。"
+        }
+      }
+    }
+  },
+  "settings_lensfun_sha_mismatch" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "SHA-256 mismatch — install refused."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "SHA-256 不符——已拒绝安装。"
+        }
+      }
+    }
+  },
+  "settings_lensfun_update_failed" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Update download failed — the installed database is untouched."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "更新下载失败——已装数据库未受影响。"
+        }
+      }
+    }
+  },
+  "settings_lensfun_hint" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "The bundled snapshot is pinned and attributed (CC-BY-SA-3.0). Updates are manual and SHA-verified; a mismatched archive is never installed."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "随包快照为钉版并已归属（CC-BY-SA-3.0）。更新为手动且经 SHA 校验；不符的档案绝不安装。"
+        }
+      }
+    }
+  },
   "panel_lens_auto_scale" : {
     "extractionState" : "manual",
     "localizations" : {

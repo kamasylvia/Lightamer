@@ -918,10 +918,11 @@ internal struct LightamerShellFace: View {
                     // one face for registry + panels + seed (KD-1).
                     inspectorState.registerDefaultProviders(defaultFace: defaultFace)
 
-                    // Plan 04-04-T3: resolve the Lensfun database (custom
-                    // path > downloaded copy > absent-downgrade; sync,
-                    // no network at launch — first download is panel-driven).
-                    _ = LensfunDownloadService.resolveAndInstall()
+                    // Plan 04-04-T3 + LENS-03 T3: resolve the Lensfun
+                    // database (custom path > bundled seed > downloaded
+                    // copy > absent-downgrade; sync, no network at launch
+                    // — the seed is local, the update channel is manual).
+                    _ = LensfunDataDistribution.resolveAndInstall()
 
                     // Register the IOP framework's default.metallib (which
                     // carries the pass_through kernel) with the dispatch
