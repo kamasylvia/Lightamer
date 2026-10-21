@@ -385,10 +385,16 @@ internal struct LensPanelView: View {
                         requestSelection(candidate)
                     }
                     if params.source == .lensfun {
-                        Button(String(localized: "panel_lens_clear")) {
-                            clearToManual()
+                        HStack {
+                            Button(String(localized: "panel_lens_rematch")) {
+                                rematchAgainstCurrentDatabase()
+                            }
+                            .accessibilityIdentifier("inspector.lens.rematch")
+                            Button(String(localized: "panel_lens_clear")) {
+                                clearToManual()
+                            }
+                            .accessibilityIdentifier("inspector.lens.clear")
                         }
-                        .accessibilityIdentifier("inspector.lens.clear")
                     }
                 } else {
                     Text(String(localized: "panel_lens_no_data"))
@@ -570,11 +576,26 @@ internal struct LensPanelView: View {
     }
 
     /// The selection commit: ONE discrete edit (source = .lensfun + the
-    /// picked model; the resolve rides the memo path — no snapshot write
-    /// here, LENS-04 T1's scope).
+    /// picked model; LENS-04 T1 — the SNAPSHOT bakes in the same commit
+    /// via bakeCommitted; a match/resolve miss keeps the snapshot-free
+    /// params and the live memo path renders).
     private func commitSelection(_ candidate: LensProfileCandidate) {
         pendingSelection = nil
-        applyDiscrete(LensProfileBrowserModel.selectedParams(base: params, candidate: candidate))
+        let selected = LensProfileBrowserModel.selectedParams(base: params, candidate: candidate)
+        applyDiscrete(LensfunStore.bakeCommitted(selected) ?? selected)
+    }
+
+    /// LENS-04 T1: the Re-match action — invalidate the snapshot, re-run
+    /// the match against the CURRENT database, and commit the fresh
+    /// snapshot in ONE discrete edit; a miss CLEARS the snapshot (the
+    /// readout shows the miss face; the live memo path renders identity).
+    private func rematchAgainstCurrentDatabase() {
+        if let rematched = LensfunStore.rematch(params) {
+            applyDiscrete(rematched)
+        } else {
+            applyDiscrete(LensfunStore.clearSnapshot(params))
+            notice = String(localized: "panel_lens_rematch_miss")
+        }
     }
 
     /// Clear back to manual (keeps every stored value, drops the lensfun

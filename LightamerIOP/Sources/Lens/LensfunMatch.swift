@@ -134,6 +134,58 @@ public struct LensMatchedProfile: Sendable {
     var sourceProjectionRaw: String? { projectionHint }
 }
 
+/// The resolved-coefficient snapshot (LENS-04 T1, D-LENS-3 / X3): baked
+/// at the match commit, the render face reads THIS with ZERO database
+/// dependence. The dbTag is the AUDIT field — strip-on-hash (the
+/// paramsHash input strips it, so a DB update never shifts the cache
+/// key; the value itself changes only via an explicit Re-match commit).
+struct LensCoefficientSnapshot: Codable, Hashable, Sendable {
+    // ── The RESOLUTION-INDEPENDENT calibration extract (the matched
+    // entry's rows + the resolve parameters) — the consumption face
+    // re-runs the resolve math at the CURRENT resolution, so a baked
+    // document renders identically at ANY plane size and ANY database
+    // state (the H-L2 gate).
+    var distortionRows: [DistortionCalib]?
+    var tcaRows: [TCACalib]?
+    var vignetteRows: [VignetteCalib]?
+    var realFocalRows: [LensCalibrations.RealFocalRow]?
+    var aspectRatio: Double = 1.5
+    var entryCrop: Double = 1.5
+    var center: LensEntry.CenterPoint?
+    var lensType: String?
+    // The resolve parameters (focal/aperture ride the top-level fields
+    // already; the distance stays unknown = the nearest-distance face).
+    var profileMaker: String?
+    var profileModel: String?
+    var profileMount: String?
+    var profileCrop: Float?
+    var matchScore: Int?
+    /// The audit stamp (X3: strip-on-hash — see LensModule.commitParams).
+    var dbTag: String?
+
+    init() {}
+
+
+
+    /// Rebuild the VIRTUAL entry the consumption face re-resolves through
+    /// (only the calibration subset — identity/matching never touch it).
+    func virtualEntry() -> LensEntry {
+        var e = LensEntry(maker: profileMaker ?? "")
+        e.models = [profileModel ?? ""]
+        e.cropfactor = entryCrop
+        e.aspectRatio = aspectRatio
+        e.type = lensType
+        e.center = center
+        var cal = LensCalibrations()
+        cal.distortions = distortionRows ?? []
+        cal.tcas = tcaRows ?? []
+        cal.vignettes = vignetteRows ?? []
+        cal.realFocals = realFocalRows ?? []
+        e.calibrations = cal
+        return e
+    }
+}
+
 /// One scored library row for the profile browser (LENS-02 T4; the
 /// ordering/confidence annotation lives in the App-side model).
 public struct LensCandidateRow: Sendable, Equatable {
@@ -579,6 +631,7 @@ public struct LensfunStore: Sendable {
     /// The DB instance identity — bumped on every install/uninstall so a
     /// DB swap can never serve entries from the previous library.
     private static nonisolated(unsafe) var _dbStamp: UInt64 = 0
+    private static nonisolated(unsafe) var _dbTag: String?
     /// LRU capacity (the LutLibraryStore precedent).
     static let memoCapacity = 32
 
@@ -591,14 +644,51 @@ public struct LensfunStore: Sendable {
         case missingFocal
     }
 
+    /// The ACTIVE database's dbTag (LENS-04 T1, X3): the sorted per-file
+    /// (name, SHA-256) manifest's SHA-256, first 16 hex — the snapshot
+    /// AUDIT face (never a render face, never folded into paramsHash).
+    /// Computed at install; nil = the test-injected face (install(db:)).
+    public static var currentDBTag: String? {
+        lock.lock(); defer { lock.unlock() }
+        return _dbTag
+    }
+
     /// Install the store from a directory (app launch / settings change).
     /// Returns false when the directory holds no parseable XML.
     @discardableResult
     public static func install(directory: URL) -> Bool {
         let db = LensfunDBLoader.load(directory: directory)
         guard !db.lenses.isEmpty else { return false }
-        lock.lock(); _db = db; _dbStamp &+= 1; _memo = [:]; _memoOrder = []; lock.unlock()
+        let tag = Self.computeDBTag(directory: directory)
+        lock.lock(); _db = db; _dbStamp &+= 1; _memo = [:]; _memoOrder = []
+        _dbTag = tag
+        lock.unlock()
         return true
+    }
+
+    /// The manifest-hash dbTag (sorted per-file name:SHA-256 lines).
+    private static func computeDBTag(directory: URL) -> String? {
+        let fm = FileManager.default
+        guard let files = (try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil))?
+            .filter({ $0.pathExtension == "xml" })
+            .sorted(by: { $0.lastPathComponent < $1.lastPathComponent }),
+            !files.isEmpty
+        else { return nil }
+        var manifest = ""
+        for file in files {
+            guard let data = try? Data(contentsOf: file) else {
+            manifest += file.lastPathComponent + ":unreadable\n"
+                continue
+            }
+        manifest += file.lastPathComponent + ":" + sha256Hex(data) + "\n"
+        }
+        return String(sha256Hex(Data(manifest.utf8)).prefix(16))
+    }
+
+    /// The test-injected dbTag (install(db:) companions).
+    static func installForTesting(db: LensfunDB, dbTag: String?) {
+        install(db: db)
+        lock.lock(); _dbTag = dbTag; lock.unlock()
     }
 
     /// Install directly from a parsed DB (tests + previews).
@@ -608,7 +698,9 @@ public struct LensfunStore: Sendable {
 
     /// Remove the store (data deleted / path unset).
     public static func uninstall() {
-        lock.lock(); _db = nil; _dbStamp &+= 1; _memo = [:]; _memoOrder = []; lock.unlock()
+        lock.lock(); _db = nil; _dbStamp &+= 1; _memo = [:]; _memoOrder = []
+        _dbTag = nil
+        lock.unlock()
     }
 
     /// Snapshot predicate for the downgrade path (sync — no async hop).
@@ -698,6 +790,54 @@ public struct LensfunStore: Sendable {
         case .noLens: return .noLens
         case .missingFocal: return .missingFocal
         }
+    }
+
+    /// The RE-MATCH face (LENS-04 T1): drop the snapshot, re-run the
+    /// match against the CURRENT database, and stamp the fresh snapshot —
+    /// ONE params copy for the caller's single commit; nil = the miss
+    /// (snapshot cleared, the live memo path renders).
+    public static func rematch(_ params: LensModule.Params) -> LensModule.Params? {
+        var cleared = params
+        cleared.snapshot = nil
+        return bakeCommitted(cleared)
+    }
+
+    /// The snapshot-clear face (the miss arm).
+    public static func clearSnapshot(_ params: LensModule.Params) -> LensModule.Params {
+        var cleared = params
+        cleared.snapshot = nil
+        return cleared
+    }
+
+    /// The BAKE face (LENS-04 T1, D-LENS-3): resolve the committed
+    /// params and stamp the snapshot into a COPY of them (the caller
+    /// commits it — the bake lives at the match-commit sites, never in
+    /// the render path). nil = the match/resolve miss (the caller keeps
+    /// the snapshot-free params; the live memo path still renders).
+    public static func bakeCommitted(_ params: LensModule.Params) -> LensModule.Params? {
+        guard case .matched(let profile, let score) = matchOutcome(params) else { return nil }
+        lock.lock(); let db = _db; lock.unlock()
+        guard let db, db.lenses.indices.contains(profile.entryIndex) else { return nil }
+        let entry = db.lenses[profile.entryIndex]
+        var snap = LensCoefficientSnapshot()
+        snap.distortionRows = entry.calibrations.distortions
+        snap.tcaRows = entry.calibrations.tcas
+        snap.vignetteRows = entry.calibrations.vignettes
+        snap.realFocalRows = entry.calibrations.realFocals
+        snap.aspectRatio = entry.aspectRatio
+        snap.entryCrop = entry.cropfactor
+        snap.center = entry.center.map { LensEntry.CenterPoint(x: $0.x, y: $0.y) }
+        snap.lensType = entry.type
+        snap.profileMaker = profile.maker
+        snap.profileModel = profile.model
+        snap.profileCrop = Float(profile.cropFactor)
+        snap.matchScore = score
+        lock.lock(); let tag = _dbTag; lock.unlock()
+        snap.dbTag = tag
+        var out = params
+        out.snapshot = snap
+        out.sourceProjection = entry.type?.lowercased()
+        return out
     }
 
     /// The whole-library scored rows for the profile browser (LENS-02 T4):
@@ -800,4 +940,13 @@ public struct LensfunStore: Sendable {
         guard let best, best.score >= 40 else { return nil }
         return best.entry
     }
+}
+
+
+import CryptoKit
+
+/// The SHA-256 hex face (IOP-local — the App Session domain's SHA256Hex
+/// is unreachable from here; both wrap CryptoKit.SHA256).
+func sha256Hex(_ data: Data) -> String {
+    SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
 }

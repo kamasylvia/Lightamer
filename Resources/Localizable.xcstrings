@@ -33409,6 +33409,40 @@
       }
     }
   },
+  "panel_lens_rematch" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Re-match current database"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "按当前数据库重新匹配"
+        }
+      }
+    }
+  },
+  "panel_lens_rematch_miss" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Re-match missed — the snapshot was cleared."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "重新匹配未命中——快照已清除。"
+        }
+      }
+    }
+  },
   "panel_lens_auto_scale" : {
     "extractionState" : "manual",
     "localizations" : {

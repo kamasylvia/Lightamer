@@ -50,7 +50,12 @@ struct CameraEntry: Sendable {
 }
 
 /// A `<lens>` entry. `models` holds every `<model>` variant.
-struct LensEntry: Sendable {
+struct LensEntry: Sendable, Codable {
+    /// The Codable carrier for the `<center x y>` pair.
+    struct CenterPoint: Codable, Sendable, Equatable, Hashable {
+        var x: Double
+        var y: Double
+    }
     var maker: String
     var models: [String] = []
     var mounts: [String] = []
@@ -59,22 +64,28 @@ struct LensEntry: Sendable {
     /// lensfun `<type>` (e.g. `stereographic`); nil = rectilinear default.
     var type: String?
     /// Optical center override (`<center x y>`); nil = frame center.
-    var center: (x: Double, y: Double)?
+    var center: CenterPoint?
     var calibrations: LensCalibrations = LensCalibrations()
 }
 
-struct LensCalibrations: Sendable {
+struct LensCalibrations: Sendable, Codable, Hashable {
     var distortions: [DistortionCalib] = []
     var tcas: [TCACalib] = []
     var vignettes: [VignetteCalib] = []
-    /// `<real-focal-length focal real-focal>` rows.
-    var realFocals: [(focal: Double, real: Double)] = []
+    /// `<real-focal-length focal real-focal>` rows (the Codable carrier
+    /// — the tuple doesn't Codable; LENS-04 T1's snapshot rides this).
+    var realFocals: [RealFocalRow] = []
+
+    struct RealFocalRow: Codable, Sendable, Equatable, Hashable {
+        var focal: Double
+        var real: Double
+    }
 }
 
 /// `<distortion model focal …/>`. Terms are RAW XML values (the d-factor
 /// + hugin rescale happens in the resolve layer, `mod-coord.cpp`).
-struct DistortionCalib: Sendable {
-    enum Model: Sendable { case poly3, poly5, ptlens }
+struct DistortionCalib: Sendable, Codable, Hashable {
+    enum Model: String, Codable, Sendable { case poly3, poly5, ptlens }
     var model: Model
     var focal: Double
     /// poly3: [k1]; poly5: [k1, k2]; ptlens: [a, b, c].
@@ -83,8 +94,8 @@ struct DistortionCalib: Sendable {
 
 /// `<tca model focal …/>`. Missing br/bb/cr/cb attributes default to 0
 /// (e.g. the Canon 24mm row carries only vr/vb).
-struct TCACalib: Sendable {
-    enum Model: Sendable { case linear, poly3 }
+struct TCACalib: Sendable, Codable, Hashable {
+    enum Model: String, Codable, Sendable { case linear, poly3 }
     var model: Model
     var focal: Double
     /// linear: (kr, kb) — defaults (1, 1) when absent.
@@ -100,7 +111,7 @@ struct TCACalib: Sendable {
 }
 
 /// `<vignetting model focal aperture distance k1 k2 k3/>` (v1: always pa).
-struct VignetteCalib: Sendable {
+struct VignetteCalib: Sendable, Codable, Hashable {
     var focal: Double
     var aperture: Double
     var distance: Double
@@ -237,7 +248,7 @@ private final class LensfunXMLParser: NSObject, XMLParserDelegate {
                   let focal = attributes["focal"].flatMap(Double.init),
                   let real = attributes["real-focal"].flatMap(Double.init)
             else { return }
-            lens.calibrations.realFocals.append((focal, real))
+            lens.calibrations.realFocals.append(.init(focal: focal, real: real))
             curLens = lens
         default:
             break
