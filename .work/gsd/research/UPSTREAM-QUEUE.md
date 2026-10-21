@@ -51,6 +51,25 @@ DCP 外部 profile 导入（CIRAW 不接受外部 DCP，FEAT-DEV-04 既定 out-o
 ### 顺路消解注记
 R5 随 F0'-prod 顺路 14 项中 2 项（N-D7/N-L30）将随 P3 退役自然消解——与 RawLab 六候选无交集。
 
+## 候选区（Lumen RAW，正本 = `.work/gsd/research/LUMEN-RAW-NOTES.md` 2026-10-21 增量节，2026-10-21 用户裁「高价值和中价值落地；两件特殊（延时视频/Lightroom 预设导入）不选」）
+
+来源 = `github.com/kamasylvia-sync Lumen RAW` v1.7.0/2.0.0/2.0.1（10-17~10-21 三版；本地克隆 `/Volumes/UNITEK/Documents/Development/lumen-raw`，**MIT**——可复制带归属）：
+
+| # | 候选 | 上游版本 | 我方缺口 | 规模 | 备注 |
+|---|---|---|---|---|---|
+| UQ-LU1 | **连拍分组 + best-of-burst**（同机身+序列号 ≤2s + 16×16 灰度相似归组；睁眼优先再取最清晰；折叠连拍） | 2.0.0 | culling 域无分组概念 | M | 选片工作流核心；与 LU2 配套（闭眼/清晰度喂 best 选择） |
+| UQ-LU2 | **清晰度 + 闭眼批量提示**（图库后台低优先级分析入库；清晰度 = 结构加权块导数能量比；闭眼 = 人脸眼睑比——**Apple Vision 原生可替代 YuNet/MediaPipe**，M6-4 先例）+ 智能相册条件扩展（`eyes/sharp/burst` 族） | 2.0.0 | 无 | M | 与 LU1 配套；智能相册条件语言对照扩展（`date:2026-10` 语法可学） |
+| UQ-LU3 | **快速选片视图**（全屏 = 相机内嵌预览直接解码零 RAW 解码 + ±3 预读 + 100% 优先内嵌 JPEG + C 并排对比缩放同步） | 2.0.0 | culling 域为 MCP 工具，无 GUI 选片视图 | M | M2-3 档A 内嵌预览缝现成；Lightroom 惯例选片键位（0-5/P/X/U） |
+| UQ-LU4 | **智能预览缓存**（1600px 线性 float16 字节平面重排压缩持久 LRU 4GB；重开 50ms；缓存键含 mtime+版本；**GUI/CLI/MCP 三前门共享**） | 2.0.0 | 编辑级持久解码缓存无（M2-3 档A 会话内 + .lathumbs 仅缩略图） | S-M | perf 模式；`float16 相对误差 <0.05%` 结论可直接引用 |
+| UQ-LU5 | **AI 蒙版精细边缘**（快速蒙版 → 原图 ≤4096px 精细化；采样式抠图零新模型：边缘带像素颜色 = 近邻前景/背景混合；天空 ≥30% 置信扩、暗细节可切出；MCP `refine_masks`） | 1.7.0 | M6-4 分割蒙版无边缘精细化（羽化路线已走 logit-gain） | M | 技术优雅（采样式 alpha）；与 M6-4 羽化共存形态待 research |
+
+### 未入队登记
+- 直方图分区拖动（1.7.0）→ 归入 UQ-L1 滑杆 UX 族一并落地。
+- 调色吸管（1.7.0，取色设分级区域色相）→ 小候选登记不排队（分级面板顺路时可带）。
+- 延时摄影视频（2.0.0，关键帧调整插值 + 去闪烁）→ **用户裁不选**（跨 RAW 编辑器 scope）。
+- Lightroom 预设导入（1.7.0）→ **用户裁不选**（撞既定「预设不互通」决策）；方法论登记：换算系数测试照片拟合 + 未映射设置如实报告。
+- XMP 单写队列模式（2.0.1）→ 我方不写 XMP（N/A）；模式优秀登记备查。
+
 ## 已兑现
 
 - **UQ-A2**（2026-10-17，M7-4-01 `2af9b17d`）：encodeStage additive `exclusiveFinalWrite` + 同目录隐藏 tmp + link() EEXIST → `BaseNameOccupiedError` 复用 + encoder-error 清理腿改道（exclusive 臂 destination 不可触）+ `$jobNamingCarrier` encode 腿递缝；**我方分歧申报 = 保留 render 步快照检查**（成本门非正确性门——与上游 6203791 删 exists() 检查不同构，DECISIONS §3）；exFAT 类卷 EOPNOTSUPP → encodeFailed 兜底（行为变化申报；**EOPNOTSUPP 降级回 plain rename 的可选项在此挂账**——外置卷实测需要时立项，勿静默）。
