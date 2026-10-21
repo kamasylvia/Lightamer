@@ -806,3 +806,4 @@ APP	7	LensfunDistributionTests.swift
 IOP	5	LensSnapshotTests.swift
 IOP	4	LensCacheIsolationTests.swift
 IOPP	2	LensDefaultNeutralGoldenTests.swift
+IOPP	3	LensPerfProbeTests.swift
