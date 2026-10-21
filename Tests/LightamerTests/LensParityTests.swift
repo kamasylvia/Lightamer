@@ -297,7 +297,7 @@ final class LensParityTests: XCTestCase {
         // through the 0.96 gate — this fixture's camera is the 1.534-crop
         // body (the pre-T3 nil→1.0 fallback would gate-miss and blit).
         viaParams.imageCrop = 1.534
-        let (via, _, _) = try await runLensPipe(image: image, params: viaParams, metal: metal)
+        let (via, viaW, viaH) = try await runLensPipe(image: image, params: viaParams, metal: metal)
         // Door 2: manual params with the IDENTICAL kernel coefficients.
         // (dc1/dc3 have no manual slider — the unified kernel carries them;
         // this case's resolve uses them, so compare through a manual record
@@ -360,7 +360,20 @@ final class LensParityTests: XCTestCase {
         }
         XCTAssertGreaterThan(compared, 0, "unified exit must compare real pixels (anti-vacuum)")
         XCTAssertEqual(maxDiff, 0, accuracy: 1e-6, "same coefficients through both doors = byte-identical")
-        _ = (via, man)
+        // B-1 fix guard: door 1 (zero-slider lensfun) now renders THROUGH
+        // the process gate — the pre-fix face identity-blitted it (the
+        // manual-sliders-only neutral predicate) and this render was
+        // discarded, hiding the no-op. The lensfun door must differ from
+        // the input fixture (selection = correction); door 2 rides
+        // non-zero sliders and was never gated.
+        let fixtureRGB = try GoldenParityTests.UncompressedEXR.load(fixtureURL)
+        var viaMaxDiff: Float = 0
+        for i in 0..<(viaW * viaH * 3) {
+            viaMaxDiff = max(viaMaxDiff, abs(via[i] - fixtureRGB.rgb[i]))
+        }
+        XCTAssertGreaterThan(
+            viaMaxDiff, 1e-3,
+            "the zero-slider lensfun door must render (selection = correction), viaMaxDiff=\(viaMaxDiff)")
     }
 
     // MARK: - ROI (T1 acceptance)
@@ -419,6 +432,96 @@ final class LensParityTests: XCTestCase {
         // Output window == hint (lens never resizes the frame).
         XCTAssertEqual(texture.width, 32)
         XCTAssertEqual(texture.height, 32)
+    }
+
+    // MARK: - B-1 fix: the pure-lensfun process gate (selection = correction)
+
+    /// THE B-1 GOLDEN (acceptance prescription ②): a ZERO-slider lensfun
+    /// document rendered through the REAL pipe (the process face, not a
+    /// resolveUniforms direct call) must (a) render NON-identity — the
+    /// selection IS a correction — and (b) equal the SAME resolved
+    /// coefficient entered through the manual door byte-for-byte (the
+    /// unified kernel, two doors, both through the gate). The pre-fix
+    /// face identity-blitted door 1 (the manual-sliders-only neutral
+    /// predicate), which is exactly the self-canceling structure that
+    /// kept every lensfun render assertion green.
+    func testPureLensfunZeroSliderDocRendersThroughProcessGate() async throws {
+        let metal = try await makeMetal()
+        let fixtureURL = try requireGolden("fixtures/gradient_ramp.exr")
+        let image = try GoldenParityTests.decodeFixtureEXR(fixtureURL)
+        let fixture = try GoldenParityTests.UncompressedEXR.load(fixtureURL)
+        // A poly3-only profile resolves into the manual-spellable subset
+        // (dc2 alone) — the two doors can carry the IDENTICAL kernel math.
+        let xml = """
+            <lensdatabase version="1"><lens><maker>Sony</maker><model>Poly3 Only</model>
+            <mount>M</mount><cropfactor>1.534</cropfactor><calibration>
+            <distortion model="poly3" focal="16" k1="-0.05"/>
+            </calibration></lens></lensdatabase>
+            """
+        let db = LensfunDBLoader.parse(Data(xml.utf8))
+        LensfunStore.install(db: db)
+        defer { LensfunStore.uninstall() }
+        let resolved = try XCTUnwrap(LensfunMatch.resolve(
+            entry: try XCTUnwrap(db.lenses.first), focal: 16, aperture: nil,
+            distance: nil, crop: 1.534, imageWidth: 64, imageHeight: 64))
+        XCTAssertNotEqual(resolved.dc2, 0, "the poly3 resolve must carry dc2 (precondition)")
+
+        // Door 1: the zero-slider lensfun document (the auto-apply /
+        // browser-selection storage shape — no manual coefficient ever
+        // written).
+        var viaParams = LensModule.Params(
+            source: .lensfun, focalLength: 16, lensKey: "Poly3 Only")
+        viaParams.imageCrop = 1.534
+        let (via, viaW, viaH) = try await runLensPipe(
+            image: image, params: viaParams, metal: metal)
+        // (a) THE BEHAVIORAL PROOF: non-identity through the gate.
+        var viaMaxDiff: Float = 0
+        for i in 0..<(viaW * viaH * 3) {
+            viaMaxDiff = max(viaMaxDiff, abs(via[i] - fixture.rgb[i]))
+        }
+        XCTAssertGreaterThan(
+            viaMaxDiff, 1e-3,
+            "the zero-slider lensfun render must differ from the input "
+                + "(selection = correction), viaMaxDiff=\(viaMaxDiff)")
+        // (b) Door 2: the SAME resolved coefficient through the manual
+        // door (distortionK1 → dc2 — the manual spelling of poly3).
+        let manualParams = LensModule.Params(distortionK1: resolved.dc2, source: .manual)
+        let (man, manW, manH) = try await runLensPipe(
+            image: image, params: manualParams, metal: metal)
+        XCTAssertEqual(viaW, manW)
+        XCTAssertEqual(viaH, manH)
+        var doorDiff: Float = 0
+        for i in 0..<(viaW * viaH * 3) {
+            doorDiff = max(doorDiff, abs(via[i] - man[i]))
+        }
+        XCTAssertEqual(
+            doorDiff, 0, accuracy: 1e-6,
+            "the same kernel coefficients through both doors = identical render")
+    }
+
+    /// The B-1 miss arm: a lensfun document whose live resolve CANNOT hit
+    /// (no database installed) keeps the SILENT IDENTITY face — the
+    /// neutral predicate's resolve probe reads the miss as neutral, so
+    /// the process gate short-circuits to the blit (no per-render
+    /// resolve-miss warning spam; the data-absence downgrade pinned at
+    /// the render level, not just the predicate).
+    func testLensfunResolveMissKeepsSilentIdentityFace() async throws {
+        LensfunStore.uninstall() // determinism: no process-global DB
+        let metal = try await makeMetal()
+        let fixtureURL = try requireGolden("fixtures/gradient_ramp.exr")
+        let image = try GoldenParityTests.decodeFixtureEXR(fixtureURL)
+        let fixture = try GoldenParityTests.UncompressedEXR.load(fixtureURL)
+        var missParams = LensModule.Params(
+            source: .lensfun, focalLength: 16, lensKey: "Poly3 Only")
+        missParams.imageCrop = 1.534
+        let module = LensModule()
+        XCTAssertTrue(module.isNeutral(missParams), "resolve-miss (no DB) = the neutral face")
+        let (pipe, w, h) = try await runLensPipe(image: image, params: missParams, metal: metal)
+        var maxDiff: Float = 0
+        for i in 0..<(w * h * 3) {
+            maxDiff = max(maxDiff, abs(pipe[i] - fixture.rgb[i]))
+        }
+        XCTAssertEqual(maxDiff, 0, accuracy: 1e-6, "the miss face stays the identity blit")
     }
 
 }

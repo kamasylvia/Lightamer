@@ -99,6 +99,52 @@ final class LensPerCorrectionTests: XCTestCase {
         XCTAssertTrue(module.isNeutral(LensModule.Params()))
     }
 
+    // MARK: - The B-1 neutral arm (the activated lensfun correction)
+
+    /// B-1 fix (LENS-01 acceptance): manual-zero no longer implies
+    /// neutral when an ACTIVATED lensfun correction exists — a snapshot
+    /// ≠ nil (the zero-DB bake face) or a live-resolvable DB hit is
+    /// non-neutral (selection = correction). The miss, `.off`, `.manual`
+    /// and `enabled == false` faces stay neutral (red line 12: the
+    /// default document and the manual identity short-circuit unchanged).
+    func testNeutralPredicateReadsActivatedLensfun() throws {
+        let module = LensModule()
+        let xml = """
+            <lensdatabase version="1"><lens><maker>Sony</maker><model>Poly3 Only</model>
+            <mount>M</mount><cropfactor>1.534</cropfactor><calibration>
+            <distortion model="poly3" focal="16" k1="-0.05"/>
+            </calibration></lens></lensdatabase>
+            """
+        LensfunStore.install(db: LensfunDBLoader.parse(Data(xml.utf8)))
+        defer { LensfunStore.uninstall() }
+        var p = LensModule.Params(source: .lensfun, focalLength: 16, lensKey: "Poly3 Only")
+        p.imageCrop = 1.534
+        XCTAssertFalse(
+            module.isNeutral(p),
+            "zero sliders + resolvable lensfun hit = active correction (non-neutral)")
+        // The snapshot face: active even with the database gone (H-L2).
+        let baked = try XCTUnwrap(LensfunStore.bakeCommitted(p))
+        XCTAssertNotNil(baked.snapshot)
+        LensfunStore.uninstall()
+        XCTAssertFalse(
+            module.isNeutral(baked),
+            "snapshot ≠ nil = active correction, zero-DB")
+        // The live-resolve miss: neutral (the silent identity downgrade).
+        XCTAssertTrue(module.isNeutral(p), "live-resolve miss = the neutral face")
+        // The unchanged faces.
+        var off = LensModule.Params()
+        off.source = .off
+        XCTAssertTrue(module.isNeutral(off), ".off zero-slider = neutral")
+        var manual = LensModule.Params()
+        manual.source = .manual
+        XCTAssertTrue(module.isNeutral(manual), ".manual zero-slider = neutral")
+        // The enable arm stays FIRST: enabled == false is neutral even
+        // when an activated correction exists.
+        var disabled = baked
+        disabled.enabled = false
+        XCTAssertTrue(module.isNeutral(disabled), "enabled off = the neutral face")
+    }
+
     // MARK: - Manual storage untouched (the gate rides resolve only)
 
     func testGateDoesNotTouchManualStorage() {

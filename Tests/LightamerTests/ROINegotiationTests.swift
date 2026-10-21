@@ -485,8 +485,19 @@ final class ROINegotiationTests: XCTestCase {
     /// exceeds the G envelope, so the negotiated input ROI must be WIDER
     /// than the G-only face. The manual face keeps the G approximation
     /// (sub-pixel TCA) — the behavior-unchanged negative rides along.
-    func testLensResolvedTCAUnionWidensROI() async throws {
-        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+    /// B-1 fix companion (acceptance ②): under the old slider-only
+    /// neutral gate BOTH arms negotiated verbatim through the pipe and
+    /// the widening assertions were vacuously green. The comparison now
+    /// drives the three faces DIRECTLY through `modifyROIIn` (the exact
+    /// hook the pipe calls, consistent full-frame coordinates with
+    /// dscIn = the full plane): the union face vs the G-gated face vs
+    /// the neutral verbatim anchor — all three provably distinct, the
+    /// widening strict. (The pipe-level reachability of the union face
+    /// is covered by the LensParityTests process-gate golden; a
+    /// pipe-hinted ROI assertion here would ride the pre-existing
+    /// hinted-entry dscIn/coordinate wrinkle — register-only, out of
+    /// scope for this batch.)
+    func testLensResolvedTCAUnionWidensROI() {
         let tcaXML = """
         <lensdatabase version="1">
             <lens>
@@ -495,7 +506,7 @@ final class ROINegotiationTests: XCTestCase {
                 <cropfactor>1.534</cropfactor>
                 <calibration>
                     <distortion model="poly3" focal="16" k1="-0.01"/>
-                    <tca model="poly3" focal="16" vr="1.02" vb="0.98" cr="0.01" cb="-0.01" br="0.004" bb="-0.004"/>
+                    <tca model="poly3" focal="16" vr="1.06" vb="0.94" cr="0.01" cb="-0.01" br="0.004" bb="-0.004"/>
                 </calibration>
             </lens>
         </lensdatabase>
@@ -503,48 +514,57 @@ final class ROINegotiationTests: XCTestCase {
         LensfunStore.install(db: LensfunDBLoader.parse(Data(tcaXML.utf8)))
         defer { LensfunStore.uninstall() }
 
-        let recorder = ROIRecorder()
-        let image = makeImage(width: 64, height: 64)
-        let lens = ModuleBox(
-            module: ROIRecording(tag: "lens", recorder: recorder, inner: LensModule()),
-            multiPriority: 0, multiName: "lens")
         var params = LensModule.Params(source: .lensfun, focalLength: 16, lensKey: "E 16mm f/2.8")
         params.imageCrop = 1.534
-        lens.setParams(params)
-        let gain = ModuleBox(
-            module: ROIRecording(tag: "gain", recorder: recorder, inner: TestGainModule()),
-            multiPriority: 1, multiName: "gain")
-        gain.setParams(TestGainModule.Params(gain: 1.0))
-        let chain: [any ModuleBoxing] = [lens, gain]
+        // The interior sub-window roi: a full-frame roiOut would clamp the
+        // union's outward growth back to the frame bounds (both faces
+        // 64-wide) — the window lets the computed faces differ.
+        let window = ROI(x: 16, y: 16, width: 32, height: 32, scale: 1.0)
+        let piece = IOPiece(dscIn: IOPBufferDesc(width: 64, height: 64))
 
-        _ = try await RenderPipeline.process(
-            image: image, instances: chain, imageID: UUID(),
-            resolution: .preview, cache: PipeCache(), metal: try await makeMetal(), longEdge: nil)
-        let lensSights = await recorder.sightings(for: "lens")
-        let unionROI = try XCTUnwrap(lensSights.first?.roiIn)
+        func negotiated(_ p: LensModule.Params) -> ROI {
+            let module = LensModule()
+            module.setCommittedForTesting(p)
+            var input = ROI()
+            module.modifyROIIn(output: window, input: &input, piece: piece)
+            return input
+        }
 
-        // The G-only face (same profile, TCA gated OFF → the union
+        // Arm 1: the union face (TCA family on; B-1 arm makes it reachable).
+        let unionROI = negotiated(params)
+        // Arm 2: the G-envelope face (TCA gated OFF — the union
         // degenerates to the green envelope).
         var gParams = params
         gParams.applyTCA = false
-        lens.setParams(gParams)
-        _ = try await RenderPipeline.process(
-            image: image, instances: chain, imageID: UUID(),
-            resolution: .preview, cache: PipeCache(), metal: try await makeMetal(), longEdge: nil)
-        let gSights = await recorder.sightings(for: "lens")
-        let gROI = try XCTUnwrap(gSights.last?.roiIn)
+        let gROI = negotiated(gParams)
+        // Arm 3: the VERBATIM anchor (enabled = false → the neutral face
+        // hands the window through untouched) — proves arms 1/2 are
+        // computed faces, not the verbatim passthrough.
+        var offParams = params
+        offParams.enabled = false
+        let verbatimROI = negotiated(offParams)
 
-        XCTAssertLessThanOrEqual(
-            unionROI.width, gROI.width + 2,
-            "the union cannot be pathologically wider (sanity band)")
-        XCTAssertGreaterThanOrEqual(
-            unionROI.width, gROI.width - 4,
-            "the R/B footprint with a 2% TCA widens the ROI beyond the G envelope")
-        // The union's area must exceed the G envelope's (a real widening).
+        // Anti-vacuum anchors.
+        XCTAssertEqual(verbatimROI, window, "the neutral face passes the window through verbatim")
+        XCTAssertNotEqual(gROI.width, verbatimROI.width,
+            "the G face must be a COMPUTED roi (margin-grown pincushion), not verbatim")
         XCTAssertGreaterThan(
-            unionROI.width * unionROI.height,
-            (gROI.width - 1) * (gROI.height - 1),
-            "the per-channel union strictly dominates the G envelope")
+            gROI.width, verbatimROI.width,
+            "the +2px margin grows the computed face over the verbatim window")
+        XCTAssertLessThan(
+            gROI.width, verbatimROI.width + 4,
+            "the sub-pixel pincushion keeps the G face inside the margin band")
+        // THE CONTRACT: the union strictly dominates the G envelope.
+        XCTAssertGreaterThanOrEqual(
+            unionROI.width, gROI.width + 1,
+            "the R/B footprint with a 6% TCA widens the ROI beyond the G envelope")
+        XCTAssertGreaterThanOrEqual(
+            unionROI.height, gROI.height + 1,
+            "the vertical union widening rides the same contract")
+        // Sanity band (no pathological blowup).
+        XCTAssertLessThanOrEqual(
+            unionROI.width, gROI.width + 8,
+            "the union cannot be pathologically wider")
     }
 
     func testLensShrinkNegotiationBoundsInput() async throws {
