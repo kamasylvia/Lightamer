@@ -334,6 +334,7 @@ let project = Project(
                 "Tests/LightamerTests/LensParityTests.swift",
                 "Tests/LightamerTests/LensScaleGoldenTests.swift",
                 "Tests/LightamerTests/LensProjectionGoldenTests.swift",
+                "Tests/LightamerTests/LensDefaultNeutralGoldenTests.swift",
                 "Tests/LightamerTests/LevelsParityTests.swift",
                 "Tests/LightamerTests/LiquifyParityTests.swift",
                 "Tests/LightamerTests/LocalContrastTests.swift",
