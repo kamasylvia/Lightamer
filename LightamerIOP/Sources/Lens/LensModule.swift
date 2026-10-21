@@ -185,6 +185,13 @@ public final class LensModule: IOPModule {
         // lands in params at the snapshot batch (LENS-04 T1).
         public var targetProjection: String?
         public var sourceProjection: String?
+        // LENS-04 T1 (D-LENS-3 / X3): the baked coefficient snapshot.
+        // nil = the legacy live-resolve face (byte-identical history);
+        // non-nil = the render reads THIS with zero DB dependence.
+        // internal: the IOP face owns the bake/consume; the App-side
+        // panel drives it through LensfunStore.bakeCommitted (the
+        // snapshot VALUE face never crosses to App).
+        var snapshot: LensCoefficientSnapshot?
 
         public init(
             distortionK1: Float = 0,
@@ -336,17 +343,33 @@ public final class LensModule: IOPModule {
            let key = lensKey, !key.isEmpty {
             source = .lensfun
         }
-        return Params(
+        var out = Params(
             source: source, focalLength: focal, aperture: aperture, lensKey: lensKey,
             cameraMaker: cap.cameraMake, cameraModel: cap.cameraModel,
             imageCrop: imageCrop, embeddedGeometry: image.embeddedGeometry)
+        // LENS-04 T1 (D-LENS-3): the auto-apply bake (DECISIONS D-L4-1
+        // option A — the SYNCHRONOUS bake inside reloadDefaults, the same
+        // commit as the source flip). A match/resolve miss keeps the
+        // snapshot-free params (the live memo path renders identity).
+        if source == .lensfun,
+           let baked = LensfunStore.bakeCommitted(out) {
+            out = baked
+        }
+        return out
     }
 
     /// Park the working copy, hash the RAW params (D-H4). No uniforms
     /// buffer (D2 — per-run shared buffer, needs bufIn size).
+    /// LENS-04 T1 (X3, review m2): the hash input is the STRIP-ON-HASH
+    /// variant — the snapshot's dbTag (audit-only) is nilled before the
+    /// encode, so a DB update (a Re-match commit's new dbTag) never
+    /// shifts the paramsHash; the PERSISTED paramsData (the App-side
+    /// ModuleInstance encode) keeps the full snapshot untouched.
     public func commitParams(_ params: Params, into piece: inout IOPiece) {
         committed = params
-        piece.paramsHash = StableHash.hash(ParamsCoding.encode(params))
+        var hashInput = params
+        hashInput.snapshot?.dbTag = nil
+        piece.paramsHash = StableHash.hash(ParamsCoding.encode(hashInput))
         piece.data = nil
     }
 
@@ -609,6 +632,34 @@ var xm = Double.greatestFiniteMagnitude, ym = Double.greatestFiniteMagnitude
         bufW: Int, bufH: Int, roiIn: ROI, roiOut: ROI
     ) async -> LensWarpUniforms? {
         if committed.source == .lensfun {
+            // LENS-04 T1 (D-LENS-3): the SNAPSHOT-FIRST consumption — a
+            // baked document renders with ZERO database dependence (the
+            // H-L2 hard gate: a DB update cannot change a snapshotted
+            // render). nil snapshot = the legacy live-resolve face
+            // (byte-identical history).
+            if let snap = committed.snapshot {
+                // The ZERO-DB face: re-resolve through the snapshot's
+                // calibration extract at the CURRENT resolution (the
+                // consumption parameters ride the params — a DB update
+                // cannot touch this path; the H-L2 gate).
+                let virtual = snap.virtualEntry()
+                guard let k = LensfunMatch.resolve(
+                    entry: virtual,
+                    focal: Double(committed.focalLength ?? 0),
+                    aperture: committed.aperture.map(Double.init),
+                    distance: nil,
+                    crop: committed.imageCrop ?? 1.0,
+                    imageWidth: bufW, imageHeight: bufH,
+                    targetProjection: committed.targetProjection)
+                else { return nil }
+                var gatedK = k
+                gatedK.sourceProjection = committed.sourceProjection
+                gatedK.targetProjectionRaw = committed.targetProjection
+                gatedK = LensModule.gated(gatedK, params: committed)
+                let scale = scaleFromKernel(bufW: bufW, bufH: bufH, kernel: gatedK)
+                return gatedK.uniforms(
+                    bufW: bufW, bufH: bufH, roiIn: roiIn, roiOut: roiOut, scale: scale)
+            }
             guard let params = await LensfunStore.resolveCommitted(
                 committed, width: bufW, height: bufH) else { return nil }
             // LENS-02 T1: the family gate rides the resolved coefficients
