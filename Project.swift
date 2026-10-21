@@ -425,6 +425,7 @@ let project = Project(
                 "Tests/LightamerTests/LensAutoCropTests.swift",
                 "Tests/LightamerTests/LensProjectionResolveTests.swift",
                 "Tests/LightamerTests/LensSnapshotTests.swift",
+                "Tests/LightamerTests/LensCacheIsolationTests.swift",
                 "Tests/LightamerTests/LabRoundTripTests.swift",
                 "Tests/LightamerTests/LensfunDBTests.swift",
                 "Tests/LightamerTests/MemoryBudgetTests.swift",
