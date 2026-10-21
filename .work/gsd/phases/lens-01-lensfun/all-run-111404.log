@@ -1,0 +1,11 @@
+START Wed Oct 21 11:14:04 CST 2026 container=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi
+BUNDLE|IOP|752/5/0|peakRSS=7616MB|421s|sampling=time
+BUNDLE|IOPParity|474/6/0|peakRSS=6516MB|773s|sampling=time
+BUNDLE|Layers|494/5/0|peakRSS=812MB|162s|sampling=time
+BUNDLE|Library|738/4/0|peakRSS=626MB|77s|sampling=time
+BUNDLE|Sessions|284/9/0|peakRSS=1564MB|59s|sampling=time
+BUNDLE|Export|385/5/0|peakRSS=5374MB|203s|sampling=time
+BUNDLE|App|961/6/0|peakRSS=2832MB|411s|sampling=time
+TOTAL|4088/40/0|2106s
+OK (direct launch, no testmanagerd)
+END Wed Oct 21 11:49:11 CST 2026 rc=0

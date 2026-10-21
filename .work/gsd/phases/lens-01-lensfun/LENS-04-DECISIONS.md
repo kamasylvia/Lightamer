@@ -43,3 +43,9 @@ Round 2 首跑 `LibraryThumbnailBridgeTests.testPrioritizeReordersQueuedProducti
 - 全批 ΔN +97 越带(4050..4079 → 4088,越 +9)——全批 SUMMARY 申报。
 - RawLab 抽查延后供件——evidence repo 记录(T4)。
 - --all G3 偏差放行——D-L4-4。
+
+## 修复批裁决追加行(2026-10-20,B-1/M-1 修复;八项表延续)
+
+| # | 变更 | ①look-changing? | ②默认中性证据 | 裁决 |
+|---|---|---|---|---|
+| 9 | B-1 `isNeutral` lensfun 激活臂 + M-1 fisheye 公式重转录 | **潜在**:零滑杆 lensfun 文档渲染 identity→校正;fisheye 折叠系数变 | 三问① = 是——但该面 = **缺陷修复**(③ 律,同第 7 行先例):B-1 面 = 04-04 以来从未生效过的路径(恒 identity blit,无已交付观感);M-1 面 = 批内未签核交付的误标公式(无存量文档)。渲染前原位修,零冻结义务 | **原位修:不 bump**(RenderProcess.swift 零 diff 机检随修复批复核);行为级证明 = 修复批 golden 双发 |

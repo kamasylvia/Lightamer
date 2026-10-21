@@ -1,0 +1,339 @@
+Command line invocation:
+    /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild build-for-testing -workspace Lightamer.xcworkspace -scheme Lightamer -destination platform=macOS
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  EventSource: https://github.com/mattt/eventsource.git @ 1.5.1
+  libwebp: https://github.com/SDWebImage/libwebp-Xcode.git @ 1.6.0
+  swift-system: https://github.com/apple/swift-system.git @ 1.8.1
+  swift-atomics: https://github.com/apple/swift-atomics.git @ 1.3.1
+  WebP: https://github.com/ainame/Swift-WebP.git @ 0.6.1
+  swift-collections: https://github.com/apple/swift-collections.git @ 1.7.1
+  swift-log: https://github.com/apple/swift-log.git @ 1.15.1
+  mcp-swift-sdk: https://github.com/modelcontextprotocol/swift-sdk.git @ 0.12.1
+  swift-nio: https://github.com/apple/swift-nio.git @ 2.103.0
+
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (54 targets)
+    Target 'LightamerUITests' in project 'Lightamer'
+        ➜ Explicit dependency on target 'Lightamer' in project 'Lightamer'
+    Target 'LightamerTestsApp' in project 'Lightamer'
+        ➜ Explicit dependency on target 'Lightamer' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerCore' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerIOP' in project 'Lightamer'
+        ➜ Explicit dependency on target 'WebP-product' in project 'WebP'
+    Target 'LightamerTestsExport' in project 'Lightamer'
+        ➜ Explicit dependency on target 'Lightamer' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerCore' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerIOP' in project 'Lightamer'
+        ➜ Explicit dependency on target 'WebP-product' in project 'WebP'
+    Target 'LightamerTestsSessions' in project 'Lightamer'
+        ➜ Explicit dependency on target 'Lightamer' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerCore' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerIOP' in project 'Lightamer'
+        ➜ Explicit dependency on target 'WebP-product' in project 'WebP'
+    Target 'LightamerTestsLibrary' in project 'Lightamer'
+        ➜ Explicit dependency on target 'Lightamer' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerCore' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerIOP' in project 'Lightamer'
+        ➜ Explicit dependency on target 'WebP-product' in project 'WebP'
+    Target 'LightamerTestsLayers' in project 'Lightamer'
+        ➜ Explicit dependency on target 'Lightamer' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerCore' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerIOP' in project 'Lightamer'
+        ➜ Explicit dependency on target 'WebP-product' in project 'WebP'
+    Target 'LightamerTestsIOPParity' in project 'Lightamer'
+        ➜ Explicit dependency on target 'Lightamer' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerCore' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerIOP' in project 'Lightamer'
+        ➜ Explicit dependency on target 'WebP-product' in project 'WebP'
+    Target 'LightamerTestsIOP' in project 'Lightamer'
+        ➜ Explicit dependency on target 'Lightamer' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerCore' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerIOP' in project 'Lightamer'
+        ➜ Explicit dependency on target 'WebP-product' in project 'WebP'
+    Target 'Lightamer' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerCore' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerIOP' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerQuickLook' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerSpotlight' in project 'Lightamer'
+        ➜ Explicit dependency on target 'MCP-product' in project 'mcp-swift-sdk'
+        ➜ Explicit dependency on target 'NIOCore-product' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOHTTP1-product' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOPosix-product' in project 'swift-nio'
+    Target 'NIOPosix-product' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'swift-nio_NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOFreeBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule-product' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics-product' in project 'swift-atomics'
+    Target 'NIOHTTP1-product' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOHTTP1' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOFreeBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOEmbedded' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIO' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLLHTTP' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule-product' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics-product' in project 'swift-atomics'
+    Target 'NIOHTTP1' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOFreeBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOEmbedded' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIO' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLLHTTP' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule-product' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics-product' in project 'swift-atomics'
+    Target 'CNIOLLHTTP' in project 'swift-nio' (no dependencies)
+    Target 'NIO' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOFreeBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOEmbedded' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule-product' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics-product' in project 'swift-atomics'
+    Target 'NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'swift-nio_NIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOFreeBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOPosix' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule-product' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics-product' in project 'swift-atomics'
+    Target 'swift-nio_NIOPosix' in project 'swift-nio' (no dependencies)
+    Target 'CNIOPosix' in project 'swift-nio' (no dependencies)
+    Target 'NIOEmbedded' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOFreeBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule-product' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics-product' in project 'swift-atomics'
+    Target 'NIOCore-product' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOFreeBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule-product' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics-product' in project 'swift-atomics'
+    Target 'NIOCore' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+        ➜ Explicit dependency on target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIOBase64' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOOpenBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOFreeBSD' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIODarwin' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOLinux' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWindows' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOWASI' in project 'swift-nio'
+        ➜ Explicit dependency on target '_NIODataStructures' in project 'swift-nio'
+        ➜ Explicit dependency on target 'DequeModule-product' in project 'swift-collections'
+        ➜ Explicit dependency on target 'Atomics-product' in project 'swift-atomics'
+    Target 'Atomics-product' in project 'swift-atomics'
+        ➜ Explicit dependency on target 'Atomics' in project 'swift-atomics'
+        ➜ Explicit dependency on target '_AtomicsShims' in project 'swift-atomics'
+    Target 'Atomics' in project 'swift-atomics'
+        ➜ Explicit dependency on target '_AtomicsShims' in project 'swift-atomics'
+    Target '_AtomicsShims' in project 'swift-atomics' (no dependencies)
+    Target 'DequeModule-product' in project 'swift-collections'
+        ➜ Explicit dependency on target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+        ➜ Explicit dependency on target 'SpanPreview' in project 'swift-collections'
+    Target 'DequeModule' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+        ➜ Explicit dependency on target 'SpanPreview' in project 'swift-collections'
+    Target 'SpanPreview' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+    Target 'InternalCollectionsUtilities' in project 'swift-collections' (no dependencies)
+    Target '_NIODataStructures' in project 'swift-nio' (no dependencies)
+    Target 'CNIOWASI' in project 'swift-nio' (no dependencies)
+    Target 'CNIOWindows' in project 'swift-nio' (no dependencies)
+    Target 'CNIOLinux' in project 'swift-nio' (no dependencies)
+    Target 'CNIODarwin' in project 'swift-nio' (no dependencies)
+    Target 'CNIOFreeBSD' in project 'swift-nio' (no dependencies)
+    Target 'CNIOOpenBSD' in project 'swift-nio' (no dependencies)
+    Target '_NIOBase64' in project 'swift-nio' (no dependencies)
+    Target 'NIOConcurrencyHelpers' in project 'swift-nio'
+        ➜ Explicit dependency on target 'CNIOAtomics' in project 'swift-nio'
+    Target 'CNIOAtomics' in project 'swift-nio' (no dependencies)
+    Target 'MCP-product' in project 'mcp-swift-sdk'
+        ➜ Explicit dependency on target 'MCP' in project 'mcp-swift-sdk'
+        ➜ Explicit dependency on target 'SystemPackage-product' in project 'swift-system'
+        ➜ Explicit dependency on target 'Logging-product' in project 'swift-log'
+        ➜ Explicit dependency on target 'EventSource-product' in project 'EventSource'
+    Target 'MCP' in project 'mcp-swift-sdk'
+        ➜ Explicit dependency on target 'SystemPackage-product' in project 'swift-system'
+        ➜ Explicit dependency on target 'Logging-product' in project 'swift-log'
+        ➜ Explicit dependency on target 'EventSource-product' in project 'EventSource'
+    Target 'EventSource-product' in project 'EventSource'
+        ➜ Explicit dependency on target 'EventSource' in project 'EventSource'
+    Target 'EventSource' in project 'EventSource' (no dependencies)
+    Target 'Logging-product' in project 'swift-log'
+        ➜ Explicit dependency on target 'Logging' in project 'swift-log'
+    Target 'Logging' in project 'swift-log' (no dependencies)
+    Target 'SystemPackage-product' in project 'swift-system'
+        ➜ Explicit dependency on target 'SystemPackage' in project 'swift-system'
+        ➜ Explicit dependency on target 'CSystem' in project 'swift-system'
+    Target 'SystemPackage' in project 'swift-system'
+        ➜ Explicit dependency on target 'CSystem' in project 'swift-system'
+    Target 'CSystem' in project 'swift-system' (no dependencies)
+    Target 'LightamerSpotlight' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerCore' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerIOP' in project 'Lightamer'
+    Target 'LightamerQuickLook' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerCore' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerIOP' in project 'Lightamer'
+    Target 'LightamerIOP' in project 'Lightamer'
+        ➜ Explicit dependency on target 'LightamerCore' in project 'Lightamer'
+    Target 'LightamerCore' in project 'Lightamer'
+        ➜ Explicit dependency on target 'WebP-product' in project 'WebP'
+    Target 'WebP-product' in project 'WebP'
+        ➜ Explicit dependency on target 'WebP' in project 'WebP'
+        ➜ Explicit dependency on target 'libwebp-product' in project 'libwebp'
+    Target 'WebP' in project 'WebP'
+        ➜ Explicit dependency on target 'libwebp-product' in project 'libwebp'
+    Target 'libwebp-product' in project 'libwebp'
+        ➜ Explicit dependency on target 'libwebp' in project 'libwebp'
+    Target 'libwebp' in project 'libwebp' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ClangStatCache /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk /Users/kamasylvia/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx27.0-26A425-e829b21a6f8c9b70876ba0858053c044e0bd213a318116c3a09f87b97c0d5717.sdkstatcache
+    cd /Volumes/UNITEK/Documents/Development/Lightamer
+    /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk -o /Users/kamasylvia/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx27.0-26A425-e829b21a6f8c9b70876ba0858053c044e0bd213a318116c3a09f87b97c0d5717.sdkstatcache
+
+SwiftDriver LightamerTestsIOP normal arm64 com.apple.xcode.tools.swift.compiler (in target 'LightamerTestsIOP' from project 'Lightamer')
+    cd /Volumes/UNITEK/Documents/Development/Lightamer
+    builtin-SwiftDriver -- /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name LightamerTestsIOP -Onone @/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/Objects-normal/arm64/LightamerTestsIOP.SwiftFileList -DDEBUG -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/libwebp.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-system/Sources/CSystem/include/module.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOLLHTTP.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-atomics/Sources/_AtomicsShims/include/module.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOPosix.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOWASI.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOFreeBSD.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOAtomics.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOWindows/include/module.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIODarwin.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOLinux.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOOpenBSD.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/libwebp.modulemap -plugin-path /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-experimental-feature DebugDescriptionMacro -sdk /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk -target arm64-apple-macos27.0 -g -module-cache-path /Users/kamasylvia/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 6 -I /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug -Isystem /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -F /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug/PackageFrameworks -F /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug -F /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/kamasylvia/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx27.0-26A425-e829b21a6f8c9b70876ba0858053c044e0bd213a318116c3a09f87b97c0d5717.sdkstatcache -output-file-map /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/Objects-normal/arm64/LightamerTestsIOP-OutputFileMap.json -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/kamasylvia/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/kamasylvia/Library/Developer/Xcode/DerivedData/SDKExplicitPrecompiledModules -emit-dependencies -emit-module -emit-module-path /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/Objects-normal/arm64/LightamerTestsIOP.swiftmodule -serialize-diagnostics -dependency-scan-serialize-diagnostics-path /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/Objects-normal/arm64/LightamerTestsIOP-dependency-scan.dia -validate-clang-modules-once -clang-build-session-file /Users/kamasylvia/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -emit-const-values -const-gather-protocols-list /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/Objects-normal/arm64/LightamerTestsIOP_const_extract_protocols.json -Xcc -iquote -Xcc /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/LightamerTestsIOP-generated-files.hmap -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/LightamerTestsIOP-own-target-headers.hmap -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/LightamerTestsIOP-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/Lightamer-41e788ae43ca210aea085461366a175e-VFS/all-product-headers.yaml -Xcc -iquote -Xcc /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/LightamerTestsIOP-project-headers.hmap -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/libwebp-Xcode/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-system/Sources/CSystem/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOLLHTTP/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-atomics/Sources/_AtomicsShims/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOPosix/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOWASI/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOFreeBSD/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOAtomics/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOWindows/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIODarwin/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOLinux/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOOpenBSD/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/libwebp-Xcode/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/DerivedSources-normal/arm64 -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/DerivedSources/arm64 -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/Objects-normal/arm64/LightamerTestsIOP-Swift.h -working-directory /Volumes/UNITEK/Documents/Development/Lightamer -experimental-emit-module-separately -disable-cmo
+
+CodeSign /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug/Lightamer.app/Contents/PlugIns/LightamerTestsIOP.xctest/Contents/Frameworks/libwebp_4647D9071D10D7EC_PackageProduct.framework/Versions/A (in target 'LightamerTestsIOP' from project 'Lightamer')
+    cd /Volumes/UNITEK/Documents/Development/Lightamer
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --preserve-metadata\=identifier,entitlements,flags --generate-entitlement-der /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug/Lightamer.app/Contents/PlugIns/LightamerTestsIOP.xctest/Contents/Frameworks/libwebp_4647D9071D10D7EC_PackageProduct.framework/Versions/A
+/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug/Lightamer.app/Contents/PlugIns/LightamerTestsIOP.xctest/Contents/Frameworks/libwebp_4647D9071D10D7EC_PackageProduct.framework/Versions/A: replacing existing signature
+
+CodeSign /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug/Lightamer.app/Contents/PlugIns/LightamerTestsIOP.xctest/Contents/Frameworks/WebP_6F0C86992_PackageProduct.framework/Versions/A (in target 'LightamerTestsIOP' from project 'Lightamer')
+    cd /Volumes/UNITEK/Documents/Development/Lightamer
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --preserve-metadata\=identifier,entitlements,flags --generate-entitlement-der /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug/Lightamer.app/Contents/PlugIns/LightamerTestsIOP.xctest/Contents/Frameworks/WebP_6F0C86992_PackageProduct.framework/Versions/A
+/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug/Lightamer.app/Contents/PlugIns/LightamerTestsIOP.xctest/Contents/Frameworks/WebP_6F0C86992_PackageProduct.framework/Versions/A: replacing existing signature
+
+SwiftCompile normal arm64 Compiling\ ROINegotiationTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ROINegotiationTests.swift (in target 'LightamerTestsIOP' from project 'Lightamer')
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ROINegotiationTests.swift:547:64: error: '&' used with non-inout argument of type 'IOPiece'
+545 |             var piece = IOPiece(dscIn: IOPBufferDesc(width: 64, height: 64))
+546 |             var bi = ROI()
+547 |             probe.modifyROIIn(output: hint, input: &bi, piece: &piece)
+    |                                                                `- error: '&' used with non-inout argument of type 'IOPiece'
+548 |             print("DEBUG-UNION probe(dscIn64) modifyROIIn -> \(bi)")
+549 |             let k = probe.currentKernelParams(bufW: 64, bufH: 64)
+Failed frontend command:
+
+SwiftCompile normal arm64 /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ROINegotiationTests.swift (in target 'LightamerTestsIOP' from project 'Lightamer')
+    cd /Volumes/UNITEK/Documents/Development/Lightamer
+    builtin-SwiftPerFileCompile ROINegotiationTests.swift
+
+/Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -c /Volumes/UNITEK/Documents/Development/Lightamer/Derived/Sources/TuistBundle+LightamerTestsIOP.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/BilateralGrid3DTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/BloomTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/CIContextPoolMemoKeyTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/CPUDerivationTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ChainBuilderHelpers.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ChannelMixerColorContrastTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ChannelMixerCommonTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ChannelMixerRGBCommitTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ColorZonesCommitTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/CubeLutParserTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/DNGOpcodeProbeTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/DefaultFaceTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/DehazeTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/EDRViewportTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ExifLensFieldsTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/FilmPlacementTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/Fixtures.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/FocusStackTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/FullRenderBenchmarkTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/GaussianBlurTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/GeometryPointMapperTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/GradeParamsCodingTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/GrainTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/HDRMergeMathTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/HomographyTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/IOPModuleTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/IOPieceIscaleTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/L021DoubleScaleAuditTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LabRoundTripTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LensAutoApplyTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LensAutoCropTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LensCacheIsolationTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LensMatchHardeningTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LensPerCorrectionTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LensProjectionResolveTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LensSnapshotTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LensfunDBTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LensfunMemoTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/M2DefaultChainPerfTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/MTBAlignTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/MemoryBudgetTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/MertensFusionTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/MertensLegTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/MertensMergeKindTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/MertensRasterDomainTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/MetalContextTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ModuleBoundaryTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/MonochromeCommitTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/MonochromeGridTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/MultiDisplayProfileTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/MultiResolutionTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/NoiseProfileStoreTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/PanoCameraTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/PanoCropTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/PanoFeatureTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/PanoGainTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/PanoLegTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/PanoMatchTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/PanoMergeKindTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/PanoWarpTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ParityGate.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/PipeCacheTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/PreviewBucketTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/PreviewChainPerfTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/RAW03Tests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/RAWDecoderTests.swift -primary-file /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ROINegotiationTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/RasterColorDescriptionTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/RasterDecodeLegTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/RasterIccSemanticsTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/RasterRoutingTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/RawDecodeOverridesTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ScopeReduceTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/SkinRegionGeometryTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/SoftProofStageTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/StackAggregateTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/StackMergeServiceTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/TerminalTrioTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/TextOverlayTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/TileNegotiationRegressionTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/TilingOverlapTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/TilingPlanTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/V50OrderTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/VibranceVelviaCommitTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/VignetteTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/VisionDetectTests.swift -emit-dependencies-path /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/Objects-normal/arm64/ROINegotiationTests.d -emit-const-values-path /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/Objects-normal/arm64/ROINegotiationTests.swiftconstvalues -emit-reference-dependencies-path /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/Objects-normal/arm64/ROINegotiationTests.swiftdeps -serialize-diagnostics-path /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/Objects-normal/arm64/ROINegotiationTests.dia -target arm64-apple-macos27.0 -disable-cross-import-overlay-search -swift-module-cross-import Vision /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/Vision.framework/Modules/Vision.swiftcrossimport/FoundationModels.swiftoverlay -swift-module-cross-import Vision /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/Vision.framework/Modules/Vision.swiftcrossimport/FoundationModels.swiftoverlay -load-resolved-plugin /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libFoundationMacros.dylib\#/Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#FoundationMacros -load-resolved-plugin /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libObservationMacros.dylib\#/Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#ObservationMacros -load-resolved-plugin /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libPreviewsMacros.dylib\#/Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#PreviewsMacros -load-resolved-plugin /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftMacros.dylib\#/Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#SwiftMacros -load-resolved-plugin /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib\#/Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#SwiftUIMacros -disable-implicit-swift-modules -Xcc -fno-implicit-modules -Xcc -fno-implicit-module-maps -explicit-swift-module-map-file /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/Objects-normal/arm64/LightamerTestsIOP-dependencies-1.json -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.0.sdk -I /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug -Isystem /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -F /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug/PackageFrameworks -F /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug -F /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -module-cache-path /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -no-color-diagnostics -Xcc -fno-color-diagnostics -enable-testing -g -debug-info-format\=dwarf -dwarf-version\=5 -swift-version 6 -Onone -D DEBUG -serialize-debugging-options -enable-experimental-feature DebugDescriptionMacro -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /Users/kamasylvia/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Volumes/UNITEK/Documents/Development/Lightamer -enable-anonymous-context-mangled-names -file-compilation-dir /Volumes/UNITEK/Documents/Development/Lightamer -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/libwebp.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-system/Sources/CSystem/include/module.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOLLHTTP.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-atomics/Sources/_AtomicsShims/include/module.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOPosix.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOWASI.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOFreeBSD.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOAtomics.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOWindows/include/module.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIODarwin.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOLinux.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/CNIOOpenBSD.modulemap -Xcc -fmodule-map-file\=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/GeneratedModuleMaps/libwebp.modulemap -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -Xcc -ivfsstatcache -Xcc /Users/kamasylvia/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx27.0-26A425-e829b21a6f8c9b70876ba0858053c044e0bd213a318116c3a09f87b97c0d5717.sdkstatcache -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -Xcc -iquote -Xcc /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/LightamerTestsIOP-generated-files.hmap -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/LightamerTestsIOP-own-target-headers.hmap -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/LightamerTestsIOP-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/Lightamer-41e788ae43ca210aea085461366a175e-VFS/all-product-headers.yaml -Xcc -iquote -Xcc /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/LightamerTestsIOP-project-headers.hmap -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/libwebp-Xcode/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-system/Sources/CSystem/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOLLHTTP/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-atomics/Sources/_AtomicsShims/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOPosix/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOWASI/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOFreeBSD/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOAtomics/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOWindows/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIODarwin/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOLinux/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/swift-nio/Sources/CNIOOpenBSD/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/SourcePackages/checkouts/libwebp-Xcode/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug/include -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/DerivedSources-normal/arm64 -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/DerivedSources/arm64 -Xcc -I/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/DerivedSources -Xcc -DDEBUG\=1 -no-auto-bridging-header-chaining -module-name LightamerTestsIOP -const-gather-protocols-file /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/Objects-normal/arm64/LightamerTestsIOP_const_extract_protocols.json -disable-clang-spi -clang-target arm64-apple-macos27.0 -target-sdk-version 27.0 -target-sdk-name macosx27.0 -in-process-plugin-server-path /Volumes/UNITEK/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -o /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/Objects-normal/arm64/ROINegotiationTests.o -debug-module-path /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/Lightamer.build/Debug/LightamerTestsIOP.build/Objects-normal/arm64/LightamerTestsIOP.swiftmodule -index-unit-output-path /Lightamer.build/Debug/LightamerTestsIOP.build/Objects-normal/arm64/ROINegotiationTests.o -index-store-path /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Index.noindex/DataStore -index-system-modules
+SwiftEmitModule normal arm64 Emitting\ module\ for\ LightamerTestsIOP (in target 'LightamerTestsIOP' from project 'Lightamer')
+
+SwiftCompile normal arm64 (in target 'LightamerTestsIOP' from project 'Lightamer')
+    cd /Volumes/UNITEK/Documents/Development/Lightamer
+    
+
+PruneExplicitPrecompiledModules /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules
+
+PruneExplicitPrecompiledModules /Users/kamasylvia/Library/Developer/Xcode/DerivedData/SDKExplicitPrecompiledModules
+
+PruneExplicitPrecompiledModules /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Intermediates.noindex/ExplicitPrecompiledModules
+
+** TEST BUILD FAILED **
+
+
+The following build commands failed:
+	SwiftCompile normal arm64 /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ROINegotiationTests.swift (in target 'LightamerTestsIOP' from project 'Lightamer')
+	SwiftCompile normal arm64 Compiling\ ROINegotiationTests.swift /Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ROINegotiationTests.swift (in target 'LightamerTestsIOP' from project 'Lightamer')
+	Building workspace Lightamer for testing with scheme Lightamer
+(3 failures)
