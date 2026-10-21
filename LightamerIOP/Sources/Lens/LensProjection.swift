@@ -145,9 +145,25 @@ public enum LensProjection: String, Codable, Sendable, CaseIterable {
             // Alcedo ApplyProjectionERectRect.
             return (Darwin.tan(x), 1.0 / (Darwin.tan(y) * Darwin.cos(x)))
         case .fisheye:
-            // Alcedo ApplyProjectionERectFishEye.
-            let ksp = 2.0 / (1.0 + Darwin.cos(y) * Darwin.cos(x))
-            return (ksp * Darwin.cos(y) * Darwin.sin(x), ksp * Darwin.sin(y))
+            // Alcedo ApplyProjectionERectFishEye (EQUIDISTANT — the disk
+            // radius IS the polar angle from the optical axis). The
+            // theta-reflection skeleton (same shape as ERectRect /
+            // ERectOrthographic below); M-1 fix: this arm previously
+            // carried the STEREOGRAPHIC ksp formula (a verbatim duplicate
+            // of the .stereographic arm — the acceptance's mis-
+            // transcription finding; the round-trip golden pins the
+            // corrected form).
+            var xx = x
+            var theta = -y + Double.pi / 2
+            if theta < 0 { theta = -theta; xx += Double.pi }
+            if theta > Double.pi { theta = 2.0 * Double.pi - theta; xx += Double.pi }
+            let s = Darwin.sin(theta)
+            let vx = s * Darwin.sin(xx)
+            let vy = Darwin.cos(theta)
+            let r = (vx * vx + vy * vy).squareRoot()
+            let theta2 = Darwin.atan2(r, s * Darwin.cos(xx))
+            let invR = r <= eps ? 0.0 : 1.0 / r
+            return (theta2 * vx * invR, theta2 * vy * invR)
         case .orthographic:
             // Alcedo ApplyProjectionERectOrthographic.
             var xx = x

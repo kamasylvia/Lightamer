@@ -50,9 +50,13 @@ using namespace metal;
 // POST-distortion radius (lensfun callback chain: distortion 750 → TCA
 // 500 in `ApplySubpixelGeometryDistortion`, sequential on one buffer).
 // Vignette first (dt `:1194-1206`), at the post-distortion radius.
-// SCALE (L2-T3/X5): ×1/scale on the POST-map sample offset (after
-// distortion/TCA — a pure field-of-view narrowing); the projection fold
-// order is pinned in LENS-03 T1 (projection → ... → ×1/scale last).
+// SCALE (L2-T3/X5, order per D-L3-3 — the LENS-03 T1 adjudication): the
+// ×1/scale rides the CENTER-RELATIVE OUTPUT coords BEFORE the projection
+// fold — the Alcedo live order `normalized → ×1/scale → projection fold
+// (target→erect→source) → distortion → TCA` (the kernel body's scale/
+// projection block mirrors it). The L2-era "×1/scale on the post-map
+// sample offset (after distortion/TCA)" face RETIRED with LENS-03 T1;
+// scale=1 is the exact identity in either order (red line 12).
 //
 // CENTER: frame center (dscIn/2). The lensfun `<center>` element is
 // absent from the shipped v1 subset (and rare upstream); LensfunDB parses
@@ -156,8 +160,20 @@ inline float2 projToERect(float2 in, int projection) {
 inline float2 projFromERect(float2 in, int projection) {
     switch (projection) {
         case ProjSlot::kFisheye: {          // Alcedo ApplyProjectionERectFishEye
-            const float ksp = 2.0f / (1.0f + cos(in.y) * cos(in.x));
-            return float2(ksp * cos(in.y) * sin(in.x), ksp * sin(in.y));
+            // EQUIDISTANT (M-1 fix: this arm previously duplicated the
+            // stereographic ksp formula below — the disk radius must BE
+            // the polar angle; the round-trip golden pins the pair).
+            float x = in.x;
+            float theta = -in.y + (M_PI_F * 0.5f);
+            if (theta < 0.0f) { theta = -theta; x += M_PI_F; }
+            if (theta > M_PI_F) { theta = 2.0f * M_PI_F - theta; x += M_PI_F; }
+            const float s  = sin(theta);
+            const float vx = s * sin(x);
+            const float vy = cos(theta);
+            const float r  = sqrt(vx * vx + vy * vy);
+            const float theta2 = atan2(r, s * cos(x));
+            const float invR = (r <= kProjEps) ? 0.0f : (1.0f / r);
+            return float2(theta2 * vx * invR, theta2 * vy * invR);
         }
         case ProjSlot::kOrthographic: {     // Alcedo ApplyProjectionERectOrthographic
             float x = in.x;

@@ -260,4 +260,103 @@ final class LensProjectionGoldenTests: XCTestCase {
         let b = readback(metal, tex: outB, width: width, height: height)
         XCTAssertEqual(a, b, "coincident projections = the no-projection render byte-for-byte")
     }
+
+    // MARK: - The M-1 fix goldens (the fisheye re-transcription)
+
+    /// M-1 (LENS-01 acceptance): the ERect→Fisheye arm was a verbatim
+    /// DUPLICATE of the stereographic ksp formula. The fix criterion is
+    /// an INDEPENDENT truth, not the same-source twin: the equidistant
+    /// DEFINITION — the disk radius IS the polar angle from the optical
+    /// axis. Axial points (x=0): output radius == y exactly. Off-axis:
+    /// radius == atan2(hypot(X,Y), Z) with direction (X,Y)/hypot, where
+    /// (X,Y,Z) is the equirect unit-sphere point. The stereographic arm
+    /// rides along as the contrast (axial radius 2·tan(θ/2) — DISTINCT
+    /// from fisheye, which the pre-fix duplicate was not).
+    func testFisheyeFromEquirectIsEquidistantNotStereographic() {
+        // Axial truth: r(θ) = θ, with y = 1.0 rad included (the
+        // acceptance's +9.3% error point).
+        for y: Double in [0.25, 0.5, 1.0, 1.4] {
+            let (fx, fy) = LensProjection.fromEquirect(0, y, to: .fisheye)
+            XCTAssertEqual(fx, 0, accuracy: 1e-12)
+            XCTAssertEqual(fy, y, accuracy: 1e-12, "equidistant: radius == angle at y=\(y)")
+        }
+        // Off-axis truth (the spherical identity).
+        for (x, y): (Double, Double) in [(0.5, 0.3), (-0.8, 0.6), (1.1, -0.4), (0.3, 1.0)] {
+            let bigX = Darwin.cos(y) * Darwin.sin(x)
+            let bigY = Darwin.sin(y)
+            let bigZ = Darwin.cos(y) * Darwin.cos(x)
+            let rho = (bigX * bigX + bigY * bigY).squareRoot()
+            let expectedR = Darwin.atan2(rho, bigZ)
+            let (fx, fy) = LensProjection.fromEquirect(x, y, to: .fisheye)
+            XCTAssertEqual(
+                (fx * fx + fy * fy).squareRoot(), expectedR, accuracy: 1e-12,
+                "equidistant radius at (\(x),\(y))")
+            XCTAssertEqual(fx, expectedR * bigX / rho, accuracy: 1e-12)
+            XCTAssertEqual(fy, expectedR * bigY / rho, accuracy: 1e-12)
+        }
+        // THE CONTRAST: the stereographic arm keeps the ksp form (axial
+        // radius 2·tan(θ/2)) and stays DISTINCT from fisheye.
+        let (sx, sy) = LensProjection.fromEquirect(0, 1.0, to: .stereographic)
+        XCTAssertEqual(sx, 0, accuracy: 1e-12)
+        XCTAssertEqual(
+            sy, 2.0 * Darwin.tan(0.5), accuracy: 1e-12,
+            "stereographic axial radius = 2·tan(θ/2)")
+        XCTAssertGreaterThan(
+            sy - 1.0, 0.09,
+            "stereographic ≠ fisheye at y=1.0 (the acceptance's +9.3% band)")
+    }
+
+    /// M-1 fix criterion golden: the equirect→fisheye→equirect ROUND
+    /// TRIP is the identity (analytically exact for the equidistant
+    /// pair; the wrong arm's residuals were +2.1%@0.5 / +9.3%@1.0 /
+    /// +21%@1.4 — the acceptance's measured error curve). Both
+    /// directions over the in-domain band including the y = 1.0 rad
+    /// boundary; the stereographic pair rides along as the contrast
+    /// (each type must invert ITS OWN forward form).
+    func testFisheyeProjectionRoundTripIdentity() {
+        // Forward grid (equirect → disk → equirect), y = 1.0 explicit.
+        var points: [(Double, Double)] = []
+        var y = -1.4
+        while y <= 1.4 + 1e-9 {
+            var x = -1.2
+            while x <= 1.2 + 1e-9 {
+                points.append((x, y))
+                x += 0.3
+            }
+            y += 0.35
+        }
+        for extra: (Double, Double) in [(0.0, 1.0), (0.5, 1.0), (-0.7, 1.0), (1.0, 1.0)] {
+            points.append(extra)
+        }
+        for (x, y) in points {
+            let disk = LensProjection.fromEquirect(x, y, to: .fisheye)
+            let back = LensProjection.toEquirect(disk.0, disk.1, from: .fisheye)
+            XCTAssertEqual(
+                back.0, x, accuracy: 1e-9, "fisheye round-trip x at (\(x),\(y))")
+            XCTAssertEqual(
+                back.1, y, accuracy: 1e-9, "fisheye round-trip y at (\(x),\(y))")
+        }
+        // Reverse direction (disk → equirect → disk), in-domain radii.
+        var dy = -1.5
+        while dy <= 1.5 + 1e-9 {
+            var dx = -1.5
+            while dx <= 1.5 + 1e-9 {
+                let erect = LensProjection.toEquirect(dx, dy, from: .fisheye)
+                let back = LensProjection.fromEquirect(erect.0, erect.1, to: .fisheye)
+                XCTAssertEqual(back.0, dx, accuracy: 1e-9)
+                XCTAssertEqual(back.1, dy, accuracy: 1e-9)
+                dx += 0.5
+            }
+            dy += 0.5
+        }
+        // The stereographic contrast: its own round trip is exact too —
+        // a re-merged duplicate arm would break BOTH these and the
+        // equidistant truth test above.
+        for y2: Double in [-1.0, -0.5, 0.5, 1.0] {
+            let disk = LensProjection.fromEquirect(0.4, y2, to: .stereographic)
+            let back = LensProjection.toEquirect(disk.0, disk.1, from: .stereographic)
+            XCTAssertEqual(back.0, 0.4, accuracy: 1e-9, "stereographic round-trip x at y=\(y2)")
+            XCTAssertEqual(back.1, y2, accuracy: 1e-9, "stereographic round-trip y at y=\(y2)")
+        }
+    }
 }
