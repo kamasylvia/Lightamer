@@ -584,20 +584,33 @@ internal struct LensPanelView: View {
         applyDiscrete(LensProfileBrowserModel.clearedParams(base: params))
     }
 
-    /// First-run download (background; failure toasts, editing unblocked).
+    /// First-run data acquisition (background; failure toasts, editing
+    /// unblocked). LENS-03 T3: the bundled seed first (local, instant);
+    /// the legacy download stays as the no-seed fallback; the manual
+    /// SHA-verified update lives in the Settings face.
     private func downloadData() {
         downloading = true
         Task {
-            let loc = await LensfunDownloadService.download()
-            await MainActor.run {
-                downloading = false
-                switch loc {
-                case .downloaded, .custom:
+            let loc = LensfunDataDistribution.resolveAndInstall()
+            if case .absent = loc {
+                let fallback = await LensfunDownloadService.download()
+                await MainActor.run {
+                    downloading = false
+                    switch fallback {
+                    case .absent:
+                        notice = String(localized: "panel_lens_download_failed")
+                    default:
+                        hasData = true
+                        notice = nil
+                        refreshMatchState()
+                    }
+                }
+            } else {
+                await MainActor.run {
+                    downloading = false
                     hasData = true
                     notice = nil
                     refreshMatchState()
-                case .absent:
-                    notice = String(localized: "panel_lens_download_failed")
                 }
             }
         }

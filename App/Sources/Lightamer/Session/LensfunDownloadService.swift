@@ -24,6 +24,8 @@ import LightamerIOP
 enum LensfunDataLocation: Sendable, Equatable {
     /// User-supplied directory (`lensfun.customPath`).
     case custom(URL)
+    /// The bundled snapshot seeded into the support directory (LENS-03 T3).
+    case seeded(URL)
     /// First-run downloaded copy under Application Support.
     case downloaded(URL)
     /// No database on disk (the (c)-absent downgrade).

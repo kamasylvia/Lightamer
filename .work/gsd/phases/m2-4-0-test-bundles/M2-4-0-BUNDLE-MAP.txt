@@ -802,3 +802,4 @@ IOPP	3	LensScaleGoldenTests.swift
 APP	8	LensProfileBrowserTests.swift
 IOP	7	LensProjectionResolveTests.swift
 IOPP	7	LensProjectionGoldenTests.swift
+APP	7	LensfunDistributionTests.swift

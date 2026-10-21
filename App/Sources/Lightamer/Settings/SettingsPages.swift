@@ -201,6 +201,10 @@ struct SettingsCachePage: View {
     @State private var clearedBanner = false
     @State private var lutRootPath: String = ""
     @State private var lutStatusLine: String?
+    // LENS-03 T3: the Lensfun data-management face (the §5 section).
+    @State private var lensfunDBTag: String?
+    @State private var lensfunUpdating = false
+    @State private var lensfunUpdateLine: String?
 
     var body: some View {
         Form {
@@ -232,6 +236,65 @@ struct SettingsCachePage: View {
                 Text(String(
                     localized: "settings_cache_hint",
                     defaultValue: "Everything here is rebuilt on demand. Per-project thumbnail caches live in hidden .lathumbs folders next to their projects and are equally rebuildable."))
+                    .font(.caption)
+                    .foregroundStyle(LightamerColors.textSecondary)
+            }
+
+            // LENS-03 T3 (D-LENS-6 / X7): the Lensfun data-management
+            // section — dbTag readout + the MANUAL SHA-verified update.
+            // No automatic fetch (D-LENS-6); the L057 async seam for the
+            // download task (Task hop, no runModal).
+            Section(String(localized: "settings_lensfun_section",
+                           defaultValue: "Lens Data")) {
+                LabeledContent(String(localized: "settings_lensfun_dbtag",
+                                      defaultValue: "Database tag")) {
+                    Text(lensfunDBTag ?? "—")
+                        .font(.caption)
+                        .accessibilityIdentifier("settings.lensfun.dbtag")
+                }
+                Button(lensfunUpdating
+                       ? String(localized: "settings_lensfun_updating",
+                                defaultValue: "Checking for updates…")
+                       : String(localized: "settings_lensfun_check_update",
+                                defaultValue: "Check for Database Updates")) {
+                    lensfunUpdating = true
+                    lensfunUpdateLine = nil
+                    Task {
+                        let outcome = await LensfunDataDistribution.checkForUpdates()
+                        await MainActor.run {
+                            lensfunUpdating = false
+                            switch outcome {
+                            case .installed:
+                                lensfunUpdateLine = String(localized:
+                                    "settings_lensfun_updated",
+                                    defaultValue: "Database updated.")
+                                lensfunDBTag = LensfunDataDistribution.dbTag(
+                                    directory: LensfunDownloadService.supportDirectory()
+                                        .appendingPathComponent("version_1", isDirectory: true))
+                            case .shaMismatch(let expected, let actual):
+                                lensfunUpdateLine = String(localized:
+                                    "settings_lensfun_sha_mismatch",
+                                    defaultValue: "SHA-256 mismatch — install refused.")
+                                AppError.logger.error(
+                                    "lensfun update SHA mismatch: expected \(expected), got \(actual)")
+                            case .downloadFailed:
+                                lensfunUpdateLine = String(localized:
+                                    "settings_lensfun_update_failed",
+                                    defaultValue: "Update download failed — the installed database is untouched.")
+                            }
+                        }
+                    }
+                }
+                .disabled(lensfunUpdating)
+                .accessibilityIdentifier("settings.lensfun.checkUpdate")
+                if let lensfunUpdateLine {
+                    Text(lensfunUpdateLine)
+                        .font(.caption)
+                        .foregroundStyle(LightamerColors.textSecondary)
+                        .accessibilityIdentifier("settings.lensfun.updateLine")
+                }
+                Text(String(localized: "settings_lensfun_hint",
+                            defaultValue: "The bundled snapshot is pinned and attributed (CC-BY-SA-3.0). Updates are manual and SHA-verified; a mismatched archive is never installed."))
                     .font(.caption)
                     .foregroundStyle(LightamerColors.textSecondary)
             }
@@ -285,6 +348,15 @@ struct SettingsCachePage: View {
                 .urls(for: .cachesDirectory, in: .userDomainMask).first?
                 .path) ?? "—"
             lutRootPath = preferences.lutLibraryRoot().path
+            // LENS-03 T3: the active database's dbTag readout (the
+            // resolution mirrors the launch priority; read-only).
+            let loc = LensfunDataDistribution.resolveAndInstall()
+            let dir: URL?
+            switch loc {
+            case .custom(let u), .seeded(let u), .downloaded(let u): dir = u
+            case .absent: dir = nil
+            }
+            lensfunDBTag = dir.flatMap { LensfunDataDistribution.dbTag(directory: $0) } ?? "—"
         }
     }
 

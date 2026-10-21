@@ -190,6 +190,10 @@ let project = Project(
                 // (model bytes gitignored, .keep tracked) copies into the
                 // bundle preserving AIModels/<profile_id>/ hierarchy.
                 .folderReference(path: "Resources/AIModels"),
+                // LENS-03 T3: the pinned Lensfun snapshot rides as a
+                // folder reference (the seeder reads version_1/ as a
+                // unit; the per-file SHA manifest ships beside it).
+                .folderReference(path: "Resources/Lensfun"),
                 "Resources/TestFixtures/**",
             ],
             dependencies: [
@@ -856,6 +860,7 @@ let project = Project(
                 "Tests/LightamerTests/AgentControlCoordinatorTests.swift",
                 "Tests/LightamerTests/LensPanelReadoutTests.swift",
                 "Tests/LightamerTests/LensProfileBrowserTests.swift",
+                "Tests/LightamerTests/LensfunDistributionTests.swift",
                 "Tests/LightamerTests/MaskDefaultBehaviorTests.swift",
                 "Tests/LightamerTests/MaskGroupsPanelTests.swift",
                 "Tests/LightamerTests/MaskItemSemanticsTests.swift",
