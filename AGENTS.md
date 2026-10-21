@@ -432,6 +432,8 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 | M7-5 | turn-taking（AgentControlCoordinator/活动卡/Stop-resume） |
 | M7-6 | MCP O2/O3 + 封存面清单 + M7 站收口 |
 | L057 | 面板呈现约定（runModal 禁入产线正本） |
+| F0'-prod | 壳交接翻转（NSApplicationDelegate + NSHostingView）/SwiftUI 壳退役/机器级单重活/D-6 根除（正本 `.work/gsd/phases/f0prime-prod/` + ARCHIVE F0/F0' spike 节） |
+| LENS-01 | Lensfun 收口（三态互斥探测/系数快照/投影四型/数据钉版/isNeutral 含 lensfun 态/reloadDefaults 三缝接线）（正本 `.work/gsd/phases/lens-01-lensfun/`） |
 
 <!-- GSD:architecture-end -->
 
