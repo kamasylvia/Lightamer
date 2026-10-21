@@ -699,7 +699,16 @@ var xm = Double.greatestFiniteMagnitude, ym = Double.greatestFiniteMagnitude
             return gated.uniforms(
                 bufW: bufW, bufH: bufH, roiIn: roiIn, roiOut: roiOut, scale: scale)
         }
-        let k = LensModule.manualKernelParams(committed)
+        var k = LensModule.manualKernelParams(committed)
+        // m-5 (B-2 batch, acceptance-2nd minor): the manual arm's
+        // projection fold — the panel's resolvedScalePreview manual arm
+        // already sets the raws (:482-485), so a manual-coefficient doc
+        // with a projection pick read a FOLDED scale while the render
+        // silently unfolded (same-document divergence). nil raws (the
+        // default doc) decode to the rectilinear identity — byte-identical
+        // history.
+        k.targetProjectionRaw = committed.targetProjection
+        k.sourceProjectionRaw = committed.sourceProjection
         let scale = scaleFromKernel(bufW: bufW, bufH: bufH, kernel: k)
         return k.uniforms(
             bufW: bufW, bufH: bufH, roiIn: roiIn,

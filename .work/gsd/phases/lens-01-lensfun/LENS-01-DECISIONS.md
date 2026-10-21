@@ -88,3 +88,33 @@ LensParityTests `testUnifiedExitMatchesManual` 的两 fixture params 补 `imageC
 ### F-4 process version 裁决(修复批)
 
 见 `LENS-04-DECISIONS.md` 裁决表第 9 行:**不 bump**(缺陷修复律 + 改动面自 04-04 以来从未生效过——identity blit / 误标公式无任何已交付观感可冻结;渲染前修复,无存量文档承载旧行为)。
+
+## B-2 接线修复批(2026-10-20,验收二 `LENS-01-ACCEPTANCE-2ND.md` 1 blocking;commit `fix(lens-01): wire reloadDefaults into production seams — B-2`)
+
+### B-2 三缝接线 = reloadDefaults 进入产线(死路考古 + 接线落点)
+
+- **死路考古(二路确证,本批复核)**:`IOPModule.reloadDefaults` 自 Phase 02 引入以来全仓零生产调用点(仅 17 处测试;`git log -S ".reloadDefaults(image" --all -- App LightamerCore` 零命中)→ Lensfun 四条产线路径全死:①auto-apply(LENS-02 T2,`lensfun.autoApply` 键 + 硬守卫 + 注入式 reader 全就位但运行时无人读)②browser 选型(EXIF 字段唯一生产写入点 = reloadDefaults,镜头实例恒静态默认 → `matchCommitted` guard focal > 0 恒 miss → identity +「无镜头信息」)③系数快照 bake(D-L4-1 option A 同步 bake 内嵌 reloadDefaults,无可达调用者)④detected 确认门(embeddedGeometry 恒 nil,确认永不触发)。
+- **应然调用缝(逐缝对照 plan 原文)**:缝① = **EXIF 解析完成 + auto-apply 开**(LENS-02 T2:reloadDefaults 是 defaults 缝;生效域硬守卫在函数内——autoApply 键 + `embeddedGeometry == .notApplicable` 唯一 + lensKey 非空;EXIF 快照字段无条件随行 = D6 设计「resolve inputs baked here so params stay self-describing」)→ 落点 **pristine 载入 seed**(`PipeCoordinator.load` 无 sidecar 分支,`LensDefaultsWiring.injectedLensSeed(into:image:)`,:1243);缝② = **browser 选型确认**(LENS-02 T4 Apply 退役改确认制,确认动作/直选同一 commitSelection 缝)→ 落点 `LensPanelView.commitSelection` → `LensDefaultsWiring.committedSelection(base:candidate:image:)`(:588 起);缝③ = **快照 bake**(RESEARCH「auto-apply 同步 bake」句 + D-L4-1 option A:bake 语义 = reloadDefaults 内同步 bake,同一 commit 翻 source)→ 随缝①②到达产线,零新代码。守卫单源:调用点不复述三态互斥(reloadDefaults 内部硬守卫即单源);幂等(重复调用同值)。
+- **装配纯函数范式(makeRunAssembly 先例)**:两缝装配逻辑提为 `App/Sources/Lightamer/State/LensDefaultsWiring.swift` 纯函数,coordinator/panel 只留 I/O 壳——状态层机检缝,视图/协调器不承载装配逻辑。缝②附修:选型 bake 换 **rematch 面**(fresh bake per selection;miss 清陈旧快照——修复前 bake-miss 沿用旧快照的静默不一致随写入路径变活而成为真缺陷,随缝修复)。
+- **范围让渡(不接线面,登记)**:①**restore 分支不折**(sidecar 恢复文档持久 params verbatim——「affects NEW images only」per-image params 规则;遗留文档经缝② browser 选型时由 exifRefreshed 现折 EXIF,选型可达);②`SidecarSeedTopUp` 补种记录保持 identity/neutral 契约(零像素语义面,折 EXIF 会改 paramsData 字节);③`LightamerShell.seedInstances`(粘贴/预设合成基座)与 MCP `EditingToolset.editingSeed` 非图像载入面,不折(agent 通道可显式传 lens params);④层链加模块 template 静态默认(lens 恒在载入 seed,加面仅重加场景,缝②可达)。
+
+### 反死路回归(消洋葱;LensDefaultsWiringTests,APP bundle,8 法)
+
+- **测试全走真产线缝**:缝①②经 `LensDefaultsWiring`(产线调用的同一函数,装配纯函数范式)+ 缝级硬守卫三态表 + E2E **真 `PipeCoordinator.load` 链**(EditorMetalLegRegressionTests 合成梯度先例)断言 editorState 实携 lens record 的 source/focal/resolve 三点。m-5 golden = resolveUniforms 手动臂投影折(`sourceProj` uniform 携 decodeLenient enum raw,rectilinear=1/fisheye=2/equirectangular=4 三点断言)。
+- **红绿双腿(两腿齐)**:
+  - 腿 A 运行时红:探针法——stash 产线三笔(PipeCoordinator/LensPanelView/LensModule)+ 仅既有 API 的 E2E 探针(可编译于修复前树)→ **三断言全红**(`off ≠ lensfun` / `nil ≠ 16` / resolve nil;`fix-batch/b2-red-green/red-run-prefix-tree.log`);恢复后同探针类 **8/8 绿**(`green-run-newclass.log`)。两缝纯函数测试在修复前树 = 编译红(API 不存在,如实申报)。
+  - 腿 B 源级机检:`grep -rn "LensDefaultsWiring\." App/Sources` = 恰 2 产线调用点(PipeCoordinator:1243 + LensPanelView:591);`grep -rn "\.reloadDefaults(image" App LightamerCore LightamerIOP`(排除注释)= 恰 2 生产调用(LensDefaultsWiring.swift:55/:88);本批 commit 后 `git log -S ".reloadDefaults(image" -- App` 首次落产线 commit。
+
+### m-5 手动门投影折叠(修复,≤10 行)
+
+`resolveUniforms` 手动臂(LensModule.swift:702-717)补 `targetProjectionRaw/sourceProjectionRaw` 装配(4 行)——与面板 `resolvedScalePreview` 手动臂(:482-485)对齐,消「同文档 readout 折叠 / 渲染不折」分叉(B-1 同族静默 no-op,combo = 手动系数 + 投影选型)。nil raws(默认档)decodeLenient = rectilinear 恒等,历史字节零漂移;golden = `testManualArmFoldsProjectionRaws`(三 slot 断言)。
+
+### o-B 让渡(登记,不本批)
+
+matched + 非 rectilinear entry + target 未设 = resolveCommitted 保守拒 → 渲染 identity,readout 仍「匹配到配置」无「需选 target 投影」提示(LENS-03 T1 既定保守拒设计;xcstrings 无此文案键)。让渡理由:文案属 UX 补全(新 xcstrings 键 + 状态机新面),与本批「接线修复」正交;挂后续 UX 轮。
+
+### 复验数字(定向 + 全套)
+
+- 定向:IOP **753/5/0**(峰 5800MB)+ IOPParity **478/6/0**(4966MB)+ App **969/6/0**(2832MB)——前两 bundle 逐值 = 二路验收基线;App 969 = 基线 961 + 8 新测试精确;skip 零漂移;峰全 <8G 门。
+- 全套:`--all` 一轮 **`TOTAL|4101/40/0|`** exit 0 零 MEMFAIL(峰 IOP 7680MB 门内)= 4093(二路基线)+ 8 新测试精确;skip 40 零漂移;七 bundle:IOP 753/5/0 + IOPParity 478/6/0 + Layers 494/5/0 + Library 738/4/0 + Sessions 284/9/0 + Export 385/5/0 + App 969/6/0,前六逐值 = 二路基线。
+- 守卫偏差申报(D-L4-4 同形):`machine-guard.sh --wait 1800` 满窗 G3 swap ~4.1GB 恒静(冷页残留零衰减);G2 可用内存 83% + G1 零并发重活亲核,`/usr/bin/time` ru_maxrss MEMFAIL 机检兜底在岗,定向轮峰 5800MB / 全套轮峰 7680MB 均 < 8G 门,放行正当。

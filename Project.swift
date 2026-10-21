@@ -870,6 +870,7 @@ let project = Project(
                 "Tests/LightamerTests/AgentControlCoordinatorTests.swift",
                 "Tests/LightamerTests/LensPanelReadoutTests.swift",
                 "Tests/LightamerTests/LensProfileBrowserTests.swift",
+                "Tests/LightamerTests/LensDefaultsWiringTests.swift",
                 "Tests/LightamerTests/LensfunDistributionTests.swift",
                 "Tests/LightamerTests/MaskDefaultBehaviorTests.swift",
                 "Tests/LightamerTests/MaskGroupsPanelTests.swift",

@@ -576,13 +576,23 @@ internal struct LensPanelView: View {
     }
 
     /// The selection commit: ONE discrete edit (source = .lensfun + the
-    /// picked model; LENS-04 T1 — the SNAPSHOT bakes in the same commit
+    /// picked model; LENS-04 T1 — the snapshot bakes in the same commit
     /// via bakeCommitted; a match/resolve miss keeps the snapshot-free
     /// params and the live memo path renders).
+    /// B-2 (LENS-01 acceptance 2nd) seam ②: the commit runs through the
+    /// REAL reloadDefaults seam (`LensDefaultsWiring.committedSelection`)
+    /// — the EXIF resolve inputs fold in first (pre-wiring, every commit
+    /// matched against EXIF-less params: missingFocal → identity), and
+    /// the bake is the rematch face (fresh snapshot per selection; a miss
+    /// clears any stale prior snapshot instead of silently keeping it).
     private func commitSelection(_ candidate: LensProfileCandidate) {
         pendingSelection = nil
-        let selected = LensProfileBrowserModel.selectedParams(base: params, candidate: candidate)
-        applyDiscrete(LensfunStore.bakeCommitted(selected) ?? selected)
+        Task {
+            let committed = await LensDefaultsWiring.committedSelection(
+                base: params, candidate: candidate,
+                image: edit.detectionSourceImage())
+            applyDiscrete(committed)
+        }
     }
 
     /// LENS-04 T1: the Re-match action — invalidate the snapshot, re-run
