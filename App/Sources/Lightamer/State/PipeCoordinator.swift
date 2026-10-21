@@ -1228,9 +1228,20 @@ final class PipeCoordinator {
                     // isFullFaceRequested read, the SAME switch that
                     // populated the registry (default false = full face,
                     // KD-2).
-                    let defaults = (await registry?.makeDefaultInstances() ?? [])
+                    var defaults = (await registry?.makeDefaultInstances() ?? [])
                         + LightamerIOPRegistry.editingDefaultInstances(
                             defaultFace: defaultFace)
+                    // B-2 (LENS-01 acceptance 2nd) seam ①: the lens seed
+                    // folds the EXIF resolve-input snapshot + the opt-in
+                    // auto-apply through the REAL reloadDefaults seam (the
+                    // hard guards live inside reloadDefaults — autoApply
+                    // key + notApplicable-only + non-empty lens EXIF; a
+                    // match miss keeps the EXIF-carrying .off params).
+                    // Affects NEW images only — the restore branch above
+                    // keeps the persisted params verbatim (per-image
+                    // params rule).
+                    defaults = await LensDefaultsWiring.injectedLensSeed(
+                        into: defaults, image: decoded)
                     editorState?.resetHistoryForNewImage(
                         defaultInstances: defaults.sorted {
                             ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)

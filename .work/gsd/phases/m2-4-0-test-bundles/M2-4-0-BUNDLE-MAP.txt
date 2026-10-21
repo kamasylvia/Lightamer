@@ -807,3 +807,7 @@ IOP	5	LensSnapshotTests.swift
 IOP	4	LensCacheIsolationTests.swift
 IOPP	3	LensDefaultNeutralGoldenTests.swift
 IOPP	3	LensPerfProbeTests.swift
+# B-2 接线修复批增行记录（2026-10-20，LENS-01 二路验收 blocking 修复）：reloadDefaults
+#   产线接线（EXIF 载入缝 / browser 选型缝）+ m-5 手动臂投影折叠回归。新文件全
+#   APP/App 级（LensDefaultsWiringTests = 装配缝纯函数 + 真 coordinator.load 链端到端红腿）。
+APP	8	LensDefaultsWiringTests.swift
