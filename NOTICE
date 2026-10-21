@@ -108,3 +108,56 @@ Third-party provenance
    with per-row source comments. The Alcedo Studio aces_reference_gamut_
    compression.h (GPL-3.0) was consulted READ-ONLY to cross-check the RGC
    shape; zero GPL code or text copied.
+
+──────────────────────────────────────────────────────────────────────────────
+LENS-01 batch additions (Lensfun lens correction, 2026-10-21)
+──────────────────────────────────────────────────────────────────────────────
+
+N. Lensfun calibration database (data — Plan LENS-03 T3)
+
+   Upstream: the Lensfun project's calibration database
+   https://lensfun.github.io/ (snapshot archive
+   https://lensfun.github.io/db/version_1.tar.bz2)
+   License: CC-BY-SA-3.0 (the DATABASE is data shared under Creative
+   Commons Attribution-ShareAlike 3.0 — independent of the LGPL-3.0
+   library; both texts ship in Resources/Licenses/Lensfun/).
+
+   Lightamer ships an UNMODIFIED pinned snapshot (56 XML files,
+   Resources/Lensfun/version_1/, archive SHA-256
+   97c9f8059accae0128a413bc610a04a4548e8da2764a6d3d60d82bf917639457,
+   checkout date 2026-10-21; the per-file SHA-256 manifest is
+   Resources/Lensfun/version_1.SHA256SUMS). The database authors and
+   the calibration submission process: https://lensfun.github.io/.
+   Share-alike: any derivative database redistributable by Lightamer
+   must carry the same CC-BY-SA-3.0 attribution.
+
+O. Alcedo Studio (projection math — Plan LENS-03 T1)
+
+   Upstream: Alcedo Studio (Yurun Zi and contributors)
+   https://github.com/AledacoStudio (local reference checkout)
+   License: GPL-3.0-only.
+
+   Lightamer's projection pairs (fisheye/equisolid/stereographic/
+   orthographic ↔ equirectangular, LensProjection.swift +
+   LensKernels.metal's ProjSlot section) are PORTED from
+   `src/edit/runtime/lens/metal/shader/lens_calib.metal` with the
+   upstream copyright preserved in the file headers and the
+   modifications marked (the Swift re-spelling, the Double-precision
+   CPU face, the u-domain slot encoding). This file is GPL-3.0 as
+   part of Lightamer.
+
+P. RawLab (auto-crop bisection + mutex state machine — Plan LENS-02 T3
+   / LENS-01)
+
+   Upstream: RawLab (RawLab contributors)
+   License: GPL-3.0.
+
+   Lightamer's auto-scale search (LensAutoCrop.swift) is PORTED from
+   `lutools/src/core/lens_correction.cpp` (the inside() border test +
+   the ×1.25 coarse probe + the 18-round bisection + the ×1.00001
+   margin) with the upstream copyright preserved in the file header
+   and the modifications marked (the injected edge-map closure
+   replaces the lensfun modifier call sites). The match-state machine
+   semantics (ambiguous refusal / embedded-geometry gate / the
+   camera-crop priority chain) follow RawLab's design. This file is
+   GPL-3.0 as part of Lightamer.

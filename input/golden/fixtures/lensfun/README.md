@@ -3,6 +3,9 @@
 Hand-picked MINIMAL subset of the lensfun-data library (github.com/lensfun/lensfun-data,
 CC-BY-SA 3.0 — same license family as the upstream data; files are TRIMMED to one
 lens (+ its camera) each for parser/resolve pinning, NOT the full library).
+Attribution: NOTICE entry N (the full-library pinned snapshot ships at
+Resources/Lensfun/ under the same CC-BY-SA-3.0; the license texts live in
+Resources/Licenses/Lensfun/).
 
 | file | lens | models covered |
 |---|---|---|
