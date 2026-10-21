@@ -20,8 +20,8 @@ check() {
   [ -n "$freepct" ] && [ "$freepct" -lt 30 ] && fails+=("G2 可用内存=${freepct}%<30%")
   local swapmb; swapmb=$(sysctl -n vm.swapusage 2>/dev/null | sed -E 's/.*used = ([0-9.]+)M.*/\1/')
   [ -n "$swapmb" ] && [ "${swapmb%.*}" -ge 4096 ] && fails+=("G3 交换已用=${swapmb}M≥4GB")
-  local availgb; availgb=$(df -g /System/Volumes/Data 2>/dev/null | awk 'NR==2{print $4}')
-  [ -n "$availgb" ] && [ "$availgb" -lt 25 ] && fails+=("G4 Data 卷可用=${availgb}GB<25GB")
+  local availmb; availmb=$(df -m /System/Volumes/Data 2>/dev/null | awk 'NR==2{print $4}')
+  [ -n "$availmb" ] && [ "${availmb}" -lt 25600 ] && fails+=("G4 Data 卷可用=${availmb}MB<25GB")
   if [ ${#fails[@]} -eq 0 ]; then echo "GUARD PASS (heavy=0 free=${freepct:-?}% swap=${swapmb:-?}M disk=${availgb:-?}GB)"; return 0; fi
   echo "GUARD BLOCK: ${fails[*]}"; return 1
 }
