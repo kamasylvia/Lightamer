@@ -373,22 +373,40 @@ public final class LensModule: IOPModule {
         piece.data = nil
     }
 
-    /// Neutral predicate over the OPTICAL coefficients (D5): all-zero
-    /// distortion/TCA-offset/vignette. `source` excluded (a lensfun resolve
-    /// that lands all-zero is equally identity). LENS-02 T1: the enable
-    /// arm — `enabled == false` is neutral REGARDLESS of the stored
-    /// coefficients (the module is off; the pipe blits identity and the
-    /// cache key stays neutral). `internal` for tests.
+    /// Neutral predicate = "no active correction" (D5 + the B-1 fix):
+    /// all-zero manual distortion/TCA-offset/vignette AND no ACTIVATED
+    /// lensfun correction. LENS-02 T1: the enable arm — `enabled == false`
+    /// is neutral REGARDLESS of everything else (the module is off; the
+    /// pipe blits identity and the cache key stays neutral).
+    ///
+    /// B-1 (LENS-01 acceptance): the manual-slider-only form identity-
+    /// blitted every pure-lensfun document — the batch's three main write
+    /// paths (auto-apply / browser selection / snapshot bake) never touch
+    /// the sliders, so "selection = correction" was a silent no-op on the
+    /// render face. The lensfun arm: a snapshot (the zero-DB bake face)
+    /// or a live-resolvable DB hit is an ACTIVE correction → non-neutral;
+    /// a resolve miss keeps the neutral face (the data-absence downgrade
+    /// stays the silent identity blit — no per-render warning spam).
+    /// `.off`/`.manual` zero-slider semantics are unchanged (red line 12:
+    /// the default document stays neutral; the manual all-zero +
+    /// identity-blit short circuit does not regress). `internal` for tests.
     func isNeutral(_ p: Params) -> Bool {
         if p.enabled == false { return true }
         let e = Self.neutralEps
-        return abs(p.distortionK1) < e
+        let manualNeutral = abs(p.distortionK1) < e
             && abs(p.distortionK2) < e
             && abs(p.tcaR) < e
             && abs(p.tcaB) < e
             && abs(p.vignetteK1) < e
             && abs(p.vignetteK2) < e
             && abs(p.vignetteK3) < e
+        guard manualNeutral else { return false }
+        guard p.source == .lensfun else { return true }
+        if p.snapshot != nil { return false }
+        // The live-resolve face: the resolve's nil-ness is size-independent
+        // (match + target-refusal + DB presence; the NS·HW fold rides the
+        // non-nil result), so the probe size is arbitrary.
+        return LensfunStore.resolveCommitted(p, width: 64, height: 64) == nil
     }
 
     /// The per-correction family gate (LENS-02 T1, D-LENS-7 — applied to
@@ -551,11 +569,10 @@ var xm = Double.greatestFiniteMagnitude, ym = Double.greatestFiniteMagnitude
         }
         // LENS-02 T3: the scale contraction rides ONLY the explicitly
         // enabled faces (auto on / user > 1) — the default (scale 1) is
-        // byte-identical to the pre-L2 ROI (red line 12). The border map
-        // stays the MANUAL-coefficient G face (the pre-L2 semantics: a
-        // pure-lensfun document short-circuits at isNeutral above and
-        // keeps the verbatim ROI — the oversized ROI is the conservative
-        // direction; registered in LENS-02 DECISIONS).
+        // byte-identical to the pre-L2 ROI (red line 12). (The B-1 fix
+        // lifted the old "pure-lensfun short-circuits to the verbatim ROI"
+        // face: an activated lensfun document now reaches this resolved
+        // union instead of the conservative verbatim.)
         let scale = roiFaceScale(bufW: Int(bufW), bufH: Int(bufH))
         if scale > 1 {
             let invScale = 1.0 / Double(scale)
@@ -615,6 +632,13 @@ var xm = Double.greatestFiniteMagnitude, ym = Double.greatestFiniteMagnitude
         inputSize: SIMD2<Double>
     ) -> (segment: GeometrySegment, outputSize: SIMD2<Double>)? {
         guard !isNeutral(committed) else { return nil }
+        // The segment spells the MANUAL coefficients only (pre-existing
+        // limitation). The B-1 lensfun arm must not downgrade the mask
+        // face to a zero-coefficient segment either — a zero-slider
+        // lensfun document keeps the 1:1 mask map it always had (the
+        // lensfun-warp mask mapping is a registered future face).
+        guard committed.distortionK1 != 0 || committed.distortionK2 != 0
+        else { return nil }
         return (
             .radial(
                 k1: Double(committed.distortionK1),
