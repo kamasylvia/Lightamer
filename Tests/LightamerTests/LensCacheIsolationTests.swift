@@ -13,8 +13,11 @@ import XCTest
 final class LensCacheIsolationTests: XCTestCase {
 
     private func hash(_ p: LensModule.Params) -> UInt64 {
-        // The same strip-on-hash encode LensModule.commitParams feeds.
-        StableHash.hash(ParamsCoding.encode(p))
+        // The SAME strip-on-hash face LensModule.commitParams feeds (the
+        // snapshot's dbTag nilled before the encode — X3/review m2).
+        var input = p
+        input.snapshot?.dbTag = nil
+        return StableHash.hash(ParamsCoding.encode(input))
     }
 
     func testOnOffFlipsParamsHash() {
@@ -39,14 +42,18 @@ final class LensCacheIsolationTests: XCTestCase {
         // with identical calibration) must NOT invalidate the cache.
         var a = LensModule.Params(source: .lensfun, focalLength: 16)
         a.snapshot = LensCoefficientSnapshot()
-        a.snapshot?.dc2 = 0.01
+        a.snapshot?.distortionRows = [
+            DistortionCalib(model: .poly3, focal: 16, terms: [0.01]),
+        ]
         a.snapshot?.dbTag = "aaaaaaaaaaaaaaaa"
         var b = a
         b.snapshot?.dbTag = "bbbbbbbbbbbbbbbb"
         XCTAssertEqual(hash(a), hash(b),
                        "the dbTag is the audit face, never the cache face")
         // But a calibration drift does.
-        b.snapshot?.dc2 = 0.02
+        b.snapshot?.distortionRows = [
+            DistortionCalib(model: .poly3, focal: 16, terms: [0.02]),
+        ]
         XCTAssertNotEqual(hash(a), hash(b))
     }
 
