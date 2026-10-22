@@ -118,8 +118,10 @@ internal struct SettingsView: View {
 }
 
 /// Plan M2-10-07: the Settings page the entry-guidance commands route to
-/// (set BEFORE a SettingsLink opens the window; consumed on the Settings
-/// view's appear). A plain MainActor static — no view body touches it.
+/// (set BEFORE the opener acts — since F2-4 the window opens through the
+/// shell's SettingsWindowController, whose showWindow mounts this view;
+/// consumed on the Settings view's appear). A plain MainActor static — no
+/// view body touches it.
 @MainActor
 enum SettingsDeepLink {
     nonisolated(unsafe) static var pendingPage: SettingsPage?

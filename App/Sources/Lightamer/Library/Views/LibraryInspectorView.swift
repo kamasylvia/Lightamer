@@ -60,11 +60,11 @@ struct LibraryInspectorView: View {
         .frame(width: Self.panelWidth)
         .frame(maxHeight: .infinity)
         .background(ThemeTokens.cardSurface)
-        .overlay(
+        .overlay(alignment: .leading) {
             Rectangle()
                 .fill(ThemeTokens.cardBorder)
-                .frame(width: 1),
-            alignment: .leading)
+                .frame(width: 1)
+        }
         .accessibilityIdentifier("library.inspector")
     }
 
@@ -88,9 +88,10 @@ struct LibraryInspectorView: View {
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
+            .background {
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(ThemeTokens.cardBorder.opacity(0.4)))
+                    .fill(ThemeTokens.cardBorder.opacity(0.4))
+            }
         }
         .accessibilityIdentifier("library.inspector.overview")
     }
@@ -323,7 +324,9 @@ struct LibraryInspectorView: View {
     /// face) and 「AI 描述」 straight to the queue (no confirm — the
     /// description rows are derived data, not user-authored stars). A
     /// missing key renders the guidance row INSTEAD of the commands
-    /// (点 = 打开 ACA 设置页 — the SettingsDeepLink route).
+    /// (点 = 打开 ACA 设置页 — the deep-link page rides SettingsDeepLink;
+    /// the window opens through the shell's SettingsWindowController —
+    /// F2-4: the old SettingsLink died with the retired Settings scene).
     private var aiSection: some View {
         VStack(alignment: .leading, spacing: 4) {
             sectionHeader(String(
@@ -337,15 +340,20 @@ struct LibraryInspectorView: View {
                         .font(.caption)
                         .foregroundStyle(ThemeTokens.textSecondary)
                     Spacer()
-                    SettingsLink {
+                    Button {
+                        // F2-4: the deep-link page FIRST (consumed by the
+                        // Settings view's onAppear), then the request field
+                        // the shell face turns into the window-controller
+                        // showWindow (the SettingsLink scene route is gone).
+                        SettingsDeepLink.pendingPage = .advancedContentAnalysis
+                        ShellGraph.shared.settingsRequested = true
+                    } label: {
                         Text(String(
                             localized: "library_inspector_ai_open_settings",
                             defaultValue: "Open Settings…"))
                             .font(.caption)
                     }
-                    .simultaneousGesture(TapGesture().onEnded {
-                        SettingsDeepLink.pendingPage = .advancedContentAnalysis
-                    })
+                    .buttonStyle(.link)
                     .accessibilityIdentifier("library.inspector.aiSetup")
                 }
             } else {
@@ -545,8 +553,9 @@ private struct FlowLikeChips: View {
                 }
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(
-                    Capsule().fill(ThemeTokens.cardBorder.opacity(0.4)))
+                .background {
+                    Capsule().fill(ThemeTokens.cardBorder.opacity(0.4))
+                }
             }
         }
     }
