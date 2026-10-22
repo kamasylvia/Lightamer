@@ -121,6 +121,16 @@ internal struct LightamerShellFace: View {
                     graph.presetManagerRequested = false
                     presentPresetManager?()
                 }
+                .onChange(of: graph.settingsRequested) { _, requested in
+                    // F2-4 (F0P-02/03 acceptance-2ND Find A): the inspector
+                    // AI-setup guidance rides the same request-field shape —
+                    // the deep-link page is set by the button BEFORE this
+                    // fires; showWindow mounts the Settings view whose
+                    // onAppear consumes it.
+                    guard requested else { return }
+                    graph.settingsRequested = false
+                    presentSettings?()
+                }
                 .environment(sessionState)
                 .environment(sessionCoordinator)
                 .environment(editorState)

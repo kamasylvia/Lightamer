@@ -60,4 +60,12 @@ final class ShellGraph {
     /// controller's showWindow), resetting the flag. The request-field +
     /// face-side-consumption shape (the DECISIONS review-M1 ruling).
     var presetManagerRequested = false
+
+    /// F2-4 (F0P-02/03 acceptance-2ND Find A): the same request-field shape
+    /// for the Settings window — the inspector's AI-setup guidance was a
+    /// `SettingsLink` (the retired Settings scene route; silently dead
+    /// since the flip). The button writes the deep-link page + this field;
+    /// the shell face consumes it (SettingsWindowController.showWindow)
+    /// and resets the flag.
+    var settingsRequested = false
 }
