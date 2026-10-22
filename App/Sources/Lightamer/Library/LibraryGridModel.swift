@@ -247,6 +247,21 @@ final class LibraryGridModel {
         try await loadNextPage()
     }
 
+    /// The in-place mark patch (R1 mark-chain repair): re-read EXACTLY the
+    /// written ids and replace the matching loaded rows — walk order,
+    /// pagination state, and selection untouched (the grid is a projection;
+    /// the write face is LibraryMetadataWriter). Ids outside the loaded
+    /// rows are ignored (they belong to unloaded pages).
+    func refreshRows(ids: [Int64]) async throws {
+        guard !ids.isEmpty else { return }
+        let fresh = try await queries.rows(byIDs: ids)
+        guard !fresh.isEmpty else { return }
+        var byID: [Int64: LibraryImageRow] = [:]
+        byID.reserveCapacity(fresh.count)
+        for row in fresh { byID[row.id] = row }
+        rows = rows.map { byID[$0.id] ?? $0 }
+    }
+
     // MARK: - Keyset pagination (KD-3: no gap, no overlap, NULL tail last)
 
     /// Walk the next page (main segment first, then the NULL tail). Returns

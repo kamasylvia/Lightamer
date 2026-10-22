@@ -448,6 +448,28 @@ public actor LibraryStore {
         }
     }
 
+    /// The metadata-mark PROJECTION update (R1 mark-chain repair): the
+    /// culling trio columns + `modified_time` for the target group in ONE
+    /// write batch. The projection face only — the `.lra` sidecar write is
+    /// `LibraryMetadataWriter.apply` (the truth lands first, then this).
+    public func setMetadataMarks(_ marks: [LibraryMetadataMark]) async throws {
+        try await store.withWriteBatch { handle in
+            let update = try handle.prepare(
+                "UPDATE images SET rating = ?, color_label = ?, flag = ?,"
+                    + " modified_time = ? WHERE id = ?")
+            let now = Date().timeIntervalSince1970
+            for mark in marks {
+                try update.reset()
+                try update.bindInt(1, mark.rating)
+                try update.bindInt(2, mark.colorLabel)
+                try update.bindInt(3, mark.flag)
+                try update.bindDouble(4, now)
+                try update.bindInt(5, mark.imageID)
+                _ = try update.step()
+            }
+        }
+    }
+
     /// One images row (typed notFound).
     public func image(id: Int64) async throws -> LibraryImage {
         try await store.withHandle { handle in

@@ -813,4 +813,8 @@ APP	8	LensDefaultsWiringTests.swift
 #   ① M-1 CullingView pair 切换修复 → CullingPipelineTests 行 5→6（SESS）——
 #     真 NSHostingView 宿主 + 真 .task(id:) 语义 + 真 decode seam 的 pair 切换行为级
 #     回归（无修复 = 新 pair 永不装载 = 等待超时硬红，红态即出厂缺陷）。
+#   ② 标记应用链断（P1 挂账 #1）修复 → 新文件 LibraryMetadataWriterTests.swift 4 法
+#     全 LIB/Library 级（真 .lalb + 真图档：pristine mint 双写 / round-trip 保留 /
+#     SC#2 skip / grid refreshRows 原位补丁）。
+LIB	4	LibraryMetadataWriterTests.swift
 SESS	6	CullingPipelineTests.swift
