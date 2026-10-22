@@ -30826,23 +30826,7 @@
         }
       }
     },
-    "rawdecode_raster_trc_gamma": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "gamma"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "伽马"
-          }
-        }
-      }
-    },
+  
     "rawdecode_raster_trc_bt1886": {
       "extractionState": "manual",
       "localizations": {
@@ -33541,6 +33525,57 @@
         "stringUnit" : {
           "state" : "translated",
           "value" : "链中无裁切模块——无处接力。"
+        }
+      }
+    }
+  },
+  "filter_focal_mm_value %lld" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "%lld mm"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "%lld mm"
+        }
+      }
+    }
+  },
+  "rawdecode_raster_peak_value %lld" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "%lld nits"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "%lld nits"
+        }
+      }
+    }
+  },
+  "rawdecode_raster_trc_gamma_value %@" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "gamma %@"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "伽马 %@"
         }
       }
     }

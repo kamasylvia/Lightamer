@@ -660,7 +660,7 @@ private struct VariantEditor: View {
     ) -> some View {
         Picker(String(localized: "export_bit_depth_label"), selection: Binding(get: { selection }, set: setter)) {
             ForEach(labels.indices, id: \.self) { index in
-                Text(labels[index]).tag(index)
+                Text(verbatim: labels[index]).tag(index)
             }
         }
         .accessibilityIdentifier("export.picker.bit_depth")

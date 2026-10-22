@@ -234,9 +234,10 @@ struct EnhanceDialog: View {
                     .background(Color(nsColor: .textBackgroundColor))
             }
         }
-        .overlay(
+        .overlay {
             RoundedRectangle(cornerRadius: 4)
-                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1))
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+        }
     }
 
     /// The frame → NSImage display face (the uint16 encode path keeps the

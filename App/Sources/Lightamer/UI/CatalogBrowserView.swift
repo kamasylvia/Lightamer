@@ -222,8 +222,10 @@ internal struct CatalogBrowserView: View {
     private func ratingMenu(targets: [String]) -> some View {
         Menu(String(localized: "catalog_batch_rating")) {
             ForEach(1...5, id: \.self) { n in
-                Button("\(n)") {
+                Button {
                     Task { await model.batchSetRating(n, identities: targets) }
+                } label: {
+                    Text(verbatim: "\(n)")
                 }
             }
             Button(String(localized: "catalog_batch_clear")) {
@@ -235,8 +237,10 @@ internal struct CatalogBrowserView: View {
     private func colorMenu(targets: [String]) -> some View {
         Menu(String(localized: "catalog_batch_color")) {
             ForEach(0...6, id: \.self) { n in
-                Button("\(n)") {
+                Button {
                     Task { await model.batchSetColorLabel(n, identities: targets) }
+                } label: {
+                    Text(verbatim: "\(n)")
                 }
             }
             Button(String(localized: "catalog_batch_clear")) {

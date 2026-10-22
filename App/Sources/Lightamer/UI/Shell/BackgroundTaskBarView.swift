@@ -80,12 +80,11 @@ struct BackgroundTaskBarView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(ThemeTokens.cardSurface)
-                .overlay(
+                .overlay(alignment: .top) {
                     Rectangle()
                         .fill(ThemeTokens.cardBorder)
-                        .frame(height: 1),
-                    alignment: .top
-                )
+                        .frame(height: 1)
+                }
                 .accessibilityIdentifier("tasks.bar")
             }
         }

@@ -59,12 +59,11 @@ struct EditorWorkspaceShellView: View {
             filmstrip
                 .frame(width: Self.filmstripWidth)
                 .background(ThemeTokens.cardSurface)
-                .overlay(
+                .overlay(alignment: .trailing) {
                     Rectangle()
                         .fill(ThemeTokens.cardBorder)
-                        .frame(width: 1),
-                    alignment: .trailing
-                )
+                        .frame(width: 1)
+                }
 
             // CENTER: the viewport hero — the existing EditorAreaView child
             // (zero behavior migration; the shell wraps, never rewrites).
@@ -79,12 +78,11 @@ struct EditorWorkspaceShellView: View {
             rightPane
                 .frame(width: Self.rightPaneWidth)
                 .background(ThemeTokens.cardSurface)
-                .overlay(
+                .overlay(alignment: .leading) {
                     Rectangle()
                         .fill(ThemeTokens.cardBorder)
-                        .frame(width: 1),
-                    alignment: .leading
-                )
+                        .frame(width: 1)
+                }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(ThemeTokens.windowBackground)

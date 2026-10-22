@@ -183,11 +183,12 @@ internal struct SegmentEditingOverlayHost: View {
             .monospacedDigit()
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(
+            .background {
                 RoundedRectangle(cornerRadius: 5)
                     .fill(counterFull
                         ? AnyShapeStyle(Color.red.opacity(0.75))
-                        : AnyShapeStyle(.ultraThinMaterial)))
+                        : AnyShapeStyle(.ultraThinMaterial))
+            }
             .foregroundStyle(counterFull ? Color.white : Color.primary)
             .accessibilityLabel(Text("ai_segment_counter"))
             .accessibilityValue("\(session.usedPoints)")

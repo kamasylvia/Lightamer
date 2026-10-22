@@ -174,10 +174,11 @@ internal struct FilterBarView: View {
                 .font(.caption)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
-                .background(
+                .background {
                     Capsule().fill(
                         active ? Color.accentColor.opacity(0.85)
-                            : Color.primary.opacity(0.06)))
+                            : Color.primary.opacity(0.06))
+                }
                 .foregroundStyle(active ? Color.white : Color.primary)
         }
         .buttonStyle(.plain)

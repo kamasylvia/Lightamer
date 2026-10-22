@@ -318,11 +318,11 @@ private struct LibraryGridCellView: View {
                 } else {
                     Rectangle()
                         .fill(ThemeTokens.cardSurface)
-                        .overlay(
+                        .overlay(alignment: .top) {
                             Rectangle()
                                 .fill(ThemeTokens.cardBorder)
-                                .frame(height: 1),
-                            alignment: .top)
+                                .frame(height: 1)
+                        }
                 }
             }
             .frame(
@@ -376,20 +376,20 @@ private struct LibraryGridCellView: View {
                 .accessibilityIdentifier("library.grid.cell.stackBadge.\(row.id)")
             }
         }
-        .overlay(
+        .overlay {
             RoundedRectangle(cornerRadius: 6)
                 .stroke(
                     isSelected ? ThemeTokens.selectedRing : Color.clear,
                     lineWidth: 2)
-        )
-        .overlay(
+        }
+        .overlay {
             // The current-image accent edge (the editor holds THIS one).
             RoundedRectangle(cornerRadius: 6)
                 .stroke(
                     isCurrent ? ThemeTokens.accent : Color.clear,
                     lineWidth: 1)
                 .padding(1)
-        )
+        }
         .task(id: row.id) {
             guard let bridge else { return }
             thumbnail = await bridge.thumbnail(for: row)

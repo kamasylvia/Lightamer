@@ -245,7 +245,7 @@ struct EditorNodesPanelView: View {
                     .frame(
                         width: NodeCanvasGeometry.cardWidth,
                         height: layout.frames[node.id]?.height ?? 0)
-                    .background(
+                    .background {
                         // BEFORE .position: the reader measures the card's own
                         // rect; resolving it in the canvas space folds the
                         // position transform in (the standard readback shape).
@@ -255,7 +255,7 @@ struct EditorNodesPanelView: View {
                                 value: [node.id: proxy.frame(in: .named(Self.canvasSpace))]
                             )
                         }
-                    )
+                    }
                     .position(layout.center(of: node.id))
             }
             // M3-3-03 T4 (KD-4): the read-only Film projection card — a
@@ -286,16 +286,16 @@ struct EditorNodesPanelView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
+        .background {
             RoundedRectangle(cornerRadius: 10)
                 .fill(ThemeTokens.cardSurface)
-                .overlay(
+                .overlay {
                     RoundedRectangle(cornerRadius: 10)
                         .strokeBorder(
                             selected ? ThemeTokens.accent : ThemeTokens.cardBorder,
                             lineWidth: selected ? 1.5 : 1)
-                )
-        )
+                }
+        }
         // The lock trio FIRST (badge + content interception + hint); the
         // selection/navigation face attaches OUTSIDE it — selecting a
         // locked endpoint is navigation, not an edit (D-M2-4-CONTEXT-7:
@@ -433,8 +433,9 @@ struct EditorNodesPanelView: View {
                 .foregroundStyle(ThemeTokens.textSecondary)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 1)
-                .overlay(
-                    Capsule().strokeBorder(ThemeTokens.cardBorder, lineWidth: 1))
+                .overlay {
+                    Capsule().strokeBorder(ThemeTokens.cardBorder, lineWidth: 1)
+                }
         }
         .padding(.horizontal, 10)
     }
@@ -530,16 +531,16 @@ struct EditorNodesPanelView: View {
                 .lineLimit(1)
         }
         .padding(.horizontal, 10)
-        .background(
+        .background {
             RoundedRectangle(cornerRadius: 10)
                 .fill(ThemeTokens.cardSurface)
-                .overlay(
+                .overlay {
                     RoundedRectangle(cornerRadius: 10)
                         .strokeBorder(
                             card.isActive ? ThemeTokens.accent : ThemeTokens.cardBorder,
                             lineWidth: card.isActive ? 1.5 : 1)
-                )
-        )
+                }
+        }
         .contentShape(RoundedRectangle(cornerRadius: 10))
         .onTapGesture { inspectorState?.openFilmPage() }
         .accessibilityElement(children: .combine)

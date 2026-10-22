@@ -215,10 +215,11 @@ internal struct RetouchPanelView: View {
             }
             .padding(.vertical, 2)
             .padding(.horizontal, 6)
-            .background(
+            .background {
                 selectedStroke?.id == stroke.id
                     ? LightamerColors.accent.opacity(0.2)
-                    : Color.clear)
+                    : Color.clear
+            }
             .contentShape(Rectangle())
             .onTapGesture { selectedStrokeID = stroke.id }
             .accessibilityElement(children: .combine)

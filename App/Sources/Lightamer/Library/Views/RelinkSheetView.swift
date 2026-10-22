@@ -81,13 +81,15 @@ struct RelinkSheetView: View {
         }
         .padding(18)
         .frame(width: 430)
-        .background(
+        .background {
             RoundedRectangle(cornerRadius: 10)
                 .fill(ThemeTokens.cardSurface)
-                .shadow(radius: 18))
-        .overlay(
+                .shadow(radius: 18)
+        }
+        .overlay {
             RoundedRectangle(cornerRadius: 10)
-                .stroke(ThemeTokens.cardBorder, lineWidth: 1))
+                .stroke(ThemeTokens.cardBorder, lineWidth: 1)
+        }
         .padding(30)
         .background(ThemeTokens.busyDim)
         .onAppear {
@@ -128,9 +130,10 @@ struct RelinkSheetView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(8)
-        .background(
+        .background {
             RoundedRectangle(cornerRadius: 6)
-                .fill(ThemeTokens.cardBorder.opacity(0.25)))
+                .fill(ThemeTokens.cardBorder.opacity(0.25))
+        }
         .accessibilityIdentifier(marker)
     }
 
