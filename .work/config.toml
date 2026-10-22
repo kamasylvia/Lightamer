@@ -91,7 +91,7 @@ machine_single_heavy = true
 # 全机同时至多 **一个**重活进程族（xcodebuild / test-direct 全套 / Lightamer 测试宿主 / GUI 走查实例）：
 #   - 双路验收改 **串行**（lane 1 收口后再派 lane 2）；executor 与任何 acceptance lane 不并行；
 #   - 文本类 agent（research/plan/评审/omp 文本复审）可并行，但不得起构建/测试/GUI；
-#   - 一切重活起跑前必过 `Scripts/machine-guard.sh`（G1 无并发重活 / G2 可用内存≥30% / G3 交换<4GB〔v1.1 校准：惰性冷页地板 ≈2.1GB 非压力〕 / G4 Data 卷≥25GB；--wait 轮询）；
+#   - 一切重活起跑前必过 `Scripts/machine-guard.sh`（G1 无并发重活 / G2 可用内存≥30% / G3 交换<7GB〔v1.2 校准：冷页地板随用增长，病理判据在 G2/G4〕 / G4 Data 卷≥25GB；--wait 轮询）；
 #   - 构建产物 **交接而非重建**：executor 构建一次 → 写 `.work/gsd/phases/<phase>/BUILD-HANDOFF.txt`（容器绝对路径 + HEAD sha）→ 验收 lane 消费该路径，禁各自重建；
 #     （撤回 2026-10-18 L0xx-d「每 lane 独立 DerivedData」处方——它造成 21 容器/22GB 爆炸，是本次饥饿的直接燃料）
 #   - lane 收口必清自建 DerivedData/worktree；DerivedData 总量 >8GB = 巡检告警；
