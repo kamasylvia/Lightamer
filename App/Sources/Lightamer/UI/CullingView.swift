@@ -43,6 +43,21 @@ internal struct CullingView: View {
     /// The session root (pane URL assembly) — the environment's current
     /// session.
     let sessionRoot: URL?
+    /// The decode seam (tests inject synthetic DecodedImages through the
+    /// pane models; production leaves it nil — the real RAWDecoder).
+    let decodeLeg: ThumbnailDecodeLeg?
+
+    init(
+        model: SessionBrowserModel, decoder: RAWDecoder,
+        metalContext: MetalContext?, sessionRoot: URL?,
+        decodeLeg: ThumbnailDecodeLeg? = nil
+    ) {
+        self.model = model
+        self.decoder = decoder
+        self.metalContext = metalContext
+        self.sessionRoot = sessionRoot
+        self.decodeLeg = decodeLeg
+    }
 
     /// The two panes (nil = not yet spawned). @State so a pair change
     /// releases the OLD panes before the new ones spawn.
@@ -79,17 +94,23 @@ internal struct CullingView: View {
     ) -> some View {
         let paneA = CullingPaneModel(
             relPath: pair.0, decoder: decoder, metal: metal,
-            sessionRoot: sessionRoot
+            decodeLeg: decodeLeg, sessionRoot: sessionRoot
         )
         let paneB = CullingPaneModel(
             relPath: pair.1, decoder: decoder, metal: metal,
-            sessionRoot: sessionRoot
+            decodeLeg: decodeLeg, sessionRoot: sessionRoot
         )
         HStack(alignment: .center, spacing: 2) {
             CullingPaneView(pane: paneA, identifier: "browser.culling.paneA")
             CullingPaneView(pane: paneB, identifier: "browser.culling.paneB")
         }
-        .task {
+        // M-1 (audit X10): the spawn task must follow the PAIR, not the
+        // structural identity. The id-less form attached exactly once per
+        // mount, so after a pair change the layout swapped in fresh idle
+        // pane models that nothing ever loaded (permanent placeholders).
+        // Array id (Equatable) — pair-identity re-runs release the old
+        // planes and load the new panes; same-pair re-evaluations no-op.
+        .task(id: [pair.0, pair.1]) {
             panes?.0.release()
             panes?.1.release()
             panes = (paneA, paneB)
@@ -266,7 +287,7 @@ private struct CullingPaneView: View {
                 }
             }
             .aspectRatio(3.0 / 2.0, contentMode: .fit)
-            Text(pane.id)
+            Text(verbatim: pane.id)
                 .font(.caption2)
                 .lineLimit(1)
                 .foregroundStyle(.secondary)
