@@ -1,9 +1,11 @@
+import AppKit
 import CoreGraphics
 import CoreImage
 import Foundation
 import LightamerCore
 import LightamerIOP
 import Metal
+import SwiftUI
 import XCTest
 
 @testable import Lightamer
@@ -209,5 +211,137 @@ final class CullingPipelineTests: XCTestCase {
         let plane = try XCTUnwrap(pane.planeBytes)
         XCTAssertGreaterThan(plane, 4_000_000, "≥ 4 MB/plane resident (bgra8 1480)")
         XCTAssertLessThan(plane, 8_000_000, "≤ 8 MB/plane resident (bgra8 1480) — dual panes ≈ 12 MB")
+    }
+
+    // MARK: - M-1 (audit X10): the pair change respawns and LOADS
+
+    /// The M-1 defect, behaviorally: the pane spawn `.task` is structurally
+    /// stable in the hierarchy, so the id-less form ran exactly once per
+    /// mount — after a pair change the layout swapped in fresh idle pane
+    /// models that NOTHING ever loaded (permanent placeholders). This test
+    /// hosts the REAL `CullingView` (real `.task(id:)` semantics, real
+    /// selection-driven re-evaluation) and drives a pair change through the
+    /// browser model's selection face; the injected decode leg records every
+    /// actual pane load. Without the fix the new pair never loads and the
+    /// wait below times out — the red state IS the shipped bug.
+    func testPairChangeRespawnsAndLoadsTheNewPanes() async throws {
+        // Three REAL pane files (the pane model guards on file existence).
+        let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("culling-pair-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        for name in ["A.ARW", "B.ARW", "C.ARW"] {
+            try Data("fixture".utf8).write(to: root.appendingPathComponent(name))
+        }
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        // The load recorder: every decode-leg invocation lands here (the
+        // pane models are @State-internal — the leg IS the observable face).
+        final class LoadRecorder: @unchecked Sendable {
+            private let lock = NSLock()
+            private var loads: [String] = []
+            var leg: ThumbnailDecodeLeg {
+                { [recorder = self] url in
+                    recorder.lock.withLock {
+                        recorder.loads.append(url.lastPathComponent)
+                    }
+                    return CullingPipelineTests.decodedColor(0.6, 0.5, 0.4)
+                }
+            }
+            func snapshot() -> [String] {
+                lock.withLock { loads }
+            }
+        }
+        let recorder = LoadRecorder()
+
+        // The browser model: three rows; the initial selection pairs (A, B).
+        let model = SessionBrowserModel()
+        model.ingestPlaceholderPage(entries: [
+            SessionScanEntry(relPath: "A.ARW", mtime: 0, size: 1),
+            SessionScanEntry(relPath: "B.ARW", mtime: 0, size: 1),
+            SessionScanEntry(relPath: "C.ARW", mtime: 0, size: 1),
+        ])
+        model.handleClick("A.ARW", commandPressed: false, shiftPressed: false)
+        model.handleClick("B.ARW", commandPressed: true, shiftPressed: false)
+        // Component-wise (tuples carry no Equatable conformance for
+        // XCTAssertEqual).
+        XCTAssertEqual(
+            CullingView.resolvePair(
+                rows: model.rows, selected: model.selectedOrderedPaths)?.0,
+            "A.ARW")
+        XCTAssertEqual(
+            CullingView.resolvePair(
+                rows: model.rows, selected: model.selectedOrderedPaths)?.1,
+            "B.ARW")
+
+        // The REAL view in a REAL window (the SheetEnvironmentInjectionTests
+        // hosting shape — .task attaches on the hosting realization).
+        let view = CullingView(
+            model: model, decoder: RAWDecoder(), metalContext: metal,
+            sessionRoot: root, decodeLeg: recorder.leg)
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 500),
+            styleMask: [.titled, .closable],
+            backing: .buffered, defer: false)
+        let host = NSHostingView(rootView: view)
+        host.frame = NSRect(x: 0, y: 0, width: 800, height: 500)
+        window.contentView = host
+        window.orderFrontRegardless()
+        defer {
+            window.orderOut(nil)
+            window.contentView = nil
+        }
+
+        // The pump YIELDS the MainActor between ticks: the pane spawn task
+        // is MainActor-isolated, and a blocking (non-suspending) pump would
+        // starve it mid-load — the first pane's leg records but its
+        // continuation never resumes and the staggered B never starts. The
+        // RunLoop tick rides a nonisolated sync helper (run(until:) is
+        // marked unavailable from async contexts at the direct call site;
+        // a MainActor async function still executes ON the main thread).
+        nonisolated func runLoopTick() {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        func pump(until condition: () -> Bool, seconds: TimeInterval) async -> Bool {
+            let deadline = Date().addingTimeInterval(seconds)
+            while !condition() && Date() < deadline {
+                await Task.yield()
+                runLoopTick()
+                host.layoutSubtreeIfNeeded()
+            }
+            return condition()
+        }
+
+        // The initial pair loads, staggered (A's leg fires before B's).
+        let initialLoaded = await pump(until: {
+            let loads = recorder.snapshot()
+            return loads.contains("A.ARW") && loads.contains("B.ARW")
+        }, seconds: 20)
+        XCTAssertTrue(
+            initialLoaded,
+            "the initial pair never loaded: \(recorder.snapshot())")
+        let initial = recorder.snapshot()
+        XCTAssertLessThan(
+            initial.firstIndex(of: "A.ARW") ?? -1,
+            initial.firstIndex(of: "B.ARW") ?? -1,
+            "the anti-storm stagger: A loads before B")
+
+        // THE M-1 ROUTE: the pair changes (single-select C pairs (A, C) —
+        // the resolver's previous-row arm). The new pane MUST load.
+        model.clearSelection()
+        model.handleClick("C.ARW", commandPressed: false, shiftPressed: false)
+        XCTAssertEqual(
+            CullingView.resolvePair(
+                rows: model.rows, selected: model.selectedOrderedPaths)?.0,
+            "A.ARW")
+        XCTAssertEqual(
+            CullingView.resolvePair(
+                rows: model.rows, selected: model.selectedOrderedPaths)?.1,
+            "C.ARW")
+        let reloaded = await pump(
+            until: { recorder.snapshot().contains("C.ARW") }, seconds: 20)
+        XCTAssertTrue(
+            reloaded,
+            "the pair change never loaded the new pane (the M-1 defect): "
+                + "\(recorder.snapshot())")
     }
 }

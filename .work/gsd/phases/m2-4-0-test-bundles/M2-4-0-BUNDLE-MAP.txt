@@ -349,7 +349,6 @@ LIB	10	FilterPredicateTests.swift
 LIB	11	ImportServiceTests.swift
 LIB	5	ImportMergeStackTests.swift
 LIB	16	ImportCategoryTests.swift
-LIB	4	ImportTransportTiffTests.swift
 LIB	10	LibraryFilterDomainTests.swift
 LIB	10	LibraryThumbnailBridgeTests.swift
 LIB	16	LutLibraryStoreTests.swift
@@ -379,7 +378,6 @@ LIB	21	ExifSearchParserTests.swift
 LIB	27	FilterSQLTests.swift
 LIB	3	SidecarTieBreakTests.swift
 LIB	5	SidecarSeedTopUpTests.swift
-LIB	4	MetadataTests.swift
 LIB	5	LibrarySearchModelTests.swift
 LIB	6	XMPExportMatrixTests.swift
 LIB	6	FilmstripModelTests.swift
@@ -811,3 +809,8 @@ IOPP	3	LensPerfProbeTests.swift
 #   产线接线（EXIF 载入缝 / browser 选型缝）+ m-5 手动臂投影折叠回归。新文件全
 #   APP/App 级（LensDefaultsWiringTests = 装配缝纯函数 + 真 coordinator.load 链端到端红腿）。
 APP	8	LensDefaultsWiringTests.swift
+# R1/R2 修复批增行记录（2026-10-20，三路审计 + 双批验收路由清场）：
+#   ① M-1 CullingView pair 切换修复 → CullingPipelineTests 行 5→6（SESS）——
+#     真 NSHostingView 宿主 + 真 .task(id:) 语义 + 真 decode seam 的 pair 切换行为级
+#     回归（无修复 = 新 pair 永不装载 = 等待超时硬红，红态即出厂缺陷）。
+SESS	6	CullingPipelineTests.swift
