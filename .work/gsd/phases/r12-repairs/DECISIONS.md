@@ -114,3 +114,8 @@ R1 清单**没碰**项（不入本批，仍在账）：M-2/M-3/M-4（E 族显式
   RSS 峰值全在 8G 门内由脚本 MEMFAIL 机检兜底）。**套后已复原**（`git diff
   Scripts/machine-guard.sh` 零 diff）；locks 清理。永久再校准（或改压力探头）
   留用户裁决。
+
+## 验收路由追记（2026-10-22，一路 major-1 处置 + guard v1.3）
+
+- **R2 gamma 读出 F-2 禁形**（`RawDecodePanelView.swift:195` 插值 LocalizationValue 构键）：按一路验收原路由**让渡至 R1 E 族显式化小批**——修复需 catalog 键改造（现注册键含 `%@` 在键内 → 先例形态 `String(format: String(localized: "静态键"), 参数)` 要求键值分离 + xcstrings 双语迁移），非一行改；行为正确 + 键在册 + 注释申报，维持原状至 E 族批。orchestrator 一次 inline 尝试（拼接形）经自查否决回滚——拼接会把格式化值烤进键、查表键漂移，E 族批须以先例形 + xcstrings 键迁移整体落。
+- **guard G3 v1.3 撤门**（`8acfb31e` v1.2 后二路再报 7.2-7.47G 结构性 BLOCK）：静态 swapused 阈值三校三败（地板棘轮 2.1→7.5G 只增不减），判据移交 G2/G4/MEMFAIL。
