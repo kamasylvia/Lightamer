@@ -159,12 +159,13 @@ internal struct HlsPanelView: View {
             ForEach(0..<HlsModule.binCount, id: \.self) { bin in
                 Circle()
                     .fill(Self.swatchColor(hueDegrees: params.hueBins[bin]))
-                    .overlay(
+                    .overlay {
                         Circle().stroke(
                             selectedBin == bin
                                 ? LightamerColors.accent
                                 : LightamerColors.textSecondary.opacity(0.4),
-                            lineWidth: selectedBin == bin ? 2 : 1))
+                            lineWidth: selectedBin == bin ? 2 : 1)
+                    }
                     .frame(width: 22, height: 22)
                     .contentShape(Circle())
                     .onTapGesture { selectedBin = bin }

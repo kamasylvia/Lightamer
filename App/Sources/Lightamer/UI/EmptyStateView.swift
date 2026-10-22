@@ -49,17 +49,17 @@ internal struct EmptyStateView: View {
                 .foregroundStyle(LightamerColors.textTertiary)
         }
         .padding(48)
-        .background(
+        .background {
             RoundedRectangle(cornerRadius: 16)
                 .fill(LightamerColors.surface)
-        )
-        .overlay(
+        }
+        .overlay {
             RoundedRectangle(cornerRadius: 16)
                 .strokeBorder(
                     isTargeted ? LightamerColors.accent.opacity(0.6) : LightamerColors.border,
                     lineWidth: isTargeted ? 2 : 1
                 )
-        )
+        }
         .shadow(color: .black.opacity(0.25), radius: 12, x: 0, y: 8) // elevation-card
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
             if let onDropURLs {

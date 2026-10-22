@@ -263,9 +263,10 @@ struct VersionsPanelView: View {
                     .foregroundStyle(ThemeTokens.accent)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)
-                    .overlay(
+                    .overlay {
                         Capsule()
-                            .stroke(ThemeTokens.accent.opacity(0.5), lineWidth: 1))
+                            .stroke(ThemeTokens.accent.opacity(0.5), lineWidth: 1)
+                    }
             }
 
             Spacer(minLength: 4)

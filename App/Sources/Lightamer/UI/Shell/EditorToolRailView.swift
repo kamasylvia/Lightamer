@@ -84,12 +84,11 @@ struct EditorToolRailView: View {
         .frame(width: expanded == nil ? Self.collapsedWidth : Self.expandedWidth)
         .frame(maxHeight: .infinity, alignment: .leading)
         .background(ThemeTokens.cardSurface)
-        .overlay(
+        .overlay(alignment: .trailing) {
             Rectangle()
                 .fill(ThemeTokens.cardBorder)
-                .frame(width: 1),
-            alignment: .trailing
-        )
+                .frame(width: 1)
+        }
         .animation(Self.collapseAnimation, value: expanded)
         .accessibilityIdentifier("editor.toolrail")
     }
@@ -239,8 +238,9 @@ struct EditorToolRailView: View {
                     .foregroundStyle(ThemeTokens.textSecondary)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 1)
-                    .background(
-                        Capsule().fill(ThemeTokens.textSecondary.opacity(0.14)))
+                    .background {
+                        Capsule().fill(ThemeTokens.textSecondary.opacity(0.14))
+                    }
                     .accessibilityLabel(Text(
                         String(localized: "editor_history_author_badge",
                                defaultValue: "Author \(author)")))

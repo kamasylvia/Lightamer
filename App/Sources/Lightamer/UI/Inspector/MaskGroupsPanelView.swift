@@ -388,9 +388,10 @@ internal struct MaskThumbnailChipView: View {
             } else {
                 RoundedRectangle(cornerRadius: 3)
                     .fill(.quaternary.opacity(0.4))
-                    .overlay(
+                    .overlay {
                         RoundedRectangle(cornerRadius: 3)
-                            .stroke(.secondary.opacity(0.5), lineWidth: 1))
+                            .stroke(.secondary.opacity(0.5), lineWidth: 1)
+                    }
             }
         }
         .frame(width: 34, height: 26)

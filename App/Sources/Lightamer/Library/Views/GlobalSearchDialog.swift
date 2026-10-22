@@ -47,13 +47,15 @@ struct GlobalSearchDialog: View {
         }
         .padding(18)
         .frame(width: 460)
-        .background(
+        .background {
             RoundedRectangle(cornerRadius: 10)
                 .fill(ThemeTokens.cardSurface)
-                .shadow(radius: 18))
-        .overlay(
+                .shadow(radius: 18)
+        }
+        .overlay {
             RoundedRectangle(cornerRadius: 10)
-                .stroke(ThemeTokens.cardBorder, lineWidth: 1))
+                .stroke(ThemeTokens.cardBorder, lineWidth: 1)
+        }
         .padding(30)
         .background(ThemeTokens.busyDim)
         .accessibilityIdentifier("search.dialog")
@@ -90,12 +92,13 @@ struct GlobalSearchDialog: View {
                         ? ThemeTokens.accent : ThemeTokens.textPrimary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 7)
-                .background(
+                .background {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(
                             model.mode == mode
                                 ? ThemeTokens.accent.opacity(0.14)
-                                : ThemeTokens.cardBorder.opacity(0.3)))
+                                : ThemeTokens.cardBorder.opacity(0.3))
+                }
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(marker)

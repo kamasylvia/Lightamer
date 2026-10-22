@@ -40,25 +40,27 @@ internal struct LayersPanelView: View {
         .difference, .luminosity, .saturation, .hue, .color, .colorAdjust,
     ]
 
-    static func blendLabel(_ mode: LightamerCore.BlendMode) -> String {
+    static func blendLabel(
+        _ mode: LightamerCore.BlendMode
+    ) -> LocalizedStringResource {
         switch mode {
-        case .normal: return String(localized: "blend_normal")
-        case .multiply: return String(localized: "blend_multiply")
-        case .linearBurn: return String(localized: "blend_linear_burn")
-        case .screen: return String(localized: "blend_screen")
-        case .overlay: return String(localized: "blend_overlay")
-        case .softLight: return String(localized: "blend_soft_light")
-        case .hardLight: return String(localized: "blend_hard_light")
-        case .lighten: return String(localized: "blend_lighten")
-        case .darken: return String(localized: "blend_darken")
-        case .psColorDodge: return String(localized: "blend_color_dodge")
-        case .psColorBurn: return String(localized: "blend_color_burn")
-        case .difference: return String(localized: "blend_difference")
-        case .luminosity: return String(localized: "blend_luminosity")
-        case .saturation: return String(localized: "blend_saturation")
-        case .hue: return String(localized: "blend_hue")
-        case .color: return String(localized: "blend_color")
-        case .colorAdjust: return String(localized: "blend_color_adjust")
+        case .normal: return "blend_normal"
+        case .multiply: return "blend_multiply"
+        case .linearBurn: return "blend_linear_burn"
+        case .screen: return "blend_screen"
+        case .overlay: return "blend_overlay"
+        case .softLight: return "blend_soft_light"
+        case .hardLight: return "blend_hard_light"
+        case .lighten: return "blend_lighten"
+        case .darken: return "blend_darken"
+        case .psColorDodge: return "blend_color_dodge"
+        case .psColorBurn: return "blend_color_burn"
+        case .difference: return "blend_difference"
+        case .luminosity: return "blend_luminosity"
+        case .saturation: return "blend_saturation"
+        case .hue: return "blend_hue"
+        case .color: return "blend_color"
+        case .colorAdjust: return "blend_color_adjust"
         }
     }
 
@@ -90,11 +92,11 @@ internal struct LayersPanelView: View {
                                 LayerRowView(layer: adjustment)
                             }
                         }
-                        .background(
+                        .background {
                             // Drop target for the drag-reorder (1 commit
                             // at the drop; identities untouched — NDE-1).
                             DropReorderRegion(layerID: layer.id)
-                        )
+                        }
                     }
                     baseRow
                 }
@@ -227,7 +229,7 @@ internal struct LayersPanelView: View {
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 6)
-        .background(
+        .background {
             Group {
                 if editingState.selectedLayerID == nil {
                     LightamerColors.accent.opacity(0.25)
@@ -235,7 +237,8 @@ internal struct LayersPanelView: View {
                     Color.clear
                 }
             }
-            .background(DropReorderRegion(layerID: nil)))
+            .background(DropReorderRegion(layerID: nil))
+        }
         .contentShape(Rectangle())
         .onTapGesture {
             editingState.select(nil)
@@ -313,12 +316,14 @@ private struct LayerRowView: View {
                 HStack(spacing: 4) {
                     Menu {
                         ForEach(LayersPanelView.blendOrder, id: \.rawValue) { mode in
-                            Button(LayersPanelView.blendLabel(mode)) {
+                            Button {
                                 guard mode != layer.blendMode else { return }
                                 var copy = layerSnapshot()
                                 copy.blendMode = mode
                                 editorState.commitLayerEdit(
                                     copy, label: String(localized: "history_layer_blend"))
+                            } label: {
+                                Text(LayersPanelView.blendLabel(mode))
                             }
                         }
                     } label: {
@@ -370,14 +375,15 @@ private struct LayerRowView: View {
         }
         .padding(.vertical, 3)
         .padding(.horizontal, 6)
-        .background(
+        .background {
             Group {
                 if isSelected {
                     LightamerColors.accent.opacity(0.25)
                 } else {
                     Color.clear
                 }
-            })
+            }
+        }
         .contentShape(Rectangle())
         .onTapGesture {
             editingState.select(layer.id)
@@ -552,12 +558,14 @@ private struct RetouchLayerRowView: View {
                 HStack(spacing: 4) {
                     Menu {
                         ForEach(LayersPanelView.blendOrder, id: \.rawValue) { mode in
-                            Button(LayersPanelView.blendLabel(mode)) {
+                            Button {
                                 guard mode != layer.blendMode else { return }
                                 let copy = liveSnapshot()
                                 copy.blendMode = mode
                                 editorState.commitRetouchEdit(
                                     copy, label: String(localized: "history_layer_blend"))
+                            } label: {
+                                Text(LayersPanelView.blendLabel(mode))
                             }
                         }
                     } label: {
@@ -594,7 +602,7 @@ private struct RetouchLayerRowView: View {
             }
 
             // ── stroke-count chip (NO_MASKS: the shapes ARE the mask) ──
-            Text("\(layer.strokes.count)")
+            Text(verbatim: "\(layer.strokes.count)")
                 .font(.caption2)
                 .monospacedDigit()
                 .padding(.horizontal, 6)
@@ -606,14 +614,15 @@ private struct RetouchLayerRowView: View {
         }
         .padding(.vertical, 3)
         .padding(.horizontal, 6)
-        .background(
+        .background {
             Group {
                 if isSelected {
                     LightamerColors.accent.opacity(0.25)
                 } else {
                     Color.clear
                 }
-            })
+            }
+        }
         .contentShape(Rectangle())
         .onTapGesture {
             editingState.select(layer.id)

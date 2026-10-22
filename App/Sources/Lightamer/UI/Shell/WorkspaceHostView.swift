@@ -487,11 +487,11 @@ struct WorkspaceHostView: View {
                     }
                 }
                 .background(ThemeTokens.cardSurface)
-                .overlay(
+                .overlay(alignment: .leading) {
                     Rectangle()
                         .fill(ThemeTokens.cardBorder)
-                        .frame(width: 1),
-                    alignment: .leading)
+                        .frame(width: 1)
+                }
             }
         } else {
             // The no-project state keeps the M2-2-4 container verbatim
@@ -675,12 +675,11 @@ private struct WorkspaceTopBar: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .background(ThemeTokens.cardSurface)
-        .overlay(
+        .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(ThemeTokens.cardBorder)
-                .frame(height: 1),
-            alignment: .bottom
-        )
+                .frame(height: 1)
+        }
     }
 }
 

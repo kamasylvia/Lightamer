@@ -308,20 +308,19 @@ private struct FilmstripRowView: View {
         .padding(.horizontal, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(isSelected ? ThemeTokens.cardSurface : Color.clear)
-        .overlay(
+        .overlay {
             RoundedRectangle(cornerRadius: 4)
                 .stroke(
                     isSelected ? ThemeTokens.selectedRing : Color.clear,
                     lineWidth: 2)
-        )
-        .overlay(
+        }
+        .overlay(alignment: .leading) {
             // The current-image accent edge (the Alcedo语义: the strip marks
             // which image the EDITOR holds).
             Rectangle()
                 .fill(isCurrent ? ThemeTokens.accent : Color.clear)
-                .frame(width: 2),
-            alignment: .leading
-        )
+                .frame(width: 2)
+        }
         .task(id: row.id) {
             guard let bridge else { return }
             thumbnail = await bridge.thumbnail(for: row)

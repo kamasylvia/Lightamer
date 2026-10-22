@@ -74,10 +74,11 @@ internal struct MaskToolbarView: View {
                     Image(systemName: tool.systemImage)
                         .font(.callout)
                         .frame(width: 24, height: 22)
-                        .background(
+                        .background {
                             editingState.activeTool == tool
                                 ? LightamerColors.accent.opacity(0.4)
-                                : Color.clear)
+                                : Color.clear
+                        }
                         .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.borderless)
@@ -354,10 +355,11 @@ internal struct MaskToolbarView: View {
                     Image(systemName: "person.crop.square.badge.camera")
                         .font(.callout)
                         .frame(width: 24, height: 22)
-                        .background(
+                        .background {
                             aiPhase == .running
                                 ? LightamerColors.accent.opacity(0.4)
-                                : Color.clear)
+                                : Color.clear
+                        }
                         .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.borderless)
@@ -439,10 +441,11 @@ internal struct MaskToolbarView: View {
                 Image(systemName: "hand.tap")
                     .font(.callout)
                     .frame(width: 24, height: 22)
-                    .background(
+                    .background {
                         editingState.segmentActive
                             ? LightamerColors.accent.opacity(0.4)
-                            : Color.clear)
+                            : Color.clear
+                    }
                     .clipShape(RoundedRectangle(cornerRadius: 4))
             }
             .buttonStyle(.borderless)

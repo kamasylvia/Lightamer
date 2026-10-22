@@ -112,9 +112,10 @@ internal struct CatalogFilterBarView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(
+        .background {
             RoundedRectangle(cornerRadius: 6)
-                .fill(Color.primary.opacity(0.06)))
+                .fill(Color.primary.opacity(0.06))
+        }
         .frame(maxWidth: 240)
     }
 
@@ -153,10 +154,11 @@ internal struct CatalogFilterBarView: View {
                 .font(.caption)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
-                .background(
+                .background {
                     Capsule().fill(
                         active ? Color.accentColor.opacity(0.85)
-                            : Color.primary.opacity(0.06)))
+                            : Color.primary.opacity(0.06))
+                }
                 .foregroundStyle(active ? Color.white : Color.primary)
         }
         .buttonStyle(.plain)
@@ -206,17 +208,21 @@ internal struct CatalogFilterBarView: View {
         Menu {
             Menu(String(localized: "filter_menu_rating")) {
                 ForEach(1...5, id: \.self) { n in
-                    Button("\(n)") {
+                    Button {
                         model.toggleChip(
                             .init(field: .rating, op: .gte, value: .int(n)))
+                    } label: {
+                        Text(verbatim: "\(n)")
                     }
                 }
             }
             Menu(String(localized: "filter_menu_color_label")) {
                 ForEach(0...6, id: \.self) { n in
-                    Button("\(n)") {
+                    Button {
                         model.toggleChip(
                             .init(field: .colorLabel, op: .eq, value: .int(n)))
+                    } label: {
+                        Text(verbatim: "\(n)")
                     }
                 }
             }
@@ -231,17 +237,21 @@ internal struct CatalogFilterBarView: View {
             }
             Menu(String(localized: "filter_menu_iso")) {
                 ForEach([100, 200, 400, 800, 1600, 3200], id: \.self) { n in
-                    Button("\(n)") {
+                    Button {
                         model.toggleChip(
                             .init(field: .iso, op: .gte, value: .int(n)))
+                    } label: {
+                        Text(verbatim: "\(n)")
                     }
                 }
             }
             Menu(String(localized: "filter_menu_focal")) {
                 ForEach([24.0, 35.0, 50.0, 85.0, 200.0], id: \.self) { v in
-                    Button("\(Int(v)) mm") {
+                    Button {
                         model.toggleChip(
                             .init(field: .focalLength, op: .gte, value: .double(v)))
+                    } label: {
+                        Text("filter_focal_mm_value \(Int(v))")
                     }
                 }
             }

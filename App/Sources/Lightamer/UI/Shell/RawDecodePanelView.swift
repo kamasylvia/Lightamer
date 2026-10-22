@@ -83,9 +83,9 @@ struct RawDecodePanelView: View {
             ) {
                 Text(String(localized: "rawdecode_decoder_auto", defaultValue: "Default"))
                     .tag(RAWTechnicalOverrides.DecoderRequest.automatic)
-                Text("RAW 8")
+                Text(verbatim: "RAW 8")
                     .tag(RAWTechnicalOverrides.DecoderRequest.forceV8)
-                Text("RAW 9")
+                Text(verbatim: "RAW 9")
                     .tag(RAWTechnicalOverrides.DecoderRequest.forceV9)
             }
             .pickerStyle(.segmented)
@@ -151,7 +151,7 @@ struct RawDecodePanelView: View {
             .accessibilityIdentifier("editor.rawdecode.raster.transfer")
             LabeledContent(
                 String(localized: "rawdecode_raster_peak", defaultValue: "Peak")) {
-                Text("\(Int(description.peakLuminanceNits)) nits")
+                Text("rawdecode_raster_peak_value \(Int(description.peakLuminanceNits))")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(ThemeTokens.textSecondary)
             }
@@ -184,8 +184,15 @@ struct RawDecodePanelView: View {
         case .linear:
             String(localized: "rawdecode_raster_trc_linear", defaultValue: "linear")
         case .gamma(let g):
-            String(localized: "rawdecode_raster_trc_gamma", defaultValue: "gamma")
-            + String(format: " %.2f", g)
+            // The formatted value rides the catalog key
+            // "rawdecode_raster_trc_gamma_value %@" (manual registration —
+            // the interpolation stem is extractor-invisible); the
+            // defaultValue variant needs a StaticString key, so this is the
+            // bare LocalizationValue form (a catalog miss would show the
+            // raw key — the entry is registered for en/zh).
+            String(
+                localized:
+                    "rawdecode_raster_trc_gamma_value \(String(format: "%.2f", g))")
         case .bt1886:
             String(localized: "rawdecode_raster_trc_bt1886", defaultValue: "BT.1886")
         case .st2084:
