@@ -33563,7 +33563,7 @@
       }
     }
   },
-  "rawdecode_raster_trc_gamma_value %@" : {
+  "rawdecode_raster_trc_gamma_value" : {
     "extractionState" : "manual",
     "localizations" : {
       "en" : {

@@ -184,15 +184,15 @@ struct RawDecodePanelView: View {
         case .linear:
             String(localized: "rawdecode_raster_trc_linear", defaultValue: "linear")
         case .gamma(let g):
-            // The formatted value rides the catalog key
-            // "rawdecode_raster_trc_gamma_value %@" (manual registration —
-            // the interpolation stem is extractor-invisible); the
-            // defaultValue variant needs a StaticString key, so this is the
-            // bare LocalizationValue form (a catalog miss would show the
-            // raw key — the entry is registered for en/zh).
+            // R3 F-2 E-family repair: the STATIC key + the formatted value in
+            // the catalog VALUE (key/value separation — the
+            // `String(format: String(localized:), arg)` precedent shape). The
+            // old form interpolated the formatted gamma INTO the lookup key
+            // (scanner-invisible, a per-value key drift); the catalog carries
+            // the migrated en/zh pair for "rawdecode_raster_trc_gamma_value".
             String(
-                localized:
-                    "rawdecode_raster_trc_gamma_value \(String(format: "%.2f", g))")
+                format: String(localized: "rawdecode_raster_trc_gamma_value"),
+                String(format: "%.2f", g))
         case .bt1886:
             String(localized: "rawdecode_raster_trc_bt1886", defaultValue: "BT.1886")
         case .st2084:
