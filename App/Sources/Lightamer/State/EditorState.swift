@@ -153,6 +153,13 @@ final class EditorState {
         clearPreviewDenoiseBypass()
     }
 
+    // ── LUMEN-C T2 (D-LU-7): the mask fine-refinement coordinator ────────
+    /// Installed by the shell assembly (nil = every existing construction
+    /// and test zero-diff). The mask toolbar's manual entry and the MCP
+    /// refine_masks tool read it from here — ONE owner, no second
+    /// singleton surface.
+    var maskRefine: MaskRefineCoordinator?
+
     // ── M6-1-01 T5 (KD-3 seam 2): the project read-only backstop gate ─────
 
     /// Injectable read-only gate — the app root reads

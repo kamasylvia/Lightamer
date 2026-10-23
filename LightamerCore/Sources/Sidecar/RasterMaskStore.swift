@@ -181,6 +181,25 @@ public enum RasterMaskStore {
         return nil
     }
 
+    /// The plane read-back leg (Plan LUMEN-C T2 — the refine coordinator's
+    /// quick-alpha source): decode the stored gray16 PNG WITHOUT Metal, as
+    /// an AIMaskPlane at the STORED resolution (no window resample — the
+    /// fine pass upsamples itself). The invert bit is NOT applied (the
+    /// caller re-commits with the same reference semantics). nil = missing
+    /// / unreadable / hash-mismatched PNG (the caller degrades to a typed
+    /// failure — the D-06-04-T4-2 verify posture, no silent fallback).
+    public static func loadPlane(
+        ref: RasterMaskRef, directory: URL
+    ) -> AIMaskPlane? {
+        let fileURL = directory.appendingPathComponent(ref.fileName)
+        guard let bytes = try? Data(contentsOf: fileURL),
+            StableHash.hash(bytes) == ref.maskHash,
+            let (pixels, width, height) = try? decodeGray16PNG(data: bytes)
+        else { return nil }
+        let floats = pixels.map { Float($0) / 65535 }
+        return AIMaskPlane(width: width, height: height, floats: floats)
+    }
+
     // MARK: - PNG codec (16-bit grayscale, lossless)
 
     /// Encode uint16 samples as a 16-bit grayscale PNG (byteOrder16Little
