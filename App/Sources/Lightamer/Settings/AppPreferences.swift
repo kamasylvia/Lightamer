@@ -1,4 +1,5 @@
 import Foundation
+import LightamerCore
 import LightamerIOP
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,6 +47,11 @@ struct AppPreferences: Sendable {
     /// alias is the App-side registration/reset host (the ImportDefaults
     /// convention).
     nonisolated static let lutLibraryRootKey = LutLibraryStore.libraryRootKey
+
+    /// The culling-analysis enabled key (LUMEN-A T5/T7). The registered
+    /// spelling is owned by the Core service (the single source the analysis
+    /// actor reads); this alias is the Settings page's host.
+    nonisolated static let analysisEnabledKey = LibraryAnalysisService.enabledKey
 
     /// nil = `.standard` (the app face); tests pass an isolated suite name.
     let defaultsSuiteName: String?
@@ -100,6 +106,21 @@ struct AppPreferences: Sendable {
     /// default on the next store construction).
     func resetLutLibraryRoot() {
         defaults.removeObject(forKey: Self.lutLibraryRootKey)
+    }
+
+    // MARK: - Culling analysis (LUMEN-A T7, D-LU-5 默认开)
+
+    /// The stored analysis toggle; unset = TRUE (默认开 — the typed read
+    /// mirrors LibraryAnalysisService.isEnabled).
+    var libraryAnalysisEnabled: Bool {
+        get {
+            defaults.object(forKey: Self.analysisEnabledKey) as? Bool ?? true
+        }
+        nonmutating set { defaults.set(newValue, forKey: Self.analysisEnabledKey) }
+    }
+
+    func resetLibraryAnalysisEnabled() {
+        defaults.removeObject(forKey: Self.analysisEnabledKey)
     }
 
     // MARK: - Keyboard (the v1 override store — see the file header)

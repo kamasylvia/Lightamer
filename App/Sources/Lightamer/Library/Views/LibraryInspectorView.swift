@@ -243,6 +243,14 @@ struct LibraryInspectorView: View {
                     .font(.caption)
                     .foregroundStyle(ThemeTokens.textSecondary)
             }
+            // LUMEN-A T7: the typed filter-apply failure copy (the hasBurst
+            // query-time-annotation explanation).
+            if let filterApplyError = model.filterApplyError {
+                Text(verbatim: filterApplyError)
+                    .font(.caption)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+                    .accessibilityIdentifier("library.inspector.filter.applyError")
+            }
             if let description = model.filterDescription {
                 // The breadcrumb: one chip per folded arm (per-arm retreat).
                 if !model.arms.isEmpty {

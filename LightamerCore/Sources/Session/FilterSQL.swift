@@ -263,6 +263,22 @@ public enum FilterSQL {
             return try textCondition(
                 for: rule, column: column, field: rule.field,
                 domain: domain, binds: &binds)
+        case .sharpness, .faces, .eyesClosed, .hasBurst:
+            // LUMEN-A T7 (X5): the culling quartet. The `.library` domain
+            // translates the three pure-SQL columns (direct compare, NULL
+            // rows never hit — the un-analysed default-neutral semantics);
+            // `.session`/`.catalog` schemas carry no such columns (review
+            // m-11) and `hasBurst` is the query-time annotation — pure SQL
+            // in NO domain. Both degrade to the typed errors.
+            guard rule.field != .hasBurst else {
+                throw FilterPredicateError.cullingFieldNotSQLQueryable(
+                    field: rule.field)
+            }
+            guard domain == .library else {
+                throw FilterPredicateError.cullingFieldUnsupportedInDomain(
+                    field: rule.field, domain: domain)
+            }
+            return try numericCondition(for: rule, column: column, binds: &binds)
         }
     }
 
@@ -503,7 +519,8 @@ public enum FilterSQL {
     }
 
     /// The field → column mapping (the v2 frozen spellings — a static
-    /// whitelist, never user-carried).
+    /// whitelist, never user-carried; the LUMEN-A T7 additions ride the
+    /// images v6 column spellings).
     private static func column(for field: FilterField) throws -> String {
         switch field {
         case .rating: "rating"
@@ -522,6 +539,10 @@ public enum FilterSQL {
         case .hasEdits: "has_edits"
         case .filename: "filename"
         case .dir: "dir"
+        case .sharpness: "sharpness"
+        case .faces: "faces"
+        case .eyesClosed: "eyes_closed"
+        case .hasBurst: "burst_annotated"
         }
     }
 }

@@ -48,6 +48,9 @@ public struct BurstRow: Sendable, Equatable {
     public let signature: Data?
     /// The wider-open eye's ratio (T4's `Face.maxRatio`; nil = no landmark).
     public let eyesRatio: Double?
+    /// The stored eyes_closed column (the T7 badge's absolute-hint face;
+    /// nil = un-analysed).
+    public let eyesClosed: Bool?
     public let sharpness: Double?
     /// The stored filename (the copy-exclusion stem source).
     public let filename: String?
@@ -55,7 +58,7 @@ public struct BurstRow: Sendable, Equatable {
     public init(
         imageID: Int64, make: String?, model: String?, serial: String?,
         capturedTS: Double?, signature: Data?, eyesRatio: Double?,
-        sharpness: Double?, filename: String?
+        eyesClosed: Bool? = nil, sharpness: Double?, filename: String?
     ) {
         self.imageID = imageID
         self.make = make
@@ -64,6 +67,7 @@ public struct BurstRow: Sendable, Equatable {
         self.capturedTS = capturedTS
         self.signature = signature
         self.eyesRatio = eyesRatio
+        self.eyesClosed = eyesClosed
         self.sharpness = sharpness
         self.filename = filename
     }
