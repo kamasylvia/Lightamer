@@ -186,7 +186,13 @@ internal struct LightamerShellFace: View {
                 // shell M2-3). View-level modifiers on the ContentView chain
                 // (Scene `Window` carries no sheet/overlay face).
                 .sheet(item: graphB.libraryImportRequest) { request in
-                    ImportModeDialog(
+                    // R3 F2-1: the content face re-injects the agent-control
+                    // coordinator itself (the M2-8-3 FINDING-A boundary rule
+                    // — this sheet closure sits OUTSIDE the root's
+                    // `.environment(...)` writes, so a bare ImportModeDialog
+                    // here trapped on open).
+                    ImportModeDialogSheetContent(
+                        agentControl: agentControl,
                         request: request, initial: graph.libraryImportChoice,
                         onConfirm: { choice in
                             graph.libraryImportRequest = nil

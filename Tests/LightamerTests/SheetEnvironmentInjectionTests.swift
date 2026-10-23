@@ -99,4 +99,83 @@ final class SheetEnvironmentInjectionTests: XCTestCase {
         }
         XCTAssertNotNil(window.childWindows, "the sheet window must remain attached")
     }
+
+    /// R3 F2-1 regression (the M2-8-3 FINDING-A twin): the Import Folder
+    /// dialog crashed deterministically on open — the M7-5-01 face ⑧ gate
+    /// added an `@Environment(AgentControlCoordinator.self)` read INSIDE the
+    /// dialog while its app-root sheet closure stayed OUTSIDE the root's
+    /// `.environment(...)` writes (the R12 real-machine ips:
+    /// _assertionFailure ← EnvironmentValues.subscript.getter ←
+    /// EnvironmentBox.update, EXC_BREAKPOINT on mount). The production face
+    /// under test is `ImportModeDialogSheetContent` — the dialog's own
+    /// re-injection carrier; a regression that drops the injection traps the
+    /// process at the same first content update (the shipped crash signature,
+    /// the same by-design hard-fail contract as the Copy Adjustments leg
+    /// above).
+    @MainActor
+    func testImportFolderSheetContentResolvesItsEnvironmentInTheSheetHierarchy() throws {
+        let probe = ProbeBox()
+        let agentControl = AgentControlCoordinator()
+        // A REAL (empty) folder: the dialog's `.task` scans it and lands the
+        // zero-count summary — the full mount → scan → settle path.
+        let folder = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("sheet-env-probe-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
+            styleMask: [.titled, .closable],
+            backing: .buffered, defer: false)
+        let host = NSHostingView(rootView: ImportSheetHost(
+            onSheetAppear: { probe.sheetContentAppeared = true },
+            agentControl: agentControl, folder: folder))
+        host.frame = NSRect(x: 0, y: 0, width: 320, height: 240)
+        window.contentView = host
+        window.orderFrontRegardless()
+        defer {
+            window.orderOut(nil)
+            window.contentView = nil
+        }
+
+        // The pump reaches PAST the first environment update (where the
+        // shipped dialog trapped) into the dialog's async scan leg.
+        let deadline = Date().addingTimeInterval(8)
+        while !probe.sheetContentAppeared && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            host.layoutSubtreeIfNeeded()
+        }
+        XCTAssertTrue(
+            probe.sheetContentAppeared,
+            "the import sheet content never appeared — presentation or environment resolution failed")
+
+        for _ in 0..<5 {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            host.layoutSubtreeIfNeeded()
+        }
+        XCTAssertNotNil(window.childWindows, "the sheet window must remain attached")
+    }
+}
+
+/// The import-leg hosting root: the PRODUCTION content face through a real
+/// `.sheet`, no re-injection beyond what the face itself carries. The probe
+/// rides a closure (the ProbeBox box stays private to the test class above).
+private struct ImportSheetHost: View {
+    let onSheetAppear: @MainActor () -> Void
+    let agentControl: AgentControlCoordinator
+    let folder: URL
+    @State private var presented = true
+
+    var body: some View {
+        Color.clear
+            .frame(width: 240, height: 160)
+            .sheet(isPresented: $presented) {
+                ImportModeDialogSheetContent(
+                    agentControl: agentControl,
+                    request: ImportFlowRequest(folder: folder),
+                    initial: ImportModeChoice(mode: .copy, remember: false),
+                    onConfirm: { _ in }, onCancel: {})
+                    .onAppear { onSheetAppear() }
+            }
+    }
 }
