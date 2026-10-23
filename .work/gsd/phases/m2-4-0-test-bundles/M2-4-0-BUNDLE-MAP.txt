@@ -826,3 +826,31 @@ SESS	6	CullingPipelineTests.swift
 #     LIB/Library 级（真 .lalb + 真图档：rating 命令端到端 / clear 首类写 /
 #     P/X uniform-Lr / 空选择与无 store 两 no-op 护栏）。
 LIB	5	LibraryMarkWiringTests.swift
+# LUMEN-A 增行记录（2026-10-23，图库选片批 plan A 收口 T8）：八新文件 = 七 LIB
+# + 一 APP（review M-2 落域：装配/门控面 = APP）。
+#   BurstAnnotatorTests = LIB/Core 级——Lumen annotate_bursts 直译查询期注记
+#     golden（Scripts/gen-burst-golden.py NumPy 参考对拍 + gap/copy/nil 签名
+#     边界 + L013 组 id）。
+#   CullingAnalysisGoldenTests = LIB/Core 级——SharpnessAnalyzer/Signature16
+#     golden（Tests/Fixtures/culling_golden.json + 标定锚带内 + min-of-4）。
+#   EyeClosureAnalyzerTests = LIB/Core 级——眼睑比数学面 + 合成 landmarks 注
+#     入（零 Vision import——工厂注入断言）。
+#   ExifSerialSubsecTests = LIB/Core 级——BodySerialNumber/SubSecTime 读腿
+#     （手织 TIFF fixture——CGImageDestination writer 滤 tag 先例）。
+#   FilterCullingFieldsTests = LIB/Core+App 级——智能相册四案直比集成 +
+#     hasBurst typed 不支持 + .session/.catalog 负测（m-11）+ 徽章映射
+#     （@testable import Lightamer——CullingBadgeMapper）+ 转栈断言。
+#   LibraryAnalysisServiceTests = LIB/Core 级——分析趟扫/写/通知缝/防风暴/
+#     enabled 门/暂停恢复。
+#   LibrarySchemaV6Tests = LIB/Core 级——v6 迁移族（frozen 36 + 快照缝 +
+#     幂等 + 半程重跑）。
+#   LibraryAnalysisWiringTests = APP 级（review M-2）——装配/门控/registry
+#     适配（真 LibraryProjectController + 隔离 defaults suite）。
+LIB	4	BurstAnnotatorTests.swift
+LIB	4	CullingAnalysisGoldenTests.swift
+LIB	3	EyeClosureAnalyzerTests.swift
+LIB	3	ExifSerialSubsecTests.swift
+LIB	5	FilterCullingFieldsTests.swift
+LIB	4	LibraryAnalysisServiceTests.swift
+LIB	3	LibrarySchemaV6Tests.swift
+APP	4	LibraryAnalysisWiringTests.swift
