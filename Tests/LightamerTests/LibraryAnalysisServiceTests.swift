@@ -334,3 +334,36 @@ private final class Locked: @unchecked Sendable {
         lock.lock(); stored = newValue; lock.unlock()
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LUMEN-B T6: the analysis queue-jump seam — the cull face's ±window rows
+// head the next batch (the Lumen first=True 直译). The pure partition face
+// pinned here; the APP side asserts the ROUTE invocation with a synthetic
+// service (its own suite — the domain table keeps Library coverage here).
+// ─────────────────────────────────────────────────────────────────────────────
+
+extension LibraryAnalysisServiceTests {
+
+    func testPriorityPartitionPutsWindowRowsFirstStable() {
+        let rows = (1...6).map {
+            PendingAnalysisRow(
+                id: Int64($0), imagePath: "Media/img\($0).jpg",
+                pathKind: .projectRelative, volumeUUID: nil, cameraSerial: nil)
+        }
+        let partitioned = LibraryAnalysisService.partitionByPriority(
+            rows, priority: [4, 2])
+        // The queued rows first (their queue order — here the SCAN order),
+        // then the rest in id order; stable within each partition.
+        XCTAssertEqual(partitioned.map(\.id), [2, 4, 1, 3, 5, 6])
+        // An empty priority set = the scan order untouched.
+        XCTAssertEqual(
+            LibraryAnalysisService.partitionByPriority(rows, priority: [])
+                .map(\.id),
+            [1, 2, 3, 4, 5, 6])
+        // A priority id outside the batch is simply absent.
+        XCTAssertEqual(
+            LibraryAnalysisService.partitionByPriority(rows, priority: [99])
+                .map(\.id),
+            [1, 2, 3, 4, 5, 6])
+    }
+}

@@ -313,12 +313,13 @@ extension CullFaceModelTests {
             ("6", .colorLabel(1)), ("7", .colorLabel(2)),
             ("8", .colorLabel(3)), ("9", .colorLabel(4)),
             ("A", .toggleAdvance), ("C", .toggleCompare), ("F", .toggleFaces),
+            ("Z", .toggleZoom), ("z", .toggleZoom),
         ]
         for (character, action) in expected {
             XCTAssertEqual(CullKeymap.action(for: character), action, character)
         }
         // Unknown characters never map (the view's .ignored face).
-        XCTAssertEqual(CullKeymap.action(for: "z"), nil)
+        XCTAssertEqual(CullKeymap.action(for: "w"), nil)
         XCTAssertEqual(CullKeymap.action(for: " "), nil)
         XCTAssertEqual(CullKeymap.action(for: ""), nil)
     }
@@ -414,5 +415,200 @@ extension CullFaceModelTests {
         model.rate(rating: 3)
         for _ in 0..<100 where box.count == 0 { try? await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertEqual(box.last()?.0, 2, "compare + right side: the candidate takes the keys")
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T6 (X7): the compare state machine (switch/promote/side), the shared zoom
+// model, the burst-group jump ordering (the boundary clamps), the hint-bar
+// mapping (表驱动), and the analysis queue-jump window + route.
+// ─────────────────────────────────────────────────────────────────────────────
+
+extension CullFaceModelTests {
+
+    private func annotatedEntry(
+        id: Int64, burst: Int, burstIndex: Int, burstSize: Int,
+        best: Bool = false, blurry: Bool = false,
+        sharpness: Double? = 50, eyesClosed: Bool? = false
+    ) -> CullEntry {
+        var entry = makeEntry(id: id)
+        entry = CullEntry(
+            row: entry.row, url: entry.url,
+            annotation: BurstAnnotation(
+                burst: burst, burstIndex: burstIndex, burstSize: burstSize,
+                best: best, blurry: blurry),
+            sharpness: sharpness, eyesClosed: eyesClosed,
+            rating: nil, colorLabel: nil, flag: nil)
+        return entry
+    }
+
+    // MARK: - The compare state machine
+
+    func testCompareStateMachineSwitchAndPromote() {
+        let model = makeModel([makeEntry(id: 1), makeEntry(id: 2), makeEntry(id: 3)])
+        // Enter compare: the candidate = the right neighbour, the right side
+        // takes the keys first (the Lumen set_compare 直译).
+        model.setCompare(true)
+        XCTAssertTrue(model.compare)
+        XCTAssertEqual(model.candidate, 1)
+        XCTAssertTrue(model.activeRight)
+        // Tab: the sides swap.
+        model.switchSide()
+        XCTAssertFalse(model.activeRight)
+        // ↑ promote: the candidate becomes the select, the select the candidate.
+        model.promote()
+        XCTAssertEqual(model.index, 1)
+        XCTAssertEqual(model.candidate, 0)
+        // Exit with the RIGHT side held: the candidate becomes the select.
+        model.switchSide()  // right side again
+        model.go(2)         // the candidate walks
+        model.setCompare(false)
+        XCTAssertFalse(model.compare)
+        XCTAssertEqual(model.index, 2, "the right-held candidate became the select")
+    }
+
+    func testCompareNeedsTwoEntries() {
+        let model = makeModel([makeEntry(id: 1)])
+        model.setCompare(true)
+        XCTAssertFalse(model.compare, "a one-row table never enters compare")
+    }
+
+    // MARK: - The shared zoom model
+
+    func testZoomModelSharedStateAndReset() {
+        let model = makeModel([makeEntry(id: 1), makeEntry(id: 2)])
+        XCTAssertFalse(model.zoom.zoomed)
+        model.setZoom(true)
+        XCTAssertTrue(model.zoom.zoomed)
+        XCTAssertEqual(model.zoom.centerX, 0.5)
+        model.setZoom(false)
+        XCTAssertFalse(model.zoom.zoomed)
+        XCTAssertEqual(model.zoom.centerX, 0.5, "leaving zoom resets the center")
+        // Idempotence: a repeated set is a no-op.
+        model.setZoom(false)
+        XCTAssertFalse(model.zoom.zoomed)
+    }
+
+    // MARK: - The burst-group jump ordering (the boundary clamps)
+
+    func testBurstJumpForwardFromGroupOneToGroupTwoStart() {
+        let model = makeModel([
+            annotatedEntry(id: 1, burst: 1, burstIndex: 1, burstSize: 2),
+            annotatedEntry(id: 2, burst: 1, burstIndex: 2, burstSize: 2),
+            annotatedEntry(id: 3, burst: 2, burstIndex: 1, burstSize: 3),
+            annotatedEntry(id: 4, burst: 2, burstIndex: 2, burstSize: 3),
+            annotatedEntry(id: 5, burst: 2, burstIndex: 3, burstSize: 3),
+            annotatedEntry(id: 6, burst: 0, burstIndex: 0, burstSize: 0),
+        ])
+        // ↓ from group 1's start: the next row OUTSIDE the group is group
+        // 2's first frame (index 2) — the forward jump lands there.
+        model.jumpBurst(1)
+        XCTAssertEqual(model.index, 2)
+    }
+
+    func testBurstJumpBackwardLandsOnGroupStart() {
+        let model = makeModel([
+            annotatedEntry(id: 1, burst: 1, burstIndex: 1, burstSize: 2),
+            annotatedEntry(id: 2, burst: 1, burstIndex: 2, burstSize: 2),
+            annotatedEntry(id: 3, burst: 2, burstIndex: 1, burstSize: 3),
+            annotatedEntry(id: 4, burst: 2, burstIndex: 2, burstSize: 3),
+            annotatedEntry(id: 5, burst: 2, burstIndex: 3, burstSize: 3),
+        ])
+        model.go(3)  // group 2's middle
+        // Lumen jump_burst: the walk-out lands on the START of the
+        // PREVIOUS burst (group 1's first frame, index 0).
+        model.jumpBurst(-1)
+        XCTAssertEqual(model.index, 0, "backward lands on the previous group's start")
+        // The table head clamps.
+        // The table head clamps.
+        model.jumpBurst(-1)
+        XCTAssertEqual(model.index, 0)
+        // Forward past the table end clamps.
+        model.jumpBurst(1)
+        XCTAssertEqual(model.index, 2)
+        // Forward past the LAST group's end: no row outside the group —
+        // the walk exhausts and the position clamps (no move).
+        model.jumpBurst(1)
+        XCTAssertEqual(model.index, 2, "the table-end clamp holds")
+    }
+
+    func testBurstJumpWithoutGroupIsPlainStep() {
+        let model = makeModel([
+            annotatedEntry(id: 1, burst: 0, burstIndex: 0, burstSize: 0),
+            annotatedEntry(id: 2, burst: 0, burstIndex: 0, burstSize: 0),
+            annotatedEntry(id: 3, burst: 0, burstIndex: 0, burstSize: 0),
+        ])
+        model.jumpBurst(1)
+        XCTAssertEqual(model.index, 1, "not in a group → plain stepping")
+    }
+
+    // MARK: - The hint-bar mapping (表驱动)
+
+    func testHintsMappingTableDriven() {
+        let sharp = annotatedEntry(id: 1, burst: 0, burstIndex: 0, burstSize: 0, sharpness: 72)
+        var hints = makeModel([sharp]).hints(for: sharp)
+        XCTAssertEqual(hints.sharpness, 72)
+        XCTAssertFalse(hints.isEmpty)
+        XCTAssertFalse(hints.hasBurst)
+
+        let flagged = annotatedEntry(
+            id: 2, burst: 3, burstIndex: 2, burstSize: 5,
+            best: true, blurry: true, sharpness: 12, eyesClosed: true)
+        hints = makeModel([flagged]).hints(for: flagged)
+        XCTAssertTrue(hints.blurry)
+        XCTAssertTrue(hints.eyesClosed)
+        XCTAssertTrue(hints.best)
+        XCTAssertTrue(hints.hasBurst)
+        XCTAssertEqual(hints.burstIndex, 2)
+        XCTAssertEqual(hints.burstSize, 5)
+
+        let silent = annotatedEntry(
+            id: 3, burst: 0, burstIndex: 0, burstSize: 0,
+            sharpness: nil, eyesClosed: nil)
+        hints = makeModel([silent]).hints(for: silent)
+        XCTAssertTrue(hints.isEmpty, "the un-analysed row shows no hints")
+    }
+
+    // MARK: - The analysis queue-jump (window + route)
+
+    func testAnalysisWindowComputationAndRoute() async {
+        // ids 1..8; 4 and 6 un-analysed (sharpness nil).
+        var entries: [CullEntry] = []
+        for id in Int64(1)...8 {
+            entries.append(annotatedEntry(
+                id: id, burst: 0, burstIndex: 0, burstSize: 0,
+                sharpness: id == 4 || id == 6 ? nil : 50))
+        }
+        let model = makeModel(entries)
+        let recorder = QueueJumpBox()
+        model.queueJumpRoute = { ids in await recorder.record(ids) }
+
+        // index 3 (id 4): the window = indices max(0,3-2)...min(3+6,7) = 1..7 →
+        // un-analysed inside: id 4 (index 3), id 6 (index 5).
+        model.go(3)
+        XCTAssertEqual(model.analysisWindowIDs(), [4, 6])
+        for _ in 0..<100 where recorder.count == 0 { try? await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(recorder.last, [4, 6], "the route received the window")
+
+        // The window clamps at both table ends.
+        model.go(0)
+        XCTAssertEqual(
+            model.analysisWindowIDs(), [4, 6],
+            "the lower clamp keeps the +6 reach (id 6 at index 5)")
+        model.go(7)
+        XCTAssertEqual(model.analysisWindowIDs().count, 1, "the upper clamp trims the window")
+    }
+
+    /// The queue-jump recorder (the 合成 service face).
+    final class QueueJumpBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private(set) var batches: [[Int64]] = []
+        var count: Int { lock.lock(); defer { lock.unlock() }; return batches.count }
+        var last: [Int64]? { lock.lock(); defer { lock.unlock() }; return batches.last }
+        func record(_ ids: [Int64]) {
+            lock.lock()
+            batches.append(ids)
+            lock.unlock()
+        }
     }
 }

@@ -112,6 +112,13 @@ final class LibraryAnalysisWiring {
         return await service.libraryStore.analysisEvents()
     }
 
+    /// LUMEN-B T6: the cull face's analysis queue-jump (the ±window's
+    /// un-analysed rows head the next batch — the service's `first=True`
+    /// seam). Inert without a live service (no project / gate off).
+    func prioritizeAnalysis(_ ids: [Int64]) async {
+        await service?.prioritize(ids)
+    }
+
     // MARK: - The project-open event (the shell's `.task(id:)` hook)
 
     /// Call whenever the open project MAY have changed (the shell body's

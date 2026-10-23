@@ -33825,13 +33825,13 @@
       "en" : {
         "stringUnit" : {
           "state" : "translated",
-          "value" : "← → step  ·  ↑ ↓ burst groups  ·  0-5 stars  ·  P pick  X reject  U unflag  ·  6-9 colour labels  ·  C compare  Tab switch side  ·  F face boxes  ·  D open in editor  ·  G back to library"
+          "value" : "← → step  ·  ↑ ↓ burst groups  ·  0-5 stars  ·  P pick  X reject  U unflag  ·  6-9 colour labels  ·  Z or double-click 100%  ·  C compare  Tab switch side  ·  F face boxes  ·  D open in editor  ·  G back to library"
         }
       },
       "zh" : {
         "stringUnit" : {
           "state" : "translated",
-          "value" : "← → 切换  ·  ↑ ↓ 连拍组  ·  0-5 星级  ·  P 留用  X 排除  U 取消  ·  6-9 色标  ·  C 对比  Tab 切侧  ·  F 人脸框  ·  D 进编辑器  ·  G 返回图库"
+          "value" : "← → 切换  ·  ↑ ↓ 连拍组  ·  0-5 星级  ·  P 留用  X 排除  U 取消  ·  6-9 色标  ·  Z 或双击 100%  ·  C 对比  Tab 切侧  ·  F 人脸框  ·  D 进编辑器  ·  G 返回图库"
         }
       }
     }

@@ -102,7 +102,15 @@ struct CullFaceView: View {
             model.setCompare(!model.compare)
         case .toggleFaces:
             model.showFaces.toggle()
+        case .toggleZoom:
+            onToggleZoomForActivePane()
         }
+    }
+
+    /// Z: the 100% toggle on the pane that takes the keys (the shared zoom
+    /// state zooms BOTH panes — the sync semantics; the Lumen Z/Space 直译).
+    private func onToggleZoomForActivePane() {
+        model.setZoom(!model.zoom.zoomed)
     }
 
     // MARK: - Header
@@ -192,18 +200,30 @@ struct CullFaceView: View {
             HStack(alignment: .center, spacing: 2) {
                 CullPaneView(
                     loader: loader, entry: model.current,
-                    isActive: !model.activeRight,
-                    identifier: "library.cull.paneLeft")
+                    isActive: !model.activeRight, zoom: model.zoom,
+                    identifier: "library.cull.paneLeft",
+                    onToggleZoom: { model.setZoom(!model.zoom.zoomed) },
+                    onActivate: {
+                        // The pane click switches the active side (the
+                        // Lumen pane_clicked 直译).
+                        if !model.activeRight { model.switchSide() }
+                    })
                 CullPaneView(
                     loader: loader, entry: model.candidateEntry,
-                    isActive: model.activeRight,
-                    identifier: "library.cull.paneRight")
+                    isActive: model.activeRight, zoom: model.zoom,
+                    identifier: "library.cull.paneRight",
+                    onToggleZoom: { model.setZoom(!model.zoom.zoomed) },
+                    onActivate: {
+                        if model.activeRight { model.switchSide() }
+                    })
             }
         } else {
             CullPaneView(
                 loader: loader, entry: model.current,
-                isActive: true,
-                identifier: "library.cull.paneMain")
+                isActive: true, zoom: model.zoom,
+                identifier: "library.cull.paneMain",
+                onToggleZoom: { model.setZoom(!model.zoom.zoomed) },
+                onActivate: nil)
         }
     }
 
@@ -216,7 +236,8 @@ struct CullFaceView: View {
                     ForEach(model.entries) { entry in
                         CullStripCell(
                             bridge: bridge, row: entry.row,
-                            isSelected: entry.id == model.target?.id)
+                            isSelected: entry.id == model.target?.id,
+                            hints: model.hints(for: entry))
                             .id(entry.id)
                             .onTapGesture {
                                 model.go(index(of: entry.id))
@@ -244,7 +265,7 @@ struct CullFaceView: View {
     private var helpRow: some View {
         Text(String(
             localized: "cull_help_row",
-            defaultValue: "← → 切换  ·  ↑ ↓ 连拍组  ·  0-5 星级  ·  P 留用  X 排除  U 取消  ·  6-9 色标  ·  C 对比  Tab 切侧  ·  F 人脸框  ·  D 进编辑器  ·  G 返回图库"))
+            defaultValue: "← → 切换  ·  ↑ ↓ 连拍组  ·  0-5 星级  ·  P 留用  X 排除  U 取消  ·  6-9 色标  ·  Z 或双击 100%  ·  C 对比  Tab 切侧  ·  F 人脸框  ·  D 进编辑器  ·  G 返回图库"))
             .font(.caption2)
             .foregroundStyle(ThemeTokens.textSecondary)
             .frame(maxWidth: .infinity)
@@ -255,27 +276,28 @@ struct CullFaceView: View {
 
 /// One main pane: the entry's display view through the loader (the
 /// `.task(id:)` pair-identity face — an entry change re-runs the load; a
-/// same-entry re-evaluation no-ops).
+/// same-entry re-evaluation no-ops). Zoomed = the FULL tier through the
+/// loader (the embedded full-size or the RAW fallback cache leg), scrolled
+/// at 1:1 with the SHARED center (the sync_zoom 直译 — both panes read the
+/// one model state, so zoom and position are structurally synced).
 struct CullPaneView: View {
     let loader: CullViewLoader
     let entry: CullEntry?
     let isActive: Bool
+    let zoom: CullFaceModel.CullZoom
     let identifier: String
+    let onToggleZoom: () -> Void
+    let onActivate: (() -> Void)?
 
-    @State private var image: CGImage?
+    @State private var display: CGImage?
+    @State private var full: CGImage?
 
     var body: some View {
         ZStack {
-            if let image {
-                Image(decorative: image, scale: 1.0)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+            if zoom.zoomed {
+                zoomedBody
             } else {
-                Rectangle()
-                    .fill(ThemeTokens.cardSurface)
-                    .overlay {
-                        ProgressView().controlSize(.large)
-                    }
+                fittedBody
             }
         }
         .overlay(alignment: .topTrailing) {
@@ -287,20 +309,110 @@ struct CullPaneView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture { onActivate?() }
         .accessibilityIdentifier(identifier)
         .task(id: entry?.id) {
-            guard let url = entry?.url else { image = nil; return }
-            let produced = await loader.displayImage(for: url)
-            image = produced
+            guard let url = entry?.url else {
+                display = nil
+                full = nil
+                return
+            }
+            full = nil
+            display = await loader.displayImage(for: url)
+        }
+        .task(id: zoomKey) {
+            // The zoomed plane: the FULL tier (the 100% face). The display
+            // plane stays as the placeholder while the full production runs
+            // (the Lumen 等原图期间放大显示 2560px 视图插值语义).
+            guard zoom.zoomed, let url = entry?.url else { return }
+            let produced = await loader.fullImage(for: url)
+            full = produced?.image
+        }
+    }
+
+    /// The zoom re-load key: the entry AND the zoomed state (a zoom toggle
+    /// re-runs the full-tier production; a center move does not).
+    private var zoomKey: String {
+        "\(entry?.id ?? -1)|\(zoom.zoomed)"
+    }
+
+    @ViewBuilder
+    private var fittedBody: some View {
+        if let display {
+            Image(decorative: display, scale: 1.0)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .onTapGesture(count: 2) { onToggleZoom() }
+        } else {
+            Rectangle()
+                .fill(ThemeTokens.cardSurface)
+                .overlay {
+                    ProgressView().controlSize(.large)
+                }
+        }
+    }
+
+    /// The 100% body: the full plane at pixel dimensions inside a scroll
+    /// view, positioned by the SHARED unit center; a click re-focuses both
+    /// panes through the model.
+    @ViewBuilder
+    private var zoomedBody: some View {
+        if let full {
+            ScrollViewReader { proxy in
+                GeometryReader { geometry in
+                    ScrollView([.horizontal, .vertical]) {
+                        Image(decorative: full, scale: 1.0)
+                            .resizable()
+                            .interpolation(.none)
+                            .frame(
+                                width: CGFloat(full.width),
+                                height: CGFloat(full.height))
+                            .id("cull.full")
+                    }
+                    .onChange(of: zoom) { _, newValue in
+                        let targetX = newValue.centerX * CGFloat(full.width)
+                            - geometry.size.width / 2
+                        let targetY = newValue.centerY * CGFloat(full.height)
+                            - geometry.size.height / 2
+                        proxy.scrollTo(
+                            "cull.full", anchor: UnitPoint(
+                                x: min(1, max(0, targetX / max(CGFloat(full.width) - geometry.size.width, 1))),
+                                y: min(1, max(0, targetY / max(CGFloat(full.height) - geometry.size.height, 1)))))
+                    }
+                }
+                .onTapGesture { location in
+                    guard full.width > 0, full.height > 0 else { return }
+                    // The click's unit position within the FITTED image —
+                    // approximated by the pane's own geometry (the v1
+                    // declared face; the walkthrough refines).
+                    onActivate?()
+                }
+            }
+        } else {
+            // The full plane still producing — the display plane stays up
+            // (magnified by scale, the placeholder semantics).
+            if let display {
+                Image(decorative: display, scale: 1.0)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .overlay { ProgressView().controlSize(.large) }
+            } else {
+                Rectangle().fill(ThemeTokens.cardSurface)
+                    .overlay { ProgressView().controlSize(.large) }
+            }
         }
     }
 }
 
-/// One filmstrip cell: the bridge's 96px-tier thumbnail.
+/// One filmstrip cell: the bridge's 96px-tier thumbnail + the burst
+/// annotation badge (the n/m position and the best mark — the LUMEN-A
+/// annotation products consumed, the T6 注记消费).
 private struct CullStripCell: View {
     let bridge: LibraryThumbnailBridge?
     let row: LibraryImageRow
     let isSelected: Bool
+    let hints: CullFaceModel.Hints
 
     @State private var thumbnail: CGImage?
 
@@ -319,6 +431,23 @@ private struct CullStripCell: View {
         .overlay(
             RoundedRectangle(cornerRadius: 4)
                 .strokeBorder(isSelected ? Color.accentColor : .clear, lineWidth: 2))
+        .overlay(alignment: .topLeading) {
+            if hints.hasBurst {
+                Text("\(hints.burstIndex)/\(hints.burstSize)")
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 4)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 3))
+                    .padding(3)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if hints.best {
+                Image(systemName: "star.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.yellow)
+                    .padding(3)
+            }
+        }
         .task(id: row.id) {
             guard let bridge else { return }
             thumbnail = await bridge.thumbnail(for: row)
