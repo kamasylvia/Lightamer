@@ -63,6 +63,9 @@ struct WorkspaceHostView: View {
     // observation (the modifier's own @State — same persistence window).
     @State private var taskRegistry = BackgroundTaskRegistry()
     @State private var isTaskDialogPresented = false
+    // LUMEN-A T5 (review M-2): the analysis wiring (assembled once on the
+    // project-open task below; nil until the first run).
+    @State private var analysisWiring: LibraryAnalysisWiring?
 
     // M2-10-03 (declared increment): the AI analysis leg + the labeling ask.
     // The registry rides THIS host's aggregate task registry (the bar/dialog
@@ -156,6 +159,26 @@ struct WorkspaceHostView: View {
             // pipeCoordinator.configure(window:) cross-attach precedent;
             // weak on the coordinator side).
             agentControl.attachTaskRegistry(taskRegistry)
+        }
+        // LUMEN-A T5 (review M-2): the culling-analysis pass wiring — the
+        // assembly lives on THIS host (the registry's home; the M2UIW-06
+        // single-aggregate discipline) and the project-open event drives it.
+        // The wiring holds its own service per open project; the enabled
+        // gate + the export/AI pause probes + the registry adapter ride it.
+        .task(id: projectController?.projectURL) {
+            let wiring: LibraryAnalysisWiring
+            if let analysisWiring {
+                wiring = analysisWiring
+            } else {
+                wiring = LibraryAnalysisWiring(
+                    libraryProjects: projectController ?? LibraryProjectController(),
+                    registry: taskRegistry,
+                    probes: LibraryAnalysisActivityProbes(
+                        exportBusy: { !exportState.jobRows.isEmpty },
+                        aiBusy: { !(aiAnalysis?.isIdle ?? true) }))
+                analysisWiring = wiring
+            }
+            await wiring.projectChanged(to: projectController?.projectURL)
         }
         .background(ThemeTokens.windowBackground)
         .accessibilityIdentifier(ThemeTokens.Markers.workspaceHost)
