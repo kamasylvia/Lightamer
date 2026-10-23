@@ -48,6 +48,10 @@ struct CullEntry: Identifiable, Equatable {
 
 /// The keymap table (T5's 表驱动 face — the tests sweep it).
 enum CullKeymap: Equatable {
+
+    /// The CHARACTER-key actions (the structural keys — arrows / Tab / the
+    /// compare-state conditionals — ride the view's KeyPress handler; this
+    /// table is the single source for everything with a letter/digit).
     enum Action: Equatable {
         case backToLibrary
         case openEditor
@@ -59,10 +63,6 @@ enum CullKeymap: Equatable {
         case toggleAdvance
         case toggleCompare
         case toggleFaces
-        case step(Int)
-        case candidateSwitchSide
-        case promote
-        case jumpBurst(Int)
     }
 
     /// Character keys → actions (X7's钉死 pair: G/D first — G = the Lumen
@@ -194,6 +194,8 @@ final class CullFaceModel {
 
     /// Write one mark component and (when the A toggle is on) advance.
     /// A nil component = leave untouched; a repeated colour label clears.
+    /// Flag values = the sidecar culling semantics (LightamerSidecar:303):
+    /// 0 = none / 1 = pick / 2 = reject.
     func rate(
         rating: Int64? = nil, colorLabel: Int64? = nil, flag: Int64? = nil
     ) {

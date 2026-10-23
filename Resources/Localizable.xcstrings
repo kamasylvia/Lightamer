@@ -33755,6 +33755,166 @@
         }
       }
     }
+  },
+  "cull_advance_label" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Advance after rating (A)"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "评级后前进（A）"
+        }
+      }
+    }
+  },
+  "cull_back_label" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Back to library (G)"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "返回图库（G）"
+        }
+      }
+    }
+  },
+  "cull_compare_label" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Compare (C)"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "对比（C）"
+        }
+      }
+    }
+  },
+  "cull_face_empty" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Cull"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "选片"
+        }
+      }
+    }
+  },
+  "cull_help_row" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "← → step  ·  ↑ ↓ burst groups  ·  0-5 stars  ·  P pick  X reject  U unflag  ·  6-9 colour labels  ·  C compare  Tab switch side  ·  F face boxes  ·  D open in editor  ·  G back to library"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "← → 切换  ·  ↑ ↓ 连拍组  ·  0-5 星级  ·  P 留用  X 排除  U 取消  ·  6-9 色标  ·  C 对比  Tab 切侧  ·  F 人脸框  ·  D 进编辑器  ·  G 返回图库"
+        }
+      }
+    }
+  },
+  "cull_hint_best" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Best"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "最佳"
+        }
+      }
+    }
+  },
+  "cull_hint_blurry" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Possibly blurry"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "可能模糊"
+        }
+      }
+    }
+  },
+  "cull_hint_eyes_closed" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Possibly closed eyes"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "可能闭眼"
+        }
+      }
+    }
+  },
+  "cull_hint_sharpness" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Sharpness %.0f"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "清晰度 %.0f"
+        }
+      }
+    }
+  },
+  "library_grid_cull" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Quick cull"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "快速选片"
+        }
+      }
+    }
   }
   },
   "version": "1.0"
