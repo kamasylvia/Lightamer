@@ -1,5 +1,7 @@
 import Foundation
+import ImageIO
 @testable import LightamerCore
+import UniformTypeIdentifiers
 import XCTest
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -440,5 +442,92 @@ extension SmartPreviewStoreTests {
         await store2.flush()
         let rebuilt = await store2.totalBytes()
         XCTAssertGreaterThan(rebuilt, 0, "the rebuilt index records entries again")
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T3 (X6): the shared decode leg + the four-gate consumption faces at the
+// Core level — the tier cap, the disabled-neutral golden (a pure pass-
+// through), and the consumer-level hit/miss bit-identity golden (H-LU3).
+// The consumption-point NEGATIVE face (the editor working plane un-routed)
+// is the T3 evidence grep (EditorState/PipeCoordinator carry no
+// SmartPreviewStore reference) — source files are not visible to the built
+// bundle, so the negative pin lives in evidence/lumenb/t3-grep.log.
+// ─────────────────────────────────────────────────────────────────────────────
+
+extension SmartPreviewStoreTests {
+
+    /// A real raster fixture (PNG — RAWDecoder's raster leg decodes it).
+    private func makePNG(width: Int, height: Int) throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("smartpreview-t3-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("photo.png")
+        let context = CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.setFillColor(CGColor(red: 0.6, green: 0.4, blue: 0.2, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let image = context.makeImage()!
+        let destination = CGImageDestinationCreateWithURL(
+            url as CFURL, UTType.png.identifier as CFString, 1, nil)!
+        CGImageDestinationAddImage(destination, image, nil)
+        CGImageDestinationFinalize(destination)
+        return url
+    }
+
+    // MARK: - The tier cap
+
+    func testRenderPlaneLegCapsAtTierEdge() async throws {
+        let url = try makePNG(width: 3000, height: 200)
+        let plane = try await SmartPreviewRender.decodePlane(url: url)
+        // 3000 → 2560 long edge; the short edge scales with it (rounded).
+        XCTAssertEqual(plane.width, SmartPreviewRender.planeLongEdge)
+        XCTAssertEqual(plane.height, 171)
+        // A source already inside the tier is untouched.
+        let small = try makePNG(width: 640, height: 480)
+        let smallPlane = try await SmartPreviewRender.decodePlane(url: small)
+        XCTAssertEqual(smallPlane.width, 640)
+        XCTAssertEqual(smallPlane.height, 480)
+    }
+
+    // MARK: - The disabled-neutral golden (cache layer = pure pass-through)
+
+    func testCacheDisabledNeutralGolden() async throws {
+        let url = try makePNG(width: 320, height: 240)
+        let store = makeStore(limitMB: 0)
+        let loaded = try await store.load(
+            url: url, processVersion: RenderProcessVersion.current.rawValue,
+            decode: { try await SmartPreviewRender.decodePlane(url: $0) })
+        let direct = try await SmartPreviewRender.decodePlane(url: url)
+        // The disabled store hands back the decode leg's plane BYTE-EXACTLY
+        // (the default-neutral face: no quantize, no cache arithmetic).
+        XCTAssertEqual(loaded, direct)
+    }
+
+    // MARK: - The consumer-level hit/miss golden (H-LU3 at the leg)
+
+    func testCacheHitAndMissServeBitIdenticalPlanes() async throws {
+        let url = try makePNG(width: 200, height: 150)
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("smartpreview-golden-\(UUID().uuidString)", isDirectory: true)
+        let leg: @Sendable (URL) async throws -> SmartPreviewPlane = { url in
+            try await SmartPreviewRender.decodePlane(url: url)
+        }
+        // Miss: decode + quantize + backfill.
+        let missStore = SmartPreviewStore(root: root, limitMB: 64)
+        let missPlane = try await missStore.load(
+            url: url, processVersion: RenderProcessVersion.current.rawValue, decode: leg)
+        await missStore.flush()
+        // Hit: a cold store over the SAME root reads the disk entry.
+        let hitStore = SmartPreviewStore(root: root, limitMB: 64)
+        let hitPlane = try await hitStore.load(
+            url: url, processVersion: RenderProcessVersion.current.rawValue, decode: leg)
+        XCTAssertEqual(hitPlane, missPlane, "hit and miss are the SAME plane (H-LU3)")
+        // And both are the quantized decode leg's output.
+        let direct = try await SmartPreviewRender.decodePlane(url: url)
+        XCTAssertEqual(hitPlane, SmartPreviewFormat.quantize(direct))
     }
 }

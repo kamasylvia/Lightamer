@@ -1,4 +1,6 @@
 import Compression
+import CoreGraphics
+import CoreImage
 import CryptoKit
 import Foundation
 import SQLite3
@@ -722,5 +724,95 @@ public actor SmartPreviewStore {
             removed += 1
         }
         return removed
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The shared decode leg (Plan LUMEN-B T3, X6): the ONE decode+render face the
+// consumers route through the store. RAWDecoder's own signature stays zero-
+// diff — this is the exit WRAPPER: it holds the decode closure the store
+// re-runs on a miss, renders the decoded CIImage into the working-linear
+// plane (the frameProvider shape: RGBA float32, linear sRGB, extent scaled
+// to the tier cap), and turns planes back into CGImages for the display
+// consumers.
+//
+// TIER: the plane caps at 2560 — the editor's own PreviewBucket.cap (the
+// pipeline's preview tier) and the LU3 display edge; ~17MB/plane keeps the
+// 6-deep memory LRU ≈105MB (the Lumen 6×20MB face, rescaled to our tier).
+// Declared in LUMEN-B DECISIONS (the tier choice is ours; Lumen's 'd' kind
+// rides their 1600px develop reference).
+//
+// CONSUMER MAP (the four gates; the negative face — the editor working plane
+// — is grep-pinned in the T3 evidence: EditorState/PipeCoordinator carry no
+// SmartPreviewStore reference):
+//   ① PipeCoordinator load-leg preview plane — DECLARED NOT WIRED: the load
+//     leg's plane IS the editor's working-plane pipeline (H-LU3 arm 2 wins;
+//     the editor decode leg must stay un-routed). PipeCoordinator.swift
+//     stays zero-diff.
+//   ② Library tier-B RenderLeg production side (WorkspaceHostView assembly).
+//   ③ The cull view's RAW fallback leg (CullViewLoader, T4).
+//   ④ The MCP decodeImage seam (CullingToolset.defaultDecodeImage, internal
+//     rerouting — the seam's type and McpServerController stay zero-diff).
+// ─────────────────────────────────────────────────────────────────────────────
+
+public enum SmartPreviewRender {
+
+    /// The cached-plane decode tier (PreviewBucket.cap alignment — see the
+    /// file header).
+    public static let planeLongEdge = 2560
+
+    /// THE shared decode leg: `RAWDecoder.decode` → CIContext render → the
+    /// working-LINEAR float32 RGBA plane capped at `planeLongEdge`. This is
+    /// the closure every consumer hands to `SmartPreviewStore.load` (the
+    /// miss leg; RAWDecoder itself stays zero-diff).
+    public static func decodePlane(
+        url: URL, decoder: RAWDecoder = RAWDecoder()
+    ) async throws -> SmartPreviewPlane {
+        let decoded = try await decoder.decode(url)
+        let image = decoded.ciImage
+        let extent = image.extent
+        let width = max(Int(extent.width), 1)
+        let height = max(Int(extent.height), 1)
+        let longEdge = max(width, height)
+        let scale = min(1.0, Double(planeLongEdge) / Double(longEdge))
+        let renderWidth = max(Int((Double(width) * scale).rounded()), 1)
+        let renderHeight = max(Int((Double(height) * scale).rounded()), 1)
+        var rgba = [Float](repeating: 0, count: renderWidth * renderHeight * 4)
+        let context = CIContext()
+        let space = CGColorSpace(name: CGColorSpace.linearSRGB)!
+        rgba.withUnsafeMutableBytes { raw in
+            context.render(
+                image, toBitmap: raw.baseAddress!,
+                rowBytes: renderWidth * MemoryLayout<Float>.stride * 4,
+                bounds: CGRect(
+                    x: 0, y: 0, width: renderWidth, height: renderHeight),
+                format: CIFormat.RGBAf, colorSpace: space)
+        }
+        return SmartPreviewPlane(
+            width: renderWidth, height: renderHeight, rgba: rgba)
+    }
+
+    /// The plane's re-entry as a CIImage (the linear float32 bitmap — the
+    /// same working space the plane was rendered in).
+    public static func image(_ plane: SmartPreviewPlane) -> CIImage {
+        let bytesPerRow = plane.width * MemoryLayout<Float>.stride * 4
+        let bytes = plane.rgba.withUnsafeBytes { Data($0) }
+        return CIImage(
+            bitmapData: bytes,
+            bytesPerRow: bytesPerRow,
+            size: CGSize(width: plane.width, height: plane.height),
+            format: CIFormat.RGBAf,
+            colorSpace: CGColorSpace(name: CGColorSpace.linearSRGB)!)
+    }
+
+    /// The plane as the consumers' display currency: an 8-bit sRGB CGImage
+    /// through one CIContext render (the same output stage a direct render
+    /// rides).
+    public static func cgImage(
+        _ plane: SmartPreviewPlane, context: CIContext
+    ) -> CGImage? {
+        let image = Self.image(plane)
+        let space = CGColorSpace(name: CGColorSpace.sRGB)!
+        return context.createCGImage(image, from: image.extent, format: .RGBA8, colorSpace: space)
     }
 }
