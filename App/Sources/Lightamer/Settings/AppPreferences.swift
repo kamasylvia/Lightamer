@@ -53,6 +53,12 @@ struct AppPreferences: Sendable {
     /// actor reads); this alias is the Settings page's host.
     nonisolated static let analysisEnabledKey = LibraryAnalysisService.enabledKey
 
+    /// The smart-preview budget key (LUMEN-B T7, 红线 11). The registered
+    /// spelling is owned by the Core store (the literal lives in
+    /// SmartPreviewStore.limitKey and nowhere else); this alias is the
+    /// Settings page's host.
+    nonisolated static let previewCacheLimitKey = SmartPreviewStore.limitKey
+
     /// nil = `.standard` (the app face); tests pass an isolated suite name.
     let defaultsSuiteName: String?
 
@@ -121,6 +127,21 @@ struct AppPreferences: Sendable {
 
     func resetLibraryAnalysisEnabled() {
         defaults.removeObject(forKey: Self.analysisEnabledKey)
+    }
+
+    // MARK: - Smart previews (LUMEN-B T7, D-LU-3 / 红线 11)
+
+    /// The cached-plane budget in MB: the typed read (unset = the 4 GB
+    /// default; 0 = off; negatives clamp) mirrors
+    /// SmartPreviewStore.defaultLimitMB; the store's live face
+    /// (setLimit) rides the Settings row's setter.
+    var previewCacheLimitMB: Int {
+        get { SmartPreviewStore.defaultLimitMB(defaults: defaults) }
+        nonmutating set { defaults.set(newValue, forKey: Self.previewCacheLimitKey) }
+    }
+
+    func resetPreviewCacheLimit() {
+        defaults.removeObject(forKey: Self.previewCacheLimitKey)
     }
 
     // MARK: - Keyboard (the v1 override store — see the file header)

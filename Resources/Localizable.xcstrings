@@ -33915,6 +33915,86 @@
         }
       }
     }
+  },
+  "settings_previews_hint" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Caches the decoded working planes so reopening and culling skip the RAW decode. Off disables the cache; everything in it is rebuildable."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "缓存解码工作平面，重开与选片不再重复 RAW 解码。关闭即停用缓存；其中内容均可重建。"
+        }
+      }
+    }
+  },
+  "settings_previews_limit" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Cache limit"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "缓存上限"
+        }
+      }
+    }
+  },
+  "settings_previews_mb" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "%lld MB"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "%lld MB"
+        }
+      }
+    }
+  },
+  "settings_previews_off" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Off"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "关闭"
+        }
+      }
+    }
+  },
+  "settings_previews_section" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Smart previews"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "智能预览"
+        }
+      }
+    }
   }
   },
   "version": "1.0"
