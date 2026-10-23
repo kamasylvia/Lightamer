@@ -33,6 +33,9 @@ import SwiftUI
 enum AppPhase: Equatable, Sendable {
     case library
     case editor
+    /// LUMEN-B T4 (D-LU-1): the cull face — the main window's THIRD face
+    /// (the libraryFace assembly mechanism; Esc/G routes back to library).
+    case cull
 }
 
 /// The preserved LIBRARY face (everything the library workspace renders
@@ -503,11 +506,24 @@ final class WorkspaceModel {
         phase = .library
     }
 
+    /// Enter the cull face (the grid's onCull seam — the anchor row lands
+    /// on the cull table's current position; the library face is NOT
+    /// snapshotted — the cull face never mutates the library face state).
+    func openCull() {
+        phase = .cull
+    }
+
+    /// Leave the cull face back to the library (the Esc/G semantics).
+    func closeCull() {
+        phase = .library
+    }
+
     /// The single toggle (⌘E / ⌘W equivalents route here).
     func switchPhase() {
         switch phase {
         case .library: openEditor(imageID: nil)
         case .editor: closeEditor()
+        case .cull: closeCull()
         }
     }
 

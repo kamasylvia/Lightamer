@@ -159,12 +159,16 @@ final class WorkspaceRoutingTests: XCTestCase {
         switch phase {
         case .library: "library"
         case .editor: "editor"
+        // LUMEN-B T4 (D-LU-1): the third face answers the tripwire — the
+        // no-default discipline holds (a future case breaks here first).
+        case .cull: "cull"
         }
     }
 
     func testAppPhaseSwitchIsExhaustiveWithoutDefault() {
         XCTAssertEqual(phaseLabel(.library), "library")
         XCTAssertEqual(phaseLabel(.editor), "editor")
+        XCTAssertEqual(phaseLabel(.cull), "cull")
     }
 
     // MARK: - The gate markers (AC #3)

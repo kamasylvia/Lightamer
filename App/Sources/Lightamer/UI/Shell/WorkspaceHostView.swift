@@ -69,6 +69,13 @@ struct WorkspaceHostView: View {
     // LUMEN-A T7: the culling hint badges (empty = the default-neutral face).
     @State private var cullingBadges: [Int64: LibraryCullingBadge] = [:]
 
+    // LUMEN-B T4 (X7/D-LU-1): the cull face — the THIRD face. The model is
+    // built on the onCull entry (the grid's current rows + the burst
+    // annotations); the loader is the face's plane supply (nil-until-first-
+    // entry — the bridge's @State laziness pattern).
+    @State private var cullModel: CullFaceModel?
+    @State private var cullLoader: CullViewLoader?
+
     // M2-10-03 (declared increment): the AI analysis leg + the labeling ask.
     // The registry rides THIS host's aggregate task registry (the bar/dialog
     // render AI rows with zero new presentation faces — the M2UIW-06
@@ -147,6 +154,13 @@ struct WorkspaceHostView: View {
                         bridge: thumbnailBridge,
                         projectController: projectController)
                         .transition(.opacity.combined(with: .offset(y: -8)))
+                case .cull:
+                    // LUMEN-B T4 (D-LU-1): the third face — the same
+                    // assembly mechanism as libraryFace above (left main
+                    // pane + header + filmstrip; Esc/G routes back).
+                    cullFace
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .transition(.opacity.combined(with: .offset(y: 8)))
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: workspace.phase)
@@ -477,6 +491,100 @@ struct WorkspaceHostView: View {
         cullingBadges = CullingBadgeMapper.map(rows: rows, annotations: annotations)
     }
 
+    // MARK: - Cull face (Plan LUMEN-B T4, X7/D-LU-1 — the third face)
+
+    /// The cull entry: build the model over the grid's CURRENT rows + the
+    /// LUMEN-A burst annotations, then route the face. No rows = no-op
+    /// (the honest inert entry).
+    private func openCullFace(anchorID: Int64?) async {
+        guard let gridModel, !gridModel.rows.isEmpty,
+              let store = projectController?.projectStore
+        else { return }
+        let burstRows = (try? await LibraryQueries(store: store).burstRows()) ?? []
+        let annotations = BurstAnnotator.annotate(rows: burstRows)
+        let rowsByAnnotation = Dictionary(
+            uniqueKeysWithValues: burstRows.map { ($0.imageID, $0) })
+        let entries = gridModel.rows.map { row in
+            CullEntry(
+                row: row,
+                url: cullURL(for: row),
+                annotation: annotations[row.id],
+                sharpness: rowsByAnnotation[row.id]?.sharpness,
+                eyesClosed: rowsByAnnotation[row.id]?.eyesClosed,
+                rating: row.rating, colorLabel: row.colorLabel,
+                flag: row.flag)
+        }
+        if cullLoader == nil {
+            cullLoader = CullViewLoader()
+        }
+        // An anchor beyond the loaded window clamps to the collection head
+        // (the model's firstIndex-or-0 face — the Lumen start-clamp 同形).
+        let model = CullFaceModel(entries: entries, anchorID: anchorID)
+        bindCullRoutes(model)
+        cullModel = model
+        workspace.openCull()
+    }
+
+    private func cullURL(for row: LibraryImageRow) -> URL? {
+        guard let projectURL = projectController?.projectURL,
+              let kind = LibrarySchema.PathKind(rawValue: row.pathKind),
+              case .resolved(let url) = ImageLinker.resolve(
+                imagePath: row.imagePath, pathKind: kind,
+                volumeUUID: row.volumeUUID,
+                projectDirectory: projectURL.deletingLastPathComponent())
+        else { return nil }
+        return url
+    }
+
+    /// The three routes the model's keys ride (the write leg = the plan's
+    /// pinned LibraryStore.setMetadataMarks single-batch write; the local
+    /// projection refreshes the header/filmstrip through applyWrittenMarks).
+    private func bindCullRoutes(_ model: CullFaceModel) {
+        let store = projectController?.projectStore
+        model.writeLeg = { imageID, rating, colorLabel, flag in
+            guard let store else { return }
+            let libraryStore = LibraryStore(store: store)
+            try? await libraryStore.setMetadataMarks([
+                LibraryMetadataMark(
+                    imageID: imageID, rating: rating,
+                    colorLabel: colorLabel, flag: flag)
+            ])
+            await MainActor.run {
+                model.applyWrittenMarks(
+                    imageID: imageID, rating: rating,
+                    colorLabel: colorLabel, flag: flag)
+            }
+        }
+        model.openEditorRoute = { imageID in
+            gridModel?.openCurrent(imageID)
+            workspace.openEditor(imageID: imageID)
+        }
+        model.backRoute = { [weak gridModel] in
+            workspace.closeCull()
+            // The rating writes moved the projection columns — the grid
+            // refreshes on return (the surface-rebuild precedent).
+            Task {
+                try? await gridModel?.reloadFirstPage()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var cullFace: some View {
+        if let cullModel, let cullLoader {
+            CullFaceView(
+                model: cullModel, loader: cullLoader,
+                bridge: thumbnailBridge,
+                onClose: { cullModel.backRoute?() })
+        } else {
+            // The inert face (model build failed — the honest empty state).
+            ContentUnavailableView(
+                String(localized: "cull_face_empty", defaultValue: "选片"),
+                systemImage: "photo.stack")
+                .accessibilityIdentifier("library.cull.empty")
+        }
+    }
+
     @ViewBuilder
     private var libraryFace: some View {
         if let gridModel {
@@ -518,6 +626,11 @@ struct WorkspaceHostView: View {
                             await reloadCullingBadges(
                                 LibraryQueries(store: store))
                         }
+                    },
+                    // LUMEN-B T4: the cull entry (the context-menu seam —
+                    // the clicked row anchors the cull table).
+                    onCull: { anchor in
+                        Task { await openCullFace(anchorID: anchor) }
                     })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // The T2 Album Inspector (fixed-width tier, KD-2): the
