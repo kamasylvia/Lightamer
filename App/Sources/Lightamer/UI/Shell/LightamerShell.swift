@@ -1122,6 +1122,29 @@ internal struct LightamerShellFace: View {
                             }
                         })
                     editingSeams.projectWriteProbe = projectWriteProbe
+                    // LUMEN-C T2/T3 (D-LU-7/X8): the mask fine-refinement
+                    // coordinator — the auto trigger's hook + the manual
+                    // entry's owner + (below) the MCP refine_masks supply.
+                    let maskRefineCoordinator = MaskRefineCoordinator(
+                        pipe: pipeCoordinator, editor: editorState,
+                        editing: layerEditingState, metal: metalContext,
+                        registry: moduleRegistry)
+                    editorState.maskRefine = maskRefineCoordinator
+                    AIMaskEditing.fineAutoTrigger = { [weak maskRefineCoordinator] layerID in
+                        maskRefineCoordinator?.scheduleAutoRefine(layerID: layerID)
+                    }
+                    editingSeams.refineMasks = { [weak maskRefineCoordinator] ids in
+                        guard let maskRefineCoordinator else {
+                            throw McpToolError.internalError(
+                                "refine_masks: the editor coordinator is gone")
+                        }
+                        do {
+                            try await maskRefineCoordinator.refineMasksForMCP(ids)
+                        } catch let error as MaskRefineCoordinator.MaskRefineError {
+                            throw McpToolError.invalidParams(
+                                "refine_masks: \(error.localizedDescription)")
+                        }
+                    }
                     cullingContext.projectWriteProbe = projectWriteProbe
                     // M5-1-03 (KD-1): the match_color tool shares the app's ONE
                     // colormatch service (the session curves) and reads the open
