@@ -33995,6 +33995,70 @@
         }
       }
     }
+  },
+  "ai_mask_refine" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Refine Mask Edge"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "精细化蒙版边缘"
+        }
+      }
+    }
+  },
+  "ai_mask_refine_failed" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Mask refinement failed, keeping the quick mask"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "蒙版精细化失败，已保留快速蒙版"
+        }
+      }
+    }
+  },
+  "history_mask_refine" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Refine Mask Edge"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "精细化蒙版边缘"
+        }
+      }
+    }
+  },
+  "mcp_tool_desc_refine_masks" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Refine the AI-generated raster masks of the editor's CURRENT image on a developed display guide (sample-based matting: hair, fur, branches, fine edges). Only the live editor image qualifies - relPath must name the image open in the editor right now; anything else fails typed. maskIds are the owning LAYERS' UUIDs whose masks were AI-generated; unknown or non-AI ids fail typed (nothing is silently dropped). Each refined raster replaces the quick one as ONE undoable history step; a failure keeps the quick mask. The pass runs in the background (seconds per mask): this call ENQUEUES and returns - poll render_preview afterwards to see the result. Serialized behind the render gate."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "在显影后显示域向导图上精细化编辑器当前图像的 AI 蒙版(采样式抠图:发丝、毛发、枝叶等细边缘)。仅编辑器当前打开的图像可用——relPath 必须指向当前图像,否则 typed 报错。maskIds 为持有蒙版的图层 UUID;未知或非 AI 蒙版 typed 报错(不静默丢弃)。每个精细化栅格以一步可撤销 history 提交置换快速蒙版;失败保留快速蒙版。后台执行(每蒙版数秒):本调用入队即返回——随后用 render_preview 轮询结果。经渲染闸门串行。"
+        }
+      }
+    }
   }
   },
   "version": "1.0"

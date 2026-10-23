@@ -211,6 +211,16 @@ internal struct MaskToolbarView: View {
 
     private var hasSelection: Bool { editingState.selectedLayerID != nil }
 
+    /// The manual refine entry's gate (LUMEN-C): the selected layer's mask
+    /// carries an AI-prefixed raster reference.
+    private var selectedLayerHasAIMask: Bool {
+        guard let id = editingState.selectedLayerID,
+            let layer = editorState.adjustmentLayer(id: id),
+            let fileName = layer.mask?.raster?.fileName
+        else { return false }
+        return AIMaskSource.source(ofFileName: fileName) != nil
+    }
+
     // MARK: - Segment session feather + patch face (M6-4-02 KD-3)
 
     /// The Edge feather slider (−100...100; negative = the CPU logit-gain
@@ -401,6 +411,33 @@ internal struct MaskToolbarView: View {
                 .disabled(!hasSelection)
                 .accessibilityLabel(Text("ai_mask_person_instance"))
                 .accessibilityIdentifier("ai.mask.person")
+
+                // LUMEN-C (D-LU-7): the manual fine-refine entry — the
+                // selected layer's AI raster joins the coordinator's
+                // single-flight queue. Disabled unless the layer's mask
+                // carries an AI-prefixed raster (the auto path covers the
+                // post-generation moment; this is the re-run face).
+                if let refine = editorState.maskRefine {
+                    Button {
+                        if let id = editingState.selectedLayerID {
+                            refine.refineLater([id])
+                        }
+                    } label: {
+                        Image(systemName: "wand.and.rays")
+                            .font(.callout)
+                            .frame(width: 24, height: 22)
+                            .background {
+                                refine.isBusy
+                                    ? LightamerColors.accent.opacity(0.4)
+                                    : Color.clear
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(!selectedLayerHasAIMask)
+                    .accessibilityLabel(Text("ai_mask_refine"))
+                    .accessibilityIdentifier("ai.mask.refine")
+                }
             }
         }
         .popover(item: $instanceCatalog) { catalog in

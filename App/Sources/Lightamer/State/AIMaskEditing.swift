@@ -97,6 +97,13 @@ enum AIMaskEntryGate {
 @MainActor
 enum AIMaskEditing {
 
+    /// LUMEN-C (D-LU-7, X8): the fine-refinement auto-trigger hook — the
+    /// shell assembly installs `MaskRefineCoordinator.scheduleAutoRefine`;
+    /// nil (every existing construction, the tests) = zero behavior. The
+    /// trigger reads the `mask.fineAuto` gate INSIDE the coordinator (the
+    /// Settings key stays typed + injectable there).
+    static var fineAutoTrigger: (@MainActor (_ layerID: UUID) -> Void)?
+
     /// The decode-frame inference input (pre-edit semantic anchoring,
     /// 07-CONTEXT 继承定案) + its pixel size. nil when nothing is loaded.
     /// Same read-only seam the ashift auto-detect uses (L014-clean by
@@ -163,7 +170,8 @@ enum AIMaskEditing {
         editingState: LayerEditingState,
         metal: MetalContext,
         expectedRevision: Int? = nil,
-        patchRebake: Bool = false
+        patchRebake: Bool = false,
+        refineCommit: Bool = false
     ) async throws -> RasterMaskRef {
         guard let layerID = editingState.selectedLayerID,
               let layer = editorState.adjustmentLayer(id: layerID)
@@ -236,6 +244,15 @@ enum AIMaskEditing {
             (layerID, 0.85, editingState.maskOverlayStyle))
         if let activateTool {
             editingState.setTool(activateTool)
+        }
+        // LUMEN-C (D-LU-7): the fine-refinement auto-trigger — ONE hook,
+        // fired on every successful raster commit EXCEPT the refinement's
+        // own (`refineCommit` breaks the loop). nil hook = every existing
+        // caller zero-diff. The consumer (MaskRefineCoordinator) debounces
+        // + single-flights, so generation and patch commits collapse into
+        // one settled refine per burst.
+        if !refineCommit {
+            fineAutoTrigger?(layerID)
         }
         // The segment session sides (KD-1/M6): the base plane is held and
         // the 1s-debounced patch pass is armed — but NOT for the patch
