@@ -94,6 +94,11 @@ struct LibraryGridView: View {
     /// The 转为堆栈 one-key route for a burst group (nil = the menu entry
     /// stays hidden — the test skeleton state).
     var onCreateBurstStack: (([Int64]) -> Void)?
+    // LUMEN-B T4 (X7/D-LU-1): the cull entry (the context-menu 快速选片 seam
+    // — the clicked row anchors the cull table; nil = the entry stays hidden,
+    // the test skeleton state). Declared AFTER cullingBadges to keep the
+    // memberwise-argument order the host's call site already uses.
+    var onCull: ((Int64?) -> Void)?
 
     @State private var pager: LibraryGridPager?
 
@@ -201,6 +206,20 @@ struct LibraryGridView: View {
             // stack face joins the menu (成栈 needs a ≥2 selection; the
             // per-row stack routes need a membership).
             .contextMenu {
+                // LUMEN-B T4: the cull entry (the clicked row anchors the
+                // cull table's current position).
+                if let onCull {
+                    Button {
+                        grid.selectSingle(row.id)
+                        onCull(row.id)
+                    } label: {
+                        Label(String(
+                            localized: "library_grid_cull",
+                            defaultValue: "快速选片"),
+                            systemImage: "checkmark.circle.stack")
+                    }
+                    .accessibilityIdentifier("library.grid.cell.cull")
+                }
                 if let onAIUpscale {
                     Button {
                         grid.selectSingle(row.id)

@@ -35,7 +35,11 @@ import LightamerCore
 /// productions FIFO, with `prioritize` re-ordering the visible window to the
 /// front. A released slot hands DIRECTLY to the first waiter (running count
 /// unchanged — the invariant `running ≤ limit` holds by construction).
-private actor ThumbnailProductionGate {
+///
+/// LUMEN-B T4: de-privatized to INTERNAL (was `private`) — the cull view's
+/// loader reuses the SAME gate shape for its own production cap (the plan's
+/// "ThumbnailProductionGate 形复用"; the type's semantics are untouched).
+actor ThumbnailProductionGate {
     let limit: Int
     private(set) var running = 0
     private var queue: [(id: Int64, continuation: CheckedContinuation<Void, Never>)] = []
