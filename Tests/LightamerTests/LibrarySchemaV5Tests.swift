@@ -184,7 +184,9 @@ final class LibrarySchemaV5Tests: XCTestCase {
             try self.assertColumns(
                 handle, table: "stack_content",
                 frozen: LibrarySchema.stackContentColumns)
-            XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 5)
+            // LUMEN-A T1: fresh creates stamp the current version (6) —
+            // the v5-era stamp of 5 walked one generation on.
+            XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 6)
         }
     }
 
@@ -209,11 +211,11 @@ final class LibrarySchemaV5Tests: XCTestCase {
         XCTAssertEqual(try readUserVersion(v4URL), 4)
 
         // Open through the REAL dispatch: the pre-migrate snapshot rotates
-        // (generation 4-5), the idempotent family lands, the version is 5.
+        // (generation 4-6), the idempotent family lands, the version is 6.
         let store = ProjectFileStore(at: v4URL)
         _ = try await store.open()
         let snapshotURL = v4URL.deletingPathExtension()
-            .appendingPathExtension("pre-migrate.4-5.bak")
+            .appendingPathExtension("pre-migrate.4-6.bak")
         XCTAssertTrue(
             FileManager.default.fileExists(atPath: snapshotURL.path),
             "the pre-migration snapshot hook consumed (generation-named)")
@@ -221,7 +223,7 @@ final class LibrarySchemaV5Tests: XCTestCase {
 
         let handle = try SQLiteHandle(path: v4URL.path)
         defer { handle.close() }
-        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 5)
+        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 6)
         // Pre-existing rows survived (the additive red line).
         let imageCount = try handle.prepare("SELECT COUNT(*) FROM images")
         try XCTAssertTrue(imageCount.step())
@@ -262,12 +264,13 @@ final class LibrarySchemaV5Tests: XCTestCase {
         _ = try await store.open()
         try await store.close()
         // One dispatch call walked ALL legs: the original row + the v2
-        // column + the v3 projection + the v4 family + the v5 stacks.
+        // column + the v3 projection + the v4 family + the v5 stacks
+        // (+ the v6 analysis columns — the chain now runs 1→…→6).
         let handle = try SQLiteHandle(path: url.path)
         defer { handle.close() }
         XCTAssertEqual(
-            try LibrarySchema.readUserVersion(from: handle), 5,
-            "the chained migration lands at v5")
+            try LibrarySchema.readUserVersion(from: handle), 6,
+            "the chained migration lands at v6")
         let columns = try tableColumns(handle, "images")
         XCTAssertNotNil(
             columns.first(where: { $0.name == "default_look_pending" }),
@@ -280,20 +283,20 @@ final class LibrarySchemaV5Tests: XCTestCase {
 
     // MARK: - ⑤ futureSchema refusal
 
-    func testFutureVersionSixRefusedAndUntouched() throws {
+    func testFutureVersionSevenRefusedAndUntouched() throws {
         try withFreshHandle { handle in
             try handle.execute(
                 "INSERT INTO stacks (collapsed) VALUES (1)")
-            try LibrarySchema.writeUserVersion(6, to: handle)
+            try LibrarySchema.writeUserVersion(7, to: handle)
         }
         let handle = try SQLiteHandle(path: databaseURL.path)
         XCTAssertThrowsError(try LibrarySchema.apply(to: handle)) { error in
-            XCTAssertEqual(error as? LibraryError, .futureSchema(version: 6))
+            XCTAssertEqual(error as? LibraryError, .futureSchema(version: 7))
         }
         handle.close()
         // The destructive red line: the refuse path wrote NOTHING — the
         // stamped version and the seeded row stand byte-intact.
-        XCTAssertEqual(try readUserVersion(databaseURL), 6)
+        XCTAssertEqual(try readUserVersion(databaseURL), 7)
         let verify = try SQLiteHandle(path: databaseURL.path)
         defer { verify.close() }
         let rows = try verify.prepare("SELECT COUNT(*) FROM stacks")

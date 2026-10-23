@@ -100,7 +100,7 @@ final class ProjectLockTests: XCTestCase {
             }
         }
         let snapshot = packageURL.deletingPathExtension()
-            .appendingPathExtension("pre-migrate.3-5.bak")
+            .appendingPathExtension("pre-migrate.3-6.bak")
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: snapshot.path),
             "no snapshot may exist when the lock refused the open")
@@ -114,7 +114,7 @@ final class ProjectLockTests: XCTestCase {
         let store = ProjectFileStore(at: packageURL)
         _ = try await store.open(role: .headless)
         let snapshot = packageURL.deletingPathExtension()
-            .appendingPathExtension("pre-migrate.3-5.bak")
+            .appendingPathExtension("pre-migrate.3-6.bak")
         XCTAssertTrue(
             FileManager.default.fileExists(atPath: snapshot.path),
             "the migration snapshot ran")
@@ -169,7 +169,7 @@ final class ProjectLockTests: XCTestCase {
         handle.close()
         XCTAssertEqual(stored, 3, "the read-only refusal must not migrate")
         let snapshot = packageURL.deletingPathExtension()
-            .appendingPathExtension("pre-migrate.3-5.bak")
+            .appendingPathExtension("pre-migrate.3-6.bak")
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: snapshot.path),
             "no snapshot on the read-only refusal path")

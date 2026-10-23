@@ -8,14 +8,17 @@ import XCTest
 // LibrarySchemaTests (Plan M2-2-1 T1) — the `.lalb` freeze contract:
 //
 //   • three entity tables + project_meta + the FTS5 virtual table, fresh;
-//     `images` 29 columns / `albums` 7 / `album_content` 2 — VERBATIM
+//     `images` 36 columns / `albums` 7 / `album_content` 2 — VERBATIM
 //     (order IS the freeze, KD-3's complete enumeration; M2-5-2 KD-6
-//     appended default_look_pending at the tail — v2, the first migration)
-//   • fresh create: user_version == 5 + project_meta seeded (name/created_at)
+//     appended default_look_pending at the tail — v2, the first migration;
+//     LUMEN-A T1 appended the seven culling-analysis columns — v6, the
+//     fifth migration)
+//   • fresh create: user_version == 6 + project_meta seeded (name/created_at)
 //     (M2-8-1: the version_ref projection joins the fresh DDL; M2-10-02:
 //     the AI-library seven-table family joins it too; M6-4-01: the v5
 //     stack family joins it as well — its dedicated pins live in
-//     LibrarySchemaV5Tests)
+//     LibrarySchemaV5Tests; LUMEN-A: the v6 culling-analysis columns join
+//     it too — their dedicated pins live in LibrarySchemaV6Tests)
 //   • images_fts: external-content over images, content_rowid='id',
 //     tokenize='unicode61' (ZERO custom tokenchars), FTS column name ==
 //     `exif_search_words` (KD-5 rebuild dependency); the three sync
@@ -110,7 +113,7 @@ final class LibrarySchemaTests: XCTestCase {
 
     // MARK: - Freeze contract (PRAGMA table_info verbatim)
 
-    func testImagesTwentyNineColumnsVerbatim() throws {
+    func testImagesThirtySixColumnsVerbatim() throws {
         try withFreshHandle { handle in
             try self.assertColumns(
                 handle, table: "images", frozen: LibrarySchema.imagesColumns)
@@ -181,14 +184,14 @@ final class LibrarySchemaTests: XCTestCase {
 
     // MARK: - Fresh create: user_version + project_meta
 
-    func testFreshCreateStampsUserVersionFiveAndSeedsProjectMeta() throws {
+    func testFreshCreateStampsUserVersionSixAndSeedsProjectMeta() throws {
         try withFreshHandle { handle in
-            // The truth read (raw PRAGMA) and the helper agree. (M6-4-01
-            // KD-1: v4→v5 = the fourth migration — fresh creates stamp 5.)
+            // The truth read (raw PRAGMA) and the helper agree. (LUMEN-A
+            // T1: v5→v6 = the fifth migration — fresh creates stamp 6.)
             let statement = try handle.prepare("PRAGMA user_version")
             try XCTAssertTrue(statement.step())
-            XCTAssertEqual(statement.columnInt(0), 5)
-            XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 5)
+            XCTAssertEqual(statement.columnInt(0), 6)
+            XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 6)
 
             let meta = try self.projectMeta(handle)
             XCTAssertEqual(meta[LibrarySchema.ProjectMetaKey.projectName], "TestProj")
@@ -209,8 +212,8 @@ final class LibrarySchemaTests: XCTestCase {
         try withFreshHandle { handle in
             try LibrarySchema.apply(to: handle, projectName: "Renamed")
             // Idempotent: the fresh leg does NOT re-run (user_version
-            // already 5), so the seed stays the ORIGINAL name.
-            XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 5)
+            // already 6), so the seed stays the ORIGINAL name.
+            XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 6)
             let meta = try self.projectMeta(handle)
             XCTAssertEqual(meta[LibrarySchema.ProjectMetaKey.projectName], "TestProj")
         }
@@ -320,17 +323,17 @@ final class LibrarySchemaTests: XCTestCase {
         let handle = try SQLiteHandle(path: databaseURL.path)
         defer { handle.close() }
         try LibrarySchema.apply(to: handle, projectName: "Ignored")
-        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 5)
+        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 6)
     }
 
     func testFutureVersionRefused() throws {
         try withFreshHandle { handle in
-            try LibrarySchema.writeUserVersion(6, to: handle)
+            try LibrarySchema.writeUserVersion(7, to: handle)
         }
         let handle = try SQLiteHandle(path: databaseURL.path)
         defer { handle.close() }
         XCTAssertThrowsError(try LibrarySchema.apply(to: handle)) { error in
-            XCTAssertEqual(error as? LibraryError, .futureSchema(version: 6))
+            XCTAssertEqual(error as? LibraryError, .futureSchema(version: 7))
         }
     }
 
@@ -473,12 +476,12 @@ final class LibrarySchemaTests: XCTestCase {
         try makeV3Package(at: v3URL)
 
         // Open through the REAL dispatch: snapshot first (the pre-migrate
-        // hook's v3→v5 consumer — the rotated generation name), then the
+        // hook's v3→v6 consumer — the rotated generation name), then the
         // idempotent CREATE family.
         let store = ProjectFileStore(at: v3URL)
         _ = try await store.open()
         let snapshotURL = v3URL.deletingPathExtension()
-            .appendingPathExtension("pre-migrate.3-5.bak")
+            .appendingPathExtension("pre-migrate.3-6.bak")
         XCTAssertTrue(
             FileManager.default.fileExists(atPath: snapshotURL.path),
             "the pre-migration snapshot hook consumed (generation-named)")
@@ -490,7 +493,7 @@ final class LibrarySchemaTests: XCTestCase {
         // fails busy).
         let handle = try SQLiteHandle(path: v3URL.path)
         defer { handle.close() }
-        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 5)
+        XCTAssertEqual(try LibrarySchema.readUserVersion(from: handle), 6)
         // The pre-existing rows survived (the additive red line).
         let count = try handle.prepare("SELECT COUNT(*) FROM images")
         try XCTAssertTrue(count.step())
@@ -518,20 +521,20 @@ final class LibrarySchemaTests: XCTestCase {
 
     func testFullChainV1ToV4MigrationRotatesSnapshots() async throws {
         // The E2 deadlock scenario, one generation on: a package migrated
-        // 1→5 by the FIRST generation binary (snapshot 1-5 on disk), then
+        // 1→6 by the FIRST generation binary (snapshot 1-6 on disk), then
         // its user_version rewound to 2 (the上一代在线产物 simulation) —
-        // reopening under the current binary must migrate 2→5 WITHOUT
+        // reopening under the current binary must migrate 2→6 WITHOUT
         // hitting the old destination-exists refusal. The dispatch issues
         // ONE migrate call walking ALL legs — the test asserts each leg's
         // product (the M2 anti-two-legs-only pin).
         let url = tempDirectory.appendingPathComponent("legacy-chain.lalb")
         try makeV1Package(at: url, stampVersion: 1)
 
-        // Generation 1: open → migrate 1→5, snapshot 1-5 born.
+        // Generation 1: open → migrate 1→6, snapshot 1-6 born.
         let first = ProjectFileStore(at: url)
         _ = try await first.open()
         let snapshot14 = url.deletingPathExtension()
-            .appendingPathExtension("pre-migrate.1-5.bak")
+            .appendingPathExtension("pre-migrate.1-6.bak")
         XCTAssertTrue(FileManager.default.fileExists(atPath: snapshot14.path))
         try await first.close()
 
@@ -541,12 +544,12 @@ final class LibrarySchemaTests: XCTestCase {
         try LibrarySchema.writeUserVersion(2, to: rewind)
         rewind.close()
 
-        // Generation 2: reopen → migrate 2→5 through the ROTATION path
-        // (snapshot 2-5 born beside 1-5; no destination-exists death).
+        // Generation 2: reopen → migrate 2→6 through the ROTATION path
+        // (snapshot 2-6 born beside 1-6; no destination-exists death).
         let second = ProjectFileStore(at: url)
         _ = try await second.open()
         let snapshot24 = url.deletingPathExtension()
-            .appendingPathExtension("pre-migrate.2-5.bak")
+            .appendingPathExtension("pre-migrate.2-6.bak")
         XCTAssertTrue(
             FileManager.default.fileExists(atPath: snapshot24.path),
             "the second-generation snapshot was taken (rotation, not refusal)")
@@ -559,8 +562,8 @@ final class LibrarySchemaTests: XCTestCase {
         let handle = try SQLiteHandle(path: url.path)
         defer { handle.close() }
         XCTAssertEqual(
-            try LibrarySchema.readUserVersion(from: handle), 5,
-            "the chained migration lands at v5 — the deadlock is dead")
+            try LibrarySchema.readUserVersion(from: handle), 6,
+            "the chained migration lands at v6 — the deadlock is dead")
         // Leg products: 1→2 (the additive column), 2→3 (version_ref), and
         // 3→4 (the semantic family) — ALL present after the single call.
         let columns = try tableColumns(handle, "images")
