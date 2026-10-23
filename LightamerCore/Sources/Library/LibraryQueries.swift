@@ -879,4 +879,52 @@ public actor LibraryQueries {
             return Int(statement.columnInt(0) ?? 0)
         }
     }
+
+    /// The burst-annotation row projection (LUMEN-A T6): the analysed rows
+    /// with their grouping inputs — the camera triple, the capture epoch,
+    /// the Signature16 bytes, the sharpness and the WIDER-OPEN eye ratio
+    /// (parsed from the face_boxes JSON — the T4 product's per-face
+    /// [x,y,w,h,closed,rr,rl] arrays reduce to max(max(rr,rl))).
+    public func burstRows() async throws -> [BurstRow] {
+        try await store.withHandle { handle in
+            let statement = try handle.prepare("""
+                SELECT id, camera_make, camera_model, camera_serial,
+                    capture_date, signature, sharpness, filename, face_boxes
+                FROM images
+                WHERE analysis_version IS NOT NULL
+                ORDER BY id
+                """)
+            var rows: [BurstRow] = []
+            while try statement.step() {
+                let faceBoxes = statement.columnText(8)
+                rows.append(BurstRow(
+                    imageID: statement.columnInt(0) ?? 0,
+                    make: statement.columnText(1),
+                    model: statement.columnText(2),
+                    serial: statement.columnText(3),
+                    capturedTS: statement.columnDouble(4),
+                    signature: statement.columnBlob(5),
+                    eyesRatio: Self.maxEyeRatio(fromFaceBoxesJSON: faceBoxes),
+                    sharpness: statement.columnDouble(6),
+                    filename: statement.columnText(7)))
+            }
+            return rows
+        }
+    }
+
+    /// The image-level wider-open-eye ratio from the face_boxes JSON (nil =
+    /// no face carried any ratio).
+    static func maxEyeRatio(fromFaceBoxesJSON json: String?) -> Double? {
+        guard let json, let data = json.data(using: .utf8),
+              let faces = try? JSONDecoder().decode([[Double?]].self, from: data)
+        else { return nil }
+        var best: Double?
+        for face in faces where face.count >= 7 {
+            for ratio in [face[5], face[6]] {
+                guard let ratio else { continue }
+                if best == nil || ratio > best! { best = ratio }
+            }
+        }
+        return best
+    }
 }
