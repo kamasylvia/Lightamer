@@ -51,6 +51,11 @@ internal struct ContentView: View {
     var legacyLibraryEnabled: Bool = false
     var projectController: LibraryProjectController?
     var onImportFolder: () -> Void = { }
+    /// R3 mark wiring: the pristine-mint seed provider handed to the
+    /// workspace host's writer leg (the MetadataController.configure seed
+    /// isomorphism — the app root's `seedInstances()` face; no default = the
+    /// injection is never silently an empty mint).
+    var libraryMarkSeed: () async -> [ModuleInstance]
 
     /// Plan M2-2-4 (KD-4 layer 2): the content-face markers as a pure
     /// function of the gate — a 1:1 mirror of the body's single branch
@@ -216,7 +221,8 @@ internal struct ContentView: View {
             // keeps the WorkspaceHostView assembly + the mount only).
             WorkspaceHostView(
                 projectController: projectController,
-                onImportFolder: onImportFolder)
+                onImportFolder: onImportFolder,
+                libraryMarkSeed: libraryMarkSeed)
                 .modifier(InspectorPageMount(
                     projectController: projectController))
         }

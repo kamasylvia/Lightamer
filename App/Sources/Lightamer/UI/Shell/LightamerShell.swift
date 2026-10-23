@@ -109,7 +109,10 @@ internal struct LightamerShellFace: View {
                 projectController: libraryProjects,
                 // L057 (fix(l057)): Task hop — the begin-seam panel runs
                 // outside this closure's frame.
-                onImportFolder: { Task { await importFolderFromPanel() } }
+                onImportFolder: { Task { await importFolderFromPanel() } },
+                // R3 mark wiring (D5 seed isomorphism): the SAME seed face
+                // MetadataController.configure rides on the session-open path.
+                libraryMarkSeed: { await self.seedInstances() }
             )
                 .onChange(of: graph.presetManagerRequested) { _, requested in
                     // F0P-01 T6 (review M1): the toolbar preset-manager seam
@@ -1536,9 +1539,23 @@ internal struct LightamerShellFace: View {
     }
 
     private func applyRating(_ value: Int?) {
+        if routeLibraryMark(.rating(value)) { return }
         let targets = metadataTargets()
         guard !targets.isEmpty else { return }
         Task { await metadataController.setRating(value, relPaths: targets) }
+    }
+
+    /// R3 mark-chain wiring (the r12-repairs D5 handover): when the LIBRARY
+    /// face is active the mark commands ride the WorkspaceModel request-field
+    /// into the host's writer leg (`LibraryMetadataWriter` — the P1
+    /// triple-zero closure); the session-face path below stays the editor /
+    /// legacy-session route (its targets are empty in the library workspace —
+    /// the silent no-op this wiring replaces).
+    private func routeLibraryMark(_ command: WorkspaceModel.MarkCommand) -> Bool {
+        guard let workspace = NSMenuBridgeController.shared.workspace,
+              workspace.phase == .library else { return false }
+        workspace.requestMark(command)
+        return true
     }
 
     /// V14/FINDING-G (M3-1-03 KD-4): the rating menu labels resolved
@@ -1574,12 +1591,14 @@ internal struct LightamerShellFace: View {
     }
 
     private func applyColor(_ value: Int?) {
+        if routeLibraryMark(.colorLabel(value)) { return }
         let targets = metadataTargets()
         guard !targets.isEmpty else { return }
         Task { await metadataController.setColorLabel(value, relPaths: targets) }
     }
 
     private func applyFlag(_ value: Int?) {
+        if routeLibraryMark(.flag(value)) { return }
         let targets = metadataTargets()
         guard !targets.isEmpty else { return }
         Task { await metadataController.setFlag(value, relPaths: targets) }
@@ -1589,6 +1608,7 @@ internal struct LightamerShellFace: View {
     /// value → clear it on all; otherwise set it on all (the uniform Lr
     /// rule; single-target toggle is the natural case).
     private func toggleFlag(_ value: Int) {
+        if routeLibraryMark(.toggleFlag(value)) { return }
         let targets = metadataTargets()
         guard !targets.isEmpty else { return }
         Task {

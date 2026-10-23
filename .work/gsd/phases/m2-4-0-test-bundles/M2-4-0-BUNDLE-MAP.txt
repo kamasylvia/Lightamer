@@ -325,7 +325,7 @@ APP	8	AdjustmentTransferTests.swift
 APP	3	CleanTerminateSentinelTests.swift
 #   M6-4-02 T4（2026-10-14，登记随文件同 commit）：App patch/羽化流 4 法入 APP。
 APP	4	AIMaskPatchFlowTests.swift
-APP	1	SheetEnvironmentInjectionTests.swift
+APP	2	SheetEnvironmentInjectionTests.swift
 APP	3	ToastFaceTests.swift
 LAYERS	5	LayerSkeletonTests.swift
 LAYERS	5	Plan0605LeftoverTests.swift
@@ -818,3 +818,11 @@ APP	8	LensDefaultsWiringTests.swift
 #     SC#2 skip / grid refreshRows 原位补丁）。
 LIB	4	LibraryMetadataWriterTests.swift
 SESS	6	CullingPipelineTests.swift
+# R3 修复批增行记录（2026-10-22，R12 终审路由三件）：
+#   ① F2-1 Import Folder sheet 环境注入 → SheetEnvironmentInjectionTests 行 1→2
+#     （APP）——ImportModeDialogSheetContent 真 .sheet 挂载正腿（M2-8-3 FINDING-A
+#     孪生；负腿 = 掏空注入亲跑一次观察同 fatal 签名，不留永久 trapping 测试）。
+#   ② 标记链接线（D5 让渡兑现）→ 新文件 LibraryMarkWiringTests.swift 5 法全
+#     LIB/Library 级（真 .lalb + 真图档：rating 命令端到端 / clear 首类写 /
+#     P/X uniform-Lr / 空选择与无 store 两 no-op 护栏）。
+LIB	5	LibraryMarkWiringTests.swift
