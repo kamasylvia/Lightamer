@@ -181,3 +181,4 @@ Q. Lumen RAW (culling analysis algorithms — Plan LUMEN-A T3/T4/T6; Plan C
      LightamerCore/Sources/Library/CullingAnalysis.swift      (sharpness + 16x16 signature)
      LightamerCore/Sources/Library/EyeClosureAnalyzer.swift   (eye-opening ratio, Lumen CLOSED semantics)
      LightamerCore/Sources/Library/BurstAnnotator.swift       (burst grouping + best-of-burst)
+     LightamerCore/Sources/AI/MaskRefine.swift                (sample-based mask refinement, fine())
