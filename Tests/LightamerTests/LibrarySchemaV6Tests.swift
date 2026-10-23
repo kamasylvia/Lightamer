@@ -235,15 +235,24 @@ final class LibrarySchemaV6Tests: XCTestCase {
         }
         handle.close()
 
-        // Half-migrated snapshot replay: one column hand-ALTERed, then
-        // migrate — the probe lands the missing six, skips the present one.
+        // Half-migrated snapshot replay: one column hand-ALTERed (the
+        // batch list's FIRST — a faithful in-order partial), then migrate —
+        // the probe lands the missing six, skips the present one. Presence
+        // + types only here: a hand-ALTERed column need not sit at the
+        // array tail position (the ORDER pin belongs to the fresh-create
+        // face above; the probe's contract is presence).
         let halfURL = tempDirectory.appendingPathComponent("half-v6.lalb")
         try makeV5Package(at: halfURL)
         let half = try SQLiteHandle(path: halfURL.path)
-        try half.exec("ALTER TABLE images ADD COLUMN sharpness REAL")
+        try half.exec("ALTER TABLE images ADD COLUMN analysis_version INTEGER")
         try LibrarySchema.migrate(from: 5, to: 6, on: half)
         XCTAssertEqual(try LibrarySchema.readUserVersion(from: half), 6)
-        try assertCullingColumnsPresent(half)
+        let halfColumns = try tableColumns(half, "images")
+        for column in Self.cullingColumns {
+            let found = halfColumns.first { $0.name == column.name }
+            XCTAssertNotNil(found, "\(column.name) present after the replay")
+            XCTAssertEqual(found?.type, column.type)
+        }
         half.close()
     }
 }

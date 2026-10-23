@@ -1,6 +1,7 @@
 import Foundation
 import ImageIO
 import LightamerCore
+import UniformTypeIdentifiers
 import XCTest
 
 @testable import LightamerCore
@@ -9,25 +10,21 @@ import XCTest
 // ExifSerialSubsecTests (Plan LUMEN-A T2, X2) — the camera-serial +
 // SubSecTime read legs on ExifSearchIndexer.readProperties:
 //
-//   ① positive: a hand-woven TIFF carrying Exif-IFD BodySerialNumber
-//      (0xA431) + SubSecTimeOriginal (0xA421) + DateTimeOriginal (0x9003)
-//      reads serial + a subsecond-folded captureDate (the "250" ms
-//      digits = +0.250 s — Lumen's SubSecDateTimeOriginal fraction
-//      semantic), and fillMetadata lands camera_serial on the row.
-//      Key-name note: ImageIO's constants spell "SubsecTime" (lowercase
-//      s — CGImageProperties.h :572); the plan's "SubSecTime" spelling
-//      is not an ImageIO symbol (DECISIONS carries the check record)
-//   ② missing: the same TIFF WITHOUT the two tags reads serial NULL and a
-//      whole-second captureDate (honest absence, no fold)
-//   ③ fallback + empty-serial: the unprefixed SubSecTime (0xA420) arm
-//      still folds; an EMPTY BodySerialNumber reads NULL (an empty key
-//      must not group all serial-less bodies)
+//   ① positive: BodySerialNumber + SubsecTimeOriginal round-trip through
+//      the CGImageDestination JPEG writer → the read face sees serial +
+//      the subsecond-folded captureDate ("250" ms digits = +0.250 s) and
+//      fillMetadata lands camera_serial on the row
+//   ② missing: no tags → serial NULL + a whole-second captureDate
+//   ③ fallback + empty-serial: the unprefixed SubsecTime arm folds; an
+//      EMPTY serial reads NULL (an empty key must not group)
 //
-// The fixture hand-weaves the TIFF bytes (the ExifLensFieldsTests
-// precedent: ImageIO's CGImageDestination WRITER filters Exif-IFD tags,
-// so the bytes are woven directly and read through the regular
-// CGImageSource properties face — ① also pins the RESEARCH §风险 4
-// ImageIO key-name surface).
+// VEHICLE NOTE (the T8 first-registration finding): the hand-woven TIFF
+// path was RETIRED — ImageIO's TIFF reader drops the SubSecTime tags
+// entirely (the 0xA421 tag never surfaces through
+// CGImageSourceCopyPropertiesAtIndex; probed 2026-10-23), while the JPEG
+// writer/reader round-trips both BodySerialNumber AND SubsecTimeOriginal
+// (both probed in the same session). The JPEG fixture is the honest vehicle
+// for both legs — DECISIONS carries the reader-behavior record.
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class ExifSerialSubsecTests: XCTestCase {
@@ -51,92 +48,47 @@ final class ExifSerialSubsecTests: XCTestCase {
         try await super.tearDown()
     }
 
-    // MARK: - Fixture (hand-woven minimal TIFF with an Exif IFD)
+    // MARK: - Fixture (CGImageDestination JPEG, the ExifFoldTests precedent)
 
-    /// Weave a legal 4×4 RGB8 uncompressed TIFF whose IFD0 carries
-    /// Make/Model + the Exif-IFD pointer, and whose Exif IFD carries
-    /// DateTimeOriginal plus (when non-nil) a SubSecTime-family tag and a
-    /// BodySerialNumber tag.
-    private func writeTIFF(
+    /// Write a 4×4 JPEG whose Exif dict carries DateTimeOriginal plus (when
+    /// non-nil) a SubSecTime-family tag and a BodySerialNumber tag. The
+    /// writer preserves both (probed 2026-10-23).
+    private func writeExifJPEG(
         to url: URL,
-        subsecTag: Int?,       // 0xA421 Original / 0xA420 plain / 0xA422 Digitized / nil absent
-        subsecValue: String = "250",
-        serialValue: String?   // nil = tag absent; "" = tag present but empty
+        subsecKey: CFString? = kCGImagePropertyExifSubsecTimeOriginal,
+        subsecValue: String? = nil,
+        serialValue: String? = nil
     ) throws {
-        func u16(_ v: Int, into out: inout [UInt8]) {
-            out.append(UInt8(v & 0xFF)); out.append(UInt8((v >> 8) & 0xFF))
-        }
-        func u32(_ v: Int, into out: inout [UInt8]) {
-            out.append(UInt8(v & 0xFF)); out.append(UInt8((v >> 8) & 0xFF))
-            out.append(UInt8((v >> 16) & 0xFF)); out.append(UInt8((v >> 24) & 0xFF))
-        }
-        func entry(_ tag: Int, _ type: Int, _ count: Int, _ value: Int) -> [UInt8] {
-            var e: [UInt8] = []
-            u16(tag, into: &e); u16(type, into: &e); u32(count, into: &e); u32(value, into: &e)
-            return e
-        }
-
         let width = 4, height = 4
-        let pixelBytes = width * height * 3
-        let makeBytes = Array("Canon".utf8) + [0]
-        let modelBytes = Array("EOS R5".utf8) + [0]
-        let dtoBytes = Array("2024:06:01 10:00:00".utf8) + [0]   // 19 incl NUL
-        let subsecBytes = Array(subsecValue.utf8) + [0]
-        let serialBytes = Array((serialValue ?? "").utf8) + [0]
+        let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.setFillColor(CGColor(srgbRed: 0.5, green: 0.4, blue: 0.3, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let image = context.makeImage()!
 
-        // Layout: header(8) | IFD0(2+3*12+4) | ExifIFD(2+n*12+4)
-        //         | make | model | dto | subsec | serial | pixels
-        let ifd0Offset = 8
-        let ifd0Size = 2 + 3 * 12 + 4
-        let exifOffset = ifd0Offset + ifd0Size
-        let exifCount = 1 + (subsecTag != nil ? 1 : 0) + (serialValue != nil ? 1 : 0)
-        let exifSize = 2 + exifCount * 12 + 4
-        let makeOffset = exifOffset + exifSize
-        let modelOffset = makeOffset + makeBytes.count
-        let dtoOffset = modelOffset + modelBytes.count
-        let subsecOffset = dtoOffset + dtoBytes.count
-        let serialOffset = subsecOffset + subsecBytes.count
-        let pixelOffset = serialOffset + serialBytes.count
-
-        var d: [UInt8] = []
-        d.append(contentsOf: [0x49, 0x49])          // "II"
-        u16(42, into: &d)
-        u32(ifd0Offset, into: &d)
-
-        // IFD0 (tag-ascending): Make, Model, ExifIFD pointer.
-        u16(3, into: &d)
-        d.append(contentsOf: entry(0x010F, 2, makeBytes.count, makeOffset))
-        d.append(contentsOf: entry(0x0110, 2, modelBytes.count, modelOffset))
-        d.append(contentsOf: entry(0x8769, 4, 1, exifOffset))
-        u32(0, into: &d)                             // no next IFD
-
-        // Exif IFD (tag-ascending): DateTimeOriginal [, SubSecTime-family
-        // [, BodySerialNumber]] — ASCII type 2, LONG type 4.
-        u16(exifCount, into: &d)
-        d.append(contentsOf: entry(0x9003, 2, dtoBytes.count, dtoOffset))
-        if let subsecTag {
-            d.append(contentsOf: entry(subsecTag, 2, subsecBytes.count, subsecOffset))
+        var exif: [CFString: Any] = [
+            kCGImagePropertyExifDateTimeOriginal: "2024:06:01 10:00:00",
+        ]
+        if let subsecKey, let subsecValue {
+            exif[subsecKey] = subsecValue
         }
-        if serialValue != nil {
-            d.append(contentsOf: entry(0xA431, 2, serialBytes.count, serialOffset))
+        if let serialValue {
+            exif[kCGImagePropertyExifBodySerialNumber] = serialValue
         }
-        u32(0, into: &d)
-
-        d.append(contentsOf: makeBytes)
-        d.append(contentsOf: modelBytes)
-        d.append(contentsOf: dtoBytes)
-        d.append(contentsOf: subsecBytes)
-        d.append(contentsOf: serialBytes)
-        // 4×4 RGB strip (a tiny gradient — content irrelevant to the reader).
-        for y in 0..<height {
-            for x in 0..<width {
-                d.append(UInt8((x * 60) % 256))
-                d.append(UInt8((y * 60) % 256))
-                d.append(UInt8(((x + y) * 30) % 256))
-            }
-        }
-        precondition(d.count == pixelOffset + pixelBytes)
-        try Data(d).write(to: url)
+        let properties: [CFString: Any] = [
+            kCGImagePropertyExifDictionary: exif,
+            kCGImagePropertyTIFFDictionary: [
+                kCGImagePropertyTIFFMake: "Canon",
+                kCGImagePropertyTIFFModel: "EOS R5",
+            ],
+        ]
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithURL(
+            url as CFURL, UTType.jpeg.identifier as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, image, properties as CFDictionary)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
     }
 
     // MARK: - Store helpers
@@ -181,17 +133,16 @@ final class ExifSerialSubsecTests: XCTestCase {
 
     private static let baseEpoch = parseUTC("2024:06:01 10:00:00")
 
-    // MARK: - ① Positive: serial + SubSecTimeOriginal fold + write leg
+    // MARK: - ① Positive: serial + SubsecTimeOriginal fold + write leg
 
-    func testSerialAndSubsecOriginalReadAndWritePositive() throws {
-        let tiffURL = tempDirectory.appendingPathComponent("shot.tif")
-        try writeTIFF(
-            to: tiffURL, subsecTag: 0xA421, serialValue: "032151001234")
+    func testSerialAndSubsecOriginalReadAndWritePositive() async throws {
+        let jpegURL = tempDirectory.appendingPathComponent("shot.jpg")
+        try writeExifJPEG(to: jpegURL, subsecValue: "250", serialValue: "032151001234")
 
-        // The RESEARCH §风险 4 key-name surface: the woven Exif-IFD tags
-        // surface through the ImageIO keys the read face consumes.
+        // The RESEARCH §风险 4 key-name surface: the writer-round-tripped
+        // tags surface through the ImageIO keys the read face consumes.
         let source = try XCTUnwrap(
-            CGImageSourceCreateWithURL(tiffURL as CFURL, nil))
+            CGImageSourceCreateWithURL(jpegURL as CFURL, nil))
         let properties = try XCTUnwrap(
             CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any])
         let exif = try XCTUnwrap(
@@ -200,9 +151,9 @@ final class ExifSerialSubsecTests: XCTestCase {
             exif[kCGImagePropertyExifBodySerialNumber] as? String, "032151001234")
         XCTAssertEqual(exif[kCGImagePropertyExifSubsecTimeOriginal] as? String, "250")
 
-        let imageID = try await storeInsert(path: "Media/shot.tif")
+        let imageID = try await storeInsert(path: "Media/shot.jpg")
         let indexer = ExifSearchIndexer(store: store)
-        let filled = try await indexer.fillMetadata(imageID: imageID, from: tiffURL)
+        let filled = try await indexer.fillMetadata(imageID: imageID, from: jpegURL)
         XCTAssertTrue(filled)
 
         let row = try await storeReadSerialRow(imageID)
@@ -216,13 +167,13 @@ final class ExifSerialSubsecTests: XCTestCase {
 
     // MARK: - ② Missing: honest absence, no fold
 
-    func testMissingSerialAndSubsecReadNil() throws {
-        let tiffURL = tempDirectory.appendingPathComponent("plain.tif")
-        try writeTIFF(to: tiffURL, subsecTag: nil, serialValue: nil)
+    func testMissingSerialAndSubsecReadNil() async throws {
+        let jpegURL = tempDirectory.appendingPathComponent("plain.jpg")
+        try writeExifJPEG(to: jpegURL)
 
-        let imageID = try await storeInsert(path: "Media/plain.tif")
+        let imageID = try await storeInsert(path: "Media/plain.jpg")
         let indexer = ExifSearchIndexer(store: store)
-        let filled = try await indexer.fillMetadata(imageID: imageID, from: tiffURL)
+        let filled = try await indexer.fillMetadata(imageID: imageID, from: jpegURL)
         XCTAssertTrue(filled)
 
         let row = try await storeReadSerialRow(imageID)
@@ -235,16 +186,17 @@ final class ExifSerialSubsecTests: XCTestCase {
 
     // MARK: - ③ Fallback chain + empty serial is absence
 
-    func testSubsecFallbackChainAndEmptySerialIsAbsence() throws {
-        // Only the unprefixed SubSecTime (0xA420) — the SECOND key of the
-        // fold chain — plus an EMPTY BodySerialNumber.
-        let tiffURL = tempDirectory.appendingPathComponent("chain.tif")
-        try writeTIFF(
-            to: tiffURL, subsecTag: 0xA420, subsecValue: "500", serialValue: "")
+    func testSubsecFallbackChainAndEmptySerialIsAbsence() async throws {
+        // Only the unprefixed SubsecTime — the SECOND key of the fold chain
+        // — plus an EMPTY BodySerialNumber.
+        let jpegURL = tempDirectory.appendingPathComponent("chain.jpg")
+        try writeExifJPEG(
+            to: jpegURL, subsecKey: kCGImagePropertyExifSubsecTime,
+            subsecValue: "500", serialValue: "")
 
-        let imageID = try await storeInsert(path: "Media/chain.tif")
+        let imageID = try await storeInsert(path: "Media/chain.jpg")
         let indexer = ExifSearchIndexer(store: store)
-        let filled = try await indexer.fillMetadata(imageID: imageID, from: tiffURL)
+        let filled = try await indexer.fillMetadata(imageID: imageID, from: jpegURL)
         XCTAssertTrue(filled)
 
         let row = try await storeReadSerialRow(imageID)
@@ -254,6 +206,6 @@ final class ExifSerialSubsecTests: XCTestCase {
         let stored = try XCTUnwrap(row.captureDate)
         XCTAssertEqual(
             stored.timeIntervalSince1970, Self.baseEpoch + 0.500, accuracy: 1e-6,
-            "the unprefixed SubSecTime fallback arm folds the same way")
+            "the unprefixed SubsecTime fallback arm folds the same way")
     }
 }
