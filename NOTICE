@@ -161,3 +161,23 @@ P. RawLab (auto-crop bisection + mutex state machine — Plan LENS-02 T3
    semantics (ambiguous refusal / embedded-geometry gate / the
    camera-crop priority chain) follow RawLab's design. This file is
    GPL-3.0 as part of Lightamer.
+
+Q. Lumen RAW (culling analysis algorithms — Plan LUMEN-A T3/T4/T6; Plan C
+   T1)
+
+   Upstream: Lumen RAW (LUMEN RAW contributors)
+   https://github.com/LeisureLinux/lumen
+   License: MIT, Copyright (c) 2026 LUMEN RAW contributors.
+
+   Lightamer's culling analysis derives its ALGORITHM IDEAS AND CONSTANT
+   CALIBRATIONS from Lumen RAW's culling family (lumen/culling.py
+   sharpness()/signature(), the CLOSED eye-opening threshold, and
+   lumen/library_db.py annotate_bursts/signature_difference), transliterated
+   with attribution in the file headers; the implementations are INDEPENDENT
+   (Swift/Accelerate + Apple Vision — no OpenCV, no MediaPipe, no upstream
+   code copied). MIT permits this use; its copyright notice and this
+   attribution are preserved here. The covered files:
+
+     LightamerCore/Sources/Library/CullingAnalysis.swift      (sharpness + 16x16 signature)
+     LightamerCore/Sources/Library/EyeClosureAnalyzer.swift   (eye-opening ratio, Lumen CLOSED semantics)
+     LightamerCore/Sources/Library/BurstAnnotator.swift       (burst grouping + best-of-burst)
