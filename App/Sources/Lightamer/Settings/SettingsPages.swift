@@ -259,6 +259,42 @@ struct SettingsCachePage: View {
                     .foregroundStyle(LightamerColors.textSecondary)
             }
 
+            // LUMEN-B T7 (红线 11): the smart-preview budget — the
+            // preview-budget ladder (0 = off; the Lumen choice set). The
+            // setter also live-updates the shared store (the Lumen
+            // set_limit semantics).
+            Section(String(localized: "settings_previews_section",
+                           defaultValue: "Smart previews")) {
+                Picker(String(localized: "settings_previews_limit",
+                              defaultValue: "Cache limit"),
+                       selection: Binding(
+                        get: { preferences.previewCacheLimitMB },
+                        set: { newValue in
+                            preferences.previewCacheLimitMB = newValue
+                            Task {
+                                await SmartPreviewStore.shared
+                                    .setLimit(megabytes: newValue)
+                            }
+                        })) {
+                    ForEach(
+                        [0, 1024, 2048, 4096, 8192, 16384, 32768],
+                        id: \.self) { megabytes in
+                            Text(megabytes == 0
+                                ? String(localized: "settings_previews_off",
+                                         defaultValue: "Off")
+                                : String(localized: "settings_previews_mb",
+                                         defaultValue: "\(megabytes) MB"))
+                                .tag(megabytes)
+                        }
+                }
+                .accessibilityIdentifier("settings.cache.previewsLimit")
+                Text(String(
+                    localized: "settings_previews_hint",
+                    defaultValue: "Caches the decoded working planes so reopening and culling skip the RAW decode. Off disables the cache; everything in it is rebuildable."))
+                    .font(.caption)
+                    .foregroundStyle(LightamerColors.textSecondary)
+            }
+
             // LENS-03 T3 (D-LENS-6 / X7): the Lensfun data-management
             // section — dbTag readout + the MANUAL SHA-verified update.
             // No automatic fetch (D-LENS-6); the L057 async seam for the

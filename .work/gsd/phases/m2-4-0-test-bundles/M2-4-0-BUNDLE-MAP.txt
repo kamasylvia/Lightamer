@@ -173,6 +173,7 @@ IOP	1	FullRenderBenchmarkTests.swift
 #   （2957 → 2960 起算，对账以运行期 Executed 为准）。
 IOP	8	RAW03Tests.swift
 IOP	11	RAWDecoderTests.swift
+IOP	18	SmartPreviewStoreTests.swift
 IOP	14	RasterColorDescriptionTests.swift
 IOP	18	RasterIccSemanticsTests.swift
 IOP	19	RasterDecodeLegTests.swift
@@ -854,3 +855,4 @@ LIB	5	FilterCullingFieldsTests.swift
 LIB	4	LibraryAnalysisServiceTests.swift
 LIB	3	LibrarySchemaV6Tests.swift
 APP	4	LibraryAnalysisWiringTests.swift
+APP	22	CullFaceModelTests.swift
