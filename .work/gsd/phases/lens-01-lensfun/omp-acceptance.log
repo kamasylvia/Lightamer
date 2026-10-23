@@ -1,0 +1,22 @@
+Working...
+**LENS-01 omp 终审：PASS / 0 blocking + 1 major + 3 minor + 4 obs——签核放行。**
+
+审验 SHA `7d3c2274`（B-2 收口；`7d3c2274..f64fc9ff` 产品差 = r12-repairs 批，Lens 族零触亲核）。独立 worktree + 独立 DerivedData 自建二进制（BUILD SUCCEEDED，LensDefaultsWiring/LensPanelReadout strings 在位，bundle 56 xml + Licenses/Lensfun 四件在位）。四探针实例（pid 20684/23459/26078/26853，自出亲手 kill，终核零残留；`lensfun.autoApply` 测后删复原）。
+
+五项实机抽验：
+- a) 三态 readout：DNG→unknown「内嵌校正状态不可探测（厂商 RAW）…」✓；TIFF→notApplicable「不适用：栅格图像无内嵌镜头几何概念…」✓；detected 缺 opcode-DNG 供件未亲证（obs-1）。面板五段逐段截图在位 ✓
+- b) 选型即校正：DNG 面 "16mm"→候选（Canon RF 16mm 60 分）→点选→§1 翻「匹配到配置 · 105」+ sidecar 落 `source=.lensfun` + 快照 bake（dbTag/matchScore/标定行全套，滑杆全零）+ 画布差分 max 448/1702px>30——B-1 价值主张 + B-2 缝②端到端亲证 ✓
+- c) auto-apply：键开 + 新 TIFF（零焦距）→ 恒等降级诚实面（无误应用）✓；toggle 与键一致 ✓；EXIF 完备 raster 自动命中缺供件（minor-2，机检 8/8 已绿）
+- d) Settings Lens Data：dbTag `f220184e3903d245` + 更新钮 + CC-BY-SA 文案 ✓；dbTag 与独立重算逐字一致 ✓；首启 seeder 56 文件落盘再证 ✓
+- e) 主链 + 静置：冷启动→导入→渲染→切图→⌘W/⌘E 往返全活 ✓；静置 0.3×6 连平 / 1.7→1.3 衰减 + 主线程 2327/2329·2388/2389 泊 mach_msg，D-6 门余量充足 ✓
+
+分级残留：
+- major-1（新）：browser 已提交查询粘滞——TIFF 面换词回车恒返旧「无匹配配置」（5 次复现），切 DNG 面同串即命中。已排除 DB 未装（dbTag 活 + 1571 lens 离线可解析 + 同实例 DNG 命中）与打分面（离线复算 17 命中 60 分档，单测同串绿）。根因待修批二分（`rescore()` term/guard 竞合或 onSubmit 未送达）。路由修复队列，不阻断签核（b) 已在 DNG 面闭环；渲染/数据面零触）
+- minor-1：候选行「Canon Canon…」maker 重复（displayName 显示层）
+- minor-2：c) 自动命中臂缺真机行（配方已给：一张带镜头 EXIF 的 TIFF）
+- minor-3：「渐量/渐晕」识图摇摆，修批 grep 确认 xcstrings 真值
+- obs-1：detected + W9 确认 alert 缺供件；obs-2：o-B 让渡维持；obs-3：TIFF 跨面误比作废注记；obs-4：undo 对称/W13b/断网更新/接力 crop/fisheye 拉直留人工（机检等价面全绿）
+
+双路遗留追认：B-1/M-1/m-1..m-3（本轮 b) 行为级再证）/ B-2 三缝（sidecar 快照 + readout 翻转再证）/ m-5 / row 9 不 bump（本轮渲染变化 = 新激活行为，裁决不受扰）/ RawLab fisheye 抽样义务——按既有路由生效。
+
+唯一写产物：`.work/gsd/phases/lens-01-lensfun/LENS-01-ACCEPTANCE-OMP.md` + 证据卷 `.work/gui-acceptance/lens-01/omp/`（60 件：~50 截图/crop + 4 探针 stderr + 2 sample + sidecar + lens-params + dbtag-manifest）。主树零改动，不 commit。worktree + 独立容器 + /tmp 夹具全拆除。
