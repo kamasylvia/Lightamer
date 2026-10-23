@@ -1,0 +1,92 @@
+{
+  "generator": "Scripts/gen-burst-golden.py (LUMEN-A T6, m-5 comparator pin)",
+  "mad_s1_s2": 1.1006544543926144,
+  "groups": [
+    [
+      1,
+      2,
+      3
+    ],
+    [
+      7,
+      8,
+      9
+    ]
+  ],
+  "best_ids": [
+    3,
+    8
+  ],
+  "annotations": {
+    "1": {
+      "burst": 1,
+      "index": 1,
+      "size": 3,
+      "best": false,
+      "blurry": true
+    },
+    "2": {
+      "burst": 1,
+      "index": 2,
+      "size": 3,
+      "best": false,
+      "blurry": false
+    },
+    "3": {
+      "burst": 1,
+      "index": 3,
+      "size": 3,
+      "best": true,
+      "blurry": true
+    },
+    "7": {
+      "burst": 2,
+      "index": 1,
+      "size": 3,
+      "best": false,
+      "blurry": false
+    },
+    "8": {
+      "burst": 2,
+      "index": 2,
+      "size": 3,
+      "best": true,
+      "blurry": false
+    },
+    "9": {
+      "burst": 2,
+      "index": 3,
+      "size": 3,
+      "best": false,
+      "blurry": true
+    },
+    "4": {
+      "burst": 0,
+      "index": 0,
+      "size": 1,
+      "best": false,
+      "blurry": false
+    },
+    "5": {
+      "burst": 0,
+      "index": 0,
+      "size": 1,
+      "best": false,
+      "blurry": false
+    },
+    "6": {
+      "burst": 0,
+      "index": 0,
+      "size": 1,
+      "best": false,
+      "blurry": false
+    },
+    "10": {
+      "burst": 0,
+      "index": 0,
+      "size": 1,
+      "best": false,
+      "blurry": false
+    }
+  }
+}
