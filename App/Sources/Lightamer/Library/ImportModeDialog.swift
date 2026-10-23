@@ -80,8 +80,12 @@ struct ImportModeDialog: View {
     /// reads the persisted key through the injected defaults host).
     @State private var selection: ImportTypeSelectionModel
 
-    // M7-5-01 (D-M7-5-4 face ⑧): the import confirm gate — the dialog
-    // rides the app-root sheet (the environment chain reaches it).
+    // M7-5-01 (D-M7-5-4 face ⑧): the import confirm gate — the agent-held
+    // clause joins the merge. R3 F2-1: this read is why the dialog now rides
+    // the ImportModeDialogSheetContent content face — the app-root sheet
+    // closure sits OUTSIDE the root's `.environment(...)` writes, so a bare
+    // presentation traps here on the first content update (the M2-8-3
+    // FINDING-A family; the R12 real-machine ips signature).
     @Environment(AgentControlCoordinator.self) private var agentControl
 
     init(
@@ -265,6 +269,37 @@ struct ImportModeDialog: View {
             String(localized: "import_hint_link",
                    defaultValue: "Reference photos in place (no bytes move; the project records volume-relative paths and the original stays put).")
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ImportModeDialogSheetContent (R3 F2-1 fix — the M2-8-3 FINDING-A twin) — the
+// Import Folder sheet CONTENT face. The dialog's Observable dependency
+// (`AgentControlCoordinator`, the M7-5-01 face ⑧ gate) is re-injected HERE,
+// inside the presented content: the app-root sheet closure sits OUTSIDE the
+// root's `.environment(...)` writes on the modifier chain, so the sheet's
+// environment snapshot carried no coordinator and the first content update
+// trapped ("No Observable object of type AgentControlCoordinator found",
+// EXC_BREAKPOINT — the R12 real-machine ips: _assertionFailure ←
+// EnvironmentValues.subscript.getter ← EnvironmentBox.update, deterministic
+// on open). Same family, same fix shape as AdjustmentTransferSheetContent;
+// `SheetEnvironmentInjectionTests` mounts this face through a real `.sheet`
+// presentation.
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct ImportModeDialogSheetContent: View {
+
+    let agentControl: AgentControlCoordinator
+    let request: ImportFlowRequest
+    let initial: ImportModeChoice
+    let onConfirm: (ImportModeChoice) -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        ImportModeDialog(
+            request: request, initial: initial,
+            onConfirm: onConfirm, onCancel: onCancel)
+            .environment(agentControl)
     }
 }
 
