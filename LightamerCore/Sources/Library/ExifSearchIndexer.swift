@@ -36,11 +36,12 @@ public actor ExifSearchIndexer {
     /// Read `url`'s EXIF properties and update the images row `imageID`:
     /// the eight EXIF light columns (camera_make/camera_model/lens_model/
     /// iso/focal_length/aperture/exposure/capture_date — the session v2
-    /// key set) + `exif_search_text`/`exif_search_words` (ExifFold over
-    /// the facts AND the row's own file_stem). Missing text → the ''
-    /// attempted sentinel; missing numerics stay NULL (the session
-    /// backfill's honest-absence semantics). Returns false when the file
-    /// could not be opened (the row keeps NULL and a later sweep retries).
+    /// key set) + the LUMEN-A T2 `camera_serial` additive column + the two
+    /// folded search columns (ExifFold over the facts AND the row's own
+    /// file_stem). Missing text → the '' attempted sentinel; missing
+    /// numerics stay NULL (the session backfill's honest-absence
+    /// semantics). Returns false when the file could not be opened (the
+    /// row keeps NULL and a later sweep retries).
     @discardableResult
     public func fillMetadata(imageID: Int64, from url: URL) async throws -> Bool {
         guard let read = Self.readProperties(from: url) else { return false }
@@ -68,7 +69,7 @@ public actor ExifSearchIndexer {
             let update = try handle.prepare("""
                 UPDATE images SET camera_make = ?, camera_model = ?,
                     lens_model = ?, iso = ?, focal_length = ?, aperture = ?,
-                    exposure = ?, capture_date = ?,
+                    exposure = ?, capture_date = ?, camera_serial = ?,
                     exif_search_text = ?, exif_search_words = ?,
                     modified_time = ?
                 WHERE id = ?
@@ -82,10 +83,11 @@ public actor ExifSearchIndexer {
             try update.bindDouble(7, read.exposure)
             try update.bindDouble(
                 8, read.captureDate?.timeIntervalSince1970)
-            try update.bindText(9, folded.text)
-            try update.bindText(10, folded.words)
-            try update.bindDouble(11, Date().timeIntervalSince1970)
-            try update.bindInt(12, imageID)
+            try update.bindText(9, read.cameraSerial)
+            try update.bindText(10, folded.text)
+            try update.bindText(11, folded.words)
+            try update.bindDouble(12, Date().timeIntervalSince1970)
+            try update.bindInt(13, imageID)
             _ = try update.step()
             return true
         }
@@ -114,13 +116,21 @@ public actor ExifSearchIndexer {
         var aperture: Double?
         var exposure: Double?
         var captureDate: Date?
+        /// LUMEN-A T2 (X2) additive: the LU1 burst-grouping key
+        /// (`images.camera_serial`). nil = absent (the honest-absence
+        /// semantics — burst grouping falls back to make+model, the
+        /// registered X2 degradation).
+        var cameraSerial: String?
     }
 
     /// PROPERTIES-only read (never a decode). Same extraction semantics as
     /// SessionIndexStore.backfillExifMetadata: text missing → '' (the
     /// attempted sentinel), numerics missing → NULL, ISOSpeedRatings
     /// arrives as array OR bare number, capture date from
-    /// DateTimeOriginal with TIFF DateTime fallback.
+    /// DateTimeOriginal with TIFF DateTime fallback. LUMEN-A T2 (X2)
+    /// additive: BodySerialNumber (Exif dict primary, TIFF dict
+    /// best-effort — RESEARCH §风险 4: some tooling parks the serial on
+    /// the TIFF side) and the SubSecTime* chain folded into captureDate.
     static func readProperties(from url: URL) -> ExifRead? {
         let options = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithURL(
@@ -142,12 +152,57 @@ public actor ExifSearchIndexer {
             captureDate = Self.parseEXIFDate(raw)
         }
 
+        // LUMEN-A T2 (X2): the SubSecTime chain — Original first, then the
+        // unprefixed / Digitized fallbacks. The EXIF value is the raw
+        // MILLISECOND digits string ("250" = 0.250 s), so the fold is
+        // /1000 — the same fraction-of-a-second semantic as Lumen's
+        // SubSecDateTimeOriginal float(".25") (the plan's "/1e6" literal
+        // is a transcription slip; DECISIONS carries the note). Folding
+        // requires a base date — a bare subsec without a second is useless.
+        // Key-name check (SDK header CGImageProperties.h): the ImageIO
+        // constants spell "SubsecTime" (lowercase s) — the plan's
+        // "SubSecTime" spelling never compiled.
+        if captureDate != nil {
+            var subsecMilliseconds: Double?
+            for key in [
+                kCGImagePropertyExifSubsecTimeOriginal,
+                kCGImagePropertyExifSubsecTime,
+                kCGImagePropertyExifSubsecTimeDigitized,
+            ] {
+                if let raw = exif[key] as? String, let value = Double(raw) {
+                    subsecMilliseconds = value
+                    break
+                }
+                if let value = exif[key] as? Double {
+                    subsecMilliseconds = value
+                    break
+                }
+            }
+            if let subsecMilliseconds, let current = captureDate {
+                captureDate = current.addingTimeInterval(
+                    subsecMilliseconds / 1000.0)
+            }
+        }
+
         var iso: Int64?
         if let list = exif[kCGImagePropertyExifISOSpeedRatings] as? [Int],
            let first = list.first {
             iso = Int64(first)
         } else if let single = exif[kCGImagePropertyExifISOSpeedRatings] as? Int {
             iso = Int64(single)
+        }
+
+        // The serial: Exif-IFD tag 0xA431 primary, TIFF dict best-effort.
+        // An empty string is absence (the sentinel'd text columns use ''
+        // for "attempted" — the serial is a grouping KEY, so '' must not
+        // group all serial-less bodies together; nil is the honest face).
+        var cameraSerial: String?
+        if let raw = exif[kCGImagePropertyExifBodySerialNumber] as? String,
+           !raw.isEmpty {
+            cameraSerial = raw
+        } else if let raw = tiff[kCGImagePropertyExifBodySerialNumber] as? String,
+                  !raw.isEmpty {
+            cameraSerial = raw
         }
 
         return ExifRead(
@@ -158,7 +213,8 @@ public actor ExifSearchIndexer {
             focalLength: exif[kCGImagePropertyExifFocalLength] as? Double,
             aperture: exif[kCGImagePropertyExifFNumber] as? Double,
             exposure: exif[kCGImagePropertyExifExposureTime] as? Double,
-            captureDate: captureDate)
+            captureDate: captureDate,
+            cameraSerial: cameraSerial)
     }
 
     /// The EXIF date format ("2024:06:01 10:00:00").
