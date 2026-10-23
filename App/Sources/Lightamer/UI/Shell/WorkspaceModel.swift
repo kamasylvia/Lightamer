@@ -436,6 +436,41 @@ final class WorkspaceModel {
         return command
     }
 
+    // MARK: - Library mark commands (R3 mark-chain wiring, D5)
+
+    /// The Metadata section's mark commands route through HERE when the
+    /// library face is active (the pendingStackCommand pattern: the shell's
+    /// applyRating/applyColor/applyFlag/toggleFlag set the request,
+    /// WorkspaceHostView's MarkCommandModifier consumes it and drives
+    /// `LibraryMetadataWriter`; with no library face mounted the request is
+    /// simply never consumed = the no-op guard).
+    enum MarkCommand: Equatable, Sendable {
+        /// 0-5: nil = clear (the menu's Clear Rating).
+        case rating(Int?)
+        /// ⌘0-6: nil = clear.
+        case colorLabel(Int?)
+        /// The explicit set/clear faces (the menu's Clear Flag; the U face).
+        case flag(Int?)
+        /// P (pick) / X (reject): the read-then-toggle faces — ALL selected
+        /// rows carrying the value clears it, otherwise it sets (the uniform
+        /// Lr rule; the toggle READ rides the grid projection rows).
+        case toggleFlag(Int)
+    }
+
+    /// The pending mark command (nil = nothing pending).
+    var pendingMarkCommand: MarkCommand?
+
+    func requestMark(_ command: MarkCommand) {
+        pendingMarkCommand = command
+    }
+
+    /// The one consumption face (the host clears after reading).
+    func consumeMarkCommand() -> MarkCommand? {
+        let command = pendingMarkCommand
+        pendingMarkCommand = nil
+        return command
+    }
+
     // MARK: - Phase transitions (the D2 semantics)
 
     /// Enter the editor on `imageID` (nil = reopen the last image — the

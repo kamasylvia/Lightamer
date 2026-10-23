@@ -36,16 +36,30 @@ public struct LibraryMetadataEdit: Sendable {
     public let rating: Int64?
     public let colorLabel: Int64?
     public let flag: Int64?
+    /// The CLEAR faces (the R3 wiring-batch input — D5's「writer 层 v1 无
+    /// clear 通道」closure): a component flagged here is NILLED in the
+    /// composed document even though its value slot above stays nil
+    /// (= untouched). The two-channel split keeps the R1 API byte-stable:
+    /// the value slots carry sets, these flags carry clears (the menu's
+    /// Clear Rating / Clear Flag and the P/X all-carry toggle route here).
+    public var clearRating = false
+    public var clearColorLabel = false
+    public var clearFlag = false
 
     public init(
         imageID: Int64, imageURL: URL,
-        rating: Int64?, colorLabel: Int64?, flag: Int64?
+        rating: Int64?, colorLabel: Int64?, flag: Int64?,
+        clearRating: Bool = false, clearColorLabel: Bool = false,
+        clearFlag: Bool = false
     ) {
         self.imageID = imageID
         self.imageURL = imageURL
         self.rating = rating
         self.colorLabel = colorLabel
         self.flag = flag
+        self.clearRating = clearRating
+        self.clearColorLabel = clearColorLabel
+        self.clearFlag = clearFlag
     }
 }
 
@@ -173,12 +187,26 @@ public enum LibraryMetadataWriter {
                 // face's MetadataService mints under).
                 process: .current)
         }
-        // A nil component means "leave untouched" — only the NON-NIL mark
+        // A nil value slot means "leave untouched" — only the NON-NIL mark
         // components mutate the document (a color mark must not clear the
-        // surviving rating; the SC#2 round-trip preserves every field).
-        if let rating = edit.rating { document.rating = Int(rating) }
-        if let colorLabel = edit.colorLabel { document.colorLabel = Int(colorLabel) }
-        if let flag = edit.flag { document.flag = Int(flag) }
+        // surviving rating; the SC#2 round-trip preserves every field). The
+        // explicit clear faces (the R3 wiring channels) nil their component
+        // instead — a clear is a first-class write, never an absence.
+        if let rating = edit.rating {
+            document.rating = Int(rating)
+        } else if edit.clearRating {
+            document.rating = nil
+        }
+        if let colorLabel = edit.colorLabel {
+            document.colorLabel = Int(colorLabel)
+        } else if edit.clearColorLabel {
+            document.colorLabel = nil
+        }
+        if let flag = edit.flag {
+            document.flag = Int(flag)
+        } else if edit.clearFlag {
+            document.flag = nil
+        }
         return document
     }
 

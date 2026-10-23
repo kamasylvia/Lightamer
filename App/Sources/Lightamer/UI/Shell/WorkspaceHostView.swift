@@ -25,6 +25,11 @@ struct WorkspaceHostView: View {
     /// the no-project state).
     let projectController: LibraryProjectController?
     let onImportFolder: () -> Void
+    /// R3 mark wiring (D5's seed-injection isomorphism): the pristine-mint
+    /// seed for `LibraryMetadataWriter`, injected by the app root — the SAME
+    /// `seedInstances()` face `MetadataController.configure` rides on the
+    /// session-open path (the mints must agree on the default instance set).
+    let libraryMarkSeed: () async -> [ModuleInstance]
 
     @State private var workspace = WorkspaceModel()
 
@@ -273,6 +278,15 @@ struct WorkspaceHostView: View {
         // M6-4-01 (KD-8): the View ▸ Stacks commands — same AR-01 T1 sink
         // (the gridModel dependency rides the modifier's init parameter).
         .modifier(StackCommandModifier(workspace: workspace, gridModel: gridModel))
+        // R3 mark wiring: the Metadata section's library-face sink (the
+        // StackCommandModifier twin — the shell's mark commands write
+        // `workspace.pendingMarkCommand` when the library face is active,
+        // this modifier consumes it and drives the writer leg).
+        .modifier(MarkCommandModifier(
+            workspace: workspace, gridModel: gridModel,
+            inspectorModel: inspectorModel,
+            projectController: projectController,
+            seed: libraryMarkSeed))
         // M2-10-07: the AI enhancement sheet — one dialog per queued image
         // (the v1 sequential batch; a finished non-final job auto-advances,
         // a user close aborts the remainder and stops the worker client).
@@ -756,6 +770,132 @@ private struct StackCommandModifier: ViewModifier {
                 case .collapseAll: Task { await grid.collapseAll() }
                 }
             }
+    }
+}
+
+/// R3 mark wiring (the r12-repairs D5 handover): the host-side consumer of
+/// `workspace.pendingMarkCommand` — the StackCommandModifier twin. With the
+/// library face inactive (gridModel nil / no open project) the consumed
+/// request is dropped = the no-op guard.
+private struct MarkCommandModifier: ViewModifier {
+
+    let workspace: WorkspaceModel
+    let gridModel: LibraryGridModel?
+    let inspectorModel: LibraryInspectorModel?
+    let projectController: LibraryProjectController?
+    let seed: () async -> [ModuleInstance]
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: workspace.pendingMarkCommand) { _, command in
+                guard let command else { return }
+                _ = workspace.consumeMarkCommand()
+                guard let grid = gridModel else { return }
+                Task {
+                    await LibraryMarkApplier.apply(
+                        command, grid: grid,
+                        packageURL: projectController?.projectURL,
+                        store: projectController?.projectStore,
+                        inspectorModel: inspectorModel,
+                        seed: await seed())
+                }
+            }
+    }
+}
+
+/// The library mark application face — the writer leg the shell mark commands
+/// ride when the library workspace is active (the P1 triple-zero closure:
+/// menu + keyboard 0-5 / P / X land in the sidecar truth AND the projection).
+/// Internal = the wiring tests drive it directly (real .lalb + real files,
+/// the LibraryMetadataWriterTests shape). @MainActor: the grid/inspector
+/// faces it drives are MainActor-isolated.
+@MainActor
+enum LibraryMarkApplier {
+
+    static func apply(
+        _ command: WorkspaceModel.MarkCommand,
+        grid: LibraryGridModel,
+        packageURL: URL?,
+        store: ProjectFileStore?,
+        inspectorModel: LibraryInspectorModel?,
+        seed: [ModuleInstance]
+    ) async {
+        // The walk-order selection (the grid's display order — never the
+        // unordered Set; the groupBy/StackCommandModifier row-walk convention).
+        let selected = grid.rows.filter { grid.selectedIDs.contains($0.id) }
+        guard !selected.isEmpty, let packageURL, let store else { return }
+        let libraryStore = LibraryStore(store: store)
+
+        // The source-URL resolver: the row's three-form path carrier through
+        // the Core ImageLinker (the host's rebuildLibrarySurface shape — zero
+        // path guessing).
+        let directory = packageURL.deletingLastPathComponent()
+        func resolve(_ row: LibraryImageRow) -> URL? {
+            guard let kind = LibrarySchema.PathKind(rawValue: row.pathKind) else {
+                return nil
+            }
+            if case .resolved(let url) = ImageLinker.resolve(
+                imagePath: row.imagePath,
+                pathKind: kind,
+                volumeUUID: row.volumeUUID,
+                projectDirectory: directory) {
+                return url
+            }
+            return nil
+        }
+
+        // The command → edit translation. A set writes the value slot; a
+        // clear raises the writer's explicit clear channel (a first-class
+        // write — the value slot's nil stays "leave untouched").
+        var rating: Int64?
+        var colorLabel: Int64?
+        var flag: Int64?
+        var clearRating = false
+        var clearColorLabel = false
+        var clearFlag = false
+        switch command {
+        case .rating(let value):
+            if let value { rating = Int64(value) } else { clearRating = true }
+        case .colorLabel(let value):
+            if let value { colorLabel = Int64(value) } else { clearColorLabel = true }
+        case .flag(let value):
+            if let value { flag = Int64(value) } else { clearFlag = true }
+        case .toggleFlag(let value):
+            // The toggle READ rides the grid projection (the post-write truth
+            // `setMetadataMarks` keeps in step with the sidecars): ALL
+            // selected rows carrying the value clears it, otherwise it sets
+            // (the uniform Lr rule).
+            if selected.allSatisfy({ $0.flag == Int64(value) }) {
+                clearFlag = true
+            } else {
+                flag = Int64(value)
+            }
+        }
+
+        let edits = selected.compactMap { row -> LibraryMetadataEdit? in
+            guard let url = resolve(row) else { return nil }
+            return LibraryMetadataEdit(
+                imageID: row.id, imageURL: url,
+                rating: rating, colorLabel: colorLabel, flag: flag,
+                clearRating: clearRating, clearColorLabel: clearColorLabel,
+                clearFlag: clearFlag)
+        }
+        guard !edits.isEmpty else { return }
+
+        do {
+            let outcome = try await LibraryMetadataWriter.apply(
+                edits: edits, store: libraryStore, seed: seed)
+            // The visible patch: in-place re-read of the written ids (the
+            // grid badge face — order/pagination/selection untouched); the
+            // inspector aggregates (group counts, smart albums) ride the
+            // refresh (the ImportProgressModifier refresh precedent).
+            try? await grid.refreshRows(ids: outcome.appliedImageIDs)
+            await inspectorModel?.refresh()
+        } catch {
+            // The projection batch failed after the sidecars landed (SC#2
+            // soft — the store logged it): nothing is lost, the next mark
+            // round-trips the disk truth.
+        }
     }
 }
 

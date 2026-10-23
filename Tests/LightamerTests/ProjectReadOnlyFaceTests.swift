@@ -568,7 +568,9 @@ final class ProjectReadOnlyFaceTests: XCTestCase {
         let projectController: LibraryProjectController?
 
         var body: some View {
-            WorkspaceHostView(projectController: projectController, onImportFolder: { })
+            WorkspaceHostView(
+                projectController: projectController, onImportFolder: { },
+                libraryMarkSeed: { [] })
                 .environment(EditorState())
                 .environment(PipeCoordinator())
                 .environment(ExportState())

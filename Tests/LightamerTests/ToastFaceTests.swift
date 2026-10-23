@@ -66,7 +66,9 @@ final class ToastFaceTests: XCTestCase {
         let inspectorState: InspectorState
 
         var body: some View {
-            WorkspaceHostView(projectController: nil, onImportFolder: { })
+            WorkspaceHostView(
+                projectController: nil, onImportFolder: { },
+                libraryMarkSeed: { [] })
                 .environment(editorState)
                 .environment(pipeCoordinator)
                 .environment(exportState)
