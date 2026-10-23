@@ -103,14 +103,22 @@ struct McpCullingContext: Sendable {
     /// The production decode leg (the host assembly's default): RAWDecoder
     /// (D-24 unified RAW+raster entry) → CIContext render → CGImage. Not
     /// exercised by the unit tests (they inject synthetic images).
+    ///
+    /// LUMEN-B T3 (X6 gate ④): the decode routes through the SmartPreviewStore
+    /// INSIDE this seam (the seam's type and every construction site stay
+    /// zero-diff; McpServerController untouched). Miss = the shared decode
+    /// leg + quantize + backfill; hit = the cached plane; a disabled/broken
+    /// cache degrades to the same decode leg. The served plane is the shared
+    /// 2560 tier (SmartPreviewRender.planeLongEdge) — the MCP detail crops
+    /// ride the cache tier (declared in LUMEN-B DECISIONS).
     static func defaultDecodeImage() -> @Sendable (URL) async throws -> CGImage {
-        let decoder = RAWDecoder()
         let context = CIContext()
         return { url in
-            let decoded = try await decoder.decode(url)
-            let ciImage = decoded.ciImage
-            guard let cgImage = context.createCGImage(
-                ciImage, from: ciImage.extent)
+            let plane = try await SmartPreviewStore.shared.load(
+                url: url,
+                processVersion: RenderProcessVersion.current.rawValue,
+                decode: { try await SmartPreviewRender.decodePlane(url: $0) })
+            guard let cgImage = SmartPreviewRender.cgImage(plane, context: context)
             else {
                 throw McpToolError.renderFailed(
                     "decode produced no CGImage for \(url.lastPathComponent)")

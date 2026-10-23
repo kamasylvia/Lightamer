@@ -621,8 +621,26 @@ struct WorkspaceHostView: View {
             }
             return nil
         }
+        // LUMEN-B T3 (X6 gate ②): the tier-B render leg goes live over the
+        // SmartPreviewStore — decode through the cache (hit = the cached
+        // plane, miss = the shared decode leg + quantize + backfill), one
+        // CIContext render per leg. v1 leg shape: the PRISTINE decode (the
+        // sidecar-develop materialize is the P2 develop leg — declared in
+        // LUMEN-B DECISIONS); a leg failure degrades to the placeholder
+        // tile (the bridge's own try? face).
+        let legContext = CIContext()
+        let renderLeg: LibraryThumbnailBridge.RenderLeg = { url in
+            let plane = try await SmartPreviewStore.shared.load(
+                url: url,
+                processVersion: RenderProcessVersion.current.rawValue,
+                decode: { try await SmartPreviewRender.decodePlane(url: $0) })
+            guard let image = SmartPreviewRender.cgImage(plane, context: legContext) else {
+                throw AppError.decodeFailed("smart preview render failed for \(url.lastPathComponent)")
+            }
+            return image
+        }
         let bridge = LibraryThumbnailBridge(
-            thumbsDirectory: thumbsDirectory, renderLeg: nil, resolveURL: resolve)
+            thumbsDirectory: thumbsDirectory, renderLeg: renderLeg, resolveURL: resolve)
         let grid = LibraryGridModel(
             queries: LibraryQueries(store: store),
             store: LibraryStore(store: store))
