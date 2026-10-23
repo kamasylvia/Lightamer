@@ -147,3 +147,60 @@ review M-1 只列了 frozen 断言（29→36 更名）；实际 v5→v6 bump 的
   独占 ORDER pin）；半程 fixture 改手写首列（analysis_version）保序。
 - **T8 末轮机检**：Library 774/4/0 + App 974/6/0（测试宿主均正常退出，
   零 MEMFAIL）。
+
+## §11 修复轮：§八 major-1 徽章事件链（issue #1，HEAD e853cacf 基线）
+
+- **根因注记**：`LibraryAnalysisService.persistAndTick` 每行新建
+  `LibraryStore(store:)` 实例调 `setAnalysis`——`analysisContinuations`
+  是 actor 实例字段，事件全部 yield 进一次性实例的**空表**；消费侧
+  （WorkspaceHostView 徽章循环）订阅的是自己 ad-hoc 建的另一实例——
+  两个实例永不相交，T5 SC 通知缝动态语义失效。DB 腿经共享
+  ProjectFileStore 照常落盘 =「数据在、徽章不出」表型的结构性来源。
+- **修复形态（三缝一线）**：
+  1. `LibraryAnalysisService` 新增 `public private(set) var
+     libraryStore: LibraryStore`——init 注入（`libraryStore:` 参数，nil
+     = 自建一份兜底），`persistAndTick` 改走 `libraryStore.setAnalysis`，
+     每行新建形态根除；
+  2. `LibraryAnalysisWiring` 装配点建一份 `LibraryStore(store:)` 注入
+     service，并暴露 `analysisEvents() -> AsyncStream<[Int64]>?`（转经
+     `service.libraryStore` 取流；nil = 分析面 inert）——消费方订阅
+     THE SAME actor 实例（验收 §八处方①「service 持单一 facade + 经
+     wiring 暴露」臂）；
+  3. WorkspaceHostView `.task(id:)` 徽章循环改订阅 `wiring.
+     analysisEvents()`（原 ad-hoc `LibraryStore(store:)` 删除）。
+  编排时序不变：projectChanged（起趟）→ 首刷 reloadCullingBadges →
+  订阅事件循环；起趟与订阅窗内的写由首刷覆盖。
+- **测试（红→绿）**：新 `testAnalysisEventReachesSubscriberThroughWalkPersist`
+  （LibraryAnalysisServiceTests §⑤）——订阅者实例注入 service + 身份
+  钉（`===`，per-row 新建形态先死在这行）+ 走完整趟后断言事件到达订阅
+  者流 + sharpness 非 nil。**修复前红**：同测试（无注入形态）RUN RED——
+  行已 stamp（前置过）、事件未达（断言 250 行失败），红轮日志 =
+  `evidence/lumena/lumen-a-fix/fix-red-run.log`；修复后绿 5/0/0
+  （fix-green-run.log）。
+- **回归**：`--bundle Library` 775/4/0（774 带 +1 新测试，4 skip 不变，
+  零 fail，峰值 667MB 零 MEMFAIL；fix-lib-bundle.log）。App bundle 未跑
+  （改动面 WorkspaceHostView/LibraryAnalysisWiring 编译由 build-for-
+  testing 全量验证通过；App 面行为 = 本节 GUI 复验）。
+- **GUI 复验（行为级，真机；证据 = `evidence/lumena/lumen-a-fix/`）**：
+  自建 BADGECHK 工程（Core 三文件直编 createproj 工具建 .lalb——M2-7
+  探针先例形，ProjectFileStore+LibrarySchema+SQLiteHandle+SingleWriter
+  Lock+LibraryError 自洽闭包）+ 6 行未分析行（3 连拍相邻 ts + 3 独立，
+  棋盘/纯色 fixture）→ 打开项目 → **同一会话内**徽章渲染：
+  `fix-badge-zoom.png`（原生分辨率裁切）= 「连拍 1/3 ★」「连拍 2/3」
+  「连拍 3/3」+ 两张「可能模糊」+ 独立清晰行零徽章；「照片分析」任务
+  条在屏（fix-badge-grid-live.png）。SQL 核（fix-sql-verify.txt）：
+  6 行 analysis_version=1，sharpness 95.1（棋盘）/0.0（纯色，strong-empty
+  谱系），signature 256B，COALESCE 保 serial——与验收轮 §七数值逐位同。
+- **§八断点二归因**：初始 reload 恒早于分析趟产物 + 事件链断后无补救
+  刷新 = 徽章不出；跨重启仍不出 = 重开触发的新趟事件同样进空表（同
+  断点一覆盖，非独立第二缺陷）。事件链接通后 live 路与 reopen 路同用
+  一条 reload 缝，无需独立改动。
+- **执行注记**：①用户正机 Ghostty 会话活跃——GUI 驱动全部改 AX 菜单/
+  面板路径（File→Open Project… + Go-to-Folder AX setValue 绕拼音 IM），
+  坐标点击一次误触 Ghostty 后即改道；②`library.recentProjects` 曾被
+  临时指向 BADGECHK，已还原（原列表的 /tmp editor-probe 死路径项已被
+  控制器死路径清扫语义覆盖，只还原活路径 ACCPROJ×3）；③机器门 G4 本轮
+  贴线（24.88GB vs 25GB 门，purge 波动放行）——未清任何容器。
+- **ACP 0 字节旁证**：`QSync/ACCPROJ.lalb` 现为 0 字节文件（验收轮
+  §十还原后的残壳，mtime 非本批）——用户点开必报错，本批未动（挂给
+  orchestrator 知会）。
