@@ -6,16 +6,16 @@ wave: 2
 depends_on: ["LUMEN-A"]
 autonomous: true
 requirements: ["research 正本 = phases/lumen-culling/RESEARCH.md（ee73da34）§UQ-LU4/§UQ-LU3", "OQ 裁决正本 = 同目录 CONTEXT.md（D-LU-1/3/6 + X6/X7 设计承接 + hazards H-LU3 + 红线 17 条）", "上游 = LUMEN-A 闭环（schema v6 分析产物 + BurstAnnotator 注记——提示条/组跳/分析插队消费面）", "基线 4112/40/0 + LUMEN-A 终态（4124..4127）；本 plan 分账 +14..18", "C 档停位 = 本 plan 执行+验收闭环后停汇报；确认后 LUMEN-C 起跑（C 可换序——D-LU-9）"]
-success_criteria: "SC 全可机检——T1：SmartPreviewStore pack/unpack（magic+头长+JSON 头+working-space 线性 float16 量化+字节平面重排+zlib level 1）round-trip golden（逐位一致 + 相对误差 <0.05% 断言）+ quantize 一致性规则专测（新解码也过 round-trip → 命中/未命中同源同值——H-LU3 消解）+ MIT/出处注记；T2：键 = sourcePath|size|mtime|process version|格式版本 → sha1（process 维钉死——mtime/size 变更即失效 + RenderProcess bump 失效测试）+ index SQLite WAL（entries 表形）+ LRU trim 90%（每 16 写一巡）+ in-flight 同 key 合并 + 损坏重建降级直解码（永不阻塞）+ 同目录 tmp 原子晋升（L009）；T3：消费方四门接线（PipeCoordinator 载入腿预览档平面/图库档B RenderLeg/LU3 回落腿/MCP decodeImage 缝）+ 编辑管线全分辨率工作平面零触断言（PixelPipe 零 diff + 编辑解码腿零路由）+ 默认中性 golden（无缓存 = 现状逐字节）；T4：WorkspaceHostView cullFace 第三 face（libraryFace :432-449 同机制）+ CullViewLoader actor（显示档 2560 内嵌直读 + LRU 12-16 + 全尺寸内存 LRU cap 2 + ±3 低优先级预读 + ThumbnailProductionGate 形 cap 2）+ full_size 判定（内嵌 ≥50% sensor px）+ 无合格内嵌回落 RAW 解码腿（走缓存）；T5：键位 G=回图库 / D=进编辑器 / 0-5 星 / P / X / U / 6-9 色标 / A 评级后前进 / F 人脸框（评级写腿 = LibraryStore.setMetadataMarks :455 + 胶片条 96px 复用）+ xcstrings cull_* 尾块 + zh-audit 双 PASS；T6：C 并排对比（左选定右候选 + ←→换候选 + Tab 切侧 + ↑ 晋升 + 缩放位置同步）+ legacy CullingView 纪律继承（paneCap 2 + 错峰解码 + pair-identity task + 平面释放——CullingView 本体零触）+ 连拍组跳（↑↓ + 3/7 序号 + best 标记）+ 提示条（sharpness/eyes_closed/blurry 注记 + 分析插队 ±窗 first=True 缝）+ 分析插队经 LibraryAnalysisService 优先缝"
+success_criteria: "SC 全可机检——T1：SmartPreviewStore pack/unpack（magic+头长+JSON 头+working-space 线性 float16 量化+字节平面重排+zlib level 1）round-trip golden（逐位一致 + 相对误差 <0.05% 断言）+ quantize 一致性规则专测（新解码也过 round-trip → 命中/未命中同源同值——H-LU3 消解）+ MIT/出处注记；T2：键 = sourcePath|size|mtime（ns 精度——review m-10）|process version|格式版本 → sha1（process 维钉死——mtime/size 变更即失效 + RenderProcess bump 失效测试）+ index SQLite WAL（entries 表形）+ LRU trim 90%（每 16 写一巡）+ in-flight 同 key 合并（shared holder 单例形——review m-9）+ 损坏重建降级直解码（永不阻塞）+ 同目录 tmp 原子晋升（L009）；T3：消费方四门接线（PipeCoordinator 载入腿预览档平面/图库档B RenderLeg/LU3 回落腿/MCP decodeImage 缝）+ 编辑管线全分辨率工作平面零触断言（PixelPipe 零 diff + 编辑解码腿零路由）+ 默认中性 golden（无缓存 = 现状逐字节）；T4：WorkspaceHostView cullFace 第三 face（libraryFace :432-449 同机制）+ CullViewLoader actor（显示档 2560 内嵌直读〔2560 JPEG 缓存层弃——ImageIO 直读 10.6ms/张，弃层申报 DECISIONS——review m-10〕+ LRU 12-16 + 全尺寸内存 LRU cap 2 + ±3 低优先级预读 + ThumbnailProductionGate 形 cap 2）+ full_size 判定（内嵌 ≥50% sensor px）+ 无合格内嵌回落 RAW 解码腿（走缓存）；T5：键位 G=回图库 / D=进编辑器 / 0-5 星 / P / X / U / 6-9 色标 / A 评级后前进 / F 人脸框（评级写腿 = LibraryStore.setMetadataMarks :455 + 胶片条 96px 复用）+ xcstrings cull_* 尾块 + zh-audit 双 PASS；T6：C 并排对比（左选定右候选 + ←→换候选 + Tab 切侧 + ↑ 晋升 + 缩放位置同步）+ legacy CullingView 纪律继承（paneCap 2 + 错峰解码 + pair-identity task + 平面释放——CullingView 本体零触）+ 连拍组跳（↑↓ + 3/7 序号 + best 标记）+ 提示条（sharpness/eyes_closed/blurry 注记 + 分析插队 ±窗 first=True 缝）+ 分析插队经 LibraryAnalysisService 优先缝"
 estimated_tests: "+14..18（T1 +3..4 / T2 +3 / T3 +2 / T4 +3..4 / T5 +2 / T6 +1..2 / T7 0..1；越带申报理由）"
 test_bundles: [IOP, APP]
 baseline: "4112/40/0 + LUMEN-A 终态（4124..4127——A 收口 SUMMARY 权威数）"
 expected_all: "LUMEN-A 终态 + ΔN（本 plan 终态带 4138..4145；--all 归 orchestrator 批准制——本 plan 验收 = 构建 + `--bundle IOP` + `--bundle App` 定向，全套归 Plan C 收口轮统一对账）"
 red_lines:
-  - "共用红线正本 = CONTEXT §三 plan 红线 front-matter 17 条（FIX2③〔本 plan McpServerController 零 diff——decodeImage 缝 = 既有 seam 消费，零新缝〕/ 封存面〔PixelPipe/HistoryStack/LightamerSidecar 零 diff——缓存只服务预览/选片/重开档位，编辑工作平面零触〕/ xcstrings 尾块 / LocalizationValue 禁形 / L041 tuist 末位 / 机器级单重活 / L013〔sha1 hex index 键面〕/ L009 同目录 tmp 原子晋升 / 默认中性零行为 / UserDefaults 恰一键 previews.cacheMB / --all 批准制 / C 档门控 / probe fence〔重开 ≤100ms 探针〕/ L057 缝 / 测试落域 IOP+APP / commit 纪律 lumenb 前缀）。"
+  - "共用红线正本 = CONTEXT §三 plan 红线 front-matter 17 条（FIX2③ 零例外〔本 plan McpServerController 零 diff——CONTEXT 红线 1 M-4 修订正本；decodeImage 缝 = 既有 seam 消费，零新缝〕/ 封存面〔PixelPipe/HistoryStack/LightamerSidecar 零 diff——缓存只服务预览/选片/重开档位，编辑工作平面零触〕/ xcstrings 尾块 / LocalizationValue 禁形 / L041 tuist 末位 / 机器级单重活 / L013〔sha1 hex index 键面〕/ L009 同目录 tmp 原子晋升 / 默认中性零行为 / UserDefaults 恰一键 previews.cacheMB / --all 批准制 / C 档门控 / probe fence〔重开 ≤100ms 探针〕/ L057 缝 / 测试落域 IOP+APP / commit 纪律 lumenb 前缀）。"
   - "H-LU3 双臂：量化一致性规则（新解码也过 float16 round-trip）+ 编辑管线全分辨率工作平面零触——PixelPipe/RAWDecoder 本体签名零 diff（SmartPreviewStore = 出口包装层）。"
   - "legacy CullingView（App/Sources/Lightamer/UI/CullingView.swift）与 SessionThumbnailProvider（720 档）零 diff——纪律继承非收编；Session 域 1480px/720px 常量零触碰。"
-  - "McpServerController 零 diff：MCP decodeImage 消费 = CullingToolset 既有 seam（:68 defaultDecodeImage）内部换 SmartPreviewStore 路由——若实现证明需触 McpServerController = 停手上报（FIX2③ 修订属 orchestrator 权）。"
+  - "McpServerController 零 diff：MCP decodeImage 消费 = CullingToolset 既有 seam（:68 defaultDecodeImage）内部换 SmartPreviewStore 路由——若实现证明需触 McpServerController = 停手上报（CONTEXT 红线 1 零例外——M-4 修订正本，FIX2③ 修订属 orchestrator 权）。"
   - "选片视图不进 MCP 面（RESEARCH §UQ-LU3——MCP 不新增选片工具；refine_masks 归 Plan C）。"
 files_modified:
   - LightamerCore/Sources/Decode/SmartPreviewStore.swift      # T1/T2：新建——LPV1 形 pack/unpack + 键/index/LRU/in-flight（MIT·Lumen 出处注记）
@@ -25,15 +25,17 @@ files_modified:
   - App/Sources/Lightamer/Library/CullFaceModel.swift         # T4/T5/T6：新建——选片面状态模型（键位/评级/对比/组跳/提示条）
   - App/Sources/Lightamer/Library/Views/CullFaceView.swift    # T4/T5/T6：新建——头栏/主 Pane/胶片条/键位帮助行
   - App/Sources/Lightamer/Library/LibraryThumbnailBridge.swift # T3/T4：RenderLeg 生产侧 + 96px 胶片条复用缝（零触既有 gate 语义）
+  - App/Sources/Lightamer/State/PipeCoordinator.swift          # T3：申报制触点（载入腿预览档平面缝——实际清单 DECISIONS 申报，review m-7）
+  - App/Sources/Lightamer/Library/Views/LibraryGridView.swift  # T4：申报制触点（图库 onCull 入口路由缝——GridView/GridModel 最小触点 execute 期核实，review m-7）
   - App/Sources/Lightamer/MCP/Tools/CullingToolset.swift      # T3：defaultDecodeImage 内部路由 SmartPreviewStore（seam 签名零改——核实最小触点；禁触工具面）
   - App/Sources/Lightamer/Settings/（容量键设置行落点文件）     # T7：previews.cacheMB 设置行（实际 Settings 文件 execute 期核实）
   - Resources/Localizable.xcstrings                           # T5/T6：cull_* 键族尾块纯插入
-  - Tests/LightamerTestsIOP/SmartPreviewStoreTests.swift      # T1/T2：新建（IOP bundle——Decode 域）
-  - Tests/LightamerTestsApp/CullFaceModelTests.swift          # T4/T5/T6：新建（APP bundle）
+  - Tests/LightamerTests/SmartPreviewStoreTests.swift         # T1/T2：新建（IOP bundle——Decode 域；平铺目录 + Project.swift LightamerTestsIOP 数组显式行，review M-5）
+  - Tests/LightamerTests/CullFaceModelTests.swift             # T4/T5/T6：新建（APP bundle——平铺目录 + LightamerTestsApp 数组显式行，review M-5）
   - Project.swift                                             # T7：两个新测试文件入对应 bundle 显式数组
   - .work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt # T7：两行登记
   - .work/gsd/phases/lumen-culling/LUMEN-B-SUMMARY.md         # T7：执行摘要（逐任务记账 + ΔN 终账 + 探针指针）
-  - .work/gsd/phases/lumen-culling/LUMEN-B-DECISIONS.md       # T7：裁定记录（消费方接线终形 + 各偏差 + 键登记）
+  - .work/gsd/phases/lumen-culling/LUMEN-B-DECISIONS.md       # T7：裁定记录（消费点清单 + 弃层申报 + mtime ns + shared holder 形 + 各偏差 + 键登记——review m-9/m-10）
 ---
 
 # Plan LUMEN-B — 缓存底座 + 选片视图（LU4 + LU3）
@@ -85,11 +87,11 @@ files_modified:
    选片/重开；DRT/film 尾平面不缓存）。
 5. **G/D 键位钉死**（X7）——G = 回图库（Lumen Esc-G 映射）、D = 进编辑
    器（Lumen Enter 显影映射）；0-5/P/X/U/6-9/A/C/F 沿 Lumen 词汇。
-6. **MCP 零新增选片工具**（红线 5）——选片是 GUI 面；MCP decodeImage 消
-   费 = 既有 seam 内部路由。
-7. **legacy CullingView / SessionThumbnailProvider 零触**（红线 3）——
-   纪律继承（paneCap 2/错峰解码/pair-identity task/平面释放），不收编不
-   复用 720 档。
+6. **MCP 零新增选片工具**（本地红线 5——m-8 编号显式化）——选片是 GUI
+   面；MCP decodeImage 消费 = 既有 seam 内部路由。
+7. **legacy CullingView / SessionThumbnailProvider 零触**（本地红线 3
+   ——m-8 编号显式化）——纪律继承（paneCap 2/错峰解码/pair-identity
+   task/平面释放），不收编不复用 720 档。
 
 ## read_first（全局，每任务开工前过一遍）
 
@@ -156,8 +158,10 @@ L009（LESSONS）。
 
 - **action**：
   1. 键 = `sourcePath|size|mtime|process version|缓存格式版本` → sha1
-     （hex string 入 index——L013 邻域）；process version 读点 = RenderProcess
-     单源（注入式读缝——测试可钉 bump 失效）。
+     （hex string 入 index——L013 邻域）；**mtime 精度钉 ns**（Lumen
+     `mtime_ns` `preview_cache.py:75` 同形——同秒连拍防撞，review m-10）；
+     process version 读点 = RenderProcess 单源（注入式读缝——测试可钉
+     bump 失效）。
   2. 存储 = `~/Library/Caches/Lightamer/smart-previews/`：index SQLite
      WAL（entries(key,kind,bytes,used) 表形直译）+ 平面文件（key 命名，
      同目录 tmp + 原子晋升——L009）。
@@ -166,10 +170,18 @@ L009（LESSONS）。
   4. 内存层 = 解码平面 LRU 6 张 float32 + in-flight 同 key 合并（gate
      actor 先例同形）+ 缓存不可读写降级直解码（权限/盘满永不阻塞）+
      损坏即删重建。
-  5. 测试（IOP）：键失效三例（mtime/size 变更 + process version bump——
+  5. **形态裁定 + 弃层申报（review m-9/m-10，DECISIONS 必钉）**：
+     SmartPreviewStore = **shared holder 单例**（M2-5 `LutLibraryStore
+     .shared` 先例同形——private static + NSLock getter +
+     `replaceShared(_:)` 原子换；四门消费方共享同一 index DB 句柄/内存
+     LRU/in-flight 表——Lumen 进程级 `default()` 同构），并发测试挂单
+     例假设；**弃层申报**：Lumen 缓存三层只移植 float16 解码面层——
+     2560 JPEG 相机视图层弃（CullViewLoader 每次 ImageIO 直读，
+     10.6ms/张实测可接受）、320 thumbs 层由 `.lathumbs` 既有派生物承担。
+  6. 测试（IOP）：键失效三例（mtime/size 变更 + process version bump——
      注入读缝钉）+ trim 逐出序（used 单调）+ in-flight 并发合并（同 key
-     双请求单解码——并发测试）+ 损坏 index/文件重建 + 降级直解码（目录
-     不可写注入）。
+     双请求单解码——并发测试，经 shared 单例语义——review m-9）+ 损坏
+     index/文件重建 + 降级直解码（目录不可写注入）。
 - **验收标准（机检）**：
   - 构建绿；`git diff --stat` 恰一产线文件（SmartPreviewStore.swift 续
     任务域）。
@@ -186,7 +198,8 @@ L009（LESSONS）。
 
 ## T3 — 解码出口消费方接线（X6 四门 + 编辑工作平面零触）
 
-**read_first**：CONTEXT §X6 红线臂 + 红线 4；`RAWDecoder.swift:110-130`
+**read_first**：CONTEXT §X6 红线臂 + 本地红线 4（McpServerController 零
+diff——m-8 编号显式化）；`RAWDecoder.swift:110-130`
 （decode 入口——包装层插点）；`CullingToolset.swift:60-110`（decodeImage
 seam + defaultDecodeImage——内部路由点）；`LibraryThumbnailBridge.swift`
 （RenderLeg 生产侧注记 :5-31）；AGENTS M2-6（尾平面格式纪律——DRT/film
@@ -198,7 +211,8 @@ seam + defaultDecodeImage——内部路由点）；`LibraryThumbnailBridge.swif
      档B RenderLeg 生产侧同缝；③选片回落腿（T4 消费——本任务先落缝）；
      ④MCP `decodeImage` = CullingToolset `defaultDecodeImage` **内部**
      换路由（seam 签名零改；`McpServerController` 零 diff 核实——若证
-     明必须触 = 停手上报，红线 4）。
+     明必须触 = 停手上报，本地红线 4〔McpServerController 零 diff——
+     m-8 编号显式化〕）。
   2. **量化一致性应用**：四门新解码统一过 `quantize()`（T1 规则）——
      命中/未命中同源同值。
   3. **编辑管线全分辨率工作平面零触断言**：编辑解码腿零路由（grep +
@@ -216,8 +230,9 @@ seam + defaultDecodeImage——内部路由点）；`LibraryThumbnailBridge.swif
 - **commit**: `feat(lumenb): route preview decodes through smart preview store`
 - **回滚与偏差申报要求**：回滚 = revert 单 commit（消费方回落直解码——
   缓存闲置无行为差）；偏差（实际消费点清单/触点文件数）= DECISIONS 申
-  报；**禁触编辑工作平面路由**（红线 4/H-LU3——发现「必须」即停手上
-  报）；**禁改 seam 签名**（CullingToolset decodeImage :68 类型零改）；
+  报；**禁触编辑工作平面路由**（CONTEXT 红线 2 封存面 + 本地红线 2
+  H-LU3——发现「必须」即停手上报；m-8 编号显式化）；**禁改 seam 签名**
+  （CullingToolset decodeImage :68 类型零改）；
   **禁缓存 DRT/film 尾平面**（显示格式重算成本低——X6 红线臂）。
 
 ## T4 — CullFace 第三 face + CullViewLoader（X7，D-LU-1/6）
@@ -256,7 +271,7 @@ seam + defaultDecodeImage——内部路由点）；`LibraryThumbnailBridge.swif
 - **commit**: `feat(lumenb): add cull face with embedded preview loader`
 - **回滚与偏差申报要求**：回滚 = revert 单 commit（第三 face additive，
   既有两 face 零行为差）；偏差（LRU 容量终值/胶片条档位）= DECISIONS
-  申报；**禁触 legacy CullingView**（红线 3）；**禁新 NSWindow**（D-LU-1
+  申报；**禁触 legacy CullingView**（本地红线 3——m-8）；**禁新 NSWindow**（D-LU-1
   ——face 路由钉死）；**禁在 body 求值路径解码**（loader actor 异步缝
   ——body 纯函数纪律）。
 
@@ -322,7 +337,7 @@ LUMEN-A 产物（BurstAnnotator 注记 + LibraryAnalysisService 优先缝——�
 - **commit**: `feat(lumenb): add compare panes burst jumps and hint bar`
 - **回滚与偏差申报要求**：回滚 = revert 单 commit；偏差（插队窗参数/
   提示条分项）= DECISIONS 申报；**禁把对比 Pane 写进 legacy CullingView**
-  （新写同构——红线 3）；**禁同步阻塞分析趟**（插队 = 优先缝非抢占——
+  （新写同构——本地红线 3——m-8）；**禁同步阻塞分析趟**（插队 = 优先缝非抢占——
   H-LU1 语义延续）。
 
 ## T7 — Settings 容量键 + 收口（红线 11）
@@ -331,14 +346,17 @@ LUMEN-A 产物（BurstAnnotator 注记 + LibraryAnalysisService 优先缝——�
   1. Settings 页 `previews.cacheMB` 容量行（默认 4096，0 = 关——typed
      读 + 注入式 defaults；`App/Sources/Lightamer/Settings/` 实际文件
      execute 期核实落点）。
-  2. `Project.swift` 两个新测试文件入数组（SmartPreviewStoreTests →
-     LightamerTestsIOP；CullFaceModelTests → LightamerTestsApp）+
-     BUNDLE-MAP 两行。
+  2. `Project.swift` 两个新测试文件入对应 target 数组（**平铺
+     `Tests/LightamerTests/`——无 LightamerTestsIOP/App 目录，bundle 归
+     属 = target 数组显式行 + BUNDLE-MAP 登记行——review M-5**；
+     SmartPreviewStoreTests → LightamerTestsIOP 数组；CullFaceModelTests
+     → LightamerTestsApp 数组）+ BUNDLE-MAP 两行。
   3. `tuist generate` = 本批最后一个动作（L041）。
   4. `--bundle IOP` + `--bundle App` 定向全绿；ΔN 实数对账（预算
      +14..18）。
   5. LUMEN-B-SUMMARY（逐任务记账 + ΔN 终账 + 重开命中探针指针）+
-     LUMEN-B-DECISIONS（消费点清单 + 各偏差 + 键登记）落盘。
+     LUMEN-B-DECISIONS（消费点清单 + 弃层申报 + mtime ns + shared
+     holder 形 + 各偏差 + 键登记——review m-9/m-10）落盘。
   6. 汇报 + **C 档停**。
 - **验收标准（机检）**：定向 bundle 全绿零回归；Project.swift diff =
   恰两行数组插入；BUNDLE-MAP 两行在库；SUMMARY/DECISIONS 在库；重开命
@@ -361,7 +379,7 @@ LUMEN-A 产物（BurstAnnotator 注记 + LibraryAnalysisService 优先缝——�
 - **缓存磁盘占用**（§风险 8）：默认 4GB（0 = 关）；trim 90% + 每 16 写
   一巡；DerivedData 巡检告警不受扰（目录独立）。
 - **消费方接线扩散**：四门触点若超预期（PipeCoordinator 腿结构复杂）=
-  停手申报最小触点清单（红线 4 精神——FIX2③/封存面优先）。
+  停手申报最小触点清单（CONTEXT 红线 1/2 精神——FIX2③/封存面优先，m-8）。
 - **键位与系统冲突**：G/D 与 Spotlight/输入法候选撞车 = DECISIONS 申报
   换位（G/D 语义不动，物理键可调——钉死的是语义对）。
 

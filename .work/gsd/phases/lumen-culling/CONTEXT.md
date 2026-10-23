@@ -7,9 +7,12 @@
 > 先例」惯例处理）。读解正本 = 同目录 `RESEARCH.md`（§Summary / §UQ-LU2 /
 > §UQ-LU1 / §UQ-LU3 / §UQ-LU4 / §UQ-LU5 / §依赖与切分 / §风险 / §OQ /
 > §键族与登记预案）；planner 2026-10-22 HEAD `ee73da34` 抽核 ~20 点亲核，
-> 吻合为主，**转写勘误四条**随 §转写勘误节登记（①FilterField 实为 16 案；
-> ②EditingToolset.Seams 装配单点发现——FIX2③ 必须适配；③④引用微差），
-> 执行以勘误为准。
+> 吻合为主，**转写勘误四条 + 吻合抽核记录一条**随 §转写勘误节登记（①
+> FilterField 实为 16 案；②EditingToolset.Seams 装配单点发现——FIX2③
+> 零例外供给形（review M-4 修订）；③④引用微差），执行以勘误为准；
+> **plan-review 回注（2026-10-23）** = `LENS-CULLING-PLAN-REVIEW.md`
+> （1 blocking + 5 major + 12 minor）修复轮已落位——见 §修复轮修订节，
+> 执行以修复后文本为准（改动点行内带 `(review …)` 标记）。
 >
 > **特别登记一（hazards 三条，消解绑定到 plan，§Hazards 正表）**：
 > ①分析任务与导出/AI 的调度互斥面（分析趟若不设暂停 = 与导出渲染抢
@@ -36,7 +39,8 @@
 > **编排总纲**：单 phase `lumen-culling`、**三 plan 串行 A→B→C**（D-LU-9
 > ；机器级单重活制排除并行 plan）——**Plan A「分析地基」= LU2+LU1**
 > （schema v6 + EXIF serial/SubSec + 分析纯函数族 + 分析趟服务 +
-> BurstAnnotator + 智能相册 SQL 条件 + 网格徽章，ΔN +12..15）→ **Plan B
+> BurstAnnotator + 智能相册 SQL 条件 + 网格徽章 + Settings 开关行 +
+> App 装配缝，ΔN +12..15）→ **Plan B
 > 「缓存+选片视图」= LU4+LU3**（SmartPreviewStore + 消费方接线 + CullFace
 > 窗体/键位/对比/预读/组跳，ΔN +14..18）→ **Plan C「蒙版精细化」= LU5**
 > （MaskRefine + 编排 + MCP refine_masks，ΔN +6..7；与 A/B 无依赖、可独
@@ -247,9 +251,15 @@ kernel）。验收形态：构建绿 + 定向 bundle 全绿 + 全套 `--all` 对
 - 新 `LightamerCore/Sources/Library/CullingAnalysis.swift`：
   `SharpnessAnalyzer`（输入 = 1600px 灰度平面；高斯 σ0.5 → 32px 块四方向
   （0/45/90/135°）一阶/二阶导数能量比（固定 3×3 核直译 `culling.py:46-51`）
-  → 结构块筛选（一阶能量 P75 且 >2e-5）→ 比值 P90 → 四方向 min →
-  `log2((min+4)/5.5)*100` 钳 0-100——**公式参数逐字直译，禁重标定**，
-  D-LU-10）+ `Signature16`（16×16 灰度 256 字节，INTER_AREA 同义缩放）。
+  → 结构块筛选（一阶能量 P75 且 >2e-5）→ **每方向 log2(P90 比值) → 四
+  方向取 min → `(min+4)/5.5*100` 钳 0-100**——Lumen `culling.py:84-87`
+  实式（log2 单调 ⇒ min(levels)=log2(min 比值)，两读法等价）；min 比值
+  =1 时 ≈72.7 分。**记法红线：log2 逐方向先施、min 后线性映射，顺序不
+  可写反**（旧式 `log2((min+4)/5.5)` 记法 = 另一个函数——review B-1）
+  ——**公式参数逐字直译，禁重标定**，D-LU-10。两分支转录（review B-1）：
+  结构块 `strong` 空（`strong.any()==false`）→ 0.0（`culling.py:83`）；
+  `min(gray.shape) < 64 → nil`（`culling.py:79`——analyze 返回 `Double?`））
+  + `Signature16`（16×16 灰度 256 字节，INTER_AREA 同义缩放）。
   实现域 = Accelerate/vDSP（零 OpenCV——v1 依赖红线）；文件头 MIT 归属
   （Lumen `culling.py:68-94`——特别登记二）。
 - 新 `LightamerCore/Sources/Library/EyeClosureAnalyzer.swift`：
@@ -283,9 +293,9 @@ kernel）。验收形态：构建绿 + 定向 bundle 全绿 + 全套 `--all` 对
 - 近亲零触：`StackClustering`（`:20-64`）与 MCP `list_bursts`
   （`CullingToolset.swift:1174+`）零 diff（D-LU-2）；MIT 归属头（特别
   登记二）。
-- golden = Lumen 同输入对照（MIT 合规直取其测试向量——`tests/` 侧
-  annotate_bursts 向量；上游无现成向量时自织向量 + 直译双实现对拍，
-  execute 期取证申报）。
+- golden = Lumen 同输入对照——**上游向量缺失（已核：v2.0.1 `tests/` 全
+  清单 38 文件无 annotate_bursts 向量）→ 自织向量 + 直译双实现对拍为正
+  路径**（review m-3；execute 期取证申报）。
 
 ### X5 智能相册四案 + FilterSQL 直比边界（Plan A T7）
 
@@ -386,8 +396,8 @@ kernel）。验收形态：构建绿 + 定向 bundle 全绿 + 全套 `--all` 对
 - **与 logit-gain 羽化正交共存**：精细化产出更准 alpha 面（MaskRefine 输
   出），Edge 羽化（`AIMaskFeather` `:15-31`）仍在其上按用户半径作用——
   两缝零接触（`AIMaskFeather.swift` 零 diff）。
-- 编排（App 侧）：单飞 + 等待队列（Lumen `auto_masks.py:121-219`
-  `refine_masks_later` 直译）；完成 = 置换 layer 蒙版平面 + **一步
+- 编排（App 侧）：单飞 + 等待队列（Lumen v2.0.1 `auto_masks.py:143-219`
+  `refine_masks_later` 直译——:121-219 = v1.7.0 行号域，review m-4 勘正）；完成 = 置换 layer 蒙版平面 + **一步
   history commit**（**复用 M6-4 既有蒙版 history 键族与 revision/epoch
   通道**——HistoryStack/LightamerSidecar/V50Order 零 diff 红线，蒙版置
   换非新 item 类型非新 params 面）；失败保快速蒙版 + toast（D-LU-7）；
@@ -399,9 +409,11 @@ kernel）。验收形态：构建绿 + 定向 bundle 全绿 + 全套 `--all` 对
   ——`yiyinInjector`/`projectWriteProbe` additive `var` 先例同形，
   `EditingToolset.swift:91-118` 亲核）；nil = typed 不可用脸（headless/
   既有构造点零 diff）；渲染类串行 `McpRenderGate`（解码 4096px 属渲染
-  级——`McpToolRegistry.swift:256` gate 先例）；**生产装配 = McpServerController
-  makeEditingSeams（`:961`）内 additive 装配行恰一处 = FIX2③ 适配唯一
-  例外**（勘误②——Seams 全部装配单点在该函数，红线 1 精确化）；工具面
+  级——`McpToolRegistry.swift:256` gate 先例）；**生产供给 = LightamerShell
+  `:1126` 同款 GUI post-assignment**（projectWriteProbe 先例形——Seams
+  构造后 `refineMasks = …` 赋值；**McpServerController 三 plan 全程零
+  diff、FIX2③ 零例外**——勘误②经评审 M-4 修正：makeEditingSeams 参数
+  形〔yiyinInjector 形 = 形参 + 赋值 ≥2 行 diff〕触硬门弃用）；工具面
   快照测试随批（`McpRegistrySnapshotTests` APP bundle 先例同域——工具面
   是安全面）。
 
@@ -415,6 +427,9 @@ kernel）。验收形态：构建绿 + 定向 bundle 全绿 + 全套 `--all` 对
 
 ## 转写勘误（RESEARCH → 本批 planner 亲核批，非矛盾、执行以勘误为准）
 
+> 计数口径（review m-12）：①-④ = 勘误四条；⑤ = 吻合抽核记录（非勘误）。
+> 勘误②经评审 M-4 修正（供给形）；评审回注修订另见 §修复轮修订节。
+
 1. **FilterField 案数勘误（17 → 16）**：RESEARCH §UQ-LU2 缝位 6「
    FilterField 17 字段（`FilterPredicate.swift:54-70`）」= stale——实数
    **16 案**（`FilterPredicate.swift:54` enum 起，rating/colorLabel/
@@ -422,13 +437,17 @@ kernel）。验收形态：构建绿 + 定向 bundle 全绿 + 全套 `--all` 对
    aperture/exposure/captureDate/hasEdits/filename/dir，数案亲核；区间
    实到 :84）。对本批影响 = Plan A T7 加 4 案后 **20 案**（非 21）；引用
    一律 :54-84。
-2. **EditingToolset.Seams 装配单点发现（FIX2③ 适配依据）**：RESEARCH 未
-   载——`EditingToolset.Seams` 全部生产装配经
-   `McpServerController.makeEditingSeams`（`:961`，GUI 侧
-   `LightamerShell.swift:1112` 消费）单点；refine_masks 的生产缝供给必然
-   在该函数内一行 additive 装配 → **FIX2③ 必须精确化**（红线 1：唯一例
-   外 = Plan C 恰一装配行；lens 批「MCP 面零交集」前提在本批不成立）。
-   additive `var` 默认 nil 先例（`yiyinInjector` :91-118）保证既有构造点
+2. **EditingToolset.Seams 装配单点发现（FIX2③ 精确化依据；评审 M-4 修
+   正供给形判断）**：RESEARCH 未载——`EditingToolset.Seams` 全部生产装
+   配经 `McpServerController.makeEditingSeams`（`:961`，GUI 侧
+   `LightamerShell.swift:1112` 消费）单点；**但「供给必然在该函数内一
+   行」的前提判断有误（review M-4）——供给可走 GUI post-assignment**
+   （先例 = projectWriteProbe：`LightamerShell.swift:1112` 构造、
+   `:1126` `editingSeams.projectWriteProbe = …` 赋值）。refine_masks 生
+   产缝供给循此形 → **FIX2③ 零例外、McpServerController 三 plan 全程零
+   diff**（§红线 1 修订正本）；makeEditingSeams 参数形（yiyinInjector 形
+   = 形参 + 赋值 ≥2 行 diff）触硬门**弃用**。additive `var` 默认 nil 先
+   例（`yiyinInjector` :91-118）仍保证既有构造点
    （`:501/:634/:742/:830/:975`）零 diff。
 3. **makeCullingContext 函数签名行微差**：RESEARCH 记 `:904-935`——注释
    区 :900-908、`static func makeCullingContext` 签名实位 **:909**；语义
@@ -461,12 +480,14 @@ kernel）。验收形态：构建绿 + 定向 bundle 全绿 + 全套 `--all` 对
 
 ## 三 plan 红线 front-matter（共用正本，三 plan 逐条引用）
 
-1. **FIX2③ 精确化（勘误②）**：`App/Sources/Lightamer/Mcp/
-   McpServerController.swift` 零 diff，**唯一例外 = Plan C T3
-   makeEditingSeams（:961）内 refine_masks 生产缝装配 additive 恰一行**
-   （`:501/:634/:742/:830/:975` 等既有构造点零 diff；A/B 两 plan 全程
-   McpServerController 零 diff）。触达例外之外任何 McpServerController
-   面 = 停手上报 orchestrator（FIX2③ 修订属 orchestrator 权）。
+1. **FIX2③ 零例外（勘误② + 评审 M-4 修订正本）**：`App/Sources/Lightamer/Mcp/
+   McpServerController.swift` **三 plan 全程零 diff**——refine_masks 生
+   产缝供给 = `LightamerShell.swift:1126` 同款 **GUI post-assignment**
+   （projectWriteProbe 先例形：Seams 构造后 `refineMasks = …` 赋值；装配
+   单点纪律不破——Seams 装配仍在 makeEditingSeams 单点完成，供给属消
+   费侧赋值）；makeEditingSeams 参数形（yiyinInjector 形 = 形参 + 赋值
+   ≥2 行 diff）触硬门**弃用**。任何 McpServerController 触碰 = 停手上
+   报 orchestrator（FIX2③ 修订属 orchestrator 权）。
 2. **封存面零 diff**：`DrtPanelModel/DrtPanelView/DrtRecord/
    TerminalTailPolicy/DrtTailAssembly/PixelPipe/Lut3dKernels.metal/
    DrtEotf/ExportQueueContract/六格式导出矩阵（ExportFormatSpec·
@@ -536,14 +557,17 @@ kernel）。验收形态：构建绿 + 定向 bundle 全绿 + 全套 `--all` 对
 
 ## 测试策略（三 plan golden/集成面总纲）
 
-- **BurstAnnotator golden（Lumen 同输入对照）**：MIT 合规直取其测试向量
-  （v2.0.1 `tests/` annotate_bursts 向量集）；上游向量缺失时自织向量 +
-  直译双实现对拍（execute 期取证申报）。覆盖：同机身 2.0s 阈内归组/跨机
+- **BurstAnnotator golden（Lumen 同输入对照）**：**上游向量缺失（已核
+  ——v2.0.1 `tests/` 全清单 38 文件无 annotate_bursts 向量）→ 自织向量
+  + 直译双实现对拍为正路径**（review m-3；execute 期取证申报）。覆盖：
+  同机身 2.0s 阈内归组/跨机
   身不组/签名 MAD 判/副本排除（RAW+JPEG 对）/无 ts 永不组/best 睁眼优先
   /组内序稳定（Plan A T6）。
 - **清晰度公式 golden**：Lumen `culling.py` 同输入对照（合成图样 +
-  NumPy 参考输出双写——M2-4 golden 惯例）；标定锚点断言（1.2px 高斯模糊
-  ≈55 分、2px≈30 分带内）；四方向表驱动（Plan A T3）。
+  NumPy 参考输出双写——M2-4 golden 惯例；公式 = 各方向 log2(P90 比值)
+  → 四方向 min → `(min+4)/5.5*100`——review B-1 实式）；标定锚点断言
+  （1.2px 高斯模糊≈55 分、2px≈30 分带内）；四方向表驱动 + 两分支转录
+  （strong 空 → 0.0 / min(shape)<64 → nil——review B-1）（Plan A T3）。
 - **闭眼眼睑比标定集**：数学面 CI 钉死（合成 landmarks 表驱动——睁/闭/
   侧脸漏检/左右取 max）；绝对阈值定标 = 10-20 张实拍人工标注样张
   （evidence 机制，不入 CI 门——LENS-04 T4 同款纪律），定标记录 + 阈值
@@ -573,5 +597,48 @@ kernel）。验收形态：构建绿 + 定向 bundle 全绿 + 全套 `--all` 对
 - **D-LU-8**：MCP culling 重挂后批 ↔ 本批加重挂（预算失控）。
 - **D-LU-9**：单 phase 三 plan ↔ 拆二 phase / C 提前（C 提前合法）。
 - **D-LU-10**：1600px 基准 ↔ 2560px（标定作废重做）。
-- **红线 1**：FIX2③ 例外恰一行 ↔ 零例外（refine_masks 生产缝改走 GUI
-  侧装配旁路 = 第二装配点，违单点纪律，不建议）。
+- **红线 1**：FIX2③ 零例外（GUI post-assignment 供给——装配单点不破，
+  review M-4 修订正本）↔ makeEditingSeams 参数形例外（≥2 行 diff，判弃）。
+
+## 修复轮修订（LENS-CULLING-PLAN-REVIEW 回注，2026-10-23，先于执行）
+
+> 评审正本 = 同目录 `LENS-CULLING-PLAN-REVIEW.md`（`dbc31523`；PASS /
+> 1 blocking + 5 major + 12 minor）。以下逐条落位于本文件与三 plan 文本，
+> 改动点行内带 `(review …)` 标记；执行以修复后文本为准。
+
+- **B-1（blocking）**：sharpness 公式四处改写为 Lumen `culling.py:84-87`
+  实式——各方向先 log2(P90 比值) → 四方向 min → `(min+4)/5.5*100` 钳
+  0-100（min 比值=1 时 ≈72.7 分；旧式 `log2((min+4)/5.5)*100` 记法 = 另
+  一个函数）；补两分支转录（strong 空 → 0.0 / min(shape)<64 → nil）。
+  落位 = 本文件 §X3/§测试策略 + Plan A SC/T3 action/红线 4/验收机检。
+- **M-1**：Plan A T1 增 `LibrarySchema.swift:156-186` imagesColumns
+  frozen 数组尾段同批追加（七列双登记点：DDL + 数组）+ 两个 frozen 测
+  试断言更新 29→36（`LibrarySchemaTests:114` / `LibrarySchemaV5Tests:307`）
+  + grep 判据改「七列拼写各恰两处」。
+- **M-2**：Plan A 增 App 装配面——`LibraryAnalysisWiring`（项目打开启
+  动点 + `library.analysis.enabled` 门 + 导出/AI 活跃探针注入 +
+  `BackgroundTaskRegistry` App 侧 `@MainActor` 适配 handle，Registry 为
+  App 侧类 Core 不可 import）+ files_modified 增列 + APP 域装配/门控测
+  试（`test_bundles` LIB→LIB+APP）。
+- **M-3**：Plan A 补 Settings 开关行（`SettingsPages.swift` additive 一
+  节 + 标签/说明 xcstrings 两键，挂 T7）——D-LU-5「Settings 开关」用
+  户可达面闭环。
+- **M-4**：FIX2③ 采纳推荐 (a) 形——refine_masks 生产缝 = LightamerShell
+  `:1126` 同款 GUI post-assignment ⇒ **McpServerController 三 plan 全程
+  零 diff、FIX2③ 零例外**；yiyinInjector 参数形（形参 + 赋值 ≥2 行触
+  硬门）弃用。落位 = 本文件 §红线 1/勘误②/§X8/晨审索引 + 三 plan 红线
+  1 + Plan C T3 SC/action/机检判据。
+- **M-5**：Plan B/C 五个新测试路径改平铺 `Tests/LightamerTests/`（目录
+  平铺惯例——`Tests/LightamerTestsIOP|App|Layers/` 目录不存在；落域裁
+  定不变，bundle 归属 = Project.swift target 数组显式行 + BUNDLE-MAP
+  登记行）。
+- **m-1..m-12**：随各 plan DECISIONS/文本点改消化——m-1 回滚措辞
+  （futureSchema 拒开 by design）/ m-2 additive 通知缝（无既有行变更通
+  道）+ T7 徽章刷新挂接 / m-3 上游向量缺失已核（自织 + 对拍正路径）+
+  C T1 场景参照 / m-4 auto_masks v2.0.1 `:143-219` / m-5 比较器形态、
+  nil 签名、组 id 输入三钉（A DECISIONS 必钉）/ m-6 转栈一键 T7 显式
+  收编 / m-7 B files_modified 补申报制触点 / m-8 红线引用统一全局编号
+  （本地条显式标「本地」）/ m-9 SmartPreviewStore shared holder 单例形
+  / m-10 弃层申报（2560 JPEG 层弃 + thumbs 层 `.lathumbs` 承担）+
+  mtime 精度钉 ns / m-11 `.session` 域四案 typed unsupported 负测 /
+  m-12 勘误计数口径（四条 + 吻合抽核记录一条）。
