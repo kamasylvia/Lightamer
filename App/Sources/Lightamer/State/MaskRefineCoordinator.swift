@@ -52,10 +52,10 @@ final class MaskRefineCoordinator {
 
     /// The UserDefaults key of the auto-trigger gate (D-LU-7) — the ONE
     /// literal in the repo (the Settings row writes through it).
-    static let fineAutoKey = "mask.fineAuto"
+    nonisolated static let fineAutoKey = "mask.fineAuto"
 
     /// Typed read: absent key = true (the Lumen fine_masks default-open).
-    static func fineAutoEnabled(defaults: UserDefaults) -> Bool {
+    nonisolated static func fineAutoEnabled(defaults: UserDefaults) -> Bool {
         defaults.object(forKey: fineAutoKey) as? Bool ?? true
     }
 

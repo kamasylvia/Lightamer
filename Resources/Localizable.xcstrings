@@ -34059,6 +34059,54 @@
         }
       }
     }
+  },
+  "settings_maskrefine_auto" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Refine AI mask edges automatically"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "自动精细化 AI 蒙版边缘"
+        }
+      }
+    }
+  },
+  "settings_maskrefine_hint" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "After an AI mask is generated its edges are refined against the developed image in the background (seconds per mask). A failure keeps the quick mask."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "AI 蒙版生成后,后台在显影图上精细化其边缘(每个蒙版数秒)。失败时保留快速蒙版。"
+        }
+      }
+    }
+  },
+  "settings_maskrefine_section" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Mask refinement"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "蒙版精细化"
+        }
+      }
+    }
   }
   },
   "version": "1.0"

@@ -298,6 +298,8 @@ LAYERS	6	AIMaskFeatherTests.swift
 #   M6-4-02 T3（2026-10-14，登记随文件同 commit）：人物实例 5 法入 LAYERS（合成 label-buffer fixture，零 entitlement）。
 LAYERS	5	PersonInstanceMaskTests.swift
 LAYERS	10	AIMaskSemanticTests.swift
+#   LUMEN-C T1/T4（2026-10-24，登记随文件同 commit）：MaskRefine 五步 golden + 场景参照 + 门控/钳/容错 8 法入 LAYERS（1 探针默认 skip）。
+LAYERS	8	MaskRefineTests.swift
 LAYERS	10	LayerCacheTests.swift
 LAYERS	10	LayerCompositeTests.swift
 LAYERS	11	MaskCommandTests.swift
@@ -855,4 +857,7 @@ LIB	5	FilterCullingFieldsTests.swift
 LIB	4	LibraryAnalysisServiceTests.swift
 LIB	3	LibrarySchemaV6Tests.swift
 APP	4	LibraryAnalysisWiringTests.swift
+#   LUMEN-C T2/T3（2026-10-24，登记随文件同 commit）：编排 6 法 + MCP 工具面 5 法入 APP。
+APP	6	MaskRefineCoordinatorTests.swift
+APP	5	McpRefineMasksToolTests.swift
 APP	22	CullFaceModelTests.swift
