@@ -113,7 +113,23 @@ public enum LibrarySchema {
     /// stays the three mini-git names). Old packages open through the
     /// ProjectFileStore dispatch (pre-migration `sqlite3_backup` snapshot →
     /// the v4→v5 slot below).
-    public static let schemaVersion = 5
+    ///
+    /// LUMEN-A T1 (X1): v5 → v6 = the FIFTH migration — the CULLING
+    /// ANALYSIS seven-column family activates on `images`
+    /// (D-LU-5/D-LU-10, RESEARCH §UQ-LU2 seam 1): `analysis_version`
+    /// (the ANAYLSIS stamp — `LibraryAnalysisService.analysisVersion`,
+    /// older results recompute) + `sharpness` + `faces` + `eyes_closed` +
+    /// `signature` (16×16 BLOB) + `face_boxes` (JSON) + `camera_serial`
+    /// (LU1 burst grouping key). PURE ADDITIVE — frozen column
+    /// positions/spellings untouched, ZERO backfill (the analysis pass
+    /// fills lazily; rows read NULL = un-analysed = the default-neutral
+    /// face), zero new tables/indexes/triggers (the futureSchema refuse
+    /// enumeration stays undisturbed — no column was changed, only added).
+    /// Old packages open through the ProjectFileStore dispatch
+    /// (pre-migration `sqlite3_backup` snapshot → the v5→v6 slot below →
+    /// the idempotent per-column probe ALTER — the `default_look_pending`
+    /// :899 precedent, seven columns wide).
+    public static let schemaVersion = 6
 
     // MARK: - Package layout constants (KD-1; consumed by P2 import, M2-3 UI)
 
@@ -182,6 +198,13 @@ public enum LibrarySchema {
         ("added_time", "REAL"),              // import timestamp
         ("modified_time", "REAL"),           // last row mutation
         ("default_look_pending", "INTEGER"),  // M2-5-2 KD-5: new-import default-look marker (appended, v2; DDL default 0 — the freeze type rides the PRAGMA spelling)
+        ("analysis_version", "INTEGER"),     // LUMEN-A T1 (X1): culling-analysis stamp (NULL = un-analysed; < current → recompute)
+        ("sharpness", "REAL"),               // SharpnessAnalyzer 0-100 (NULL = un-analysed)
+        ("faces", "INTEGER"),                // counted face boxes (NULL = un-analysed)
+        ("eyes_closed", "INTEGER"),          // faces with max(right,left) eye opening below threshold (NULL = un-analysed)
+        ("signature", "BLOB"),               // Signature16: 16x16 greyscale, 256 bytes (NULL = un-analysed)
+        ("face_boxes", "TEXT"),              // JSON [[x,y,w,h,closed]] normalized 0-1 (NULL = un-analysed)
+        ("camera_serial", "TEXT"),           // EXIF BodySerialNumber (LU1 burst grouping key; NULL = unindexed/absent)
     ]
 
     /// The `albums` table columns IN ORDER — the OQ-6 语义对齐 + 表形简化:
@@ -304,7 +327,14 @@ public enum LibrarySchema {
           ref_count INTEGER NOT NULL DEFAULT 0,
           added_time REAL,
           modified_time REAL,
-          default_look_pending INTEGER DEFAULT 0
+          default_look_pending INTEGER DEFAULT 0,
+          analysis_version INTEGER,
+          sharpness REAL,
+          faces INTEGER,
+          eyes_closed INTEGER,
+          signature BLOB,
+          face_boxes TEXT,
+          camera_serial TEXT
         )
         """
 
@@ -836,7 +866,10 @@ public enum LibrarySchema {
     /// open, so a v1 package walks ALL legs (1→2→3→4→5) inside this single
     /// call and a single transaction. The v4→v5 slot (M6-4-01 KD-1) creates
     /// the two stack tables + the UNIQUE image index — IDEMPOTENT four
-    /// times over. The PRE-migration automatic
+    /// times over. The v5→v6 slot (LUMEN-A T1, X1) adds the seven culling
+    /// analysis columns — IDEMPOTENT five times over (a per-column
+    /// `PRAGMA table_info` probe skips existing ALTERs; a partially-migrated
+    /// snapshot re-runs clean). The PRE-migration automatic
     /// `sqlite3_backup` snapshot lives at the ProjectFileStore dispatch
     /// (the hook's consumers: the v1→v2 first migration, the v2 packages
     /// since M2-8-1, and — since M2-10-02 — every ≤v3 package opening under
@@ -857,6 +890,9 @@ public enum LibrarySchema {
             }
             if from <= 4 && to >= 5 {
                 try createStackTables(on: handle)
+            }
+            if from <= 5 && to >= 6 {
+                try addCullingAnalysisColumns(on: handle)
             }
             try writeUserVersion(to, to: handle)
             try handle.exec("COMMIT")
@@ -906,6 +942,32 @@ public enum LibrarySchema {
         }
         try handle.exec(
             "ALTER TABLE images ADD COLUMN default_look_pending INTEGER DEFAULT 0")
+    }
+
+    /// The v5→v6 additive culling-analysis family (LUMEN-A T1, X1). Every
+    /// column gets its OWN `PRAGMA table_info` probe — a partially-migrated
+    /// snapshot (some columns landed, then the process died) re-runs the
+    /// missing ones and skips the landed ones clean. No DEFAULT, no NOT
+    /// NULL: the analysis pass fills lazily, so NULL IS the un-analysed
+    /// semantic (the zero-backfill red line).
+    static func addCullingAnalysisColumns(on handle: SQLiteHandle) throws {
+        let additive: [(name: String, ddl: String)] = [
+            ("analysis_version", "ALTER TABLE images ADD COLUMN analysis_version INTEGER"),
+            ("sharpness", "ALTER TABLE images ADD COLUMN sharpness REAL"),
+            ("faces", "ALTER TABLE images ADD COLUMN faces INTEGER"),
+            ("eyes_closed", "ALTER TABLE images ADD COLUMN eyes_closed INTEGER"),
+            ("signature", "ALTER TABLE images ADD COLUMN signature BLOB"),
+            ("face_boxes", "ALTER TABLE images ADD COLUMN face_boxes TEXT"),
+            ("camera_serial", "ALTER TABLE images ADD COLUMN camera_serial TEXT"),
+        ]
+        var present: Set<String> = []
+        let probe = try handle.prepare("PRAGMA table_info(images)")
+        while try probe.step() {
+            if let name = probe.columnText(1) { present.insert(name) }
+        }
+        for column in additive where !present.contains(column.name) {
+            try handle.exec(column.ddl)
+        }
     }
 }
 
