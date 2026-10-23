@@ -66,6 +66,8 @@ struct WorkspaceHostView: View {
     // LUMEN-A T5 (review M-2): the analysis wiring (assembled once on the
     // project-open task below; nil until the first run).
     @State private var analysisWiring: LibraryAnalysisWiring?
+    // LUMEN-A T7: the culling hint badges (empty = the default-neutral face).
+    @State private var cullingBadges: [Int64: LibraryCullingBadge] = [:]
 
     // M2-10-03 (declared increment): the AI analysis leg + the labeling ask.
     // The registry rides THIS host's aggregate task registry (the bar/dialog
@@ -179,6 +181,17 @@ struct WorkspaceHostView: View {
                 analysisWiring = wiring
             }
             await wiring.projectChanged(to: projectController?.projectURL)
+            // LUMEN-A T7: the badge supply + the analysis notify seam —
+            // badges refresh when the analysis pass writes rows (the
+            // stale-until-refresh semantics, review m-2).
+            guard let store = projectController?.projectStore else { return }
+            let queries = LibraryQueries(store: store)
+            let libraryStore = LibraryStore(store: store)
+            await reloadCullingBadges(queries)
+            let events = await libraryStore.analysisEvents()
+            for await _ in events {
+                await reloadCullingBadges(queries)
+            }
         }
         .background(ThemeTokens.windowBackground)
         .accessibilityIdentifier(ThemeTokens.Markers.workspaceHost)
@@ -448,6 +461,18 @@ struct WorkspaceHostView: View {
     // MARK: - Library face (Plan M2-3-2 T1, KD-1: 左网格 + 右 Inspector 槽位;
     // T2 fills the right pane — the fixed-width slot below is its mount)
 
+    /// LUMEN-A T7: reload the culling hint badges (the analysis-row query →
+    /// the burst annotations → the badge map; any failure = the empty map,
+    /// the default-neutral face).
+    private func reloadCullingBadges(_ queries: LibraryQueries) async {
+        guard let rows = try? await queries.burstRows() else {
+            cullingBadges = [:]
+            return
+        }
+        let annotations = BurstAnnotator.annotate(rows: rows)
+        cullingBadges = CullingBadgeMapper.map(rows: rows, annotations: annotations)
+    }
+
     @ViewBuilder
     private var libraryFace: some View {
         if let gridModel {
@@ -475,6 +500,20 @@ struct WorkspaceHostView: View {
                         aiEntry.openEnhance(
                             kind: .denoise, clickedRowID: clicked,
                             selection: gridModel.selectedIDs)
+                    },
+                    // LUMEN-A T7: the culling hint badges + the 转为堆栈
+                    // one-key (the burst annotation's explicit
+                    // materialization through LibraryStore.createStack).
+                    cullingBadges: cullingBadges,
+                    onCreateBurstStack: { members in
+                        Task {
+                            guard let store = projectController?.projectStore
+                            else { return }
+                            _ = try? await LibraryStore(store: store)
+                                .createStack(memberIDs: members)
+                            await reloadCullingBadges(
+                                LibraryQueries(store: store))
+                        }
                     })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // The T2 Album Inspector (fixed-width tier, KD-2): the

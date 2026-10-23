@@ -33579,6 +33579,182 @@
         }
       }
     }
+  },
+  "tasks_analysis_title" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Photo analysis"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "照片分析"
+        }
+      }
+    }
+  },
+  "tasks_analysis_waiting" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Analyzing library…"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "正在分析图库…"
+        }
+      }
+    }
+  },
+  "tasks_analysis_detail %lld %lld" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "%1$lld of %2$lld photos"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "已分析 %1$lld / %2$lld 张"
+        }
+      }
+    }
+  },
+  "library_hint_blurry" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Possibly blurry"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "可能模糊"
+        }
+      }
+    }
+  },
+  "library_hint_eyes_closed" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Possibly closed eyes"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "可能闭眼"
+        }
+      }
+    }
+  },
+  "library_hint_burst_index %lld %lld" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Burst %1$lld/%2$lld"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "连拍 %1$lld/%2$lld"
+        }
+      }
+    }
+  },
+  "library_hint_make_stack" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Stack Burst"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "转为堆栈"
+        }
+      }
+    }
+  },
+  "library_filter_hasburst_unsupported" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Burst is a query-time annotation and cannot back a smart album condition."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "连拍是查询期注记，无法作为智能相册条件。"
+        }
+      }
+    }
+  },
+  "settings_analysis_section" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Photo analysis"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "照片分析"
+        }
+      }
+    }
+  },
+  "settings_analysis_toggle" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Analyze photos in the background"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "后台分析照片"
+        }
+      }
+    }
+  },
+  "settings_analysis_hint" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Computes sharpness, closed-eye and burst hints for the library while the app idles. Export and AI work always takes priority."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "在空闲时为图库计算清晰度、闭眼与连拍提示。导出与 AI 任务始终优先。"
+        }
+      }
+    }
   }
   },
   "version": "1.0"

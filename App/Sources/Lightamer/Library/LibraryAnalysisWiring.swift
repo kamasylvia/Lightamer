@@ -84,7 +84,6 @@ final class LibraryAnalysisWiring {
 
     private var handle: LibraryAnalysisHandle?
     private var progressTask: Task<Void, Never>?
-    private var eventTask: Task<Void, Never>?
     private var observedURL: URL?
 
     init(
@@ -137,11 +136,6 @@ final class LibraryAnalysisWiring {
                 handle.apply(progress)
             }
         }
-        eventTask = Task { [weak self] in
-            let events = await LibraryStore(store: store).analysisEvents()
-            for await _ in events { /* the badge refresh consumes in T7 */ }
-        }
-
         await service.start()
     }
 
@@ -157,8 +151,6 @@ final class LibraryAnalysisWiring {
     private func teardown() {
         progressTask?.cancel()
         progressTask = nil
-        eventTask?.cancel()
-        eventTask = nil
         if let handle {
             registry.finish(id: handle.id)
         }

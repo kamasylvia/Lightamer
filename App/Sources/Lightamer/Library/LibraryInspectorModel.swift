@@ -231,9 +231,29 @@ final class LibraryInspectorModel {
     private func applyArms() async {
         let group = FilterPredicateGroup(
             match: .all, rules: arms.flatMap(\.rules))
-        try? await grid.apply(filter: ExifSearchFilter(group: group, plan: grid.filter.plan))
+        do {
+            try await grid.apply(
+                filter: ExifSearchFilter(group: group, plan: grid.filter.plan))
+            filterApplyError = nil
+        } catch let error as FilterPredicateError {
+            // LUMEN-A T7: the typed culling-arm degradation — the hasBurst
+            // copy is the query-time annotation's honest explanation (the
+            // annotation layer consumes the field; no SQL arm exists).
+            if case .cullingFieldNotSQLQueryable = error {
+                filterApplyError = String(
+                    localized: "library_filter_hasburst_unsupported",
+                    defaultValue: "连拍是查询期注记，无法作为智能相册条件。")
+            } else {
+                filterApplyError = nil
+            }
+        } catch {
+            filterApplyError = nil
+        }
         await refresh()
     }
+
+    /// The filter-apply typed failure copy (nil = none; LUMEN-A T7).
+    private(set) var filterApplyError: String?
 
     // MARK: - Arm construction (the typed payload → rule translation)
 

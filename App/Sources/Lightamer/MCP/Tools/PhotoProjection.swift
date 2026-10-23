@@ -162,6 +162,10 @@ enum McpPhotoProjection {
             "value kind '\(kind)' does not fit \(field.rawValue) \(op.rawValue)"
         case .invalidInterval(let field):
             "\(field.rawValue) between-interval has lower > upper"
+        case .cullingFieldUnsupportedInDomain(let field, let domain):
+            "field '\(field.rawValue)' has no column in the \(String(describing: domain)) domain"
+        case .cullingFieldNotSQLQueryable(let field):
+            "field '\(field.rawValue)' is a query-time annotation, not SQL-queryable"
         }
     }
 

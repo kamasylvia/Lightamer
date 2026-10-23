@@ -47,10 +47,24 @@ public enum FilterPredicateError: Error, Equatable, Sendable {
     case illegalValueKind(field: FilterField, op: FilterOp, valueKind: String)
     /// A `between` interval with lower > upper.
     case invalidInterval(field: FilterField)
+    /// LUMEN-A T7 (X5/m-11): a culling-quartet field reached a domain whose
+    /// schema has no such columns (`.session`/`.catalog` — only `.library`
+    /// carries the v6 analysis columns).
+    case cullingFieldUnsupportedInDomain(field: FilterField, domain: FilterDomain)
+    /// LUMEN-A T7 (X5): `hasBurst` is the query-time burst annotation — it
+    /// cannot translate to pure SQL in ANY domain (the smart-album builder
+    /// keeps the arm typed-unsupported; the annotation layer consumes it).
+    case cullingFieldNotSQLQueryable(field: FilterField)
 }
 
 /// The filter-facing projection of the v2 index columns (the META-05 key
-/// face; dt collection.h property enumeration aligned).
+/// face; dt collection.h property enumeration aligned). LUMEN-A T7 (X5)
+/// appends the culling quartet (16→20): `sharpness`/`faces`/`eyesClosed`
+/// ride the `.lalb` images v6 columns (the `.library` domain ONLY — the
+/// session/catalog schemas have no such columns and the translation throws
+/// the typed domain error), `hasBurst` is the query-time burst annotation
+/// flag — NOT pure SQL anywhere (the typed not-SQL-queryable error; the
+/// annotation layer consumes it).
 public enum FilterField: String, Sendable, CaseIterable {
     case rating
     case colorLabel
@@ -68,6 +82,10 @@ public enum FilterField: String, Sendable, CaseIterable {
     case hasEdits
     case filename
     case dir
+    case sharpness
+    case faces
+    case eyesClosed
+    case hasBurst
 }
 
 /// The rule operator set (RESEARCH §4.1). `in` = membership over a list
@@ -282,13 +300,21 @@ extension FilterPredicateGroup.Rule {
         case .flag:
             // 0/1/2 categorical.
             [.eq, .neq, .in]
-        case .hasEdits:
+        case .hasEdits, .hasBurst:
             // 0/1 boolean — equality is the only meaningful face.
             [.eq]
         case .focalLength, .aperture, .exposure, .captureDate:
             // Continuous numerics: order + interval (no list membership —
             // a focal-length IN list is not a filtering workflow).
             [.eq, .neq, .gt, .gte, .lt, .lte, .between]
+        case .sharpness:
+            // LUMEN-A T7 (X5): the 0-100 score — order comparisons only
+            // (no interval: the smart-album v1 keeps the simple direct
+            // compare; no list).
+            [.eq, .gt, .gte, .lt, .lte]
+        case .faces, .eyesClosed:
+            // Counts / booleans: order + equality (X5 op支配).
+            [.eq, .gt, .gte]
         case .keywords:
             // Tag semantics: exact path / ancestor expansion / any-of /
             // the tagged-vs-cleared classes. `neq` is deliberately absent
@@ -306,6 +332,10 @@ extension FilterPredicateGroup.Rule {
         switch field {
         case .rating, .colorLabel, .flag, .iso, .hasEdits:
             ["int", "intRange", "intList"]
+        case .faces, .eyesClosed, .hasBurst:
+            ["int"]
+        case .sharpness:
+            ["double"]
         case .focalLength, .aperture, .exposure, .captureDate:
             ["double", "doubleRange"]
         case .keywords, .note, .filename, .dir, .cameraMake, .cameraModel, .lensModel:

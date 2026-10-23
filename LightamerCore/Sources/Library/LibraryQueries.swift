@@ -889,7 +889,8 @@ public actor LibraryQueries {
         try await store.withHandle { handle in
             let statement = try handle.prepare("""
                 SELECT id, camera_make, camera_model, camera_serial,
-                    capture_date, signature, sharpness, filename, face_boxes
+                    capture_date, signature, sharpness, filename, face_boxes,
+                    eyes_closed
                 FROM images
                 WHERE analysis_version IS NOT NULL
                 ORDER BY id
@@ -905,6 +906,7 @@ public actor LibraryQueries {
                     capturedTS: statement.columnDouble(4),
                     signature: statement.columnBlob(5),
                     eyesRatio: Self.maxEyeRatio(fromFaceBoxesJSON: faceBoxes),
+                    eyesClosed: statement.columnInt(9).map { $0 != 0 },
                     sharpness: statement.columnDouble(6),
                     filename: statement.columnText(7)))
             }

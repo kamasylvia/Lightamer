@@ -88,6 +88,13 @@ struct LibraryGridView: View {
     // — L057's runModal ban).
     @State private var autoStackPresented = false
 
+    // LUMEN-A T7: the culling hint badges (empty map = the default-neutral
+    // face — every cell renders byte-identically to the pre-plan grid).
+    var cullingBadges: [Int64: LibraryCullingBadge] = [:]
+    /// The 转为堆栈 one-key route for a burst group (nil = the menu entry
+    /// stays hidden — the test skeleton state).
+    var onCreateBurstStack: (([Int64]) -> Void)?
+
     @State private var pager: LibraryGridPager?
 
     /// The adaptive cell width (the Alcedo thumbnail-grid density intent:
@@ -160,6 +167,7 @@ struct LibraryGridView: View {
         _ row: LibraryImageRow, pager: LibraryGridPager, index: Int
     ) -> some View {
         let stackBadge = grid.stackBadge(for: row.id)
+        let cullingBadge = cullingBadges[row.id]
         return LibraryGridCellView(
             row: row,
             isSelected: grid.selectedIDs.contains(row.id),
@@ -168,7 +176,9 @@ struct LibraryGridView: View {
             stackBadge: stackBadge,
             onToggleCollapse: stackBadge == nil ? nil : { stackID in
                 Task { await grid.toggleCollapse(stackID: stackID) }
-            })
+            },
+            cullingBadge: cullingBadge,
+            onCreateBurstStack: onCreateBurstStack)
             .accessibilityIdentifier("library.grid.cell.\(row.id)")
             .onAppear {
                 Task { await pager.cellAppeared(at: index) }
@@ -216,6 +226,23 @@ struct LibraryGridView: View {
                     .accessibilityIdentifier("library.grid.cell.aiDenoise")
                 }
                 Divider()
+                // LUMEN-A T7 (review m-6): the 转为堆栈 one-key — the burst
+                // annotation's explicit materialization route (the group's
+                // members stack through LibraryStore.createStack; the
+                // annotation itself stays query-time).
+                if let onCreateBurstStack, let cullingBadge,
+                   cullingBadge.hasBurst, !cullingBadge.burstMembers.isEmpty {
+                    Button {
+                        onCreateBurstStack(cullingBadge.burstMembers)
+                    } label: {
+                        Label(String(
+                            localized: "library_hint_make_stack",
+                            defaultValue: "转为堆栈"),
+                            systemImage: "square.stack.3d.up.badge.plus")
+                    }
+                    .accessibilityIdentifier("library.grid.cell.makeBurstStack")
+                    Divider()
+                }
                 if grid.selectedIDs.count >= 2 {
                     Button {
                         Task { await grid.groupSelection() }
@@ -294,6 +321,63 @@ struct LibraryGridView: View {
 // selection glass ring (KD-1's three-piece cell).
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// The culling badge payload (LUMEN-A T7): one analysed row's hint face.
+/// Zero-annotation rows never appear in the map — the default-neutral red
+/// line (the grid renders byte-identically when nothing is analysed).
+struct LibraryCullingBadge: Equatable, Sendable {
+    /// Lumen annotate_hints: sharpness < 22 or far below the burst best.
+    var blurry: Bool
+    /// The T4 wider-open-eye verdict (max(right,left) < threshold).
+    var eyesClosed: Bool
+    /// 1-based position inside the burst (0 = not in one).
+    var burstIndex: Int
+    var burstSize: Int
+    /// The frame to keep.
+    var best: Bool
+    /// The FULL group's member ids (the 转为堆栈 one-key payload).
+    var burstMembers: [Int64]
+
+    var hasBurst: Bool { burstIndex > 0 && burstSize > 1 }
+}
+
+/// The annotation → badge mapper (the plan's 表驱动 model; the tests pin it).
+enum CullingBadgeMapper {
+    static func map(
+        rows: [BurstRow], annotations: [Int64: BurstAnnotation]
+    ) -> [Int64: LibraryCullingBadge] {
+        var out: [Int64: LibraryCullingBadge] = [:]
+        for row in rows {
+            guard let annotation = annotations[row.imageID] else { continue }
+            let eyesClosed = row.eyesClosed == true
+            let inBurst = annotation.burstIndex > 0 && annotation.burstSize > 1
+            guard annotation.blurry || eyesClosed || inBurst || annotation.best
+            else { continue }
+            out[row.imageID] = LibraryCullingBadge(
+                blurry: annotation.blurry,
+                eyesClosed: eyesClosed,
+                burstIndex: annotation.burstIndex,
+                burstSize: annotation.burstSize,
+                best: annotation.best,
+                burstMembers: inBurst
+                    ? badgeMembers(rows, annotations, annotation) : [])
+        }
+        return out
+    }
+
+    /// The full member list of the annotation's group (from the annotations
+    /// table's burst number).
+    private static func badgeMembers(
+        _ rows: [BurstRow], _ annotations: [Int64: BurstAnnotation],
+        _ annotation: BurstAnnotation
+    ) -> [Int64] {
+        rows.compactMap { row -> Int64? in
+            guard let a = annotations[row.imageID],
+                  a.burst == annotation.burst else { return nil }
+            return row.imageID
+        }
+    }
+}
+
 private struct LibraryGridCellView: View {
 
     let row: LibraryImageRow
@@ -305,6 +389,11 @@ private struct LibraryGridCellView: View {
     var stackBadge: StackMembership?
     /// The badge chevron's tap route (nil = badge-only, no control).
     var onToggleCollapse: ((Int64) -> Void)?
+    /// LUMEN-A T7: the culling hint badge (nil = zero-annotation — the
+    /// overlay stays hidden and the cell renders byte-identically).
+    var cullingBadge: LibraryCullingBadge?
+    /// The 转为堆栈 one-key route (nil = the menu entry stays hidden).
+    var onCreateBurstStack: (([Int64]) -> Void)?
 
     @State private var thumbnail: CGImage?
 
@@ -341,6 +430,57 @@ private struct LibraryGridCellView: View {
                     .foregroundStyle(ThemeTokens.textPrimary)
                     .padding(6)
                     .accessibilityIdentifier("library.grid.cell.rating.\(row.id)")
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            // LUMEN-A T7: the culling hint badges (可能模糊 / 可能闭眼 /
+            // burst n/m + best). Zero-annotation rows never reach here.
+            if let cullingBadge {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 3) {
+                        if cullingBadge.blurry {
+                            Text(String(
+                                localized: "library_hint_blurry",
+                                defaultValue: "可能模糊"))
+                                .font(.caption2)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(.ultraThinMaterial, in: Capsule())
+                        }
+                        if cullingBadge.eyesClosed {
+                            Text(String(
+                                localized: "library_hint_eyes_closed",
+                                defaultValue: "可能闭眼"))
+                                .font(.caption2)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(.ultraThinMaterial, in: Capsule())
+                        }
+                    }
+                    if cullingBadge.hasBurst {
+                        HStack(spacing: 3) {
+                            Text(String(
+                                localized: "library_hint_burst_index \(cullingBadge.burstIndex) \(cullingBadge.burstSize)"))
+                                .font(.caption2.weight(.medium))
+                                .monospacedDigit()
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(.ultraThinMaterial, in: Capsule())
+                            if cullingBadge.best {
+                                Image(systemName: "star.fill")
+                                    .font(.caption2)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 2)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                                    .accessibilityIdentifier(
+                                        "library.grid.cell.burstBest.\(row.id)")
+                            }
+                        }
+                    }
+                }
+                .foregroundStyle(ThemeTokens.textPrimary)
+                .padding(6)
+                .accessibilityIdentifier("library.grid.cell.culling.\(row.id)")
             }
         }
         .overlay(alignment: .topTrailing) {

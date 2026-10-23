@@ -104,6 +104,11 @@ final class FilterPredicateTests: XCTestCase {
             .hasEdits: [.eq],
             .filename: [.eq, .neq, .contains, .startsWith, .in, .empty, .notEmpty],
             .dir: [.eq, .neq, .contains, .startsWith, .in, .empty, .notEmpty],
+            // LUMEN-A T7 (X5): the culling quartet (16 -> 20 fields).
+            .sharpness: [.eq, .gt, .gte, .lt, .lte],
+            .faces: [.eq, .gt, .gte],
+            .eyesClosed: [.eq, .gt, .gte],
+            .hasBurst: [.eq],
         ]
         XCTAssertEqual(expected.keys.count, FilterField.allCases.count)
         for (field, ops) in expected {
@@ -149,6 +154,7 @@ final class FilterPredicateTests: XCTestCase {
         let intFields: Set<FilterField> = [
             .rating, .colorLabel, .flag, .iso, .hasEdits,
             .focalLength, .aperture, .exposure, .captureDate,
+            .faces, .eyesClosed, .hasBurst, .sharpness,
         ]
         if intFields.contains(field) {
             // Probe scalar is text → only list/between probes (textList /

@@ -177,6 +177,25 @@ struct SettingsDefaultBehaviorPage: View {
                     .font(.caption)
                     .foregroundStyle(LightamerColors.textSecondary)
             }
+            // LUMEN-A T7 (review M-3): the culling-analysis toggle (D-LU-5
+            // 默认开 — the Settings-reachable face of the analysis pass's
+            // one UserDefaults key; the key spelling is the Core service's
+            // single source through the AppPreferences alias).
+            Section(String(localized: "settings_analysis_section",
+                           defaultValue: "Photo analysis")) {
+                Toggle(isOn: Binding(
+                    get: { preferences.libraryAnalysisEnabled },
+                    set: { preferences.libraryAnalysisEnabled = $0 })) {
+                    Text(String(localized: "settings_analysis_toggle",
+                                defaultValue: "Analyze photos in the background"))
+                }
+                .accessibilityIdentifier("settings.behavior.analysis")
+                Text(String(
+                    localized: "settings_analysis_hint",
+                    defaultValue: "Computes sharpness, closed-eye and burst hints for the library while the app idles. Export and AI work always takes priority."))
+                    .font(.caption)
+                    .foregroundStyle(LightamerColors.textSecondary)
+            }
         }
         .formStyle(.grouped)
         .accessibilityIdentifier("settings.page.defaultBehavior")
