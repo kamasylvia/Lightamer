@@ -283,9 +283,9 @@ final class McpSearchStateToolsetTests: XCTestCase {
             culling: McpServerController.makeCullingContext(session: { nil }))
         let descriptors = await registry.descriptors()
         XCTAssertEqual(
-            descriptors.count, 23,
-            "the default seam stays nil = 23 (M7-4 copy/paste joined the "
-                + "editing domain)")
+            descriptors.count, 24,
+            "the default seam stays nil = 24 (LUMEN-C T3 refine_masks joined "
+                + "the editing domain)")
         XCTAssertFalse(descriptors.contains { $0.name == "search_photos" })
     }
 

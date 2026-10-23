@@ -196,6 +196,15 @@ final class McpRegistrySnapshotTests: XCTestCase {
                     inputSchemaJSON:
                         #"{"type":"object","properties":{"reference":{"type":"string","description":"Reference image: a library image id (digits) or an open-session relPath"},"targets":{"oneOf":[{"type":"string"},{"type":"array","items":{"type":"string"}}],"maxItems":30,"description":"Target relPath(s) relative to the session root; default = the editor's current image"},"strength":{"type":"number","minimum":0,"maximum":1,"default":1,"description":"The solve/identity blend"},"solver":{"type":"string","enum":["gaussian-ot","reinhard","cdf"],"default":"gaussian-ot"},"attach":{"type":"boolean","default":true,"description":"false = return the params for apply_params instead of writing"}},"required":["reference"]}"#,
                     destructiveHint: true),
+                McpToolDescriptor(
+                    // LUMEN-C T3 (D-LU-8): refine_masks joins the editing
+                    // domain (9→10 — this domain snapshot edits consciously,
+                    // the same batch the union layer edits).
+                    name: "refine_masks",
+                    description: "refine",
+                    inputSchemaJSON:
+                        #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root — MUST be the editor's current image"},"maskIds":{"type":"array","items":{"type":"string","description":"The owning layer's UUID"},"minItems":1,"maxItems":30,"description":"Layer UUIDs whose AI raster masks to refine"}},"required":["relPath","maskIds"]}"#,
+                    readOnlyHint: false),
             ])
     }
 
@@ -220,9 +229,9 @@ final class McpRegistrySnapshotTests: XCTestCase {
         XCTAssertFalse(names.contains("ping"), "ping is retired")
         XCTAssertFalse(names.contains("count_images"), "count_images is retired")
         XCTAssertEqual(
-            names.count, 23,
-            "the editing+culling closed face is exactly 23 tools "
-                + "(M7-4 copy/paste joined the editing domain): \(names.sorted())")
+            names.count, 24,
+            "the editing+culling closed face is exactly 24 tools "
+                + "(LUMEN-C T3 refine_masks joined the editing domain): \(names.sorted())")
     }
 
     /// A minimal LOCAL double for the transport-echo tests (the registry

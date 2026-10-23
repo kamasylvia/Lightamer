@@ -159,7 +159,7 @@ final class McpControlToolsetTests: XCTestCase {
     func testUnionCarriesTheControlDomain() async throws {
         let registry = await makeUnionRegistry()
         let names = await registry.descriptors().map(\.name)
-        XCTAssertEqual(names.count, 32, "the union is the 32-face")
+        XCTAssertEqual(names.count, 33, "the union is the 33-face (LUMEN-C T3)")
         for tool in Self.controlTools {
             XCTAssertTrue(names.contains(tool.name), tool.name)
         }

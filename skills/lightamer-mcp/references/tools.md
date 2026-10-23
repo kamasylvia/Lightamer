@@ -5,8 +5,8 @@ the live registry and byte-compares this file on every suite run
 (OQ-M7-6-3: the test IS the gate). Edit the toolset sources, not this
 file; a registration change lands here through the snapshot tests.
 
-32 tools across five domains
-editing (9) / culling (14) / searchstate (3) / project (3) / control (3).
+33 tools across five domains
+editing (10) / culling (14) / searchstate (3) / project (3) / control (3).
 Hints mirror the `tools/list` annotation columns (`readOnlyHint`,
 `destructiveHint`); the schema is the verbatim `inputSchema` JSON
 (its per-field descriptions are the English argument semantics).
@@ -15,7 +15,7 @@ zh localization family) — they stay OUT of this reference: the
 skill docs are en-only by decision (OQ-M7-6-2), and the domain
 boundaries in SKILL.md §3 carry the English semantics.
 
-## editing (9 tools)
+## editing (10 tools)
 
 ### apply_params
 
@@ -103,6 +103,17 @@ Schema (verbatim):
 
 ```json
 {"type":"object","properties":{"source":{"type":"string","description":"A library image id (digits) or an open-session relPath (the copy_adjustments addressing)"},"targets":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":1000,"description":"Open-session relPaths to paste onto"},"note":{"type":"string","minLength":1,"description":"ITEM-level edit note attached to each history commit (distinct from the document-level note set via append_note)"},"include":{"type":"array","items":{"type":"string","format":"uuid"},"description":"instanceId subset from copy_adjustments (default: every transferable instance)"},"includeDrt":{"type":"boolean","default":true,"description":"false drops the source's DRT row"},"version":{"type":"string","description":"A copy_adjustments versions[] id (default: the active chain)"}},"required":["source","targets"]}
+```
+
+### refine_masks
+
+- readOnlyHint: false
+- destructiveHint: false
+
+Schema (verbatim):
+
+```json
+{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root — MUST be the editor's current image"},"maskIds":{"type":"array","items":{"type":"string","description":"The owning layer's UUID"},"minItems":1,"maxItems":30,"description":"Layer UUIDs whose AI raster masks to refine"}},"required":["relPath","maskIds"]}
 ```
 
 ### render_preview

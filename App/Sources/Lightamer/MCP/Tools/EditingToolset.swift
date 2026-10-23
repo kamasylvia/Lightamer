@@ -111,6 +111,14 @@ enum EditingToolset {
         /// the self-held exemption lives in the assembly closure.
         var projectWriteProbe: (@Sendable () async -> McpProjectLockVerdict)?
 
+        /// LUMEN-C T3 (D-LU-8, X8): the production refine_masks supply —
+        /// the GUI post-assignment face (`LightamerShell` assigns it after
+        /// `makeEditingSeams`, the projectWriteProbe precedent). nil (the
+        /// default — headless hosts / every existing construction) = the
+        /// tool answers the typed unavailable face. No McpServerController
+        /// diff, FIX2③ zero-exception.
+        var refineMasks: (@Sendable (_ ids: [String]) async throws -> Void)?
+
         /// The WRITE serial gate: apply_params runs under a FIFO mutex so
         /// two concurrent MCP writes never interleave their three segments
         /// (§RQ-14-14: write-face requests queue, they do not reject).
@@ -231,6 +239,10 @@ enum EditingToolset {
                 try await exportImageBody(arguments: arguments, seams: seams)
             })
         await MatchColorToolset.register(into: registry, seams: seams)  // M5-1-03 T1: the whole implementation is MatchColorToolset.swift (sealed-face minimal diff — this file's only edit)
+        // LUMEN-C T3 (D-LU-8): refine_masks joins the editing domain — the
+        // snapshot tests pin every addition (the tool face IS a security
+        // face; McpFinalSnapshotTests edits consciously in the same batch).
+        await registerRefineMasks(into: registry, seams: seams)
     }
 
     // MARK: - Shared argument faces
@@ -1415,6 +1427,99 @@ enum EditingToolset {
                 throw McpToolError.renderFailed("region crop failed")
             }
             return cropped
+        }
+    }
+
+    // MARK: - refine_masks (LUMEN-C T3, D-LU-8/X8 — the editing-domain
+    // fine-mask pass)
+
+    /// Render-class: the guide leg decodes the developed image at ≤4096 —
+    /// the McpRenderGate serializes it with the render family. requiresWriter
+    /// + requiresControl: the refine lands a HISTORY commit on the live
+    /// editor document (the same write face discipline as apply_params).
+    private static func registerRefineMasks(
+        into registry: McpToolRegistry, seams: Seams
+    ) async {
+        await registry.register(
+            McpToolDescriptor(
+                name: "refine_masks",
+                description: String(localized: "mcp_tool_desc_refine_masks", defaultValue: String.LocalizationValue(
+                                    "Refine the AI-generated raster masks of the "
+                        + "editor's CURRENT image on a developed display guide "
+                        + "(sample-based matting: hair, fur, branches, fine "
+                        + "edges). Only the live editor image qualifies — relPath "
+                        + "must name the image open in the editor right now; "
+                        + "anything else fails typed. maskIds are the OWNING "
+                        + "LAYERS' UUIDs whose masks were AI-generated; unknown "
+                        + "or non-AI ids fail typed (nothing is silently "
+                        + "dropped). Each refined raster replaces the quick one "
+                        + "as ONE undoable history step; a failure keeps the "
+                        + "quick mask. The pass runs in the background (seconds "
+                        + "per mask): this call ENQUEUES and returns — poll "
+                        + "render_preview afterwards to see the result. "
+                        + "Serialized behind the render gate.")),
+                inputSchemaJSON:
+                    #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root — MUST be the editor's current image"},"maskIds":{"type":"array","items":{"type":"string","description":"The owning layer's UUID"},"minItems":1,"maxItems":30,"description":"Layer UUIDs whose AI raster masks to refine"}},"required":["relPath","maskIds"]}"#,
+                readOnlyHint: false
+            ),
+            requiresWriter: true,
+            requiresControl: true,
+            handler: { arguments in
+                try await refineMasksBody(arguments: arguments, seams: seams)
+            })
+    }
+
+    /// The refine_masks body: the typed unavailable face on the nil seam
+    /// (headless / every existing construction), the live-image requirement
+    /// (the refine acts on the editor document — a disk-side face would
+    /// need a headless pipeline, out of scope), then the render gate.
+    private static func refineMasksBody(
+        arguments: [String: McpJSON], seams: Seams
+    ) async throws -> McpToolOutput {
+        let relPath = try requiredRelPath(arguments)
+        guard let refineMasks = seams.refineMasks else {
+            throw McpToolError.renderFailed(
+                "refine_masks is unavailable on this host — it needs the live "
+                    + "GUI editor (the seam is not supplied headless)")
+        }
+        guard case .array(let items) = arguments["maskIds"] ?? .null,
+            !items.isEmpty
+        else {
+            throw McpToolError.invalidParams(
+                "maskIds (non-empty string array) is required — the owning "
+                    + "layers' UUIDs")
+        }
+        var ids: [String] = []
+        for item in items {
+            guard case .string(let id) = item, !id.isEmpty else {
+                throw McpToolError.invalidParams(
+                    "maskIds must be non-empty strings (the owning layers' "
+                        + "UUIDs)")
+            }
+            ids.append(id)
+        }
+        let member = try await resolveMember(relPath: relPath, seams: seams)
+        let live = await seams.liveImageURL()
+        guard let live,
+            live.standardizedFileURL == member.imageURL.standardizedFileURL
+        else {
+            throw McpToolError.invalidParams(
+                "refine_masks acts on the EDITOR's current image — '\(relPath)' "
+                    + "is not the live image (the refine is a GUI-side pass)")
+        }
+        let queued = ids
+        return try await seams.gate.withRenderGate {
+            try await refineMasks(queued)
+            let payload = McpJSON.object([
+                "queued": .int(queued.count),
+                "note": .string(
+                    "enqueued for background refinement (seconds per mask); "
+                        + "poll render_preview to see the result; failure keeps "
+                        + "the quick mask"),
+            ])
+            return McpToolOutput([
+                .text(McpJSONSerialization.text(from: payload))
+            ])
         }
     }
 
