@@ -130,6 +130,15 @@ public actor LibraryAnalysisService {
     private let queries: LibraryQueries
     private let faceProvider: FaceLandmarkProviding
     private let defaultsSuiteName: String?
+    /// The notify-seam store: ONE LibraryStore actor instance owned by the
+    /// service (injected at assembly or created from `store` here). The
+    /// badge refresh chain (LUMEN-A acceptance §八) rides THIS instance's
+    /// `analysisContinuations` table — the per-row `LibraryStore(store:)`
+    /// instantiation yielded every event into a fresh instance's EMPTY
+    /// table and the subscriber (the WorkspaceHostView badge loop) never
+    /// saw it. Consumers must subscribe THIS instance (the wiring's
+    /// `analysisEvents()` seam).
+    public private(set) var libraryStore: LibraryStore
     /// The package directory (the kind-0 resolve base) — captured at init
     /// (the store's fileURL is actor-isolated; the CPU leg reads this copy).
     private let projectDirectory: URL
@@ -140,12 +149,17 @@ public actor LibraryAnalysisService {
 
     public init(
         store: ProjectFileStore, queries: LibraryQueries,
-        faceProvider: FaceLandmarkProviding, defaultsSuiteName: String? = nil
+        faceProvider: FaceLandmarkProviding, defaultsSuiteName: String? = nil,
+        libraryStore: LibraryStore? = nil
     ) async {
         self.store = store
         self.queries = queries
         self.faceProvider = faceProvider
         self.defaultsSuiteName = defaultsSuiteName
+        // The injection seam: the assembly point (the wiring) passes THE
+        // instance the consumers subscribe; nil = create one here (the
+        // headless/test face) — either way ONE instance for every row.
+        self.libraryStore = libraryStore ?? LibraryStore(store: store)
         self.projectDirectory = await store.fileURL.deletingLastPathComponent()
     }
 
@@ -271,7 +285,7 @@ public actor LibraryAnalysisService {
     private func persistAndTick(
         _ product: LibraryAnalysisRecord, total: Int
     ) async {
-        try? await LibraryStore(store: store).setAnalysis(product)
+        try? await libraryStore.setAnalysis(product)
         doneCount += 1
         emitProgress(LibraryAnalysisProgress(done: doneCount, total: total))
     }
