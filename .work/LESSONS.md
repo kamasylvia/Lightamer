@@ -909,3 +909,8 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **/models 空 Bearer 200 = 弱证据**：zen/go models 列表端点对空 Bearer 也返回 200——用列表端点验 key 是假阴性源；**验 key 必走真补全或带鉴权端点**。
 - **ImageChops 单通道 bbox 不可靠**：GUI 帧对比用单通道 bbox 产生一次误报（md5 复核纠正）——**GUI 对比判据 = md5/多通道，单通道 bbox 禁作为唯一定论**。
 - **guard 自身迭代三版**（1→4→7G→撤门）：静态 swapused 阈值三校三败（惰性冷页地板棘轮 2.1→7.5G 只增不减，健康/病态不可分）——v1.3 撤独立交换门，病理判据归 G2/G4/MEMFAIL；守门脚本自身也要过「实战校准」验收。
+
+## R3 修复批走查教训（2026-10-22）
+
+- **CGEvent 合成键入 open/save panel 的 sheet 字段不可靠**（go-to 栏吞键/自动补全带偏、Return 被吞）：面板驱动优先「AX 直写」——`AXUIElementCopyAttributeValue(app, "AXFocusedUIElement")` 拿焦点域后 `SetAttributeValue AXValue` + `AXConfirm`；菜单驱动 = menubar item AXPress 打开（懒加载后）→ 层级是 menubar item → AXMenu → AXMenuItem 三层（首层 kids 是菜单非项）。绕行夹料：把夹料复制进面板当前目录，免去 go-to。
+- **walk.py clickfind/press 匹配序**：按钮 AXPress 用标题子串时注意同名文本（如「导入」既是按钮也是 sheet 标题词）——按钮匹配走 AXButton 角色过滤，不走全树 blob。
