@@ -24,6 +24,10 @@ struct CullFaceView: View {
     let bridge: LibraryThumbnailBridge?
     let onClose: () -> Void
 
+    /// The face owns the keyboard: focused on appear, every key routes
+    /// through the CullKeymap table (the view never scatters switch arms).
+    @FocusState private var faceFocused: Bool
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -36,6 +40,69 @@ struct CullFaceView: View {
         }
         .background(ThemeTokens.windowBackground)
         .accessibilityIdentifier("library.cull")
+        .focusable()
+        .focused($faceFocused)
+        .onAppear { faceFocused = true }
+        .onKeyPress(phases: .down) { press in
+            handleKey(press)
+        }
+    }
+
+    // MARK: - Keys (T5 — X7's钉死 pair routes through the table)
+
+    private func handleKey(_ press: KeyPress) -> KeyPress.Result {
+        if let character = press.characters.first.map(String.init),
+           let action = CullKeymap.action(for: character) {
+            perform(action)
+            return .handled
+        }
+        switch press.key {
+        case .leftArrow:
+            model.step(-1)
+            return .handled
+        case .rightArrow:
+            model.step(1)
+            return .handled
+        case .upArrow:
+            // Compare: the candidate promotes; single: the burst-group jump.
+            if model.compare { model.promote() } else { model.jumpBurst(-1) }
+            return .handled
+        case .downArrow:
+            if !model.compare { model.jumpBurst(1) }
+            return .handled
+        case .tab:
+            guard model.compare else { return .ignored }
+            model.switchSide()
+            return .handled
+        default:
+            return .ignored
+        }
+    }
+
+    private func perform(_ action: CullKeymap.Action) {
+        switch action {
+        case .backToLibrary:
+            model.backRoute?()
+        case .openEditor:
+            guard let entry = model.target else { return }
+            model.openEditorRoute?(entry.id)
+        case .rating(let value):
+            model.rate(rating: Int64(value))
+        case .pick:
+            model.rate(flag: 1)
+        case .reject:
+            model.rate(flag: 2)
+        case .unflag:
+            model.rate(flag: 0)
+        case .colorLabel(let value):
+            model.rate(colorLabel: Int64(value))
+        case .toggleAdvance:
+            model.advanceAfterRating.toggle()
+        case .toggleCompare:
+            model.setCompare(!model.compare)
+        case .toggleFaces:
+            model.showFaces.toggle()
+        }
     }
 
     // MARK: - Header

@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 import XCTest
 
 @testable import Lightamer
+@testable import LightamerCore
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CullFaceModelTests (Plan LUMEN-B T4) — the cull face's APP-domain face:
@@ -250,4 +251,168 @@ final class CullFaceModelTests: XCTestCase {
 /// asks for (the makeRow helper bridges it).
 extension LibraryImageRow {
     var urlAsURL: URL { URL(fileURLWithPath: imagePath) }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T5 (X7): the keymap table (the 表驱动 full case), the rating write leg
+// (the plan-pinned single-batch mark write through a recorder stand-in for
+// LibraryStore.setMetadataMarks), the advance-after-rating ordering, and
+// the flag/colour semantics.
+// ─────────────────────────────────────────────────────────────────────────────
+
+extension CullFaceModelTests {
+
+    /// The write-leg recorder (the 合成 store face — the box the model's
+    /// fire-and-forget write Task lands in).
+    final class WriteBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private(set) var writes: [(Int64, Int64?, Int64?, Int64?)] = []
+        var count: Int { lock.lock(); defer { lock.unlock() }; return writes.count }
+        func record(_ id: Int64, _ rating: Int64?, _ label: Int64?, _ flag: Int64?) {
+            lock.lock()
+            writes.append((id, rating, label, flag))
+            lock.unlock()
+        }
+        func last() -> (Int64, Int64?, Int64?, Int64?)? {
+            lock.lock(); defer { lock.unlock() }
+            return writes.last
+        }
+    }
+
+    private func makeEntry(
+        id: Int64, rating: Int64? = nil, colorLabel: Int64? = nil, flag: Int64? = nil
+    ) -> CullEntry {
+        let url = workDirectory.appendingPathComponent("e\(id).png")
+        let row = LibraryImageRow(
+            id: id, imagePath: url.path, pathKind: 2, volumeUUID: nil,
+            cameraMake: nil, cameraModel: nil, lensModel: nil, iso: nil,
+            focalLength: nil, aperture: nil, exposure: nil, captureDate: nil,
+            fileStem: "IMG_000\(id)", fileExt: "png", exifSearchText: nil,
+            exifSearchWords: nil, rating: rating, colorLabel: colorLabel,
+            keywords: nil, filename: "IMG_000\(id).png", dir: nil, flag: flag,
+            note: nil, hasEdits: 0, paramsHash: nil, refCount: 0,
+            addedTime: nil, modifiedTime: nil)
+        return CullEntry(
+            row: row, url: url, annotation: nil, sharpness: nil,
+            eyesClosed: nil, rating: rating, colorLabel: colorLabel, flag: flag)
+    }
+
+    private func makeModel(_ entries: [CullEntry]) -> CullFaceModel {
+        CullFaceModel(entries: entries, anchorID: entries.first?.id)
+    }
+
+    // MARK: - The keymap table (the full case sweep)
+
+    func testKeymapTableCoversTheFullCase() {
+        let expected: [(String, CullKeymap.Action)] = [
+            ("G", .backToLibrary), ("g", .backToLibrary),
+            ("D", .openEditor), ("d", .openEditor),
+            ("0", .rating(0)), ("1", .rating(1)), ("2", .rating(2)),
+            ("3", .rating(3)), ("4", .rating(4)), ("5", .rating(5)),
+            ("P", .pick), ("X", .reject), ("U", .unflag),
+            ("6", .colorLabel(1)), ("7", .colorLabel(2)),
+            ("8", .colorLabel(3)), ("9", .colorLabel(4)),
+            ("A", .toggleAdvance), ("C", .toggleCompare), ("F", .toggleFaces),
+        ]
+        for (character, action) in expected {
+            XCTAssertEqual(CullKeymap.action(for: character), action, character)
+        }
+        // Unknown characters never map (the view's .ignored face).
+        XCTAssertEqual(CullKeymap.action(for: "z"), nil)
+        XCTAssertEqual(CullKeymap.action(for: " "), nil)
+        XCTAssertEqual(CullKeymap.action(for: ""), nil)
+    }
+
+    // MARK: - The rating write leg + the projection refresh
+
+    func testRatingWriteLegRecordsAndRefreshesProjection() async {
+        let box = WriteBox()
+        let model = makeModel([
+            makeEntry(id: 1), makeEntry(id: 2),
+        ])
+        model.writeLeg = { id, rating, label, flag in
+            box.record(id, rating, label, flag)
+            await MainActor.run {
+                model.applyWrittenMarks(
+                    imageID: id, rating: rating, colorLabel: label, flag: flag)
+            }
+        }
+        model.rate(rating: 4)
+        // The write rides a fire-and-forget Task — bounded poll.
+        for _ in 0..<100 where box.count == 0 {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(box.count, 1)
+        XCTAssertEqual(box.last()?.0, 1)
+        XCTAssertEqual(box.last()?.1, 4)
+        XCTAssertEqual(model.current?.rating, 4, "the live projection moved")
+        XCTAssertEqual(model.index, 0, "no advance without the toggle")
+    }
+
+    func testAdvanceAfterRatingMovesAfterTheWrite() async {
+        let box = WriteBox()
+        let model = makeModel([
+            makeEntry(id: 1), makeEntry(id: 2), makeEntry(id: 3),
+        ])
+        model.writeLeg = { id, rating, label, flag in
+            box.record(id, rating, label, flag)
+        }
+        model.advanceAfterRating = true
+        model.rate(rating: 5)
+        // The advance is SYNCHRONOUS with the key (the write is async) —
+        // the position moved immediately.
+        XCTAssertEqual(model.index, 1, "A on: the write leg auto-advances")
+        for _ in 0..<100 where box.count == 0 {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(box.last()?.0, 1)
+    }
+
+    // MARK: - The flag / colour semantics (the sidecar trio)
+
+    func testFlagValuesMatchSidecarSemantics() async {
+        let box = WriteBox()
+        let model = makeModel([makeEntry(id: 7)])
+        model.writeLeg = { id, rating, label, flag in
+            box.record(id, rating, label, flag)
+        }
+        model.rate(flag: 1)  // P
+        for _ in 0..<100 where box.count < 1 { try? await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(box.last()?.3, 1, "P = pick (1)")
+        model.rate(flag: 2)  // X
+        for _ in 0..<100 where box.count < 2 { try? await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(box.last()?.3, 2, "X = reject (2)")
+        model.rate(flag: 0)  // U
+        for _ in 0..<100 where box.count < 3 { try? await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(box.last()?.3, 0, "U = unflag (0)")
+    }
+
+    func testRepeatedColourLabelClears() async {
+        let box = WriteBox()
+        let model = makeModel([makeEntry(id: 9, colorLabel: 2)])
+        model.writeLeg = { id, rating, label, flag in
+            box.record(id, rating, label, flag)
+        }
+        model.rate(colorLabel: 2)  // the same label again → clear (0)
+        for _ in 0..<100 where box.count == 0 { try? await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(box.last()?.2, 0, "the repeated label toggles off")
+        model.rate(colorLabel: 3)  // a different label → write
+        for _ in 0..<100 where box.count < 2 { try? await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(box.last()?.2, 3)
+    }
+
+    // MARK: - The compare/burst model faces (the T5 navigation pins)
+
+    func testRatingTargetsTheCompareCandidateWhenRightSideActive() async {
+        let box = WriteBox()
+        let model = makeModel([
+            makeEntry(id: 1), makeEntry(id: 2),
+        ])
+        model.writeLeg = { id, rating, label, flag in box.record(id, rating, label, flag) }
+        model.setCompare(true)
+        XCTAssertTrue(model.activeRight)
+        model.rate(rating: 3)
+        for _ in 0..<100 where box.count == 0 { try? await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertEqual(box.last()?.0, 2, "compare + right side: the candidate takes the keys")
+    }
 }
