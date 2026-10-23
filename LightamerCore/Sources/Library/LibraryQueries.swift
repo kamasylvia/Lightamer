@@ -832,4 +832,51 @@ public actor LibraryQueries {
             addedTime: statement.columnDouble(26),
             modifiedTime: statement.columnDouble(27))
     }
+
+    // MARK: - Culling analysis scan faces (LUMEN-A T5/T6, additive)
+
+    /// The analysis-walk scan: rows whose analysis stamp is missing or
+    /// behind `version`, id-ordered (deterministic walk order). The
+    /// camera_serial column rides along as the X2 lazy-backfill witness.
+    public func pendingAnalysisRows(
+        version: Int, limit: Int = 128
+    ) async throws -> [PendingAnalysisRow] {
+        try await store.withHandle { handle in
+            let statement = try handle.prepare("""
+                SELECT id, image_path, path_kind, volume_uuid, camera_serial
+                FROM images
+                WHERE analysis_version IS NULL OR analysis_version < ?
+                ORDER BY id LIMIT ?
+                """)
+            try statement.bindInt(1, Int64(version))
+            try statement.bindInt(2, Int64(limit))
+            var rows: [PendingAnalysisRow] = []
+            while try statement.step() {
+                guard let id = statement.columnInt(0),
+                      let kindRaw = statement.columnInt(2),
+                      let kind = LibrarySchema.PathKind(rawValue: kindRaw) else {
+                    continue
+                }
+                rows.append(PendingAnalysisRow(
+                    id: id,
+                    imagePath: statement.columnText(1) ?? "",
+                    pathKind: kind,
+                    volumeUUID: statement.columnText(3),
+                    cameraSerial: statement.columnText(4)))
+            }
+            return rows
+        }
+    }
+
+    /// The pending count (the progress stream's total denominator).
+    public func pendingAnalysisCount(version: Int) async throws -> Int {
+        try await store.withHandle { handle in
+            let statement = try handle.prepare(
+                "SELECT COUNT(*) FROM images"
+                    + " WHERE analysis_version IS NULL OR analysis_version < ?")
+            try statement.bindInt(1, Int64(version))
+            _ = try statement.step()
+            return Int(statement.columnInt(0) ?? 0)
+        }
+    }
 }

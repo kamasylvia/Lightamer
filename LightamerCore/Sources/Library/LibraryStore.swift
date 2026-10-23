@@ -1241,4 +1241,66 @@ public actor LibraryStore {
         }
         return json
     }
+
+    // MARK: - Culling analysis write face (LUMEN-A T5, additive)
+
+    /// Persist one analysis product: the seven v6 columns only (the
+    /// default-neutral red line — no other column is touched except the
+    /// modified_time stamp), plus the X2 lazy-backfill legs (serial/capture
+    /// fill ONLY when the stored value is NULL via COALESCE). The empty
+    /// analysis (products nil, version stamped) rides the same face — the
+    /// anti-retry-storm record (Lumen :162).
+    public func setAnalysis(_ record: LibraryAnalysisRecord) async throws {
+        let notifiedIDs: [Int64] = try await store.withWriteBatch { handle in
+            let update = try handle.prepare("""
+                UPDATE images SET analysis_version = ?, sharpness = ?,
+                    faces = ?, eyes_closed = ?, signature = ?,
+                    face_boxes = ?, camera_serial = COALESCE(camera_serial, ?),
+                    capture_date = COALESCE(?, capture_date), modified_time = ?
+                WHERE id = ?
+                """)
+            try update.bindInt(1, Int64(record.analysisVersion))
+            try update.bindDouble(2, record.sharpness)
+            try update.bindInt(3, record.faces.map(Int64.init))
+            try update.bindInt(4, record.eyesClosed.map(Int64.init))
+            try update.bindBlob(5, record.signature)
+            try update.bindText(6, record.faceBoxes)
+            try update.bindText(7, record.cameraSerial)
+            try update.bindDouble(8, record.captureDate)
+            try update.bindDouble(9, Date().timeIntervalSince1970)
+            try update.bindInt(10, record.imageID)
+            _ = try update.step()
+            return [record.imageID]
+        }
+        emitAnalysis(notifiedIDs)
+    }
+
+    // MARK: - Analysis notify seam (LUMEN-A T5, review m-2)
+
+    /// The analysis-write events: image ids whose analysis columns moved.
+    /// ADDITIVE — no pre-existing row-change channel exists (the grid
+    /// refreshes through caller-driven reloads); consumers (the badge
+    /// refresh in T7's grid face) subscribe here. Multi-consumer.
+    private var analysisContinuations:
+        [UUID: AsyncStream<[Int64]>.Continuation] = [:]
+
+    public func analysisEvents() -> AsyncStream<[Int64]> {
+        AsyncStream { continuation in
+            let id = UUID()
+            analysisContinuations[id] = continuation
+            continuation.onTermination = { [weak self] _ in
+                Task { await self?.removeAnalysisContinuation(id) }
+            }
+        }
+    }
+
+    private func removeAnalysisContinuation(_ id: UUID) {
+        analysisContinuations[id] = nil
+    }
+
+    private func emitAnalysis(_ ids: [Int64]) {
+        for continuation in analysisContinuations.values {
+            continuation.yield(ids)
+        }
+    }
 }
