@@ -63,6 +63,7 @@ enum CullKeymap: Equatable {
         case toggleAdvance
         case toggleCompare
         case toggleFaces
+        case toggleZoom
     }
 
     /// Character keys → actions (X7's钉死 pair: G/D first — G = the Lumen
@@ -83,6 +84,7 @@ enum CullKeymap: Equatable {
         case "a", "A": return .toggleAdvance
         case "c", "C": return .toggleCompare
         case "f", "F": return .toggleFaces
+        case "z", "Z": return .toggleZoom
         default: return nil
         }
     }
@@ -105,6 +107,54 @@ final class CullFaceModel {
     var advanceAfterRating = false
     /// The face-boxes overlay (the F toggle).
     var showFaces = true
+
+    /// The shared zoom state (T6's sync_zoom 直译 — BOTH panes read this
+    /// one value, so zoom and center are structurally synced; Lumen syncs
+    /// by copying pane state, ours never diverges).
+    struct CullZoom: Equatable {
+        var zoomed = false
+        /// The focus point in unit image coordinates (0.5 = centered).
+        var centerX = 0.5
+        var centerY = 0.5
+    }
+
+    private(set) var zoom = CullZoom()
+
+    /// Z / click: the 100% toggle (the Lumen pane.toggle_zoom 直译 — the
+    /// SHARED state zooms both sides; leaving resets the center).
+    func setZoom(_ zoomed: Bool) {
+        guard zoomed != zoom.zoomed else { return }
+        zoom.zoomed = zoomed
+        if !zoomed {
+            zoom.centerX = 0.5
+            zoom.centerY = 0.5
+        }
+    }
+
+    /// The analysis queue-jump route (the host binds the wiring's
+    /// prioritizeAnalysis — the synthesized face tests inject a recorder).
+    var queueJumpRoute: (@Sendable ([Int64]) async -> Void)?
+
+    /// The ±(-2..+6) window (Lumen `self.paths[max(0, focus - 2):focus + 6]`
+    /// 直译) filtered to the UN-ANALYSED rows (sharpness == nil). Empty when
+    /// nothing in the window awaits analysis.
+    func analysisWindowIDs() -> [Int64] {
+        guard entries.indices.contains(index) else { return [] }
+        let lower = max(0, index - 2)
+        let upper = min(index + 6, entries.count - 1)
+        return entries[lower...upper]
+            .filter { $0.sharpness == nil }
+            .map(\.id)
+    }
+
+    /// The show_current face: fire the queue-jump for the new position
+    /// (inert without the route — the tests inject recorders).
+    func queueAnalysisJump() {
+        let ids = analysisWindowIDs()
+        guard !ids.isEmpty else { return }
+        let route = queueJumpRoute
+        Task { await route?(ids) }
+    }
 
     /// The rating write leg (the host binds LibraryStore.setMetadataMarks;
     /// tests inject a recorder).
@@ -150,7 +200,9 @@ final class CullFaceModel {
             guard clamped != index else { return }
             candidate = clamped
         } else {
+            guard clamped != index else { return }
             index = clamped
+            queueAnalysisJump()
         }
     }
 

@@ -146,6 +146,19 @@ public actor LibraryAnalysisService {
     private var runTask: Task<Void, Never>?
     /// The injected export/AI activity probe (true = busy → pause).
     private var activityProbe: (@Sendable () async -> Bool)?
+    /// The priority window (LUMEN-B T6, the Lumen `first=True` seam —
+    /// cull_view.py:426-429 直译): the cull face queues the current
+    /// ±(-2..+6) window's un-analysed rows here; the next batch consumed
+    /// by the walk puts them FIRST (the rest keep their id order).
+    private var priorityIDs: Set<Int64> = []
+
+    /// Queue these rows at the head of the next analysis batch (the
+    /// priority seam is a HINT — the walk's pause/cancel semantics and the
+    /// anti-retry-storm face are untouched; never a synchronous preemption,
+    /// H-LU1's discipline).
+    public func prioritize(_ ids: [Int64]) {
+        priorityIDs.formUnion(ids)
+    }
 
     public init(
         store: ProjectFileStore, queries: LibraryQueries,
@@ -243,14 +256,17 @@ public actor LibraryAnalysisService {
                 continue
             }
             guard isEnabled() else { return }
-            let batch: [PendingAnalysisRow]
+            let scanned: [PendingAnalysisRow]
             do {
-                batch = try await queries.pendingAnalysisRows(
+                scanned = try await queries.pendingAnalysisRows(
                     version: Self.analysisVersion)
             } catch {
                 return  // the package closed under us — the wiring restarts
             }
-            if batch.isEmpty { return }
+            if scanned.isEmpty { return }
+            // The priority window first (stable within each partition).
+            let batch = Self.partitionByPriority(scanned, priority: priorityIDs)
+            priorityIDs.removeAll()
             let total = (try? await queries.pendingAnalysisCount(
                 version: Self.analysisVersion)) ?? batch.count
             doneCount = max(total - batch.count, 0)
@@ -274,6 +290,16 @@ public actor LibraryAnalysisService {
                 }
             }
         }
+    }
+
+    /// The priority partition (the pure face the tests pin): the queued
+    /// window rows first, the rest in their scan (id) order — STABLE within
+    /// each partition.
+    nonisolated static func partitionByPriority(
+        _ rows: [PendingAnalysisRow], priority: Set<Int64>
+    ) -> [PendingAnalysisRow] {
+        rows.filter { priority.contains($0.id) }
+            + rows.filter { !priority.contains($0.id) }
     }
 
     /// The batch-local completed counter (the actor lane owns it — the
