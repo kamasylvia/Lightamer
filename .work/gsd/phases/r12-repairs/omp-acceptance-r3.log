@@ -1,0 +1,36 @@
+Working...
+# R3 修复批 omp 终审报告（dual_acceptance 独占终审眼，computer-use 实机）
+
+**结论：PASS / 0 blocking + 0 major + 0 minor + 3 obs**
+
+## 验收对象
+- R3 三件：`3d325125`(F2-1 ImportModeDialogSheetContent 重注入)/`22082049`(标记接线)/`856f2396`(gamma E 族)+`8a1a5c2d`(docs)；主树 HEAD=`2b2246cb` 亲证
+- 二进制：默认容器 Debug/Lightamer.app（mtime 10-23 12:08；strings 亲证三件符号在位）；guard 前置 PASS（heavy=0 free=78%）
+- 正本：R3-ACCEPTANCE.md（zcode PASS/0B+0M+0m+2obs）+ r3 MANIFEST + 四笔 commit bodies
+- 全套 `--all` 不复跑（zcode 已独立复跑 4112/40/0 逐位对账）；本路实机四项全亲驱
+
+## 一、实机抽验（单实例 PID 81140 贯穿 a→d，全程唯一）
+
+### a) F2-1 Import Folder 全流程 — ✓ PASS（修复实锤）
+⌘⇧I → NSNav 预置缝选 /tmp/r3-omp/src → 打开 → **ImportModeDialog sheet 挂载存活**（「导入 "src"」+ 三段模式 + TIFF 3 文件 + 导入钮，omp-06；R12 omp ips 崩点，修复前=此刻 EXC_BREAKPOINT）→ 导入完成（3 缩略图 + 概览 3 照片 + AI sheet 同活后消解，omp-07c/08；DB=3 + Media 3×tif）。第二轮 gamma 夹同路径再活一次，4 照片。
+
+### b) 标记链接线 D5 兑现 — ✓ PASS（三重零闭合）
+菜单 标记→`5 星 (5)`（AX 三层精确匹配）→ 蓝格 ★★★★★ 徽章 + 按色标 ★1/Unrated 2 + 高分组 1（omp-10）；机器核验 **DB rating=5 + sidecar schemaVersion 11 rating=5**。清除评分 → 徽章消 + Unrated 3 + 高分组 0（omp-11）；**DB NULL + sidecar rating=None**。UI/DB/sidecar 三面齐动齐清。
+
+### c) gamma E 族显式形 — ✓ PASS
+Generic RGB TIFF 开编辑器 → RAW 解码 tab → omp-19 = 配置文件 Generic RGB Profile / 来源 内嵌 ICC / **传递曲线「伽马 1.80」** / 峰值 100 nits。裸键/`%@` 零残留。
+
+### d) 三窗+主链回归 — ✓ PASS
+⌘, Settings（默认页语言与主题，omp-20）/ 预设管理器（omp-21）/ MCP 启动器（omp-22）三窗同开共存，PID 不变；编辑器主链出图（g18 灰调 + 网格 + 白平衡模块，omp-26）零错误；静置 CPU **0.2%**×3 + RSS 526MB 恒定。
+
+## 二、分级清单
+- blocking/major/minor：0/0/0
+- obs-1：zcode obs-1（单槽语义）维持观察（本路单发三重零与 zcode 连发终态一致）
+- obs-2：合成纯色夹料画布均匀场+稀疏直方图 = 预期渲染，非缺口
+- obs-3：⌘W 关三窗不生效（F0' 既有行为，非 R3 面；走查工具注记）
+
+## 三、收尾
+- app ⌘Q 已退出，无新 .ips；NSNav 预置已删还原，browser.mode=grid 未动；recentProjects 一条 /tmp 死路径（下次启动自扫）；/tmp/r3-omp 已清，家目录零残留；源码 tracked 零 diff
+- 唯一写产物：`.work/gsd/phases/r12-repairs/R3-ACCEPTANCE-OMP.md` + `.work/gui-acceptance/r3/omp/omp-01..26`（30 帧）
+
+**zcode PASS 结论独立复现成立，无推翻项。R3 收口。**
