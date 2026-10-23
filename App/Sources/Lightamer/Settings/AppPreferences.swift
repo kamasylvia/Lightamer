@@ -144,6 +144,25 @@ struct AppPreferences: Sendable {
         defaults.removeObject(forKey: Self.previewCacheLimitKey)
     }
 
+    // MARK: - Mask fine refinement (LUMEN-C T4, D-LU-7 / 红线 11)
+
+    /// The auto-refine gate key. The registered spelling is owned by the
+    /// coordinator (the literal lives in MaskRefineCoordinator.fineAutoKey
+    /// and nowhere else); this alias is the Settings page's host.
+    nonisolated static let maskFineAutoKey = MaskRefineCoordinator.fineAutoKey
+
+    /// The typed read (absent = true — the Lumen fine_masks default-open)
+    /// rides the coordinator's single-source face; the write is a plain
+    /// set (the coordinator re-reads at every fire).
+    var maskFineAuto: Bool {
+        get { MaskRefineCoordinator.fineAutoEnabled(defaults: defaults) }
+        nonmutating set { defaults.set(newValue, forKey: Self.maskFineAutoKey) }
+    }
+
+    func resetMaskFineAuto() {
+        defaults.removeObject(forKey: Self.maskFineAutoKey)
+    }
+
     // MARK: - Keyboard (the v1 override store — see the file header)
 
     /// The stored override for a command id (nil = the default keymap value

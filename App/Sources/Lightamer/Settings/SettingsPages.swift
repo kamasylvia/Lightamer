@@ -295,6 +295,23 @@ struct SettingsCachePage: View {
                     .foregroundStyle(LightamerColors.textSecondary)
             }
 
+            // LUMEN-C T4 (D-LU-7 / 红线 11): the mask fine-refine auto
+            // trigger — the Settings face of the batch's ONE new key.
+            Section(String(localized: "settings_maskrefine_section",
+                           defaultValue: "Mask refinement")) {
+                Toggle(String(localized: "settings_maskrefine_auto",
+                              defaultValue: "Refine AI mask edges automatically"),
+                       isOn: Binding(
+                        get: { preferences.maskFineAuto },
+                        set: { preferences.maskFineAuto = $0 }))
+                    .accessibilityIdentifier("settings.mask.fineAuto")
+                Text(String(
+                    localized: "settings_maskrefine_hint",
+                    defaultValue: "After an AI mask is generated its edges are refined against the developed image in the background (seconds per mask). A failure keeps the quick mask."))
+                    .font(.caption)
+                    .foregroundStyle(LightamerColors.textSecondary)
+            }
+
             // LENS-03 T3 (D-LENS-6 / X7): the Lensfun data-management
             // section — dbTag readout + the MANUAL SHA-verified update.
             // No automatic fetch (D-LENS-6); the L057 async seam for the
