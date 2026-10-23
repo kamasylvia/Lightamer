@@ -1,5 +1,7 @@
 import Compression
+import CryptoKit
 import Foundation
+import SQLite3
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SmartPreviewStore (Plan LUMEN-B T1, X6) — the decoded-preview pack format
@@ -253,5 +255,472 @@ public enum SmartPreviewFormat {
         }
         guard written == byteCount else { return nil }
         return dst
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The cache itself (Plan LUMEN-B T2, X6/D-LU-3): key (path|size|mtime ns|
+// process version|format version → sha1 hex — the process dimension is OURS,
+// a render-semantics bump invalidates naturally, M6-2), an index SQLite in
+// WAL mode, plane files written to a same-directory temp name and renamed
+// (L009 — never a cross-volume /tmp rename), a byte-budget LRU (default
+// 4 GB; 0 = off; trim to 90% by oldest `used`, every 16th write), a small
+// decoded-plane memory LRU, in-flight dedup, and the damage/degrade
+// semantics: a cache that cannot be read or written NEVER keeps a decode
+// from happening (the default-neutral face — disabled = the raw decode,
+// byte-identical to the pre-plan behavior).
+//
+// The transliteration source for the table/file/trim/in-flight shapes is
+// Lumen preview_cache.py (MIT — see the file header note); the store form
+// is the Swift actor + the M2-5 shared-holder体例 (`shared` getter under an
+// NSLock + `replaceShared(_:)` — review m-9).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// `SQLITE_TRANSIENT` — sqlite copies the bound text (the SQLiteHandle
+/// file's local-definition form; the SQLite3 overlay's spelling is private).
+private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+
+public actor SmartPreviewStore {
+
+    /// THE UserDefaults key — the single source (the T7 Settings row and
+    /// AppPreferences alias this constant; the literal is spelled nowhere
+    /// else in the repo).
+    public static let limitKey = "previews.cacheMB"
+
+    /// The default budget (Lumen DEFAULT_MB).
+    public static let defaultLimitMB = 4096
+
+    /// The in-memory decoded planes kept warm (Lumen MEMORY_ITEMS).
+    static let memoryCapacity = 6
+
+    /// The trim cadence (every 16th scheduled write — Lumen `_pending`).
+    static let trimCadence = 16
+
+    /// The app cache location (D-LU-3: rebuildable, cross-project shared,
+    /// never inside a `.lalb` package). `LIGHTAMER_PREVIEW_CACHE` overrides
+    /// (the headless/test escape hatch, Lumen's env override 同形).
+    public static var defaultRoot: URL {
+        if let override = ProcessInfo.processInfo.environment["LIGHTAMER_PREVIEW_CACHE"],
+           !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        let caches = FileManager.default.urls(
+            for: .cachesDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        return caches.appendingPathComponent("Lightamer/smart-previews", isDirectory: true)
+    }
+
+    /// The typed budget read (KD-4): unset/unparseable = the 4 GB default;
+    /// 0 = off; negative clamps to 0.
+    public static func defaultLimitMB(defaults: UserDefaults) -> Int {
+        guard let stored = defaults.object(forKey: limitKey) as? Int else {
+            return defaultLimitMB
+        }
+        return max(0, stored)
+    }
+
+    // MARK: - The shared holder (review m-9 — the M2-5 体例)
+
+    private static let sharedLock = NSLock()
+    private nonisolated(unsafe) static var sharedInstance: SmartPreviewStore?
+
+    /// The process-wide store (created on first use): the default root +
+    /// the UserDefaults budget. All four consumers share ONE instance —
+    /// one index DB handle, one memory LRU, one in-flight table.
+    public static var shared: SmartPreviewStore {
+        sharedLock.lock()
+        defer { sharedLock.unlock() }
+        if let instance = sharedInstance { return instance }
+        let store = SmartPreviewStore(
+            root: defaultRoot, limitMB: defaultLimitMB(defaults: .standard))
+        sharedInstance = store
+        return store
+    }
+
+    /// Atomically replace the shared store (the tests' isolation face; the
+    /// T7 budget face swaps through here too).
+    public static func replaceShared(_ store: SmartPreviewStore) {
+        sharedLock.lock()
+        sharedInstance = store
+        sharedLock.unlock()
+    }
+
+    // MARK: - Key + stamp
+
+    /// `sourcePath|size|mtime ns|process version|cache format version` →
+    /// sha1 hex (the L013-adjacent hex index key face; sha1 IS hex — no
+    /// decimal-string projection applies). mtime is pinned at NANOSECOND
+    /// precision (the stat st_mtimespec — same-second burst frames never
+    /// share a key, review m-10).
+    public static func cacheKey(
+        sourcePath: String, size: Int, mtimeNanos: Int64, processVersion: Int
+    ) -> String {
+        let text = "\(sourcePath)|\(size)|\(mtimeNanos)|\(processVersion)|\(SmartPreviewFormat.formatVersion)"
+        let digest = Insecure.SHA1.hash(data: Data(text.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// The resolved-path + size + nanosecond-mtime stamp of a source as it
+    /// sits on disk NOW (nil = unstatable — the caller degrades to a direct
+    /// decode).
+    public static func fileStamp(
+        _ url: URL
+    ) -> (resolvedPath: String, size: Int, mtimeNanos: Int64)? {
+        var status = stat()
+        guard stat(url.path, &status) == 0 else { return nil }
+        // Resolve symlinks so one file behind several paths shares a key.
+        let resolved = url.resolvingSymlinksInPath().path
+        let nanos = Int64(status.st_mtimespec.tv_sec) * 1_000_000_000
+            + Int64(status.st_mtimespec.tv_nsec)
+        return (resolved, Int(status.st_size), nanos)
+    }
+
+    // MARK: - State
+
+    nonisolated let root: URL
+    /// The byte budget (0 = off — every load degrades to the raw decode).
+    private(set) var limitBytes: Int
+    /// The injected `used` clock (tests pin the eviction ORDER).
+    private let clock: @Sendable () -> Double
+
+    private var db: OpaquePointer?
+    /// The decoded planes kept warm (quantized — the disk values).
+    private var memory: [String: SmartPreviewPlane] = [:]
+    private var memoryOrder: [String] = []
+    /// One production per key; merged waiters await the SAME task.
+    private var inflight: [String: Task<SmartPreviewPlane, Error>] = [:]
+    /// Scheduled disk writes (the `flush()` test face awaits them).
+    private var writeTasks: [String: Task<Void, Never>] = [:]
+    private var writeCount = 0
+    private var trimTask: Task<Void, Never>?
+
+    public init(
+        root: URL, limitMB: Int,
+        clock: @escaping @Sendable () -> Double = { Date().timeIntervalSince1970 }
+    ) {
+        self.root = root
+        self.limitBytes = max(0, limitMB) * 1024 * 1024
+        self.clock = clock
+    }
+
+    /// The live budget face (the T7 Settings row rides this — the Lumen
+    /// set_limit semantics: a lowered budget trims; 0 clears).
+    public func setLimit(megabytes: Int) {
+        limitBytes = max(0, megabytes) * 1024 * 1024
+        if limitBytes == 0 {
+            memory.removeAll()
+            memoryOrder.removeAll()
+        }
+        scheduleTrim()
+    }
+
+    public var isEnabled: Bool { limitBytes > 0 }
+
+    // MARK: - Load (the one entry the four consumers ride)
+
+    /// The decoded plane for `url` through the cache. `processVersion` is
+    /// the M6-2 read point — callers pass `RenderProcessVersion.current
+    /// .rawValue` (the single source); tests inject values to pin the bump
+    /// invalidation. `decode` is the caller's raw decode leg (the wrapper
+    /// seam — RAWDecoder's signature stays zero-diff).
+    ///
+    /// Semantics: DISABLED or unstatable → the RAW decode untouched (the
+    /// default-neutral face: byte-identical to the pre-plan behavior);
+    /// miss → decode + `quantize` + remember + backfill; hit → the SAME
+    /// quantized values from memory/disk (H-LU3: hit and miss are
+    /// bit-identical). A cache that cannot be read or written never keeps
+    /// a decode from happening.
+    public func load(
+        url: URL, processVersion: Int,
+        decode: @escaping @Sendable (URL) async throws -> SmartPreviewPlane
+    ) async throws -> SmartPreviewPlane {
+        guard limitBytes > 0, let stamp = Self.fileStamp(url) else {
+            return try await decode(url)
+        }
+        let key = Self.cacheKey(
+            sourcePath: stamp.resolvedPath, size: stamp.size,
+            mtimeNanos: stamp.mtimeNanos, processVersion: processVersion)
+
+        if let hit = memoryAccess(key) { return hit }
+        if let diskHit = readDisk(key) {
+            remember(key, diskHit)
+            return diskHit
+        }
+
+        // The in-flight claim is a SYNCHRONOUS actor section (check + set
+        // with no await between — the gate-actor discipline).
+        let isOwner: Bool
+        let task: Task<SmartPreviewPlane, Error>
+        if let existing = inflight[key] {
+            task = existing
+            isOwner = false
+        } else {
+            task = Task.detached(priority: .userInitiated) { [decode] in
+                SmartPreviewFormat.quantize(try await decode(url))
+            }
+            inflight[key] = task
+            isOwner = true
+        }
+
+        do {
+            let plane = try await task.value
+            if isOwner {
+                inflight[key] = nil
+                remember(key, plane)
+                scheduleWrite(key, plane)
+            }
+            return plane
+        } catch {
+            if isOwner { inflight[key] = nil }
+            throw error
+        }
+    }
+
+    // MARK: - Memory LRU
+
+    private func memoryAccess(_ key: String) -> SmartPreviewPlane? {
+        guard memory[key] != nil else { return nil }
+        touchMemory(key)
+        return memory[key]
+    }
+
+    private func remember(_ key: String, _ plane: SmartPreviewPlane) {
+        memory[key] = plane
+        touchMemory(key)
+        while memoryOrder.count > Self.memoryCapacity {
+            let evicted = memoryOrder.removeFirst()
+            memory[evicted] = nil
+        }
+    }
+
+    private func touchMemory(_ key: String) {
+        memoryOrder.removeAll { $0 == key }
+        memoryOrder.append(key)
+    }
+
+    // MARK: - Disk tier (plane files + index)
+
+    private func planeURL(_ key: String) -> URL {
+        root.appendingPathComponent("d/\(key.prefix(2))", isDirectory: true)
+            .appendingPathComponent("\(key).lapv")
+    }
+
+    private func readDisk(_ key: String) -> SmartPreviewPlane? {
+        let url = planeURL(key)
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        guard let (plane, _) = try? SmartPreviewFormat.unpack(data) else {
+            // Damaged entry: the cache is rebuildable — drop and miss.
+            forget(key)
+            return nil
+        }
+        touch(key)
+        return plane
+    }
+
+    private func scheduleWrite(_ key: String, _ plane: SmartPreviewPlane) {
+        writeCount += 1
+        writeTasks[key] = Task { [weak self] in
+            await self?.writeToDisk(key, plane)
+        }
+        if writeCount % Self.trimCadence == 0 {
+            scheduleTrim()
+        }
+    }
+
+    private func writeToDisk(_ key: String, _ plane: SmartPreviewPlane) {
+        guard limitBytes > 0 else { return }
+        guard let data = try? SmartPreviewFormat.pack(plane) else { return }
+        let destination = planeURL(key)
+        let directory = destination.deletingLastPathComponent()
+        // L009: the temp lives in the SAME directory; the rename is the
+        // atomic promotion (never a cross-volume /tmp hop).
+        let temp = directory.appendingPathComponent(
+            "\(destination.lastPathComponent).\(getpid()).\(UUID().uuidString).tmp")
+        do {
+            try FileManager.default.createDirectory(
+                at: directory, withIntermediateDirectories: true)
+            try data.write(to: temp, options: .atomic)
+            // moveItem does NOT overwrite — clear a previous entry first.
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.moveItem(at: temp, to: destination)
+        } catch {
+            try? FileManager.default.removeItem(at: temp)
+            return  // a full disk / a hostile directory never propagates
+        }
+        record(key, bytes: data.count)
+    }
+
+    /// Wait for the scheduled writes + trim (the tests' determinism face;
+    /// shutdown may ride it too).
+    public func flush() async {
+        let pending = Array(writeTasks.values)
+        writeTasks.removeAll()
+        for task in pending { _ = await task.result }
+        if let trim = trimTask { _ = await trim.result; trimTask = nil }
+    }
+
+    /// The memory + memory-order face (the test observability window).
+    func memoryStateForTesting() -> (order: [String], count: Int) {
+        (memoryOrder, memory.count)
+    }
+
+    // MARK: - Index SQLite (WAL; damaged = rebuilt)
+
+    private func openIndex() -> OpaquePointer? {
+        if let db { return db }
+        try? FileManager.default.createDirectory(
+            at: root, withIntermediateDirectories: true)
+        let dbPath = root.appendingPathComponent("index.db").path
+        var handle: OpaquePointer?
+        let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX
+        guard sqlite3_open_v2(dbPath, &handle, flags, nil) == SQLITE_OK, let handle else {
+            sqlite3_close(handle)
+            return nil
+        }
+        // WAL first (persistent) + NORMAL (the ProjectFileStore discipline).
+        sqlite3_exec(handle, "PRAGMA journal_mode=WAL", nil, nil, nil)
+        sqlite3_exec(handle, "PRAGMA synchronous=NORMAL", nil, nil, nil)
+        let schema = "CREATE TABLE IF NOT EXISTS entries("
+            + "key TEXT NOT NULL, kind TEXT NOT NULL, bytes INTEGER NOT NULL, "
+            + "used REAL NOT NULL, PRIMARY KEY(key, kind))"
+        if sqlite3_exec(handle, schema, nil, nil, nil) != SQLITE_OK {
+            // A damaged index: the cache is rebuildable — start a new one
+            // (the Lumen DatabaseError arm).
+            sqlite3_close(handle)
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(
+                    at: root.appendingPathComponent("index.db\(suffix)"))
+            }
+            var fresh: OpaquePointer?
+            guard sqlite3_open_v2(dbPath, &fresh, flags, nil) == SQLITE_OK, let fresh else {
+                sqlite3_close(fresh)
+                return nil
+            }
+            sqlite3_exec(fresh, "PRAGMA journal_mode=WAL", nil, nil, nil)
+            sqlite3_exec(fresh, "PRAGMA synchronous=NORMAL", nil, nil, nil)
+            sqlite3_exec(fresh, schema, nil, nil, nil)
+            sqlite3_exec(fresh, "CREATE INDEX IF NOT EXISTS entries_used ON entries(used)", nil, nil, nil)
+            db = fresh
+            return db
+        }
+        sqlite3_exec(handle, "CREATE INDEX IF NOT EXISTS entries_used ON entries(used)", nil, nil, nil)
+        db = handle
+        return db
+    }
+
+    private func touch(_ key: String) {
+        guard let db = openIndex() else { return }
+        var statement: OpaquePointer?
+        sqlite3_prepare_v2(db, "UPDATE entries SET used=? WHERE key=? AND kind=?", -1, &statement, nil)
+        if let statement {
+            sqlite3_bind_double(statement, 1, clock())
+            sqlite3_bind_text(statement, 2, key, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(statement, 3, "d", -1, SQLITE_TRANSIENT)
+            _ = sqlite3_step(statement)
+            sqlite3_finalize(statement)
+        }
+    }
+
+    private func record(_ key: String, bytes: Int) {
+        guard let db = openIndex() else { return }
+        var statement: OpaquePointer?
+        sqlite3_prepare_v2(
+            db, "INSERT OR REPLACE INTO entries(key, kind, bytes, used) VALUES (?, ?, ?, ?)",
+            -1, &statement, nil)
+        if let statement {
+            sqlite3_bind_text(statement, 1, key, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(statement, 2, "d", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int64(statement, 3, Int64(bytes))
+            sqlite3_bind_double(statement, 4, clock())
+            _ = sqlite3_step(statement)
+            sqlite3_finalize(statement)
+        }
+    }
+
+    private func forget(_ key: String) {
+        try? FileManager.default.removeItem(at: planeURL(key))
+        guard let db = openIndex() else { return }
+        var statement: OpaquePointer?
+        sqlite3_prepare_v2(db, "DELETE FROM entries WHERE key=? AND kind=?", -1, &statement, nil)
+        if let statement {
+            sqlite3_bind_text(statement, 1, key, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(statement, 2, "d", -1, SQLITE_TRANSIENT)
+            _ = sqlite3_step(statement)
+            sqlite3_finalize(statement)
+        }
+    }
+
+    /// The byte budget summary (the test/trim face).
+    public func totalBytes() -> Int {
+        guard let db = openIndex() else { return 0 }
+        var statement: OpaquePointer?
+        sqlite3_prepare_v2(db, "SELECT COALESCE(SUM(bytes), 0) FROM entries", -1, &statement, nil)
+        defer { sqlite3_finalize(statement) }
+        guard let statement, sqlite3_step(statement) == SQLITE_ROW else { return 0 }
+        return Int(sqlite3_column_int64(statement, 0))
+    }
+
+    /// The entry keys oldest-`used` first (the eviction-order test face).
+    func entriesOldestFirstForTesting() -> [String] {
+        guard let db = openIndex() else { return [] }
+        var statement: OpaquePointer?
+        sqlite3_prepare_v2(
+            db, "SELECT key FROM entries ORDER BY used, key", -1, &statement, nil)
+        defer { sqlite3_finalize(statement) }
+        var keys: [String] = []
+        while let statement, sqlite3_step(statement) == SQLITE_ROW {
+            if let text = sqlite3_column_text(statement, 0) {
+                keys.append(String(cString: text))
+            }
+        }
+        return keys
+    }
+
+    // MARK: - LRU trim
+
+    private func scheduleTrim() {
+        guard trimTask == nil else { return }
+        trimTask = Task { [weak self] in
+            await self?.trim()
+            await self?.clearTrimTask()
+        }
+    }
+
+    private func clearTrimTask() {
+        trimTask = nil
+    }
+
+    /// Drop least-recently-used entries until the cache sits below 90% of
+    /// the budget (Lumen trim 直译; `targetBytes` overrides — the deterministic
+    /// test face). Returns the removed count.
+    @discardableResult
+    public func trim(targetBytes: Int? = nil) -> Int {
+        guard limitBytes > 0 else { return 0 }
+        let target = targetBytes ?? limitBytes * 9 / 10
+        var total = totalBytes()
+        guard total > target else { return 0 }
+        guard let db = openIndex() else { return 0 }
+        var statement: OpaquePointer?
+        sqlite3_prepare_v2(
+            db, "SELECT key, bytes FROM entries ORDER BY used, key", -1, &statement, nil)
+        var victims: [(key: String, bytes: Int)] = []
+        while let statement, sqlite3_step(statement) == SQLITE_ROW {
+            if let text = sqlite3_column_text(statement, 0) {
+                victims.append((String(cString: text), Int(sqlite3_column_int64(statement, 1))))
+            }
+        }
+        sqlite3_finalize(statement)
+        var removed = 0
+        for victim in victims {
+            if total <= target { break }
+            forget(victim.key)
+            memory[victim.key] = nil
+            memoryOrder.removeAll { $0 == victim.key }
+            total -= victim.bytes
+            removed += 1
+        }
+        return removed
     }
 }

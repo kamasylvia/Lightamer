@@ -178,3 +178,267 @@ final class SmartPreviewStoreTests: XCTestCase {
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T2 (X6/D-LU-3): the cache infrastructure — key invalidation (mtime/size/
+// process-version dimensions), the byte-budget LRU eviction order, the
+// ─────────────────────────────────────────────────────────────────────────────
+// T2 (X6/D-LU-3): the cache infrastructure — key invalidation (mtime/size/
+// process-version dimensions), the byte-budget LRU eviction order, the
+// in-flight dedup through the SHARED holder, and the damage/degrade faces.
+// ─────────────────────────────────────────────────────────────────────────────
+
+extension SmartPreviewStoreTests {
+
+    /// A tiny thread-safe counter (the decode-leg observability box).
+    final class CounterBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+        var value: Int { lock.lock(); defer { lock.unlock() }; return count }
+        func increment() { lock.lock(); count += 1; lock.unlock() }
+
+        /// The monotone injected-clock face (strictly increasing doubles).
+        func bump() -> Double {
+            lock.lock(); count += 1; lock.unlock()
+            return Double(count)
+        }
+    }
+
+    // MARK: - Fixtures
+
+    /// A real temp file (the key/stamp tests stat it for truth).
+    private func makeSourceFile(
+        _ name: String, size: Int, mtime: Date? = nil
+    ) throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("smartpreview-t2-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent(name)
+        try Data(repeating: 0xAB, count: size).write(to: url)
+        if let mtime {
+            try FileManager.default.setAttributes(
+                [.modificationDate: mtime], ofItemAtPath: url.path)
+        }
+        return url
+    }
+
+    private static func plane(width: Int = 8, height: Int = 8, value: Float = 0.25) -> SmartPreviewPlane {
+        SmartPreviewPlane(
+            width: width, height: height,
+            rgba: [Float](repeating: value, count: width * height * 4))
+    }
+
+    private func makeStore(
+        limitMB: Int = 64, clock: @escaping @Sendable () -> Double = { Date().timeIntervalSince1970 }
+    ) -> SmartPreviewStore {
+        SmartPreviewStore(
+            root: FileManager.default.temporaryDirectory
+                .appendingPathComponent("smartpreview-store-\(UUID().uuidString)", isDirectory: true),
+            limitMB: limitMB, clock: clock)
+    }
+
+    // MARK: - Key invalidation (mtime / size / process version)
+
+    func testCacheKeyInvalidatesOnStampAndProcessVersionChange() throws {
+        let mtime = Date(timeIntervalSince1970: 1_700_000_000)
+        let url = try makeSourceFile("photo.nef", size: 100, mtime: mtime)
+        let stamp = SmartPreviewStore.fileStamp(url)
+        XCTAssertNotNil(stamp)
+        let base = SmartPreviewStore.cacheKey(
+            sourcePath: stamp!.resolvedPath, size: stamp!.size,
+            mtimeNanos: stamp!.mtimeNanos, processVersion: 1)
+
+        // Same stamp + same process → identical key.
+        let again = SmartPreviewStore.cacheKey(
+            sourcePath: stamp!.resolvedPath, size: stamp!.size,
+            mtimeNanos: stamp!.mtimeNanos, processVersion: 1)
+        XCTAssertEqual(base, again)
+
+        // A size bump invalidates.
+        let sizeKey = SmartPreviewStore.cacheKey(
+            sourcePath: stamp!.resolvedPath, size: stamp!.size + 1,
+            mtimeNanos: stamp!.mtimeNanos, processVersion: 1)
+        XCTAssertNotEqual(base, sizeKey)
+
+        // An mtime bump invalidates (write NEW content — the stamp re-read
+        // sees a fresh nanosecond mtime).
+        try Data(repeating: 0xCD, count: 100).write(to: url)
+        try FileManager.default.setAttributes(
+            [.modificationDate: mtime.addingTimeInterval(1)], ofItemAtPath: url.path)
+        let newStamp = SmartPreviewStore.fileStamp(url)
+        XCTAssertNotEqual(stamp!.mtimeNanos, newStamp!.mtimeNanos)
+        let mtimeKey = SmartPreviewStore.cacheKey(
+            sourcePath: newStamp!.resolvedPath, size: newStamp!.size,
+            mtimeNanos: newStamp!.mtimeNanos, processVersion: 1)
+        XCTAssertNotEqual(base, mtimeKey)
+
+        // The process-version dimension (OURS — M6-2): a render-semantics
+        // bump invalidates every old entry.
+        let bumped = SmartPreviewStore.cacheKey(
+            sourcePath: stamp!.resolvedPath, size: stamp!.size,
+            mtimeNanos: stamp!.mtimeNanos, processVersion: 2)
+        XCTAssertNotEqual(base, bumped)
+
+        // The key is sha1 hex (the L013-adjacent index key face).
+        XCTAssertEqual(base.count, 40)
+        XCTAssertTrue(base.allSatisfy { $0.isHexDigit })
+    }
+
+    // MARK: - LRU trim (the eviction order)
+
+    func testTrimEvictsOldestUsedFirst() async throws {
+        let tick = CounterBox()
+        let store = makeStore(limitMB: 64) { tick.bump() }
+        let url = try makeSourceFile("photo2.nef", size: 10)
+        let stamp = SmartPreviewStore.fileStamp(url)!
+        var keys: [String] = []
+        for index in 0..<5 {
+            let process = 100 + index  // distinct keys over one source
+            keys.append(SmartPreviewStore.cacheKey(
+                sourcePath: stamp.resolvedPath, size: stamp.size,
+                mtimeNanos: stamp.mtimeNanos, processVersion: process))
+            _ = try await store.load(
+                url: url, processVersion: process) { _ in
+                    // UNIFORM bytes (one constant value) — equal-size
+                    // entries make the keep-newest trim arithmetic exact.
+                    SmartPreviewPlane(
+                        width: 8, height: 8,
+                        rgba: [Float](repeating: 0.5, count: 8 * 8 * 4))
+                }
+        }
+        await store.flush()
+        let total = await store.totalBytes()
+        XCTAssertGreaterThan(total, 0)
+        // Oldest-used first in the index (the injected clock is monotone).
+        let ordered = await store.entriesOldestFirstForTesting()
+        XCTAssertEqual(ordered, keys)
+
+        // Trim to one-fifth of the bytes: the OLDEST entries die and the
+        // newest survivor stays.
+        let removed = await store.trim(targetBytes: total / 5)
+        XCTAssertGreaterThanOrEqual(removed, 1)
+        let remaining = await store.entriesOldestFirstForTesting()
+        XCTAssertEqual(remaining, [keys[4]], "the eviction order is oldest-used first")
+    }
+
+    // MARK: - In-flight dedup through the shared holder
+
+    func testInflightRequestsMergeThroughSharedHolder() async throws {
+        let store = makeStore()
+        SmartPreviewStore.replaceShared(store)
+        defer {
+            SmartPreviewStore.replaceShared(SmartPreviewStore(
+                root: SmartPreviewStore.defaultRoot,
+                limitMB: SmartPreviewStore.defaultLimitMB(
+                    defaults: .standard)))
+        }
+        let url = try makeSourceFile("photo3.nef", size: 10)
+        let counter = CounterBox()
+        let decode: @Sendable (URL) async throws -> SmartPreviewPlane = { _ in
+            counter.increment()
+            try await Task.sleep(nanoseconds: 150_000_000)
+            return SmartPreviewPlane(
+                width: 8, height: 8, rgba: [Float](repeating: 0.5, count: 8 * 8 * 4))
+        }
+        async let first = SmartPreviewStore.shared.load(
+            url: url, processVersion: 1, decode: decode)
+        async let second = SmartPreviewStore.shared.load(
+            url: url, processVersion: 1, decode: decode)
+        let (a, b) = try await (first, second)
+        XCTAssertEqual(a, b)
+        XCTAssertEqual(counter.value, 1, "same-key concurrent requests merge onto ONE decode")
+        await store.flush()
+        let total = await store.totalBytes()
+        XCTAssertGreaterThan(total, 0, "the owner's decode was written back to disk")
+    }
+
+    // MARK: - Damage rebuild + degraded direct decode + disabled neutral
+
+    func testDamagedPlaneEntryIsDroppedAndRebuilt() async throws {
+        let store = makeStore()
+        let url = try makeSourceFile("photo4.nef", size: 10)
+        let counter = CounterBox()
+        let decode: @Sendable (URL) async throws -> SmartPreviewPlane = { _ in
+            counter.increment()
+            return SmartPreviewPlane(
+                width: 8, height: 8, rgba: [Float](repeating: 0.75, count: 8 * 8 * 4))
+        }
+        let first = try await store.load(url: url, processVersion: 1, decode: decode)
+        await store.flush()
+        XCTAssertEqual(counter.value, 1)
+
+        // Corrupt the on-disk plane (the stamp is unchanged, so the same
+        // key resolves) — the load must DROP the entry and rebuild it.
+        let stamp = SmartPreviewStore.fileStamp(url)!
+        let key = SmartPreviewStore.cacheKey(
+            sourcePath: stamp.resolvedPath, size: stamp.size,
+            mtimeNanos: stamp.mtimeNanos, processVersion: 1)
+        let entryURL = store.root
+            .appendingPathComponent("d/\(key.prefix(2))", isDirectory: true)
+            .appendingPathComponent("\(key).lapv")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: entryURL.path))
+        try Data(repeating: 0x00, count: 64).write(to: entryURL)
+
+        // A fresh store instance (cold memory) over the SAME root.
+        let store2 = SmartPreviewStore(root: store.root, limitMB: 64)
+        let second = try await store2.load(url: url, processVersion: 1, decode: decode)
+        XCTAssertEqual(counter.value, 2, "the damaged entry missed and re-decoded")
+        XCTAssertEqual(second, first)
+        await store2.flush()
+        let repaired = try? SmartPreviewFormat.unpack(try Data(contentsOf: entryURL))
+        XCTAssertNotNil(repaired, "the rebuilt entry is a valid envelope again")
+    }
+
+    func testUnwritableRootDegradesToDirectDecode() async throws {
+        // A root that cannot host a directory: a file standing where the
+        // root directory would be.
+        let blocker = FileManager.default.temporaryDirectory
+            .appendingPathComponent("smartpreview-blocker-\(UUID().uuidString)")
+        try Data([0x01]).write(to: blocker)
+        let store = SmartPreviewStore(root: blocker, limitMB: 64)
+        let url = try makeSourceFile("photo5.nef", size: 10)
+        // The degraded-ENABLED path still serves the quantized decode (the
+        // Lumen semantics: quantize rides the miss path regardless of write
+        // success — hit/miss consistency holds; only DISABLED serves raw).
+        let raw = Self.plane(value: 1.0 / 3.0)
+        let loaded = try await store.load(url: url, processVersion: 1) { _ in raw }
+        XCTAssertEqual(loaded, SmartPreviewFormat.quantize(raw))
+        XCTAssertNotEqual(loaded, raw)
+        let total = await store.totalBytes()
+        XCTAssertEqual(total, 0, "a broken cache persists nothing and blocks nothing")
+    }
+
+    func testDisabledBudgetReturnsRawDecodeUnquantized() async throws {
+        let store = makeStore(limitMB: 0)
+        let url = try makeSourceFile("photo6.nef", size: 10)
+        let raw = Self.plane(value: 1.0 / 3.0)
+        let loaded = try await store.load(url: url, processVersion: 1) { _ in raw }
+        XCTAssertEqual(loaded, raw)
+        XCTAssertNotEqual(loaded, SmartPreviewFormat.quantize(raw))
+        let total = await store.totalBytes()
+        XCTAssertEqual(total, 0, "a disabled cache writes nothing")
+    }
+
+    func testDamagedIndexRebuildsCleanly() async throws {
+        let store = makeStore()
+        let url = try makeSourceFile("photo7.nef", size: 10)
+        _ = try await store.load(url: url, processVersion: 1) { _ in
+            SmartPreviewPlane(width: 4, height: 4, rgba: [Float](repeating: 0.5, count: 64))
+        }
+        await store.flush()
+        let recorded = await store.totalBytes()
+        XCTAssertGreaterThan(recorded, 0)
+
+        // Corrupt the index, then use a FRESH instance over the same root:
+        // the open must rebuild and the next write must persist.
+        try Data("this is not sqlite".utf8).write(
+            to: store.root.appendingPathComponent("index.db"))
+        let store2 = SmartPreviewStore(root: store.root, limitMB: 64)
+        _ = try await store2.load(url: url, processVersion: 1) { _ in
+            SmartPreviewPlane(width: 4, height: 4, rgba: [Float](repeating: 0.5, count: 64))
+        }
+        await store2.flush()
+        let rebuilt = await store2.totalBytes()
+        XCTAssertGreaterThan(rebuilt, 0, "the rebuilt index records entries again")
+    }
+}
