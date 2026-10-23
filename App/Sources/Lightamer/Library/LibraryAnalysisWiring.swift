@@ -98,6 +98,20 @@ final class LibraryAnalysisWiring {
         self.defaultsSuiteName = defaultsSuiteName
     }
 
+    // MARK: - The analysis notify seam (the badge refresh chain, §八 fix)
+
+    /// The badge consumer's subscription point: THE service's LibraryStore
+    /// instance — the same actor whose continuation table the persist hop
+    /// (`persistAndTick` → `setAnalysis`) yields into. The pre-fix shape
+    /// had the view subscribe its own ad-hoc `LibraryStore(store:)`, a
+    /// FOREIGN actor whose table stayed empty forever (§八 major-1).
+    /// nil = the analysis face is inert (no project / gate off) — the
+    /// consumer keeps only its initial reload.
+    func analysisEvents() async -> AsyncStream<[Int64]>? {
+        guard let service else { return nil }
+        return await service.libraryStore.analysisEvents()
+    }
+
     // MARK: - The project-open event (the shell's `.task(id:)` hook)
 
     /// Call whenever the open project MAY have changed (the shell body's
@@ -115,7 +129,12 @@ final class LibraryAnalysisWiring {
             store: store,
             queries: LibraryQueries(store: store),
             faceProvider: VisionEyeLandmarkProvider(),
-            defaultsSuiteName: defaultsSuiteName)
+            defaultsSuiteName: defaultsSuiteName,
+            // LUMEN-A acceptance §八 fix: THE notify-seam store — created
+            // once here, injected into the service, and handed to the
+            // badge consumer through `analysisEvents()` below. One actor
+            // instance owns the continuation table end to end.
+            libraryStore: LibraryStore(store: store))
         self.service = service
 
         // H-LU1: the export/AI activity probe (pause while either is live).

@@ -21,6 +21,10 @@ import XCTest
 //   ④ the pause/resume state machine: the injected activity probe holds the
 //      walk (nothing processes while busy); releasing it drains the batch
 //      and the progress stream reports done/total
+//   ⑤ the badge refresh event chain (LUMEN-A acceptance §八 major-1): the
+//      persist hop lands the notify event on THE injected LibraryStore
+//      instance the consumer subscribes (the per-row fresh-instance shape
+//      — the §八 breakage — is red-proven dead)
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class LibraryAnalysisServiceTests: XCTestCase {
@@ -100,10 +104,13 @@ final class LibraryAnalysisServiceTests: XCTestCase {
         }
     }
 
-    private func makeService() async -> LibraryAnalysisService {
+    private func makeService(
+        libraryStore: LibraryStore? = nil
+    ) async -> LibraryAnalysisService {
         await LibraryAnalysisService(
             store: store, queries: LibraryQueries(store: store),
-            faceProvider: SyntheticEyeProvider(), defaultsSuiteName: defaultsSuiteName)
+            faceProvider: SyntheticEyeProvider(), defaultsSuiteName: defaultsSuiteName,
+            libraryStore: libraryStore)
     }
 
     /// The no-Vision provider (never called on the missing-file paths).
@@ -191,6 +198,71 @@ final class LibraryAnalysisServiceTests: XCTestCase {
         XCTAssertTrue(LibraryAnalysisService.isEnabled(defaults: suite))
         // The key spelling is the single source.
         XCTAssertEqual(LibraryAnalysisService.enabledKey, "library.analysis.enabled")
+    }
+
+    // MARK: - ⑤ The badge refresh event chain (LUMEN-A acceptance §八 major-1)
+
+    /// The badge chain end-to-end: the analysis walk's persist hop must
+    /// land the notify event on THE LibraryStore actor instance the
+    /// consumer subscribes. The acceptance §八 breakage shape — a fresh
+    /// `LibraryStore(store:)` per persisted row — yields the event into
+    /// the fresh instance's empty continuation table; a subscriber on any
+    /// other instance (the WorkspaceHostView badge loop, which creates
+    /// its own) never sees it. This test pins the chain through the
+    /// service's persist store.
+    func testAnalysisEventReachesSubscriberThroughWalkPersist() async throws {
+        _ = try writeFixtureJPEG(name: "badge.jpg")
+        let id = try await insertRow(path: "Media/badge.jpg")
+
+        // The consumer side subscribes its OWN instance (the
+        // WorkspaceHostView badge loop shape) — post-fix this same
+        // instance is INJECTED as the service's persist store, so one
+        // actor owns the continuation table end to end.
+        let subscriberStore = LibraryStore(store: store)
+        let service = await makeService(libraryStore: subscriberStore)
+        // The identity pin: the persist hop routes through the injected
+        // store — a per-row fresh instance (the §八 shape, red-proven
+        // pre-fix) fails this line first.
+        let serviceStore = await service.libraryStore
+        XCTAssertTrue(
+            serviceStore === subscriberStore,
+            "the service persists through the injected store instance")
+
+        // Subscribe FIRST (unbounded buffering) — the event survives
+        // until the collector consumes it.
+        let stream = await subscriberStore.analysisEvents()
+        let received = Locked(false)
+        let collector = Task {
+            for await _ in stream {
+                received.set(true)
+                break
+            }
+        }
+        defer { collector.cancel() }
+
+        await service.start()
+        // The walk wrote the row once it leaves the pending set (the DB
+        // leg rides the shared ProjectFileStore — it lands regardless of
+        // the notify seam; this is exactly the §八 phenotype: data present,
+        // badge never refreshed).
+        let deadline = Date().addingTimeInterval(30)
+        while Date() < deadline {
+            if try await LibraryQueries(store: store)
+                .pendingAnalysisRows(version: 1).isEmpty { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        let pending = try await LibraryQueries(store: store)
+            .pendingAnalysisRows(version: 1)
+        XCTAssertTrue(pending.isEmpty, "precondition: the walk stamped the row")
+        await service.cancel()
+
+        // THE CHAIN under test: the subscriber's continuation got the
+        // event, and the analysis product landed with it.
+        XCTAssertTrue(
+            received.value,
+            "the analysis event must reach the subscriber's store instance")
+        let row = try await readRow(id)
+        XCTAssertNotNil(row.sharpness, "the analysis product landed")
     }
 
     // MARK: - ④ The pause/resume state machine + progress

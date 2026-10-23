@@ -186,9 +186,13 @@ struct WorkspaceHostView: View {
             // stale-until-refresh semantics, review m-2).
             guard let store = projectController?.projectStore else { return }
             let queries = LibraryQueries(store: store)
-            let libraryStore = LibraryStore(store: store)
             await reloadCullingBadges(queries)
-            let events = await libraryStore.analysisEvents()
+            // LUMEN-A T7 §八 fix: subscribe THE wiring's service store —
+            // the pre-fix ad-hoc `LibraryStore(store:)` here was a foreign
+            // actor whose continuation table never received the persist
+            // hop's events (badges never refreshed). nil = analysis inert
+            // (no project / gate off) — the initial reload above stands.
+            guard let events = await wiring.analysisEvents() else { return }
             for await _ in events {
                 await reloadCullingBadges(queries)
             }
