@@ -1,0 +1,12 @@
+Working...
+# R13 终审结论：PASS / 0B+0M+0m+2obs
+
+HEAD=`e4efefc4`，产物=`.work/gsd/phases/r13-repairs/ACCEPTANCE-OMP.md`+`.work/gui-acceptance/r13/omp/`8截图。zcode 2m+4obs维持。
+
+- **a) gamma读出✓**：自造AdobeRGB TIFF（curv γ563/256）→导入→编辑器→RAW解码页，AX实读`伽马 2.20`（数学核对精确），四行全中文零裸键；zh编译表同形交叉逐字一致。
+- **b) mcp真bug✓（通道降级）**：GUI启动面三态亲通（缺模板/无服务/正常跑`echo hello-agent`全绿零裸键）；`launchFailed`源码实锤仅spawn失败可达、zsh恒成功——任务书「端口占用」配方对此键无效。替代：zh表harness实锤新形渲染`启动失败：port 8765 in use`、旧形MISS回退裸键，行为差成立。
+- **c) 设置页✓**：LCR页AX实读三转换键（`语义·512维·Apache-2.0·88MB`等）全中文；三窗全量AX文本裸键正则零命中。Displays的`overridden %@`臂因无override走auto臂屏上不可见，如实注记（zcode已目录背书）。
+- **d) 回归✓**：双TIFF导入COUNT=2持久→filmstrip→视口渲染+直方图+读出链全通；静置40s CPU 0.2%→0.1%，RSS 211.5MB恒定。
+- **obs-1**：七tab轨`editor.stack.tab.*`AX不可见（坐标点击兜底，建议后批加AX回归）。**obs-2**：后批任务书b项配方改「zh表同形+启动面三态」。初稿obs-3（`Text("…\(code)")`残留）核目录后撤回——`Text`插值走编译期LocalizedStringKey（`%lld`键在册），R13未转正确。
+- 卫生：自出PID quit，进程清零，tracked零diff，测试defaults三键全清，app已退出。
+
