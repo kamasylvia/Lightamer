@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ImportService (Plan M2-2-2 T3) — the three-transport folder import
@@ -159,6 +160,15 @@ public struct ImportOutcome: Sendable, Equatable {
 }
 
 public actor ImportService {
+
+    /// The per-file executor failure channel (R13 link-import diagnosis): the
+    /// executor's `catch { outcome.failed += 1 }` used to be a SILENT typed
+    /// swallow — the lumen-culling acceptance's Link×4 zero-row report could
+    /// not be reproduced at HEAD (probe + full GUI sheet flow both land 8/8
+    /// rows), so every future link-leg typed failure must leave a console
+    /// trace naming the file and the underlying error.
+    private static let logger = Logger(
+        subsystem: "com.kamasylvia.lightamer", category: "import")
 
     /// Placement verification: `(source, destination) -> verified`. The
     /// red-pin tests inject a permanently-failing strategy; the default is
@@ -335,6 +345,11 @@ public actor ImportService {
                     progress.skippedDuplicates = outcome.skippedDuplicates
                 }
             } catch {
+                // R13: never silent — the failure count alone left the
+                // lumen-culling Link×4 report with zero diagnostic channel
+                // (no alert, no watchdog line, no lastError face).
+                Self.logger.error(
+                    "import failed (mode \(plan.mode.rawValue, privacy: .public)): \(item.source.path, privacy: .public) — \(error)")
                 outcome.failed += 1
                 progress.failed += 1
             }
