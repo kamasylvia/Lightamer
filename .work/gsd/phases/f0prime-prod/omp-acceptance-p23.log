@@ -1,17 +1,1 @@
 Working...
-**F0'-production P2+P3 终审：PASS / 0 blocking + 1 major + 2 minor + 3 obs**
-
-审验对象锁定 lane HEAD `9ca2f326`（与 P3 收口 `98a5db6e` 差仅 ops/docs 四文件 59 行，无产品差——即 P2+P3 产品终态）。独立 worktree + 独立 DerivedData 自建二进制（BUILD SUCCEEDED，0 errors），HEAD 主树零改动。
-
-六项实机抽验全做（自出 pid 11371，ppid=本进程；收口 worktree/容器/fixtures 全拆，`pgrep Lightamer.app`=0）：
-
-- **a) 主链 ✓**：双 ARW 导入（row id=1/2）→ 双 `rendered=yes` → 编辑器渲染 → ⌘W 图库（2 缩略图 + SONY ILCE-7RM5 概览）→ ⌘E 回编辑器（enter=false/back=true 环翻转）。
-- **b) 菜单 10 项 ✓**：Settings…/⌘W/⌘E/导出…/复制/粘贴翻转（false→true 双项）/5星/撤销重做环（undo=false/redo=true 翻回）/双窗项/软打样+适配+实际+居中——全活。七族 dump 零幽灵项（桥族 ∪ AppKit 出厂件）。
-- **c) 三窗 ✓**：Settings（10 侧栏+语言与主题详情）/ 预设管理器（Tone/Sunny + Web150 + 坏预设脚注）/ MCP 启动器（工具栏+空闲占位）——真实渲染零空白，退役终态首次终审眼亲证。
-- **d) 静置 CPU ✓**：1.4/1.3/1.2/1.2/1.1/1.0（中位 1.2，单调衰减）；主线程 4305/4305 泊 `LightamerShellMain.run→NSApplication.run→mach_msg`；churn 七符号全 0。D-6 门 <10% 过（余量 8.8pp）。
-- **e) F2-1 ✓（预期内）**：Import Folder… → NSOpenPanel → Return → 挂载即崩。ips `092209` = EXC_BREAKPOINT/Trace-BPT 5 + `No Observable object of type AgentControlCoordinator` + 栈顶 `EnvironmentBox.update→UpdateStack::update`——与三代逐字段同签名，**第四代 pre-existing 亲证**。
-- **f) F2-4 复证（major-1 追认）**：AI 区「打开设置…」AX click 命中 `button 6 of scroll area 2` → 无窗/无深链（随后⌘,落语言与主题页）/无崩溃——**二路 major 独立复现**，退役引入静默回归。HEAD `926ba65d` 已修，修复有效性属 r12 批面，本轮不越界。
-
-minor-1：CPU 非零归因留痕（衰减平均采样时点差，P1 终审轮同构）；minor-2：一路 16 面计数口径注记追认。obs-1：探针 modal 形态演进为 AI 分析窗（Esc 可解，配方建议更新）；obs-2：图像族编辑器面 enabled vs 二路库面 disabled = 面上下文差；obs-3：Import 面板首点 ~4s 调度延迟（L057 缝，配方补 wait 5s）。
-
-写产物唯一：`.work/gsd/phases/f0prime-prod/F0P-02-03-ACCEPTANCE-OMP.md`；证据卷 `.work/gui-acceptance/f0prime-p23/omp/`（11 截图 + 8 菜单 dump + sample + stderr + F2-1 ips）。defaults 未写（labelingMode 终核 absent）。
