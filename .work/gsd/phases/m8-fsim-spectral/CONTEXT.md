@@ -525,3 +525,9 @@ CPU/GPU bit-exact 断言 + 100MP perf probe（coupler 降采样臂 RSS 实测）
 - m8 → 本文件 X5 fma 表述勘正（`&*` 整型算子残缺 → 显式 `fma()` 调用）。
 - m9 → M8-1B T2/SC 载体形态 rgba32Float（alpha pad，体积门按 442KB
   量级）或 buffer——Metal 无 float3 像素格式。
+- **R1**（M8-CHECKER `40bccfd3` 残留，2026-10-24 plan fixer 第二轮闭合）
+  → M8-2 plan 层 tc_lut 缓存锚点补齐：requirements charter 枚举 +X7〔
+  tc_lut 运行期缓存 face〕/ T3 标题·read_first·action 1 增 tc_lut 缓存槽
+  （承载 = T3 bake 家族同位 per-pair LRU）/ T3 验收增槽存在 + 命中断言
+  （同 pair 二次构建 = HIT）/ T1 光谱臂 action 补缓存命中消费注记——
+  上文 M3 行「M8-2 T3 承载/T1 消费」自本批起 plan 层账实一致。

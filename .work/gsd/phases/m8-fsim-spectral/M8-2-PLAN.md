@@ -5,7 +5,7 @@ title: "plan 2 — FSIM 管线集成（T1 film leg 工厂 process 分叉换臂 /
 wave: 3
 depends_on: ["M8-1a", "M8-1b"]
 autonomous: true
-requirements: ["charter = 本 phase CONTEXT.md（D-M8-1/D-M8-8 + X4 + 红线 2/3/17）——光谱核产线上线波（v2 档）+ 密度核冻结", "research 正本 = phases/m8-fsim-spectral/RESEARCH.md（9b256482）§3.1（缝位零改）/ §3.2（process 双臂）/ §4.3（solve/bake/descriptor 换内核）/ §6.1 M8-2 行", "OQ 裁决正本 = 同目录 CONTEXT.md（process 单源 + solve gain 消费层 + 零 FilmRecord 字段零 schema bump）；NOTICE/OQ-6/OQ-7 面归 M8-3（编排总纲调整注记）", "基线带 = M8-1b 终态（预期 4236..4248）；本 plan 分账 +20..26——双臂 golden 面最大波", "C 档停位 = 本 plan 执行+验收闭环后停汇报；确认后 M8-3 起跑；执行排程在图库选片批验收链后（机器级单重活）"]
+requirements: ["charter = 本 phase CONTEXT.md（D-M8-1/D-M8-8 + X4 + X7〔tc_lut 运行期缓存 face〕 + 红线 2/3/17）——光谱核产线上线波（v2 档）+ 密度核冻结〔review R1〕", "research 正本 = phases/m8-fsim-spectral/RESEARCH.md（9b256482）§3.1（缝位零改）/ §3.2（process 双臂）/ §4.3（solve/bake/descriptor 换内核）/ §6.1 M8-2 行", "OQ 裁决正本 = 同目录 CONTEXT.md（process 单源 + solve gain 消费层 + 零 FilmRecord 字段零 schema bump）；NOTICE/OQ-6/OQ-7 面归 M8-3（编排总纲调整注记）", "基线带 = M8-1b 终态（预期 4236..4248）；本 plan 分账 +20..26——双臂 golden 面最大波", "C 档停位 = 本 plan 执行+验收闭环后停汇报；确认后 M8-3 起跑；执行排程在图库选片批验收链后（机器级单重活）"]
 success_criteria: "SC 全可机检——T1：assembleFilmLeg/assembleFilmPayloads 工厂内 exhaustive switch over RenderProcess.resolving（.v1/.legacy=密度核冻结臂零改字节 / .v2=光谱臂——FilmMethodBox 消费 SpectralPayloads + SpectralFilmKernels dispatch 编排：A→corr 模糊→B）+ runTerminalTails 骨架/seed 折叠序/3×2 降出矩阵零 diff + 子管线 renderProcess 继承在位（filmPipe.renderProcess）+ descriptor probe 同工厂自动跟随（PixelPipe :1222 注释面亲核——零改确认）；T2：FilmSolveCache 光谱域 AUTO 核重推导（中性包 = dichroic SPD × 负片谱透射 × 相纸感光积分；键形 fnv(materialPairHash ⊕ statsHash ⊕ modeTag) 不变 + modeTag 扩光谱段 + K 标定光谱域重标定）+ exposureEv 走 solve gain 消费层（D-M8-8——record 项消费叠加不入缓存键）；T3：FilmPrintBake 光谱表 bake 家族（PCHIP 33³ Float64 构建 + LRU + bakeCount 可观测——机制同位扩展）+ per-pair 键控不变；T4：process v2 bump 五件套（case v2 doc 账本/all=[.v1,.v2]/current=2/AGENTS 账本行/分叉点登记）+ mint 升号（新档 process=2 写 sidecar）+ 缓存折键「非 legacy 才折」（policyTag 升光谱段——折叠序钉死 + legacy 档键字节恒等负测）；T5：双臂冻结 golden（密度核 v1 档全链零漂移——既有 FilmDeterminism goldens 含 filmRampPlaneHash=14_365_179_805_968_017_957 逐位 + 光谱臂 v2 golden 三件套：ramp 场/真图抽样/中性闭合）+ sidecar 零 bump 验证（v11 decode→encode 逐字节 + process 键往返 + 零 FilmRecord 字段零新键 grep）+ 默认中性零行为门（pristine 文档零 diff）；T6：收口"
 estimated_tests: "+20..26（T1 +2..3 / T2 +4..5 / T3 +3..4 / T4 +3..4 / T5 +5..6 / T6 +3..4〔光谱臂端到端 + sidecar 往返 + 零漂移负测组〕；越带申报理由）"
 test_bundles: [IOP, IOPParity, Layers]
@@ -116,7 +116,10 @@ assembleFilmPayloads/runFilmLeg 现状）；`FilmTailPolicy.swift:197-331`
      `RenderProcess.resolving(renderProcess)`：`.v1` = 现密度核路径**原
      样**（payload 构造与 dispatch 零字节改——冻结臂）；`.v2` = 光谱臂
      （`SpectralPayloads` 构造自 `SpectralBuildEngine` per-sim 表 + A/
-     corr 模糊/B dispatch 编排 + nil-payload blit degrade 同语义）。
+     corr 模糊/B dispatch 编排 + nil-payload blit degrade 同语义）；光谱
+     臂 per-sim 构造消费 tc_lut 缓存命中面〔review R1——X7〕：tc_lut 产
+     出入 M8-2 T3 缓存槽（FilmPrintBake 家族同位 per-pair LRU），同
+     pair 跨 run 命中免重建——构建秒级/表量级带，禁每 run 重建。
   2. `FilmMethodBox` 消费面扩形：payload 载体按臂分型（光谱臂 =
      SpectralGPUPayloads；密度臂 = 既有 FilmGPUPayloads）——box 对外面
      （iopOrder 74.0 / nil blit / instances per-run 载体）零改。
@@ -183,25 +186,34 @@ FilmRuntimeSolve 现状——键形/LRU 8/RECORD-terms-consumption 契约亲核�
   约**（pair ⊕ stats ⊕ tag 三项 + LRU 8）；**禁入 record 项进键**；**禁
   密度域求解器改动**（冻结臂）。
 
-## T3 — FilmPrintBake 光谱表 bake 家族（PCHIP 33³）
+## T3 — FilmPrintBake 光谱表 bake 家族（PCHIP 33³ + tc_lut 缓存槽〔review R1——X7〕）
 
 **read_first**：RESEARCH §4.3 bake 段 + §1.4（enl 表 33³ build_lut3d 形
 态）；`FilmPrintBake.swift` 全文（65³/Float64/concurrentPerform/LRU/
 bakeCount 机制正本）；`SpectralBuildEngine.swift`（表构建消费面）；
-M8-1A-DECISIONS（PCHIP 带终值）。
+M8-1A-DECISIONS（PCHIP 带终值）；CONTEXT X7（tc_lut 运行期缓存 face
+裁决正本——承载形态 + 禁临场发明钉死）〔review R1〕。
 
 - **action**：
   1. 光谱印相/扫描表 bake 家族：per-pair（film×paper）33³ PCHIP 表 Float64
      构建（concurrentPerform 晶格切片 + 固定 ladder——机制同位扩展）+
      float 存储 + cmin/cmax 钳位面随表 + LRU 承载（机制面与 65³ 密度域
      并存——两家族各自 LRU 槽，互不挤兑；容量 DECISIONS 申报）+
-     bakeCount 可观测同形。
+     bakeCount 可观测同形；同批增 **tc_lut 缓存槽**〔review R1——X7〕：
+     FilmPrintBake 家族同位 per-pair LRU（键 = materialPair 域 fnv 哈希
+     、bakeCount 可观测同形——X7 钉死形态，禁临场发明缓存形态），承载
+     = M8-1a T4 SpectralBuildEngine 构建引擎的 tc_lut 产物跨 run 缓存
+     （构建秒级/表量级带——禁每 run 重建、禁逐帧重建），消费面 = 本
+     plan T1 光谱臂 payload 构造；第三槽与 print/scan PCHIP 槽并存、各
+     自 LRU 槽互不挤兑，容量 DECISIONS 申报。
   2. 测试（IOPParity）：双 bake 同 pair 逐位恒等（确定性门平移）+ per-pair
      键控（pair 变 → miss）+ LRU 容量淘汰 + bakeCount 计数 + 表域钳位面
      断言。
 - **验收标准（机检）**：
   - 构建绿；`git diff --stat` 恰一产线文件（FilmPrintBake.swift）。
   - 确定性逐位断言在册；密度域 65³ bake 路径零 diff（冻结）。
+  - tc_lut 缓存槽存在断言 + 缓存命中面断言（同 pair 二次构建 = HIT）
+    〔review R1——X7〕。
 - **commit**: `feat(m82): add spectral print bake family`
 - **回滚与偏差申报要求**：回滚 = revert 单 commit；偏差（LRU 容量/家族
   拆分形态）= DECISIONS 申报；**禁动密度域 bake 路径与既有 LRU 槽语义**
