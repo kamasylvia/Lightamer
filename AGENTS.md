@@ -23,6 +23,8 @@
 
 **根因**（2026-10-18 16:53 / 10-19 13:38 / 10-20 20:48 三次重启 + 10-20 15:34 WindowServer watchdog 杀 GUI 会话）：16GB 机器上并行重活（双路验收各自构建 + 独立 DerivedData〔21 容器 22GB〕+ 测试宿主 8GB 峰 + GUI 实例 + zg 索引/omp）→ 内存耗尽、交换落在 90% 满的 Data 卷 → 系统守护饥饿（configd IPMonitorQueue 60s 无响应 = watchdog 终止原因）→ 用户态 watchdog 杀 WindowServer / 内核 watchdog 硬重启（无 panic 文件、日志零持久化为其签名）。**规则**：全机同时至多一个重活进程族；双路验收**串行**；一切重活前过 `Scripts/machine-guard.sh`（G1-G4 四门，`--wait` 轮询）；**构建产物交接**（executor 构建一次 → `BUILD-HANDOFF.txt` → lane 消费，禁重建）——撤回「每 lane 独立 DerivedData」处方；lane 收口清自建容器/worktree；DerivedData >8GB 巡检告警；px 代理每 omp 会话一开一关禁反复切换。config.toml [gsd] `machine_single_heavy = true`。
 
+**运行时 RSS 上限（2026-10-24 第四次重启后追加，12GB Lightamer 顶死整机实锤）**：guard G1 只门起跑时刻，管不住运行中膨胀——一切验收/执行 agent 的 GUI 实例必须在 test-direct/xcodebuild **起跑前 ps 验证清零**（同命令链内联验证，非口头纪律）；全套/验收轮伴跑 `Scripts/machine-guard.sh --monitor 21600 &`（v1.4 运行时看门狗：Lightamer 单实例 RSS >9GB 自动 kill-9 登记——**宁可单测失败不可整机重启**）。已知峰值标尺：测试宿主 8G 门（IOP 峰 7.6-8.1G）、GUI 实例常态 0.4-2.8G、12GB = 异常泄漏级。
+
 ## 暂停机制（2026-09-24 用户指令，Phase 7 起强制）
 
 **`.work/config.toml [gsd]` 开关**（2026-09-24 起替代旧 PAUSE 文件）——两个字段，消费方每任务边界与派发前必读：
