@@ -57,7 +57,8 @@ struct LibraryAutoStackDialog: View {
                     // catalog entry carries the string — defaultValue is a
                     // StaticString face and cannot ride interpolation).
                     Text(String(
-                        localized: "library_stack_auto_preview \(previewCount)"))
+                        format: String(localized: "library_stack_auto_preview %lld"),
+                        previewCount))
                 } else {
                     ProgressView()
                         .controlSize(.small)

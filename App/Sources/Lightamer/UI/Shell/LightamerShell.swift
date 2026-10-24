@@ -710,11 +710,15 @@ internal struct LightamerShellFace: View {
                         if outcome.failures.isEmpty {
                             guard !outcome.imported.isEmpty else { return }
                             editorState.presentToast(
-                                String(localized: "toast_import_done \(outcome.imported.count)"))
+                                String(
+                                    format: String(localized: "toast_import_done %lld"),
+                                    outcome.imported.count))
                         } else {
                             editorState.presentToast(
-                                String(localized:
-                                    "toast_import_partial \(outcome.imported.count) \(outcome.failures.count)"))
+                                String(
+                                    format: String(
+                                        localized: "toast_import_partial %lld %lld"),
+                                    outcome.imported.count, outcome.failures.count))
                         }
                     }
 
@@ -873,8 +877,9 @@ internal struct LightamerShellFace: View {
                                 // byte-identical (existing face zero change).
                                 let detail = PanoFailureCopy.failureMessage(
                                     for: error.localizedDescription)
-                                let message = String(localized:
-                                    "toast_hdr_merge_failed \(detail)")
+                                let message = String(
+                                    format: String(localized: "toast_hdr_merge_failed %@"),
+                                    detail)
                                 await MainActor.run {
                                     editorState.presentToast(message)
                                 }
@@ -1526,8 +1531,9 @@ internal struct LightamerShellFace: View {
         // Foundation rounding rule for .rounded()); a 12.34% hole
         // presents as 12 - the integer-percentage semantics the catalog
         // strings are written in.
-        let message = String(localized:
-            "toast_hdr_merge_done \(Int((holeFraction * 100).rounded()))")
+        let message = String(
+            format: String(localized: "toast_hdr_merge_done %lld"),
+            Int((holeFraction * 100).rounded()))
         editorState.presentToast(message)
         if let root = sessionState.currentSessionURL {
             _ = await sessionReconciler.reconcileHandler?(root)

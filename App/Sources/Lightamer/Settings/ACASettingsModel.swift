@@ -174,7 +174,8 @@ final class ACASettingsModel {
                 defaultValue: "API key stored in the Keychain.")
         } catch {
             statusLine = String(
-                localized: "settings_aca_key_save_failed \(String(describing: error))")
+                format: String(localized: "settings_aca_key_save_failed %@"),
+                String(describing: error))
         }
     }
 
@@ -187,7 +188,8 @@ final class ACASettingsModel {
                 defaultValue: "API key removed from the Keychain.")
         } catch {
             statusLine = String(
-                localized: "settings_aca_key_clear_failed \(String(describing: error))")
+                format: String(localized: "settings_aca_key_clear_failed %@"),
+                String(describing: error))
         }
     }
 
@@ -216,7 +218,7 @@ final class ACASettingsModel {
             String(localized: "settings_aca_test_refused",
                    defaultValue: "Endpoint refused by the local policy — nothing was sent.")
         case .failed(let message):
-            String(localized: "settings_aca_test_failed \(message)")
+            String(format: String(localized: "settings_aca_test_failed %@"), message)
         case nil:
             nil
         }

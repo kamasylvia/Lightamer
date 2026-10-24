@@ -180,7 +180,9 @@ internal struct SkinSmoothPanelView: View {
             // NON-SILENT: every yaw-gated face surfaces (07-CONTEXT).
             for warning in warnings {
                 if case .faceExcludedHighYaw(let index, let yaw, let limit) = warning {
-                    edit.presentToast(String(localized: "skin_toast_yaw \(index) \(yaw) \(limit)"))
+                    edit.presentToast(String(
+                        format: String(localized: "skin_toast_yaw %lld %.0f %.0f"),
+                        index, yaw, limit))
                 }
             }
             _ = try await AIMaskEditing.commitRasterMask(

@@ -479,7 +479,9 @@ private struct LibraryGridCellView: View {
                     if cullingBadge.hasBurst {
                         HStack(spacing: 3) {
                             Text(String(
-                                localized: "library_hint_burst_index \(cullingBadge.burstIndex) \(cullingBadge.burstSize)"))
+                                format: String(
+                                    localized: "library_hint_burst_index %lld %lld"),
+                                cullingBadge.burstIndex, cullingBadge.burstSize))
                                 .font(.caption2.weight(.medium))
                                 .monospacedDigit()
                                 .padding(.horizontal, 5)
@@ -531,7 +533,8 @@ private struct LibraryGridCellView: View {
                 // The S4 format-key spelling (%lld suffix) — the count is
                 // the badge's accessibility announcement.
                 .accessibilityLabel(Text(String(
-                    localized: "library_stack_members_hint \(stackBadge.size)")))
+                    format: String(localized: "library_stack_members_hint %lld"),
+                    stackBadge.size)))
                 .accessibilityIdentifier("library.grid.cell.stackBadge.\(row.id)")
             }
         }

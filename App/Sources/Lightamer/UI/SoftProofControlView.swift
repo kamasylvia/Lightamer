@@ -80,7 +80,9 @@ internal struct SoftProofControlView: View {
                 .foregroundStyle(softProofState.isActive ? LightamerColors.accent : LightamerColors.textSecondary)
             if softProofState.isActive {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(String(localized: "softproof_active_label \(softProofState.profile?.label ?? "")"))
+                    Text(String(
+                        format: String(localized: "softproof_active_label %@"),
+                        softProofState.profile?.label ?? ""))
                         .font(.system(size: 11, weight: .medium))
                         .lineLimit(1)
                     if softProofState.gamutCheck {

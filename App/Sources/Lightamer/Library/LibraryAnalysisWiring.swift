@@ -62,7 +62,9 @@ final class LibraryAnalysisHandle: BackgroundTaskHandle, @unchecked Sendable {
         }
         snapshot = .fraction(
             Double(progress.done) / Double(progress.total),
-            String(localized: "tasks_analysis_detail \(progress.done) \(progress.total)"))
+            String(
+                format: String(localized: "tasks_analysis_detail %lld %lld"),
+                progress.done, progress.total))
     }
 
     func cancel() async {

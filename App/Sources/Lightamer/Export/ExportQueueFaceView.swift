@@ -106,7 +106,9 @@ struct ExportQueueFaceView: View {
                     onRun()
                 } label: {
                     Label(
-                        String(localized: "export_face_add_selected \(targetsCount)"),
+                        String(
+                            format: String(localized: "export_face_add_selected %lld"),
+                            targetsCount),
                         systemImage: "square.and.arrow.up")
                 }
                 .disabled(!canRun)
@@ -125,7 +127,9 @@ struct ExportQueueFaceView: View {
                 faceRow(row)
             }
             if preview.more > 0 {
-                Text(String(localized: "export_face_more \(preview.more)"))
+                Text(String(
+                    format: String(localized: "export_face_more %lld"),
+                    preview.more))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("export.queue.more")
@@ -165,7 +169,9 @@ struct ExportQueueFaceView: View {
         let failed = jobRows.filter { ExportQueueFaceState.map($0.state) == .failed }
         if !failed.isEmpty {
             Label {
-                Text(String(localized: "export_face_failed_summary \(failed.count)"))
+                Text(String(
+                    format: String(localized: "export_face_failed_summary %lld"),
+                    failed.count))
             } icon: {
                 Image(systemName: "exclamationmark.triangle.fill")
             }

@@ -43,7 +43,9 @@ internal struct EDRControlView: View {
             // the warning line spells out the missing headroom.
             Group {
                 if headroomMonitor.hasEDRHeadroom {
-                    Text(String(localized: "edr_headroom_label \(String(format: "%.1f", headroomMonitor.headroom))"))
+                    Text(String(
+                        format: String(localized: "edr_headroom_label %@"),
+                        String(format: "%.1f", headroomMonitor.headroom)))
                         .foregroundStyle(Color.secondary)
                 } else {
                     Text("edr_no_headroom")
