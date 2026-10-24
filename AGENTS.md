@@ -435,6 +435,7 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 | F0'-prod | 壳交接翻转（NSApplicationDelegate + NSHostingView）/SwiftUI 壳退役/机器级单重活/D-6 根除（正本 `.work/gsd/phases/f0prime-prod/` + ARCHIVE F0/F0' spike 节） |
 | LENS-01 | Lensfun 收口（三态互斥探测/系数快照/投影四型/数据钉版/isNeutral 含 lensfun 态/reloadDefaults 三缝接线）（正本 `.work/gsd/phases/lens-01-lensfun/`） |
 | R12 | 修复批（M-1 CullingView pair 切换 pane 装载/.task id 身份；标记链 write face；F2-4 Settings repoint；R2 卫生 43 处）（正本 `.work/gsd/phases/r12-repairs/`） |
+| lumen-culling | 图库选片增强（schema v6 分析六列/BurstAnnotator/EyeClosureAnalyzer/LibraryAnalysisService/SmartPreviewStore float16 LRU/CullFace 选片视图/MaskRefine 采样式抠图/MCP refine_masks）（正本 `.work/gsd/phases/lumen-culling/`） |
 
 <!-- GSD:architecture-end -->
 
