@@ -1,0 +1,29 @@
+Working...
+# LUMEN-CULLING 终审结论：PASS / 0 blocking + 1 major + 4 minor + 8 obs
+
+终审人 omp 独占终审眼，computer-use 实机（AX walk.py + cliclick/CGEvent + screencapture + SQLite/MCP 机核）。对象 `2b841916..01249a6f`（A 8 + badge 修复 2 + B 7 + C 5 + BC 验收 1）。材料链全读（CONTEXT/三 PLAN/四 SUMMARY/四 DECISIONS/三 ACCEPTANCE/CHECKER/双 MANIFEST）。**LUMEN-CULLING 批放行**；major 为既有域回归非本批引入，挂账不拦定稿。
+
+## 实机抽验六面
+
+**a) 连拍徽章 ✓** — 8 TIFF 探针集（Omprobe/SER-OMP1，A/B 组±1s 连拍 + single-sharp/σ8 blur），Copy 导入 → 重开 ≤10s 8/8 stamp（sharpness 89.4×7/15.8×1，signature 256B）。网格：「连拍 1/3 ★」「2/3」「3/3」×2 组 + 「可能模糊」+ 零徽章行各一，与 DB 逐位一致。best 星落组首（全等分→组内序决胜，一/二路同表型）。
+
+**b) 智能相册四案 ✓** — JSON 注入（验后删）：sharpness≥50→计数 7→应用「共 7 张」+ chip；faces/eyesClosed eq 0→8/8；hasBurst eq 1→计数缺席 + 单击网格不动 typed 拒 = m-11 designed 降级（二路同表型），非缺陷。
+
+**c) 选片视图 ✓** — 右键「快速选片」→ 第三 face（头栏/单 Pane/胶片条 n/m+星/帮助行）。G 回图库 ✓（cull 8→0/grid 0→11）/ D 进编辑器 ✓（163 节点）/ 5 星 ✓（burst-a2 rating=5 落库）/ P ✓（flag=1；rating 列覆盖写 obs-3）/ ← ✓ / C 对比 ✓（左锐右糊双 Pane）/ Tab ✓ / ↑ 晋升 ✓（候选成选定 7/8）/ C 退出交接 ✓ / ↑ 组跳 ✓（7/8→6/8 前组首）/ Z 100% ✓（滚动条放大态+复位）。回图库 ★★★★★ + 高分组=1 双闭环。A/F 未单测（obs-4）；空格无进出绑定=派单口径误（obs-5）。
+
+**d) 蒙版精细化 △** — 负路径闭环：无主体供件 → toast「未检测到主体」→ refine 按钮 AXEnabled=False ✓；MCP 33 闭集 + controlNotHeld/invalidParams typed + acquire/release ✓。正路径未触发（两 Vision 臂 noSubject）→ minor-1，真机行留人工（算法/编排/MCP 测试面已有覆盖）。
+
+**e) Settings + gamma ✓** — 缓存页「智能预览 4,096 MB」+「自动精细化 AI 蒙版边缘」ON，零裸键；fineAuto 双向拨动落键（验后还原缺席）；RAW 解码输入色彩四行全本地化，`rawdecode_*` 零可见。
+
+**f) 回归 + CPU ✓** — D 进编辑器画布/直方图/胶片条全活，往返无崩；静置 0.8→0.6 六连平/RSS 267MB；零崩溃；sample 双轮闲置无死锁。缓存 80 entries 全 10-23 旧键零新增 = 预期内（Tier A 内嵌直读 + cull 内嵌合格 + has_edits 全 NULL → 三门未击发；obs-6/7）。
+
+## 分级
+
+- **blocking 0**。
+- **major 1**：Link 导入四连零行（同源 Copy 首轮 8/8）。非本批引入（导入面近改 M4-1-02/merge-stack，本批零触）；已排除掩码/白名单/guard/双实例/路径；表型静默零行（无 alert/日志）。挂账 R13/导入专项。
+- **minor 4**：①d 正路径缺 GUI 行（配方已给）；②承接 BC-1 台账失真；③承接 BC-2 MR_DEBUG；④承接 BC-3/4 + A minor-1..4（含任务条不回收本轮实证）。
+- **obs 8**：①分析趟导入会话不触发/重开愈；②面板 AX 驱动三注记；③P 整行覆盖写；④A/F 未单测；⑤空格口径误；⑥缓存零新键预期内；⑦实机命中行挂 validate；⑧承接 BC/A obs 无翻案。
+
+## 产物与还原
+
+唯一写产物：`.work/gsd/phases/lumen-culling/LUMEN-CULLING-ACCEPTANCE-OMP.md`（15697B，不 commit）+ `.work/gui-acceptance/lumen-culling/omp/` 16 幅（omp-00..15，gitignored 正本在工作树）。app 已退零残留；重活零残留；`mcp_server_enabled`/`mask.fineAuto` 还原缺席；recentProjects=OMPCULL；SmartAlbums 还原单 JSON；`mcp-endpoint.json` 已清；computer 配置改动已还原；跟踪面干净，HEAD `01249a6f` 未动。构建：-tuist 增量至含 T4（`settings_maskrefine` 6 命中），-dgzsvdww 正本未触。`--all` 未重跑（BC 已跑 4204/41/0，单重活纪律）。
