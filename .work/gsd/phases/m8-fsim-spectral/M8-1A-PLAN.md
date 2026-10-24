@@ -6,7 +6,7 @@ wave: 1
 depends_on: []
 autonomous: true
 requirements: ["charter = 本 phase CONTEXT.md（D-M8-1..8 + X1..X3/X6）——FSIM 光谱升维数据地基波", "research 正本 = phases/m8-fsim-spectral/RESEARCH.md（9b256482）§1.2（tc 表数学）/ §2（数据包与常量集）/ §3.3（资产缺口）/ §6.1 M8-1a 行", "OQ 裁决正本 = 同目录 CONTEXT.md（全按推荐 + 亲核登记八条——T1 范围以登记②六项清单为准）", "基线 4206/41/0（CONTEXT §亲核登记①证据链）；本 plan 分账 +18..24", "C 档停位 = 本 plan 执行+验收闭环后停汇报；确认后 M8-1b 起跑；执行排程在图库选片批验收链后（机器级单重活）"]
-success_criteria: "SC 全可机检——T1：FilmProfile additive 解码恰六项（logSensitivity/channelDensity/midscaleNeutralDensity/adaptationWindowParams/adaptationSurfaceParams/viewingIlluminant——CONTEXT 亲核登记②清单，tolerant decodeIfPresent + 默认缺键旧 JSON decode 逐字节零漂移专测）+ 28 张全量 decode 冒烟（谱形状 sanity：81 点/轴一致/值域带）；T2：常量资产五件落库（CMFs[81×3]/illuminant SPD 集/dichroic[81×3]/locus 多边形/拟合域常量——generated Swift + provenance 头）+ sanity 门（D65 白点 CMFs 积分 xy 散 ≤1e-6 带 / locus 闭合 / SPD 值域非负）；T3：SpectralTcFit Float64 拟合器（Jakob-Hanika sigmoid 三系数 + tri2quad 全域 192²）+ 质量门三件（覆盖率无 NaN/发散 cell + 邻 cell 系数梯度上限 + 白点积分散 ≤1e-6）+ 谱重建精度门（目标谱 vs 重建谱带——分级 1e-3 相对带）；T4：SpectralBuildEngine Float64 构建期全链（tc_lut 442KB + 中性配平 + PCHIP 33³ 印相/扫描表 + cmin/cmax 钳位面 + 常量块）+ 光域单元 golden（expose 积分 vs 独立复算 ≤1e-6；PCHIP vs 逐点精确臂 ≤带宽；中灰闭合通道散 ≤2e-3）+ NumPy 对拍 evidence + dt 同源对表 evidence；T5：登记 + 文档收口"
+success_criteria: "SC 全可机检——T1：FilmProfile additive 解码恰六项（logSensitivity [[Float]]（81×3）/ channelDensity [[Float?]]（81×3）/ midscaleNeutralDensity [Float?]（81）——后两字段 nullable 与 28/28 张 profile 实测含 null 一致〔channel_density 15-78/243、midscale 5-26/81〕，baseDensity [Float?] 先例同款 + null 语义投影 face 单源〔baseDensityProjection() 家族同位，review B1〕/ adaptationWindowParams（window 形：4 标量）/ adaptationSurfaceParams（surface 形：3×15 deg4）——typed 载体注明承载双形 / viewingIlluminant——CONTEXT 亲核登记②清单，tolerant decodeIfPresent + 默认缺键旧 JSON decode 逐字节零漂移专测）+ 28 张全量 decode 冒烟（谱形状 sanity：81 点/轴一致/值域带——null-aware：null 逐点保留非整档降级 + null 计数带申报，review B1）；T2：常量资产五件落库（CMFs[81×3]/illuminant SPD 集/dichroic[81×3]/locus 多边形/拟合域常量——generated Swift + provenance 头）+ sanity 门（D65 白点 CMFs 积分 xy 散 ≤1e-6 带 / locus 闭合 / SPD 值域非负）；T3：SpectralTcFit Float64 拟合器（Jakob-Hanika sigmoid 三系数 + tri2quad 全域 192²）+ 质量门三件（覆盖率无 NaN/发散 cell + 邻 cell 系数梯度上限 + 白点积分散 ≤1e-6）+ 谱重建精度门（目标谱 vs 重建谱带——分级 1e-3 相对带）；T4：SpectralBuildEngine Float64 构建期全链（tc_lut 442KB + 输入 gamut 压缩 remap 预折进表〔review M1〕+ 中性配平 + PCHIP 33³ 印相/扫描表 + cmin/cmax 钳位面 + 常量块）+ 光域单元 golden（expose 积分 vs 独立复算 ≤1e-6；PCHIP vs 逐点精确臂 ≤带宽；中灰闭合通道散 ≤2e-3）+ NumPy 对拍 evidence + dt 同源对表 evidence；T5：登记 + 文档收口"
 estimated_tests: "+18..24（T1 +2..3 / T2 +3..4 / T3 +5..7 / T4 +6..8 / T5 +2；越带申报理由）"
 test_bundles: [IOP, IOPParity]
 baseline: "4206/41/0（CONTEXT §亲核登记①——LUMEN-BC 4204 + r13 d2bcaf06 +2；HEAD 9b256482 = research docs-only 产线零漂移）"
@@ -109,19 +109,34 @@ files_modified:
 
 - **action**：
   1. `FilmProfile` additive 六字段：`logSensitivity: [[Float]]`（81×3）/
-     `channelDensity: [[Float]]`（81×3）/ `midscaleNeutralDensity:
-     [Float]`（81）/ `adaptationWindowParams: FilmProfileAdaptationParams?`
-     / `adaptationSurfaceParams: FilmProfileAdaptationParams?`（15 系数
-     deg4 族 typed 载体，tolerant）/ `Info.viewingIlluminant: String?`。
+     `channelDensity: [[Float?]]`（81×3）/ `midscaleNeutralDensity:
+     [Float?]`（81）〔review B1——两字段 nullable：28/28 张 profile 实测
+     含 null（channel_density 15-78/243、midscale_neutral_density
+     5-26/81）；非可选 `[[Float]]`/`[Float]` 对含 null JSON decode 即
+     throw、宽容降级门会把整字段降 nil；`baseDensity: [Float?]`
+     （FilmProfile.swift:171）同结构体先例同款〕/
+     `adaptationWindowParams: FilmProfileAdaptationParams?`（window 形
+     之一：4 标量）/ `adaptationSurfaceParams:
+     FilmProfileAdaptationParams?`（surface 形之二：3×15 deg4 族——typed
+     载体注明承载双形，tolerant）〔review B1〕/
+     `Info.viewingIlluminant: String?`。
      全部 `decodeIfPresent`（缺键 = nil，宽容惯例）；**encodeIfPresent
      同式**——缺键 profile 的 re-encode 逐字节零漂移专测。
-  2. 形状校验：轴一致性断言（logSensitivity/channelDensity 行数 ==
+  2. null 语义 = 投影/插值 face 单源〔review B1〕：channelDensity/
+     midscaleNeutralDensity 的 null 替换/插值消费一律经
+     `baseDensityProjection()` 同位投影家族（防每个消费点自带插值）；
+     T4 构建引擎消费两字段走同一 face。
+  3. 形状校验：轴一致性断言（logSensitivity/channelDensity 行数 ==
      wavelengths.count；midscale 同）在 typed init 门（违形 = nil 降级不
-     throw——M3-3-01 宽容同式）。
-  3. 测试（IOP bundle）：六项解码正例（真 profile fixture 抽 2 张：负片
-     + 相纸各一）+ 缺键旧形态 JSON decode→encode 逐字节零漂移负测 +
+     throw——M3-3-01 宽容同式；**逐点 null 不触发降级**——null 是合法
+     数据态非违形，review B1）。
+  4. 测试（IOP bundle）：六项解码正例（真 profile fixture 抽 2 张：负片
+     + 相纸各一——断言含 null 点逐点保留、非整档 nil，review B1）+
+     缺键旧形态 JSON decode→encode 逐字节零漂移负测 +
      28 张全量 decode 冒烟（81 点/轴一致/值域带 sanity——logSensitivity
-     有限值 + 值域 [-6,6] 量级带）。
+     有限值 + 值域 [-6,6] 量级带；**null-aware 断言**：两 nullable 字段
+     null 计数带申报〔channel_density 15-78/243、midscale 5-26/81 实测
+     域〕且非 null 点值域校验照常，review B1）。
 - **验收标准（机检）**：
   - 构建绿；`git diff --stat` 恰一产线文件（FilmProfile.swift）。
   - 缺键零漂移专测在册（decode→encode 字节恒等断言）。
@@ -221,10 +236,19 @@ Hanika 2019 论文数学节（sigmoid 参数化 + 拟合目标式；公开学术
      ——tc_lut[192²×3 f32] + print/scan PCHIP 表集（33³ + slopes +
      cmin/cmax）+ m_in/m_out/CAT/OkLab 常量块 + 曲线网格归一化面）：tc
      展开（T3 系数 → 谱 × `10^log_sensitivity` 折 adaptation_window ×
-     逐 cell 积分——81 波长循环只在构建期）；中性配平（midgray 链头跑
+     逐 cell 积分——81 波长循环只在构建期）；**输入 gamut 压缩 remap
+     预折进表**〔review M1——上游默认 on：`input_gamut_compress /* true
+     */`（spektra_sim.h:601，评审指称 spektrafilm.c:601 系 sim.h 微差；
+     RESEARCH §1.2 构建六段之⑥）——compress_xy_radial 数学面：径向 xy
+     Reinhard (0,1,6) 压向光谱轨迹多边形，new[tc]=old[compress(tc)] 预折
+     入 tc 展开的 cell 寻址；**白心 = proj_xy 居中纪律**（sim.c:3840-3843
+     注释明示居中错位会走样）；out-of-locus 场景色度是真实照片常态，
+     缺此步 = fetch 语义静默偏离上游默认〕；中性配平（midgray 链头跑
      得中灰密度谱 + 几何均值归一——RESEARCH §1.4 数学面）；印相/扫描
      表（81 波长精确积分 → 33³ Float64 → float 存储Built + PCHIP 预备
-     面）；黑白点拟合臂（默认关，参数面预留）。
+     面）；黑白点拟合臂（默认关，参数面预留）；**preflash 参数面预留**
+     〔review m7——`preflash_exposure /* 0 */`（sim.h:552）默认 0 恒等
+     关：v1 恒 0 不消费，typed 占位与黑白点臂同待遇，DECISIONS 注记〕。
   2. golden 测试（IOPParity bundle，*Golden* 命名）：expose 积分独立复算
      ≤1e-6（独立实现 = 测试内直积式复算，非引擎同函数）+ PCHIP 表 vs
      逐点精确臂偏差 ≤带宽（分级带终值 DECISIONS 申报）+ 中灰闭合（中灰
@@ -255,8 +279,11 @@ Hanika 2019 论文数学节（sigmoid 参数化 + 拟合目标式；公开学术
   3. `--bundle IOP` + `--bundle IOPParity` 定向全绿；ΔN 实数对账（预算
      +18..24）。
   4. 28 张全表构建冒烟测试（IOPParity）：全 profile 集构建耗时 + 内存
-     sanity（RESEARCH §4.3 probe ① 口径——tc 构建估 <100ms 级/表的量级
-     带 + 白点散；耗时上限带 = DECISIONS 申报）。
+     sanity（RESEARCH §4.3 probe ① 口径——tc 构建估**秒级/表量级带**
+     〔review M3③——原 <100ms 级估乐观 1-2 个量级：192²=36864 cell ×
+     Float64 非线性拟合 + 33³×2 套 81 波长积分 ≈5.8M 次超越函数，纯
+     Swift 串行合理量级秒级〕+ concurrentPerform 并行预期〔FilmPrintBake
+     家族晶格切片同款〕；实测终值 + 耗时上限带 = DECISIONS 申报）。
   5. SUMMARY（逐任务记账 + ΔN 终账 + 拟合质量门终值）+ DECISIONS（法务
      注记 X6 + fallback 分支判定〔若触发〕+ 各偏差）落盘。
   6. 汇报 + **C 档停**。
@@ -279,8 +306,10 @@ Hanika 2019 论文数学节（sigmoid 参数化 + 拟合目标式；公开学术
 - **kind 语义误配**：irradiance 单臂下 profile reference illuminant 缺失
   档（相纸类）→ 印相段消费 illuminant 集、负片段消费 reference——typed
   面显式分域，测试双臂覆盖。
-- **构建耗时超带**：192²×81 全域拟合若实测超 <100ms 级估 → DECISIONS 申
-  报 + 构建缓存面评估（M8-1b 载体消费形态不变——表是 per-sim 一次，非逐帧）。
+- **构建耗时超带**：192²×81 全域拟合若实测超秒级/表量级带估〔review
+  M3③——原 <100ms 级估已勘正〕→ DECISIONS 申
+  报 + 构建缓存面评估（CONTEXT X7 tc_lut 缓存 face——M8-1b/M8-2 载体消
+  费形态不变——表是 per-pair 缓存一次，非逐帧）。
 
 ## Checker 关注点（独立反向核输入）
 

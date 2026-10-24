@@ -6,13 +6,13 @@ wave: 2
 depends_on: ["M8-1a"]
 autonomous: true
 requirements: ["charter = 本 phase CONTEXT.md（D-M8-3/D-M8-4 + X3/X5 + H-M1/H-M2）——光谱核 GPU 执行面波", "research 正本 = phases/m8-fsim-spectral/RESEARCH.md（9b256482）§1.6（CPU/GPU 双路与 bit-exact 纪律）/ §4（性能预算与 corr 内存面）/ §4.3（probe 设计五件）/ §6.1 M8-1b 行", "OQ 裁决正本 = 同目录 CONTEXT.md（PCHIP 臂采纳 + coupler 降采样臂 + 三板斧逐项）", "基线带 = M8-1a 终态（预期 4224..4230）；本 plan 分账 +12..18", "C 档停位 = 本 plan 执行+验收闭环后停汇报；确认后 M8-2 起跑；执行排程在图库选片批验收链后（机器级单重活）"]
-success_criteria: "SC 全可机检——T1：SpectralFilmKernels.metal 七 per-pixel stage（expose/lograw/develop_corr/develop/print_expose/print_develop/scan）+ fused 两 dispatch 形（A=expose+lograw+corr 生成 / B=develop+print_expose+print_develop+scan）+ corr 降采样臂（1/4-1/8，probe ③ 裁决终值 DECISIONS 申报）+ 三板斧逐项落（显式 fma 钉形/host double 单次取倒 rounded-to-float/共享 log2-exp2 多项式——host 侧常量面 import 自 M8-1a 引擎文件，MSL 侧同表双落笔）+ PCHIP 单调插值（8-cell hermite + slopes/cmin/cmax 钳位）+ 2D Mitchell cubic（B=C=1/3 反射边界）+ NaN 硬化（cubic_base_fraction 落低支/Y=0→xy=0×bb=0）；T2：SpectralPayloads 表载体（tc_lut texture2d f32 442KB + PCHIP 表 buffer 集 + 常量块 buffer）+ SpectralBuildEngine→GPU 上传面（L014 fence 纪律）+ nil-payload blit identity degrade 面预备（M8-2 消费）；T3：bit-exact 断言逐项（CPU Float64 参考 vs kernel float 分歧带门——表构建逐位 / 逐像素 ≤1e-6 带域 / 分段边界专项例×3 板斧各一专项）；T4：probe 批五件（①tc 构建耗时/白点散 ②kernel microbench 合成 ramp+真图 100MP 全帧+分段 signpost ③RSS 峰值 corr 两方案对照 ④pristine/strength-0 基线+光谱臂新 ramp 哨兵计算 ⑤钉形 vs 裸形分歧度量）——LIGHTAMER_PERF_PROBE + XCTSkipUnless + L014 fence；T5：登记 + 文档收口"
+success_criteria: "SC 全可机检——T1：SpectralFilmKernels.metal 七 per-pixel stage（expose/lograw/develop_corr/develop/print_expose/print_develop/scan——expose 的 tc fetch 语义含构建期预折的输入 gamut 压缩 remap〔review M1〕）+ fused 两 dispatch 形（A=expose+lograw+corr 生成 / B=develop+print_expose+print_develop+scan）+ corr 降采样臂（1/4-1/8，probe ③ 裁决终值 DECISIONS 申报）+ 三板斧逐项落（显式 fma 钉形/host double 单次取倒 rounded-to-float/共享 log2-exp2 多项式——host 侧常量面 import 自 M8-1a 引擎文件，MSL 侧同表双落笔）+ PCHIP 单调插值（8-cell hermite + slopes/cmin/cmax 钳位）+ 2D Mitchell cubic（B=C=1/3 反射边界）+ NaN 硬化（cubic_base_fraction 落低支/Y=0→xy=0×bb=0）+ 文件头 GPL 归属块与 NOTICE 登记行在库〔review m5〕；T2：SpectralPayloads 表载体（tc_lut texture2d rgba32Float〔alpha pad，体积门按 442KB 量级——review m9〕+ PCHIP 表 buffer 集 + 常量块 buffer）+ SpectralBuildEngine→GPU 上传面（L014 fence 纪律）+ nil-payload blit identity degrade 面预备（M8-2 消费）；T3：bit-exact 断言逐项（CPU Float64 参考 vs kernel float 分歧带门——表构建逐位 / 逐像素 ≤1e-6 带域 / 分段边界专项例×3 板斧各一专项）；T4：probe 批五件（①tc 构建耗时/白点散 ②kernel microbench 合成 ramp+真图 100MP 全帧+分段 signpost ③RSS 峰值 corr 两方案对照 ④pristine/strength-0 基线+光谱臂新 ramp 哨兵计算 ⑤钉形 vs 裸形分歧度量）——LIGHTAMER_PERF_PROBE + XCTSkipUnless + L014 fence；T5：登记 + 文档收口"
 estimated_tests: "+12..18（T1 +2..3 / T2 +2..3 / T3 +3..5 / T4 +4..6〔skip 族〕/ T5 +1；越带申报理由）"
 test_bundles: [IOPParity]
 baseline: "M8-1a 终态带 4224..4230（基线 4206/41/0 + 1a 分账；本 plan 开工前亲核 M8-1A-SUMMARY 实数）"
 expected_all: "M8-1a 终态 + ΔN（本 plan 终态带 4236..4248；--all 归 M8-3 收口轮统一对账——本 plan 验收 = 构建 + 定向 bundle〔IOPParity〕+ probe 报告）"
 red_lines:
-  - "共用红线正本 = CONTEXT §四 plan 红线 front-matter 17 条（本 plan 高相关 = 红线 2 封存面〔新 .metal 为豁免正业、film_subrun.metal 零 diff〕/ 红线 7 machine-guard+排程 / 红线 8 probe 纪律 / 红线 14 测试落域）。"
+  - "共用红线正本 = CONTEXT §四 plan 红线 front-matter 17 条（本 plan 高相关 = 红线 2 封存面〔新 .metal 为豁免正业、film_subrun.metal 零 diff〕/ 红线 7 machine-guard+排程 / 红线 8 probe 纪律 / 红线 14 测试落域 / 红线 16 GPL 移植合规〔review m5——kernel 族是本批最大 GPL 衍生面：.cl→MSL 移植版权头 + Modified by Lightamer + NOTICE 登记纪律〕）。"
   - "产线触碰面 = 新建 SpectralFilmKernels.metal + SpectralPayloads.swift——既有 FilmSubRunKernels.metal / FilmTailPolicy.swift / PixelPipe.swift / RenderProcess.swift 本 plan 零 diff（dispatch 编排/换臂归 M8-2；本 plan kernel 经独立测试宿主路径验证）。"
   - "三板斧是 H-M1 消解本体非风格项：kernel 内一切矩阵/累加显式 fma；一切倒数 host Float64 一次；log2/exp2 共享多项式——T3 各配专项断言，缺一 = 收口门拒绝。"
   - "probe 读钟前 queue fence（L014——无 fence 计时 = 假数）；RSS 口径 = /usr/bin/time -l ru_maxrss；8G 门 + MEMFAIL 兜底；corr 全幅方案只作 probe 对照臂，产线臂 = 降采样（H-M2）。"
@@ -104,7 +104,11 @@ host 侧共享多项式常量面——MSL 侧同表双落笔的另一半）； F
 - **action**：
   1. `SpectralFilmKernels.metal`：七 per-pixel stage 函数（expose = m_in
      mat + Σxyz=Y + xy 互倒〔host 预倒值〕+ tri2quad + 16-tap Mitchell
-     cubic 2D gather〔B=C=1/3 反射边界〕+ ×Y×ev_scale；lograw = 共享
+     cubic 2D gather〔B=C=1/3 反射边界〕+ ×Y×ev_scale；**tc fetch 语义 =
+     输入 gamut 压缩 remap 已由 M8-1a T4 预折进表——运行期零额外 remap
+     步**〔review M1——上游默认 on（input_gamut_compress，spektra_sim.h:
+     601），预折入表即上游同构形态；kernel 面无 remap 代码，fetch 走已压
+     缩域寻址〕；lograw = 共享
      log2 多项式；develop_corr = silver×coupler 矩阵〔fma 钉形〕+ Langmuir
      供体侧；develop = (lograw−corr) 256 点 1D 线性查表；print_expose =
      PCHIP 3D + log 域印相曝光加法；print_develop = 3× 1D 查表；scan =
@@ -128,6 +132,9 @@ host 侧共享多项式常量面——MSL 侧同表双落笔的另一半）； F
     其余全仓 .metal 零 diff）。
   - 7 stage 函数 + A/B fused 入口 + corr 降采样 pass 在库（grep 计数）。
   - NaN 硬化三例在测试在册（T3 消费）。
+  - GPL 归属机检〔review m5〕：`SpectralFilmKernels.metal` 文件头 GPL
+    归属块（dt 衍生 + `Modified by Lightamer` 标注）与 NOTICE 登记行
+    在库（grep 双断言——红线 16 纪律）。
 - **commit**: `feat(m81b): port spectral metal kernel family`
 - **回滚与偏差申报要求**：回滚 = revert 单 commit（新文件，零既有面差）；
   偏差（fused 边界切分/降采样 pass 形态/常量块布局）= DECISIONS 申报；
@@ -142,7 +149,9 @@ build 期构建运行期只读）；`SpectralBuildEngine.swift`（SpectralFilmTa
 
 - **action**：
   1. `SpectralPayloads.swift`：`SpectralGPUPayloads` 载体（tc_lut
-     texture2d float3 442KB + print/scan PCHIP 表 buffer 集〔lut+slopes+
+     texture2d **rgba32Float（alpha pad）或 buffer**〔review m9——Metal 无
+     float3 像素格式；形态二选一与 kernel 消费签名一致，体积门按 442KB
+     量级弹性措辞〕 + print/scan PCHIP 表 buffer 集〔lut+slopes+
      cmin/cmax〕+ 曲线网格 + 常量块 buffer〔m_in/m_out/CAT/OkLab/inv
      步长族——host double 一次取倒 rounded-to-float〕）+ build/upload
      面（`SpectralBuildEngine` 表 → GPU 资源；upload 后读回比对门测试
@@ -160,7 +169,8 @@ build 期构建运行期只读）；`SpectralBuildEngine.swift`（SpectralFilmTa
 - **commit**: `feat(m81b): add spectral gpu table payloads`
 - **回滚与偏差申报要求**：回滚 = revert 单 commit；偏差（载体拆分/常量
   块对齐形态）= DECISIONS 申报；**禁运行期写表**（表只读纪律）；**禁
-  texture3d 形态漂移**（tc_lut = texture2d×float3、PCHIP = buffer——与
+  texture3d 形态漂移**（tc_lut = texture2d rgba32Float〔alpha pad——
+  Metal 无 float3 像素格式，review m9〕或 buffer、PCHIP = buffer——与
   kernel 消费签名一致）。
 
 ## T3 — CPU/GPU bit-exact 断言（三板斧逐项 + 分歧带门）

@@ -124,9 +124,13 @@ assembleFilmPayloads/runFilmLeg 现状）；`FilmTailPolicy.swift:197-331`
      改）+ descriptor probe 同工厂跟随确认（零改确认门——probe 走
      assembleFilmLeg 同路径，核换臂后自动跟随；response 读数随核变 =
      by design 登记）。
-  4. 测试（IOPParity）：分叉断言（v1 文档 → 密度 payload 形；v2 文档 →
-     光谱 payload 形）+ 冻结臂零 diff（v1 路径构造的 payload 字节与
-     bump 前基线恒等）+ probe 跟随冒烟 + nil-payload degrade 双臂。
+  4. 测试（IOPParity）：分叉断言（**resolving 全域 → 密度 payload 形——
+     含 rawValue=2 clamp 面**〔review m4——T1 时序内 `all=[.v1]`，
+     `resolving(2)` forward-clamp 回 v1，「v2 文档 → 光谱 payload 形」
+     断言在本任务不可能为真（光谱臂代码亦无从挂载），后移 T4 action 5；
+     v1 文档 → 密度 payload 形照常断言〕）+ 冻结臂零 diff（v1 路径构造
+     的 payload 字节与 bump 前基线恒等）+ probe 跟随冒烟 + nil-payload
+     degrade 双臂。
 - **验收标准（机检）**：
   - 构建绿；`git diff --stat` 产线文件 ⊆ {PixelPipe.swift,
     FilmTailPolicy.swift, SpectralPayloads.swift}。
@@ -153,8 +157,10 @@ FilmRuntimeSolve 现状——键形/LRU 8/RECORD-terms-consumption 契约亲核�
 ——冻结不改）；CONTEXT D-M8-8 + X6。
 
 - **action**：
-  1. 光谱域 AUTO 核求解函数（构建期/求解期 Float64——消费 T2 引擎积分
-     面）：中性命中目标 = 中灰印相反射中性（几何均值配平——RESEARCH
+  1. 光谱域 AUTO 核求解函数（构建期/求解期 Float64——消费 M8-1a T4
+     SpectralBuildEngine 积分面〔review m6——原文「T2 引擎」指称错位：
+     引擎 = 1a T4，1a T2 = 常量资产，两头不沾〕）：
+     中性命中目标 = 中灰印相反射中性（几何均值配平——RESEARCH
      §1.4 数学）；K 标定 = session 系统操作点光谱域重标（中灰灰阶误差
      恰 0 纪律平移——RFC-028 我方域形态）。
   2. `FilmSolveCache` 键形不变 + `modeTag` 扩光谱段（光谱域 tag 与密度域
@@ -220,10 +226,15 @@ doc-comment = 本任务执行正本）；CONTEXT §X4；M6-2 RESEARCH-NOTES（�
   4. 缓存折键「非 legacy 才折」落地：光谱臂 policyTag 升光谱段（终式 =
      `"lightamer.film.subrun.v2-spectral"`——X4 钉死形态；折叠序 =
      既有 seed 四项序内 tag 段替换，序本身零改）；v1/legacy 档 tag 不变
-     → 键字节恒等。
+     → 键字节恒等。**DECISIONS 同批登记收窄差**〔review m1〕：fold
+     discriminator = resolved arm（光谱/密度臂判别），**窄于
+     RenderProcess header `rawValue > 0` 字面形**（:41-43 字面形含 v1
+     折值）——v1 键冻结是 filmRampPlaneHash 恒等主门要求，本条 = charter
+     契约的修订面申报非字面执行。
   5. 测试（Layers）：账本表驱动（all 序/current/clamp 四域/processVersion
      反查）+ mint 升号写档断言 + 折键负测（v1 文档 seed 与 bump 前基线
-     逐位恒等——FilmDeterminism 基线值消费）。
+     逐位恒等——FilmDeterminism 基线值消费）+ **分叉臂断言（v2 档 → 光
+     谱 payload 形——T1 后移断言，bump 后为真）**〔review m4〕。
 - **验收标准（机检）**：
   - 构建绿；`git diff --stat` 恰 RenderProcess.swift + AGENTS.md。
   - exhaustive switch 编译通过 = 分叉点全覆盖的编译期证明。
@@ -286,8 +297,10 @@ SUMMARY/DECISIONS（光谱臂 ramp 哨兵值 + 分级带）；AGENTS.md「M2-8 �
      导出递缝冒烟（$jobFilmTail 零改确认——导出面走查归 M8-3 gui 批，
      此处仅定向 bundle 面）。
   5. SUMMARY（逐任务记账 + ΔN 终账 + probe/峰 RSS 引用）+ DECISIONS（
-     分叉点登记〔五件套之⑤〕+ policyTag 终式 + K 标定终值 + 各偏差）
-     落盘。
+     分叉点登记〔五件套之⑤〕+ policyTag 终式 + **折键收窄差登记〔
+     review m1——fold discriminator = resolved arm，窄于 header
+     `rawValue > 0` 字面形；v1 键冻结 = 主门要求〕** + K 标定终值 + 各
+     偏差）落盘。
   6. 汇报 + **C 档停**。
 - **验收标准（机检）**：定向 bundle 全绿零回归；Project.swift diff = 恰
   五行数组插入；BUNDLE-MAP 在库；tuist generate 后无生成物入 git；

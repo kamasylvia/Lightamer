@@ -7,7 +7,7 @@ depends_on: ["M8-2"]
 autonomous: true
 requirements: ["charter = 本 phase CONTEXT.md（D-M8-6/D-M8-7/D-M8-8 + 红线 4/11/13）——全阶段闭环波", "research 正本 = phases/m8-fsim-spectral/RESEARCH.md（9b256482）§3.1（descriptor 同工厂跟随）/ §5 OQ-6/7/8 / §6.1 M8-3 行", "OQ 裁决正本 = 同目录 CONTEXT.md（UI 零新增 + adaptation 不暴露 + solve gain 钉死 + NOTICE 批修）；M6-2 §6 迁移 UX 挂账正主在本 plan 落地", "基线带 = M8-2 终态（预期 4256..4274）；本 plan 分账 +10..14；全套 --all 对账 = 本 plan 收口轮（基线 4206/41/0 → 终值带 4266..4288）", "C 档停位 = 本 plan 闭环 = phase 收口汇报（VALIDATION 前停——verify-work 结论给用户过目）"]
 success_criteria: "SC 全可机检——T1：UI 零新增断言（Film 面板控件清单零 diff——面板视图文件 diff 行号域 = 零新增控件/零新增 section；readout 数值随核变 = 非 UI 面登记）+ adaptation 不暴露机检（bandwidth/surface/表选择器在 App/ 零命中 + UserDefaults 零新键断言 + build 期常量面 grep）；T2：descriptor/probe 跟随核验（FilmDescriptorProbe 走 assembleFilmLeg 同工厂——v2 档 probe 输出在案 + ISO 6846 归约/面板数学零改断言 + response 读数变化登记 by design）；T3：迁移 UX（「Update to Current Process」= 面板按钮 + 确认 sheet〔L057 缝——sheet 非 runModal〕+ document 级 process 升 2 单 discrete commit + 历史键族 history_process_migrate + 旧档零迁移语义确认〔frozen 恒可选〕）；T4：曝光语义钉死（exposureEv solve gain 负测组 DECISIONS 裁决登记——D-M8-8 终账）+ NOTICE 消费披露行升格（逐波长材料链语义）+ 用户可见措辞升格「光谱重建材质模拟（逐波长），非场景光谱重放」+ AGENTS/M3-2 历史文档勘误行追加〔原文不改〕+ MANIFEST 对账零漂移确认；T5：全套 --all 收口（orchestrator 批准制 + machine-guard + caffeinate -dis + 8G 门 + MEMFAIL 机检 + parentage 纪律）+ ΔN 终账对账（4206 → 4266..4288 + skip 逐族申报）+ gui 走查证据（.work/gui-acceptance/m8/ MANIFEST）；T6：SUMMARY/DECISIONS + VALIDATION 前停"
-estimated_tests: "+10..14（T1 +2..3 / T2 +1..2 / T3 +4..5 / T4 +2..3 / T5 对账零增量〔--all 实测数即终账〕/ T6 0；越带申报理由）"
+estimated_tests: "+10..14（T1 +2..3 / T2 +2..3〔review M2——原 +1..2 致行和 9..13 ≠ 表称 +10..14，+1 对齐；行和复核 2..3+2..3+4..5+2..3 = 10..14 ✓〕/ T3 +4..5 / T4 +2..3 / T5 对账零增量〔--all 实测数即终账〕/ T6 0；越带申报理由）"
 test_bundles: [App, IOPParity]
 baseline: "M8-2 终态带 4256..4274（基线 4206/41/0 + 1a + 1b + 2 分账；本 plan 开工前亲核 M8-2-SUMMARY 实数）"
 expected_all: "全套终值带 4266..4288（4206/41/0 + ΔN 60..82；skip 41 + 1b probe 族 + 本批零 skip 增量——逐族申报；--all = orchestrator 批准制，本 plan 收口轮统一对账）"
@@ -17,7 +17,7 @@ red_lines:
   - "历史文档原文不改：NOTICE 披露行 = 升格语义非新增条目（亲核登记⑦）；AGENTS M3-3 节/M3-2 RESEARCH-NOTES = 勘误行追加；Resources/FilmProfiles/ profile JSON 与 neutral_print_filters 字节零动（MANIFEST 对账）。"
   - "旧档零迁移语义：process ≤ 1 文档恒密度核冻结渲染；迁移 = 用户显式动作一次 commit，无自动迁移无后台批量；迁移不可逆面 = 无（process 是渲染代际非数据变换，DECISIONS 登记说明）。"
 files_modified:
-  - App/Sources/Lightamer/UI/Inspector/FilmPanelView.swift         # T3：迁移按钮 + 确认 sheet（T1 核验零 diff 于控件清单——按钮为唯一新增元素）
+  - App/Sources/Lightamer/UI/Shell/FilmPanelView.swift            # T3：迁移按钮 + 确认 sheet（T1 核验零 diff 于控件清单——按钮为唯一新增元素；路径勘正 review M4——真身在 UI/Shell/ 非 UI/Inspector/，实测亲核）
   - App/Sources/Lightamer/EditorState+FilmMigration.swift          # T3：新建——迁移动作（document 级 process 升 2 单 discrete commit；App 侧 EditorState 域）
   - Resources/Localizable.xcstrings                                # T3/T4：迁移 UX 键族 + 措辞键值面（尾块纯插入）
   - Resources/FilmProfiles/NOTICE                                  # T4：消费披露行升格（§2 语义面——byte-verbatim 范围仅指 profiles/ 数据件，NOTICE 是我方文件可改）
@@ -59,7 +59,7 @@ files_modified:
 | 任务 | 测试增量 | 构成 | 落点 |
 |---|---|---|---|
 | T1 UI 零新增确认 | **+2..3** | 控件清单零 diff 断言 + adaptation/表选择器/UserDefaults 零命中 grep 组 | App（FilmPanelSpectralUITests） |
-| T2 probe 跟随核验 | **+1..2** | v2 档 probe 输出在案 + 面板数学零改断言 | IOPParity |
+| T2 probe 跟随核验 | **+2..3**〔review M2——+1 对齐行和〕 | v2 档 probe 输出在案 + 面板数学零改断言 + 读数对照记录测试 | IOPParity |
 | T3 迁移 UX | **+4..5** | 迁移动作模型（升 2 commit/键族/不可重复迁移守卫）+ 确认 sheet 挂载 + 零自动迁移负测 | App（FilmPanelSpectralUITests） |
 | T4 曝光语义 + NOTICE | **+2..3** | exposureEv 负测组终账 + 措辞键值面断言 + MANIFEST 对账 | IOPParity（SpectralExposureSemanticsTests） |
 | T5 --all 收口 | **0** | 实测数即终账（对账式非增量） | — |
@@ -88,8 +88,9 @@ files_modified:
   （五件套终账 + 分叉点登记——本 plan 消费）
 - `.work/gsd/phases/m6-2-process-version/RESEARCH-NOTES.md` §6（迁移 UX
   挂账正本——本 plan 兑现）
-- `App/Sources/Lightamer/UI/Inspector/FilmPanelView.swift` 全文（M3-3-03
-  最小面正本——零新增的核对基线）；`Resources/FilmProfiles/NOTICE` 全文
+- `App/Sources/Lightamer/UI/Shell/FilmPanelView.swift` 全文（M3-3-03
+  最小面正本——零新增的核对基线；路径勘正 review M4——真身在 UI/Shell/）；
+  `Resources/FilmProfiles/NOTICE` 全文
   （披露行现文亲核）
 - `.work/LESSONS.md` L041（tuist 末位）+ L057（PanelPresentation 缝正本）
   + AGENTS.md「L057 面板呈现约定」+「M2-9 架构增量」F-2（Localization

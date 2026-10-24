@@ -15,10 +15,13 @@
 > 盘点（§1/§2/§3），charter 无新增 research 面 → **M8-0 并入 planner 批，
 > 本批交付 = charter（本文件）+ 4 plan（M8-1a / M8-1b / M8-2 / M8-3）**。
 >
-> **特别登记一（film sub-run 自有面豁免，封存面适配注记）**：M7-6 封存面清单
-> 中 `PixelPipe` / `FilmTailPolicy`（含 FilmMethodBox）/ `FilmPrintBake` /
-> `FilmSubRunKernels.metal` 的 **film leg 自有区段是本批正业、不在封存清单**
-> （LENS-01「lens 域自有 kernel 不在封存清单」同款适配注记）；但
+> **特别登记一（film sub-run 自有面豁免，封存面适配注记）**：M7-6/M3-3 封存
+> 清单邻接面（review m2——引称勘正：四名中仅 `PixelPipe` 在 M7-6 封存清单
+> 在册）`PixelPipe` / `FilmTailPolicy`（含 FilmMethodBox）/ `FilmPrintBake`
+> 的 **film leg 自有区段是本批正业、不在封存清单**
+> （LENS-01「lens 域自有 kernel 不在封存清单」同款适配注记）；**`FilmSubRunKernels.metal`
+> 不在豁免面——恒零 diff（M8-1b/M8-2 冻结红线钉死），光谱核正业 = 新建
+> `SpectralFilmKernels.metal`**（review m2——与两执行 plan 矛盾消解）；但
 > `runTerminalTails` 三 leg 编排骨架 / seed 折叠序（`FilmTailAssembly.seed`
 > 四项 canonical 序）/ FilmMethodBox 对外面（iopOrder 74.0 / nil-payload blit
 > identity / instances per-run 载体）/ `TerminalTailPolicy` 3×2 降出矩阵 /
@@ -207,9 +210,14 @@ CPU/GPU bit-exact 断言 + 100MP perf probe（coupler 降采样臂 RSS 实测）
   期面）；工作原色 = Rec2020、光源集 = profile reference/viewing illuminant
   ∪ enlarger/observer 集（X 资产面）。
 - **拟合器形态** = 构建期 Swift Float64 纯函数（`SpectralTcFit`），输入 =
-  常量资产 + 胶片 sens 数据，输出 = 系数表（192²×3 f32 量级）；**产物作为
-  构建期中间量不落包资产**（每次 per-sim build 重算——表常驻面 =
-  积分后的 442KB tc_lut，系数表只在构建期活）；质量门 = 覆盖率（全域无
+  常量资产，输出 = 系数表（192²×3 f32 量级）；**拟合目标谱 = 色度域
+  metameric 构造式，系数表 film 无关共享——胶片 sens 数据不入拟合目标，
+  仅入质量门与下游 per-sim 积分**（review M3①——X1/X2 矛盾消解：X2
+  「换光源/感光度适配零重拟合」只在系数表与 film 脱钩时成立；T3 正文
+  论文式构造式即共享形，本句为钉死正本）；**产物作为构建期中间量不落包
+  资产**（每次 per-sim build 重算——表常驻面 =
+  积分后的 442KB tc_lut，系数表只在构建期活；跨 run 缓存 face = X7）；
+  质量门 = 覆盖率（全域无
   NaN/发散 cell）+ 平滑度（邻 cell 系数梯度上限）+ 白点积分散 ≤1e-6 带。
 - **直接谱表形态否决**（D-M8-2 细化，见 X1 附注）。
 
@@ -222,7 +230,7 @@ CPU/GPU bit-exact 断言 + 100MP perf probe（coupler 降采样臂 RSS 实测）
   上游存谱的唯一理由 = 表跨胶片共享而适配折入 build；我方系数表形态同样
   达成「模型共享 + per-sim 适配」，以 1/27 体积）。
 - 运行期两路等价（RESEARCH §OQ-2 注记在案）：GPU 只见积分后 tc_lut，系数
-  表永不进运行期。
+  表永不进运行期。tc_lut 跨 run 缓存 face = X7（review M3②）。
 - 理由一句：系数表是谱表的无损压缩 + 重参数化自由度（换光源/感光度适配零
   重拟合）。
 
@@ -260,8 +268,10 @@ CPU/GPU bit-exact 断言 + 100MP perf probe（coupler 降采样臂 RSS 实测）
 
 ### X5 CPU/GPU bit-exact 三板斧移植（M8-1b 逐项落 + golden 门定级输入）
 
-1. **显式 fma 钉形**：所有矩阵乘/累加显式 fma（Swift 侧 `a &* `→
-   `fma()`/MSL `fma()`），禁裸 `a*b+c*d` 依赖编译器 contract（上游
+1. **显式 fma 钉形**：所有矩阵乘/累加显式 fma（Swift 侧显式 `fma()` 调用
+   ——禁依赖编译器 contract 合并；MSL 侧 `fma()`）〔review m8——原文
+   "`a &* `→`fma()`" 残缺：`&*` 是整型溢出算子，Float 无此形〕，禁裸
+   `a*b+c*d` 依赖编译器 contract（上游
    spektrafilm.cl:91-103 注释：host `-ffp-contract=off` honored、device 不
    honored → 1 ULP 级分歧）。
 2. **host double 单次取倒**：一切倒数（`inv_le_step` / enl/scan inv_range /
@@ -287,6 +297,19 @@ CPU/GPU bit-exact 断言 + 100MP perf probe（coupler 降采样臂 RSS 实测）
   charter 法务注记（晨审可推翻；推翻 = 产物随 CC BY-SA 归属 → NOTICE 升格）。
 - **曝光语义** = D-M8-8（solve gain 消费层；M8-2 实现随 solve 重推导、
   M8-3 负测钉死 + DECISIONS 裁决登记）。
+
+### X7 tc_lut 运行期缓存 face（M8-2 执行；review M3② 新增裁决）
+
+- **裁决**：tc_lut（含其上游拟合 + 展开 + 积分全成本——构建秒级/表量级
+  带，M3③ 重估）**禁每 run 重建、禁逐帧重建**；跨 run 缓存 face =
+  **FilmPrintBake 家族同位 per-pair LRU**（进程内、Float64 构建一次、键 =
+  materialPair 域 fnv 哈希——对齐 FilmSolveCache 键形先例、bakeCount
+  可观测同形），由 **M8-2 T3 bake 家族承载 tc_lut 槽位**（与 print/scan
+  PCHIP 槽并存、各自 LRU 槽互不挤兑；容量 DECISIONS 申报），M8-2 T1 光谱
+  臂 payload 构造消费缓存命中面。禁执行者临场发明缓存形态（越权面）——
+  本条 = 唯一缓存 face。
+- 理由一句：与密度域 65³ bake per-pair LRU 机制同位，X2「零重拟合」的
+  运行期兑现点（每 run 秒级重建不可接受、每会话首帧大停顿同样不可接受）。
 
 ## Hazards（三条，登记 + 消解绑定）
 
@@ -371,8 +394,10 @@ CPU/GPU bit-exact 断言 + 100MP perf probe（coupler 降采样臂 RSS 实测）
 
 ## 四 plan 红线 front-matter（共用正本，四 plan 逐条引用）
 
-1. **FIX2③ = `App/Sources/Lightamer/Mcp/McpServerController.swift` 零
-   diff**（MCP 面与本批零交集，四 plan 全程不触）。
+1. **FIX2③ = `App/Sources/Lightamer/Library/LibraryProjectController.swift`
+   零 diff**（AGENTS.md:395 现行登记——连续六波亲证；review m3——M7 旧指称
+   McpServerController 勘正）；`McpServerController.swift` 零 diff 延续面
+   同保（M7-4 起惯例，MCP 面与本批零交集，四 plan 全程不触）。
 2. **封存面零 diff（M7-6 清单 + film 自有面适配注记）**：`DrtRecord/
    TerminalTailPolicy/DrtTailAssembly/DrtPanelModel/DrtPanelView/DrtEotf/
    Lut3dKernels.metal/ExportQueueContract/六格式导出矩阵（ExportFormatSpec·
@@ -380,8 +405,9 @@ CPU/GPU bit-exact 断言 + 100MP perf probe（coupler 降采样臂 RSS 实测）
    零 bump v11）/HistoryStack/HistoryHash/PipelineDocument（Core）/V50Order/
    GradeCatalog（NodeOwnershipCatalog）/Registry/ModuleInstance` 零 diff；
    **film sub-run 自有面豁免**（特别登记一清单：FilmTailPolicy / FilmPrintBake /
-   FilmSubRunKernels.metal / PixelPipe film-leg 组装区 / 新建
-   SpectralFilmKernels.metal 与 Spectral 载体 = 本批正业）——但
+   PixelPipe film-leg 组装区 / 新建
+   SpectralFilmKernels.metal 与 Spectral 载体 = 本批正业；**`FilmSubRunKernels.metal`
+   恒零 diff 不在豁免面**——review m2）——但
    `runTerminalTails` 编排骨架 / seed 折叠序 / FilmMethodBox 对外面零改；
    `Project.swift` 仅允许测试数组段与资源段 diff；`RenderProcess.swift` 仅
    允许 v2 bump 面 diff（M8-2）；HistoryHash 零 diff = process 不折 history
@@ -441,7 +467,7 @@ CPU/GPU bit-exact 断言 + 100MP perf probe（coupler 降采样臂 RSS 实测）
 | M8-1a | +18..24 | 4224..4230 | 谱解码 +2..3 / 常量资产 sanity +3..4 / 拟合器 +5..7 / 构建期引擎 golden +6..8 / 收口 +2 |
 | M8-1b | +12..18 | 4236..4248 | kernel golden +2..3 / 表载体 +2..3 / bit-exact 三板斧 +3..5 / probe 批 +4..6〔skip 族〕/ 收口 +1 |
 | M8-2 | +20..26 | 4256..4274 | 换臂分叉 +2..3 / solve 光谱域 +4..5 / bake PCHIP +3..4 / process v2 +3..4 / 双臂冻结 golden +5..6 / sidecar+折键负测 +3..4 / 收口 0 |
-| M8-3 | +10..14 | 4266..4288 | UI 零新增断言 +2..3 / probe 跟随核验 +1..2 / 迁移 UX +4..5 / 曝光语义钉死 +2..3 / --all 对账 0 / 收口 0 |
+| M8-3 | +10..14 | 4266..4288 | UI 零新增断言 +2..3 / probe 跟随核验 +2..3（review M2——原 +1..2 致行和 9..13 ≠ 表称 +10..14，+1 对齐；行和复核 2..3+2..3+4..5+2..3 = 10..14 ✓；终值带 4266..4288 复核不变 4206+60=4266 / 4206+82=4288）/ 迁移 UX +4..5 / 曝光语义钉死 +2..3 / --all 对账 0 / 收口 0 |
 | **合计** | **+60..82** | **4266..4288** | skip 带内增量 = 1b probe 族，逐族申报 |
 
 ## 晨审推翻点索引（可推翻面速查）
@@ -459,3 +485,43 @@ CPU/GPU bit-exact 断言 + 100MP perf probe（coupler 降采样臂 RSS 实测）
   全域重标定）。
 - **X2**：系数表+构建期展开 ↔ 直接谱表（12MB/表 × 资产膨胀）。
 - **X6 归属注记**：自拟合产物非 SA 衍生 ↔ 按 CC BY-SA 归属升格。
+
+## 评审回注勘误登记（2026-10-24 plan fixer 批；评审正本 = 同目录
+## M8-PLAN-REVIEW.md `a1dd6b65`，FAIL 1 blocking + 4 major + 9 minor）
+
+> 逐条回注四 plan + 本文件，行内标记 `(review B1/M#/m#)`；零源码触碰。
+> 落点索引：
+
+- **B1**（blocking）→ M8-1A SC/T1：谱字段类型面 `channelDensity
+  [[Float?]]` / `midscaleNeutralDensity [Float?]`（`baseDensity [Float?]`
+  先例同款；28/28 张 profile 实测含 null——channel_density 15-78/243、
+  midscale 5-26/81）+ null 语义投影/插值 face 单源（`baseDensityProjection()`
+  家族同位）+ 28 张冒烟断言 null-aware。
+- **M1** → M8-1A T4 增输入 gamut 压缩 remap 构建步（上游默认 on：
+  `input_gamut_compress /* true */` spektra_sim.h:601——评审指称
+  spektrafilm.c:601 系 sim.h 微差；白心 = proj_xy 居中纪律 sim.c:3840-
+  3843）+ M8-1B T1 expose 注记 remap 预折进表（运行期零额外步）。
+- **M2** → M8-3 ΔN 表 T2 行 +1..2 → +2..3（行和 9..13 → 10..14 对齐
+  表称；终值带 4266..4288 联动复核不变：4206+60=4266 / 4206+82=4288）+
+  本文件 ΔN 分账表 M8-3 行构成要点同批。
+- **M3** → 本文件 X1 sens 身份勘正（拟合目标 film 无关共享）+ X7 tc_lut
+  缓存 face 新增裁决（M8-2 T3 承载/T1 消费）+ M8-1A T5/风险节时长带重估
+  （<100ms 级 → 秒级/表量级带 + 并行预期 + 实测 DECISIONS 申报）。
+- **M4** → M8-3 面板路径两处勘正 `App/Sources/Lightamer/UI/Shell/
+  FilmPanelView.swift`（UI/Inspector/ 下无 FilmPanelView 真身——实测亲核）。
+- m1 → M8-2 T4/T6 折键收窄差 DECISIONS 登记要求（fold discriminator =
+  resolved arm，窄于 header `rawValue > 0` 字面形）。
+- m2 → 本文件特别登记一 + 红线 2 豁免清单（FilmSubRunKernels.metal 移入
+  恒零 diff 面 + 封存清单引称改「M7-6/M3-3 邻接面」）。
+- m3 → 红线 1 FIX2③ 指称改 `LibraryProjectController.swift`（AGENTS:395
+  现行；McpServerController 零 diff 双列延续面）。
+- m4 → M8-2 T1 v2 payload 形断言后移 T4（T1 时 `all=[.v1]` 断言不可满足；
+  T1 改 resolving 全域 clamp 面断言）。
+- m5 → M8-1B 红线 front-matter 补红线 16 + T1 验收 GPL 归属块/NOTICE
+  登记 grep 机检。
+- m6 → M8-2 T2 指称改「M8-1a T4 SpectralBuildEngine 积分面」（原「T2
+  引擎」两头不沾）。
+- m7 → M8-1A T4 preflash 参数面预留（sim.h:552 默认 0 恒等关）。
+- m8 → 本文件 X5 fma 表述勘正（`&*` 整型算子残缺 → 显式 `fma()` 调用）。
+- m9 → M8-1B T2/SC 载体形态 rgba32Float（alpha pad，体积门按 442KB
+  量级）或 buffer——Metal 无 float3 像素格式。
