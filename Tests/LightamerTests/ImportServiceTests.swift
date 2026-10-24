@@ -470,6 +470,133 @@ final class ImportServiceTests: XCTestCase {
         try url.resourceValues(forKeys: [.fileIdentifierKey]).fileIdentifier
     }
 
+    // MARK: - R13 link-import regression (lumen-culling acceptance major-1)
+
+    /// The lumen-culling acceptance major-1 shape: an 8-file TIFF source
+    /// under the dialog's double-on category mask, imported through the
+    /// LINK leg. The real-machine report (Link×4 → `images COUNT(*)=0`)
+    /// could NOT be reproduced at HEAD — the probe chain AND the full GUI
+    /// sheet flow (⌘I → Link → Import → AI ask → Not Now → quit) both land
+    /// 8/8 rows (`.work/gsd/phases/r13-repairs` evidence). This test pins
+    /// the chain the report observed breaking: rows land, the outcome
+    /// feeds runImport's AI-tail precondition, and every kind1 row
+    /// resolves to the original file.
+    func testLinkImportTiffThroughDoubleOnMaskLandsRowsAndAIPrecondition() async throws {
+        let fx = try makeTiffFolder(name: "fx", count: 8)
+        let plan = try await service.makePlan(
+            sourceFolder: fx, projectDirectory: packageDirectory,
+            mode: .link, whitelist: LibrarySchema.defaultRawExtensions,
+            categories: .all)
+        XCTAssertEqual(plan.items.count, 8, "the double-on mask admits all 8 TIFFs")
+        let outcome = try await service.importFolder(plan)
+        XCTAssertEqual(outcome.failed, 0)
+        XCTAssertEqual(outcome.imported, 8)
+        XCTAssertEqual(try imageCount(), 8)
+
+        // The AI-tail precondition (runImport's `newImageIDs` query): the
+        // rows the import added are the whole table here.
+        let allIDs = try await AIAnalysisQueries.imageIDs(in: fileStore, afterRowID: 0)
+        XCTAssertEqual(allIDs.count, 8)
+
+        // Every row resolves to the ORIGINAL file (kind1 volume-relative).
+        let handle = try SQLiteHandle(path: packageURL.path)
+        defer { handle.close() }
+        let statement = try handle.prepare(
+            "SELECT image_path, path_kind, volume_uuid FROM images ORDER BY id")
+        var resolved = 0
+        while try statement.step() {
+            XCTAssertEqual(statement.columnInt(1) ?? -1, 1, "kind1 volume-relative")
+            let resolution = ImageLinker.resolve(
+                imagePath: statement.columnText(0) ?? "",
+                pathKind: .volumeRelative,
+                volumeUUID: statement.columnText(2),
+                projectDirectory: packageDirectory)
+            guard case .resolved = resolution else {
+                return XCTFail("link row did not resolve: \(resolution)")
+            }
+            resolved += 1
+        }
+        XCTAssertEqual(resolved, 8)
+    }
+
+    /// The report's session sequence: the same source imported by COPY
+    /// first (the 8/8 round), then LINK — the link batch must ADD rows
+    /// (count doubles), the copy rows stay kind0/Media, and the AI tail
+    /// sees exactly the link delta. Guards the family where a link batch
+    /// could collide with or evict an existing copy batch.
+    func testLinkImportAfterCopyBatchAddsRowsWithoutDisturbingCopyRows() async throws {
+        let fx = try makeTiffFolder(name: "fx2", count: 8)
+        let copyPlan = try await service.makePlan(
+            sourceFolder: fx, projectDirectory: packageDirectory,
+            mode: .copy, whitelist: LibrarySchema.defaultRawExtensions,
+            categories: .all)
+        let copyOutcome = try await service.importFolder(copyPlan)
+        XCTAssertEqual(copyOutcome.imported, 8)
+        XCTAssertEqual(try imageCount(), 8)
+
+        let beforeMax = try await AIAnalysisQueries.maxImageRowID(in: fileStore)
+        let linkPlan = try await service.makePlan(
+            sourceFolder: fx, projectDirectory: packageDirectory,
+            mode: .link, whitelist: LibrarySchema.defaultRawExtensions,
+            categories: .all)
+        let linkOutcome = try await service.importFolder(linkPlan)
+        XCTAssertEqual(linkOutcome.imported, 8, "link rows land beside the copy batch")
+        XCTAssertEqual(linkOutcome.skippedDuplicates, 0,
+                       "link has no Media placement duplicate check to trip")
+        XCTAssertEqual(try imageCount(), 16)
+
+        let newIDs = try await AIAnalysisQueries.imageIDs(in: fileStore, afterRowID: beforeMax)
+        XCTAssertEqual(newIDs.count, 8, "the AI ask precondition sees the link delta")
+
+        // The copy batch keeps its kind0 Media rows; the link batch is kind1.
+        let handle = try SQLiteHandle(path: packageURL.path)
+        defer { handle.close() }
+        let statement = try handle.prepare(
+            "SELECT path_kind, COUNT(*) FROM images GROUP BY path_kind ORDER BY path_kind")
+        var kinds: [Int: Int] = [:]
+        while try statement.step() {
+            kinds[Int(statement.columnInt(0) ?? -1)] = Int(statement.columnInt(1) ?? 0)
+        }
+        XCTAssertEqual(kinds[0], 8, "copy rows untouched")
+        XCTAssertEqual(kinds[1], 8, "link rows landed")
+    }
+
+    /// Minimal valid TIFF files (8×8 RGBA through ImageIO) — real
+    /// ImageIO-encodable bytes so `fillMetadata`'s property read rides the
+    /// true path (the acceptance's fx source was EXIF-carrying TIFF).
+    private func makeTiffFolder(name: String, count: Int) throws -> URL {
+        let folder = root.appendingPathComponent(name, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: folder, withIntermediateDirectories: true)
+        for index in 0..<count {
+            let width = 8, height = 8
+            var pixels = [UInt8]()
+            for pixel in 0..<(width * height * 4) {
+                pixels.append((UInt8(index &* 7 &+ 11)
+                    &* 31 &+ UInt8(truncatingIfNeeded: pixel)) % 251)
+            }
+            let provider = CGDataProvider(data: pixels.withUnsafeBytes {
+                Data($0) as CFData
+            })!
+            let image = CGImage(
+                width: width, height: height, bitsPerComponent: 8,
+                bitsPerPixel: 32, bytesPerRow: width * 4,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGBitmapInfo(
+                    rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                provider: provider, decode: nil, shouldInterpolate: false,
+                intent: .defaultIntent)!
+            let out = NSMutableData()
+            let destination = CGImageDestinationCreateWithData(
+                out, "public.tiff" as CFString, 1, nil)!
+            CGImageDestinationAddImage(destination, image, nil)
+            CGImageDestinationFinalize(destination)
+            try Data(out as Data).write(to: folder.appendingPathComponent(
+                String(format: "FX_%03d.tif", index)))
+        }
+        return folder
+    }
+
     // MARK: - Cancel (KD-4 generation semantics)
 
     func testCancelAtPerFileCheckpointLeavesNoGhostRows() async throws {
