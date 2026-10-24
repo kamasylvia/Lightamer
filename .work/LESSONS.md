@@ -921,3 +921,10 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **/models 空 Bearer 200 = 弱证据**：zen/go models 列表端点对空 Bearer 也 200——验 key 必走真补全或带鉴权端点。
 - **ImageChops 单通道 bbox 不可靠**：GUI 帧对比单通道 bbox 一次误报（md5 复核纠正）——单通道 bbox 禁作为唯一定论。
 - **guard 三版实战校准**（1→4→7G→撤门）：静态 swapused 阈值三校三败（惰性冷页地板棘轮 2.1→7.5G 只增不减，健康/病态不可分）——v1.3 撤独立交换门，病理判据归 G2/G4/MEMFAIL；守门脚本自身也要过实战校准验收。
+
+## L0xx-i 第四次强制重启：12GB Lightamer 单进程顶死整机（2026-10-24，用户令停线查因）
+
+- **现象**：R4 综合验收期间（全套 --all + GUI 行为验证并行）Lightamer 单进程膨胀至 12GB → 16GB 整机冻结 → 用户强制重启（第 4 次）。Jetsam 14:20 证据：free 147MB / anonymous 8.6GB / wired 3.6GB；Lightamer pid=14147 **lifetimeMax 8.1GB**（该 pid 被压到 520MB，用户看到的 12GB 计入口径含压缩/多实例合计）。
+- **根因**：guard G1 只门**起跑时刻**——验收 agent 自身在工作流中段**同时持有 GUI 实例与全套测试**（IOP bundle 设计峰值 8GB + GUI 实例 + ZCode 3GB + 常驻 8GB ≈ 16GB 极限），运行中膨胀无任何闸门。
+- **对策**：①guard **v1.4 `--monitor` 运行时看门狗**（Lightamer 单实例 RSS >9GB kill-9 登记——宁可单测失败不可整机重启；全套/验收轮伴跑起停）②验收 SOP 硬化：**GUI 实例必须在 test-direct/xcodebuild 起跑前 ps 验证清零**（同命令链内联验证）③峰值标尺登记：测试宿主 8G 门 / GUI 常态 0.4-2.8G / >9GB = kill 线。
+- **来源**：JetsamEvent-2026-10-24-142042 + 用户目击 12GB + shutdown_stall ×2。
