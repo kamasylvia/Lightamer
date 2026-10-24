@@ -343,7 +343,9 @@ internal struct ExportPanelView: View {
 
     private var exportTargetsSummary: String {
         let count = exportTargetRelPaths.count
-        return String(localized: "export_targets_header \(count) \(exportState.recipe.count)")
+        return String(
+            format: String(localized: "export_targets_header %lld %lld"),
+            count, exportState.recipe.count)
     }
 
     /// The export targets: the browser selection when one exists (the

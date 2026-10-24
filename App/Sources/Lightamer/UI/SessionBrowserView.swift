@@ -281,7 +281,9 @@ internal struct SessionBrowserView: View {
         // read whose first render consumed the pre-arm array ("0 张").
         .sheet(item: $focusStackDialog) { dialog in
             VStack(alignment: .leading, spacing: 12) {
-                Text(String(localized: "focus_stack_dialog_title \(dialog.count)"))
+                Text(String(
+                    format: String(localized: "focus_stack_dialog_title %lld"),
+                    dialog.count))
                     .font(.headline)
                 Text(String(localized: "focus_stack_dialog_body"))
                     .font(.caption)
@@ -306,7 +308,9 @@ internal struct SessionBrowserView: View {
         // average / median / sigma-clipped).
         .sheet(item: $stackDenoiseDialog) { dialog in
             VStack(alignment: .leading, spacing: 12) {
-                Text(String(localized: "stack_denoise_dialog_title \(dialog.count)"))
+                Text(String(
+                    format: String(localized: "stack_denoise_dialog_title %lld"),
+                    dialog.count))
                     .font(.headline)
                 Text(String(localized: "stack_denoise_dialog_body"))
                     .font(.caption)
@@ -342,7 +346,9 @@ internal struct SessionBrowserView: View {
         // (the focus-stack block's rationale applies verbatim).
         .sheet(item: $hdrMergeDialog) { dialog in
             VStack(alignment: .leading, spacing: 12) {
-                Text(String(localized: "hdr_merge_dialog_title \(dialog.count)"))
+                Text(String(
+                    format: String(localized: "hdr_merge_dialog_title %lld"),
+                    dialog.count))
                     .font(.headline)
                 Text(String(localized: "hdr_merge_dialog_body"))
                     .font(.caption)

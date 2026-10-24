@@ -43,7 +43,13 @@ final class BeforeAfterState {
     var comparePointLabel: String {
         if isHoldingOriginal { return String(localized: "beforeafter_hold_label") }
         if let peekIndex {
-            return String(localized: "beforeafter_compare_step \(peekIndex + 1)")
+            // R13 E-family: static format key + String(format:) — the
+            // interpolated LocalizationValue form is scanner-invisible
+            // (the r12 F-2 ban); the key is already catalog-registered
+            // with its %lld placeholder.
+            return String(
+                format: String(localized: "beforeafter_compare_step %lld"),
+                peekIndex + 1)
         }
         return String(localized: "beforeafter_compare_pristine")
     }

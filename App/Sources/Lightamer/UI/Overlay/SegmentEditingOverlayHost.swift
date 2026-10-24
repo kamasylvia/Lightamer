@@ -167,7 +167,8 @@ internal struct SegmentEditingOverlayHost: View {
             }
             budgetNotice = nil
         } catch AIMaskError.pointLimitExceeded(let limit) {
-            budgetNotice = String(localized: "ai_segment_full \(limit)")
+            budgetNotice = String(
+                format: String(localized: "ai_segment_full %lld"), limit)
         } catch {
             budgetNotice = "\(error)"
         }

@@ -1730,7 +1730,8 @@ struct AIRatingConfirmSheet: View {
             }
             if controller.droppedByCap > 0 {
                 Text(String(
-                    localized: "ai_rating_confirm_capped \(controller.droppedByCap)"))
+                    format: String(localized: "ai_rating_confirm_capped %lld"),
+                    controller.droppedByCap))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

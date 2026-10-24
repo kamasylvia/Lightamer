@@ -126,12 +126,13 @@ final class McpLauncherPanelModel {
             hint = String(localized: "mcp_launcher_already_running")
         } catch McpLauncher.LaunchFailure.launchFailed(let reason) {
             let message = String(
-                localized: "mcp_launcher_launch_failed \(reason)")
+                format: String(localized: "mcp_launcher_launch_failed"), reason)
             hint = message
             McpLauncher.shared.logBuffer.append("[launcher] \(message)")
         } catch {
             let message = String(
-                localized: "mcp_launcher_launch_failed \(error.localizedDescription)")
+                format: String(localized: "mcp_launcher_launch_failed"),
+                error.localizedDescription)
             hint = message
         }
     }

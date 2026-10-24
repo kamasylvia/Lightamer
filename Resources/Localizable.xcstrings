@@ -2610,23 +2610,6 @@
         }
       }
     },
-    "edr_headroom_label": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "EDR headroom %@×"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "EDR 余量 %@×"
-          }
-        }
-      }
-    },
     "edr_no_headroom": {
       "extractionState": "manual",
       "localizations": {
@@ -21489,23 +21472,6 @@
         }
       }
     },
-    "settings_displays_overridden": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Manual profile: %@"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "手动描述文件：%@"
-          }
-        }
-      }
-    },
     "settings_displays_section": {
       "extractionState": "manual",
       "localizations": {
@@ -22680,23 +22646,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "智能相册"
-          }
-        }
-      }
-    },
-    "softproof_active_label": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Soft proofing: %@"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "软打样中：%@"
           }
         }
       }

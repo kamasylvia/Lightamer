@@ -69,7 +69,9 @@ final class LCRSettingsModel {
                 String(localized: "settings_lcr_status_not_installed",
                        defaultValue: "Not downloaded")
             case .downloading(let fraction):
-                String(localized: "settings_lcr_status_downloading \(Int(fraction * 100))")
+                String(
+                    format: String(localized: "settings_lcr_status_downloading %lld"),
+                    Int(fraction * 100))
             case .corrupt:
                 String(localized: "settings_lcr_status_corrupt",
                        defaultValue: "Corrupted — re-download to repair")
@@ -112,7 +114,9 @@ final class LCRSettingsModel {
         var sizeCopy: String? {
             guard let byteCount else { return nil }
             let mb = Double(byteCount) / (1024 * 1024)
-            return String(localized: "settings_lcr_size_mb \(String(format: "%.0f", mb))")
+            return String(
+                format: String(localized: "settings_lcr_size_mb %@"),
+                String(format: "%.0f", mb))
         }
     }
 
@@ -175,7 +179,9 @@ final class LCRSettingsModel {
                 return .ready
             } catch {
                 return .unavailable(String(
-                    localized: "settings_lcr_probe_worker_unavailable \(String(describing: error))"))
+                    format: String(
+                        localized: "settings_lcr_probe_worker_unavailable %@"),
+                    String(describing: error)))
             }
         }
     ) {
@@ -213,7 +219,8 @@ final class LCRSettingsModel {
             try await store.download(profileID)
         } catch {
             statusLine = String(
-                localized: "settings_lcr_download_failed \(String(describing: error))")
+                format: String(localized: "settings_lcr_download_failed %@"),
+                String(describing: error))
         }
         await refresh()
     }
@@ -223,7 +230,8 @@ final class LCRSettingsModel {
             try await store.remove(profileID)
         } catch {
             statusLine = String(
-                localized: "settings_lcr_remove_failed \(String(describing: error))")
+                format: String(localized: "settings_lcr_remove_failed %@"),
+                String(describing: error))
         }
         await refresh()
     }

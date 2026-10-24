@@ -453,7 +453,8 @@ struct SettingsCachePage: View {
         LutLibraryStore.replaceShared(store)
         lutRootPath = store.lutsDirectory.path
         lutStatusLine = String(
-            localized: "settings_lut_rescan_done \(store.installedNames.count)")
+            format: String(localized: "settings_lut_rescan_done %lld"),
+            store.installedNames.count)
     }
 
     /// L057 (fix(l057)): async via the begin seam — a sync runModal here
@@ -475,7 +476,8 @@ struct SettingsCachePage: View {
         LutLibraryStore.replaceShared(store)
         lutRootPath = store.lutsDirectory.path
         lutStatusLine = String(
-            localized: "settings_lut_rescan_done \(store.installedNames.count)")
+            format: String(localized: "settings_lut_rescan_done %lld"),
+            store.installedNames.count)
     }
 
     /// The clear face: remove the CONTENTS of the app caches directory
@@ -542,7 +544,8 @@ struct SettingsLCRPage: View {
             }
         } message: {
             Text(String(
-                localized: "settings_lcr_activate_confirm_body \(pendingActivateName)"))
+                format: String(localized: "settings_lcr_activate_confirm_body %@"),
+                pendingActivateName))
         }
         .confirmationDialog(
             String(
@@ -645,7 +648,8 @@ struct SettingsLCRPage: View {
                 actionButton(row)
             }
             Text(String(
-                localized: "settings_lcr_tier_detail \(dimCopy(row)) \(row.manifest.licenseName) \(row.sizeCopy ?? "—")"))
+                format: String(localized: "settings_lcr_tier_detail %@ %@ %@"),
+                dimCopy(row), row.manifest.licenseName, row.sizeCopy ?? "—"))
                 .font(.caption)
                 .foregroundStyle(LightamerColors.textSecondary)
             Text(row.statusCopy)
@@ -662,7 +666,8 @@ struct SettingsLCRPage: View {
                 localized: "settings_lcr_dim_enhancement",
                 defaultValue: "Enhancement")
         }
-        return String(localized: "settings_lcr_dim_semantic \(dim)")
+        return String(
+            format: String(localized: "settings_lcr_dim_semantic %lld"), dim)
     }
 
     @ViewBuilder
@@ -1324,7 +1329,9 @@ struct SettingsDisplaysPage: View {
                 Text(screen.localizedName)
                     .font(.callout)
                 Text(overridePath.map {
-                        String(localized: "settings_displays_overridden \($0)")
+                        String(
+                            format: String(localized: "settings_displays_overridden %@"),
+                            $0)
                     } ?? String(localized: "settings_displays_auto"))
                     .font(.caption)
                     .foregroundStyle(LightamerColors.textSecondary)
@@ -1590,11 +1597,13 @@ struct SettingsCatalogsPage: View {
     private var rebuildOutcomeMessage: String {
         switch catalogPreferences.lastOutcome {
         case .reconciled(let sessions):
-            String(localized: "catalog_rebuild_done_reconcile \(sessions)")
+            String(
+                format: String(localized: "catalog_rebuild_done_reconcile %lld"),
+                sessions)
         case .restoredDestructive:
             String(localized: "catalog_rebuild_done_destructive")
         case .failed(let reason):
-            String(localized: "catalog_rebuild_failed \(reason)")
+            String(format: String(localized: "catalog_rebuild_failed %@"), reason)
         case nil: ""
         }
     }

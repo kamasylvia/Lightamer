@@ -223,18 +223,19 @@ internal struct FilterBarView: View {
     }
 
     /// The chip display spelling (zh/en through the catalog — every label
-    /// goes through `String(localized:)` interpolation so the key with its
-    /// format specifier is looked up; the raw value rides the argument so
-    /// the chip is honest about its predicate).
+    /// goes through `String(format: String(localized:), …)` on the STATIC
+    /// catalog key (r13 E-family: the interpolated LocalizationValue form
+    /// is scanner-invisible); the raw value rides the argument so the chip
+    /// is honest about its predicate).
     static func chipLabel(for rule: FilterPredicateGroup.Rule) -> String {
         switch rule.field {
         case .rating:
             if case .int(let v) = rule.value {
-                return String(localized: "filter_chip_rating \(v)")
+                return String(format: String(localized: "filter_chip_rating %lld"), v)
             }
         case .colorLabel:
             if case .int(let v) = rule.value {
-                return String(localized: "filter_chip_color \(v)")
+                return String(format: String(localized: "filter_chip_color %lld"), v)
             }
         case .flag:
             if case .int(let v) = rule.value {
@@ -246,23 +247,23 @@ internal struct FilterBarView: View {
             return String(localized: "filter_chip_edited")
         case .keywords:
             if case .text(let v) = rule.value {
-                return String(localized: "filter_chip_keyword \(v)")
+                return String(format: String(localized: "filter_chip_keyword %@"), v)
             }
         case .cameraMake:
             if case .text(let v) = rule.value {
-                return String(localized: "filter_chip_camera \(v)")
+                return String(format: String(localized: "filter_chip_camera %@"), v)
             }
         case .lensModel:
             if case .text(let v) = rule.value {
-                return String(localized: "filter_chip_lens \(v)")
+                return String(format: String(localized: "filter_chip_lens %@"), v)
             }
         case .iso:
             if case .int(let v) = rule.value {
-                return String(localized: "filter_chip_iso \(v)")
+                return String(format: String(localized: "filter_chip_iso %lld"), v)
             }
         case .focalLength:
             if case .double(let v) = rule.value {
-                return String(localized: "filter_chip_focal \(Int(v))")
+                return String(format: String(localized: "filter_chip_focal %lld"), Int(v))
             }
         case .captureDate:
             return String(localized: "filter_chip_daterange")
