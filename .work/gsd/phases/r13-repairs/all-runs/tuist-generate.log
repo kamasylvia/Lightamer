@@ -1,0 +1,18 @@
+Loading and constructing the graph
+It might take a while if the cache is empty
+Using cache binaries for the following targets: 
+Generating workspace Lightamer.xcworkspace
+Generating project Lightamer
+Resolving package dependencies using xcodebuild
+Total time taken: 26.681s
+! Warning 
+  The following items may need attention: 
+   ▸ Package 'WebP' has been linked from target 'LightamerCore' and target 'LightamerTestsApp', it is a static product so may introduce unwanted side effects.
+   ▸ Package 'WebP' has been linked from target 'LightamerCore' and target 'LightamerTestsExport', it is a static product so may introduce unwanted side effects.
+   ▸ Package 'WebP' has been linked from target 'LightamerCore' and target 'LightamerTestsIOPParity', it is a static product so may introduce unwanted side effects.
+   ▸ Package 'WebP' has been linked from target 'LightamerCore' and target 'LightamerTestsIOP', it is a static product so may introduce unwanted side effects.
+   ▸ Package 'WebP' has been linked from target 'LightamerCore' and target 'LightamerTestsLayers', it is a static product so may introduce unwanted side effects.
+   ▸ Package 'WebP' has been linked from target 'LightamerCore' and target 'LightamerTestsLibrary', it is a static product so may introduce unwanted side effects.
+   ▸ Package 'WebP' has been linked from target 'LightamerCore' and target 'LightamerTestsSessions', it is a static product so may introduce unwanted side effects.
+✔ Success 
+  Project generated. 
