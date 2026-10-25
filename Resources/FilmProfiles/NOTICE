@@ -38,15 +38,24 @@ License compliance statements
 
 2. The 81-wavelength spectral arrays carried inside the profiles
    (log_sensitivity, channel_density, midscale_neutral_density and the
-   spectral shape of base_density) are NOT consumed as a spectral
-   forward model: Lightamer's decode chain is RGB-domain (CIRAW), so
-   spectral replay is architecturally unreachable (the project's
-   documented "physical process modelling, not spectral replay"
-   boundary). The consumer face is the density domain only:
-   data.log_exposure + data.density_curves (256x3), plus base_density
-   sampled at three registered wavelengths (650/550/450 nm, nearest
-   neighbour) as an RGB constant, and data.wavelengths used solely as
-   the axis for that sampling. This consumption statement is disclosed
+   spectral shape of base_density) ARE consumed as a per-wavelength
+   material chain: since the M8 spectral film core, Lightamer's film
+   simulation integrates the negative's spectral sensitivity and the
+   paper's spectral response wavelength by wavelength through the
+   material chain (the DIR coupler stage's structure is in place and
+   ships neutral — the profile set carries no coupler measurement
+   data). The SCENE enters that chain as a metameric reconstruction:
+   the consumer-facing capability is full per-wavelength
+   material-chain simulation with chromaticity-domain spectral
+   upsampling upstream of the material chain ("spectrally
+   reconstructed material simulation, per wavelength — not scene
+   spectral replay": the scene's spectrum is reconstructed
+   metamerically, never replayed). The density-domain consumer face
+   remains for the frozen legacy arm: data.log_exposure +
+   data.density_curves (256x3), plus base_density sampled at three
+   registered wavelengths (650/550/450 nm, nearest neighbour) as an
+   RGB constant, and data.wavelengths serving both that sampling and
+   the 81-point chain's axis. This consumption statement is disclosed
    here per the license's modifications-transparency spirit; the FILES
    themselves remain untouched.
 

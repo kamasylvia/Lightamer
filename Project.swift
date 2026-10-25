@@ -331,6 +331,7 @@ let project = Project(
                 "Tests/LightamerTests/SpectralLegForkTests.swift",
                 "Tests/LightamerTests/SpectralBakeTests.swift",
                 "Tests/LightamerTests/SpectralDualArmGoldenTests.swift",
+                "Tests/LightamerTests/SpectralExposureSemanticsTests.swift",
                 "Tests/LightamerTests/FlipParityTests.swift",
                 "Tests/LightamerTests/GeometryGoldenTests.swift",
                 "Tests/LightamerTests/GradeKernelGoldenTests.swift",
