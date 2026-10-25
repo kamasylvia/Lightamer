@@ -24,9 +24,9 @@ import XCTest
 //     5. Real film/paper assets decode with the consumer info face
 //        (support/stage/densitometer/target_print) and the density-domain
 //        shapes (256×3 curves, 81-point axis, the nullable film mask).
-//     6. Re-encoding emits ONLY the consumer keys — the spectral payload
-//        never enters the type face (the licensing mechanism, verified
-//        mechanically).
+//     6. Re-encoding emits ONLY the consumer keys — extended additively by
+//        the M8-1a T1 six spectral keys (the licensing mechanism, verified
+//        mechanically; the layer/tone-map payloads still stay out).
 //     7. Shape violations and unreadable/malformed files fail CLOSED with
 //        the typed errors.
 //     8. The registered base-density projection (E2): nearest-neighbour
@@ -280,8 +280,10 @@ final class FilmProfileTests: XCTestCase {
     func testReencodingEmitsOnlyTheConsumerKeys() throws {
         // The licensing mechanism, verified mechanically: decode the real
         // asset, re-encode, and the emitted key set is the consumer face
-        // only — the spectral payloads stay OUT of the type (and any
-        // re-serialization can never leak them back).
+        // only. M8-1a T1 re-opened the face additively (the six spectral
+        // keys Lightamer now consumes — 亲核登记②); everything NOT consumed
+        // (the layer decompositions, the tone-map blocks) still stays out,
+        // and the asset file on disk is never rewritten either way.
         let profile = try FilmProfile.load(Self.portraURL)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -300,17 +302,24 @@ final class FilmProfileTests: XCTestCase {
         XCTAssertEqual(
             Set(info.keys),
             ["stock", "name", "type", "support", "stage", "target_print",
-             "channel_model", "densitometer", "reference_illuminant"])
+             "channel_model", "densitometer", "reference_illuminant",
+             "viewing_illuminant"],
+            "the info face gains viewing_illuminant (M8-1a T1)")
         let data = try XCTUnwrap(object["data"] as? [String: Any])
         XCTAssertEqual(
             Set(data.keys),
-            ["log_exposure", "density_curves", "base_density", "wavelengths"],
-            "the data face carries the four consumed arrays only")
+            ["log_exposure", "density_curves", "base_density", "wavelengths",
+             "log_sensitivity", "channel_density",
+             "midscale_neutral_density",
+             "hanatos2025_adaptation_window_params",
+             "hanatos2025_adaptation_surface_params"],
+            "the data face carries the consumed arrays only (M8-1a T1 "
+                + "additive six)")
         XCTAssertFalse(
-            data.keys.contains("log_sensitivity")
-                || data.keys.contains("channel_density")
-                || data.keys.contains("density_curves_layers"),
-            "the spectral/layer payloads stay outside the type face")
+            data.keys.contains("density_curves_layers")
+                || data.keys.contains("edr_tone_map")
+                || data.keys.contains("density_curves_model"),
+            "the layer/tone-map payloads stay outside the type face")
     }
 
     // MARK: - T3: fail-closed validation
