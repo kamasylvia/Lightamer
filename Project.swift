@@ -326,6 +326,8 @@ let project = Project(
                 "Tests/LightamerTests/FilmGoldenTests.swift",
                 "Tests/LightamerTests/FilmicRGBTests.swift",
                 "Tests/LightamerTests/SpectralBuildGoldenTests.swift",
+                "Tests/LightamerTests/SpectralKernelGoldenTests.swift",
+                "Tests/LightamerTests/SpectralPerfProbeTests.swift",
                 "Tests/LightamerTests/FlipParityTests.swift",
                 "Tests/LightamerTests/GeometryGoldenTests.swift",
                 "Tests/LightamerTests/GradeKernelGoldenTests.swift",

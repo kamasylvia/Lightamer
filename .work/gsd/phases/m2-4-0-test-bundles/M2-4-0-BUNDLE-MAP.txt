@@ -867,3 +867,7 @@ IOP	3	SpectralProfileDecodeTests.swift
 IOP	4	SpectralConstantsSanityTests.swift
 IOP	5	SpectralTcFitTests.swift
 IOPP	7	SpectralBuildGoldenTests.swift
+#   M8-1b T5（2026-10-25）：kernel golden/bit-exact + probe batch 入 IOPParity
+#   （*Golden*/*PerfProbe* 域模式；probe 族默认 skip = LIGHTAMER_PERF_PROBE 门）。
+IOPP	4	SpectralKernelGoldenTests.swift
+IOPP	5	SpectralPerfProbeTests.swift
