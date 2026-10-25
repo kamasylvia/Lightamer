@@ -510,4 +510,226 @@ final class SpectralKernelGoldenTests: XCTestCase {
         XCTAssertTrue(source.contains("GNU General Public License"),
                       "the license text")
     }
+
+    // MARK: - T2: the payload carrier face (upload round-trip / volume /
+    // lifecycle — the plan's +2..3 band, machine-checked here)
+
+    private static let payloadMemoBox = PayloadMemoBox()
+
+    /// The tables memo box (a class instance keeps the mutable state off
+    /// the global-actor checker — the engine memo's form).
+    private final class PayloadMemoBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: SpectralFilmTables?
+        func tables(make: () throws -> SpectralFilmTables) throws -> SpectralFilmTables {
+            lock.lock()
+            defer { lock.unlock() }
+            if let value { return value }
+            lock.unlock()
+            let made = try make()
+            lock.lock()
+            value = made
+            lock.unlock()
+            return made
+        }
+    }
+
+    /// The real engine tables (the portra pair — the same fixture the
+    /// build golden rides; the shared coefficient memo makes the second
+    /// build in a process cheap).
+    private static func payloadFixture() throws -> SpectralFilmTables {
+        try payloadMemoBox.tables {
+            let root = URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent() // Tests/LightamerTests
+                .deletingLastPathComponent() // Tests
+                .deletingLastPathComponent() // repo root
+            let profiles = root.appendingPathComponent(
+                "Resources/FilmProfiles/profiles")
+            let film = try FilmProfile.load(
+                profiles.appendingPathComponent("kodak_portra_400.json"))
+            let paper = try FilmProfile.load(
+                profiles.appendingPathComponent("kodak_portra_endura.json"))
+            return try SpectralBuildEngine.build(
+                film: film, paper: paper,
+                parameters: SpectralBuildEngine.Parameters())
+        }
+    }
+
+    private func readTextureFloats(_ texture: any MTLTexture) -> [Float] {
+        let w = texture.width, h = texture.height
+        var data = [Float](repeating: 0, count: w * h * 4)
+        data.withUnsafeMutableBytes {
+            texture.getBytes(
+                $0.baseAddress!, bytesPerRow: w * 4 * MemoryLayout<Float>.stride,
+                from: MTLRegion(origin: MTLOrigin(), size: MTLSize(width: w, height: h, depth: 1)),
+                mipmapLevel: 0)
+        }
+        return data
+    }
+
+    private func bufferFloats(_ buffer: any MTLBuffer) -> [Float] {
+        let count = buffer.length / MemoryLayout<Float>.stride
+        return Array(
+            UnsafeBufferPointer(
+                start: buffer.contents().assumingMemoryBound(to: Float.self),
+                count: count))
+    }
+
+    /// The upload round-trip is LOSSLESS (bit-exact float copies): the tc
+    /// texture carries the engine table's rgb with the alpha pad 0, every
+    /// buffer carries its source array bit-for-bit, and the uniforms face
+    /// consumes the STORED reciprocals (nail ② — the invLeStep slot is the
+    /// engine's host-double-rounded value, not a re-derivation).
+    func testPayloadUploadRoundTripIsLossless() throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try MetalContext()
+        let tables = try Self.payloadFixture()
+        let payloads = try SpectralGPUPayloads(
+            device: metal.device, tables: tables,
+            frameWidth: 100, frameHeight: 60)
+
+        // tc texture: rgb bit-exact, alpha pad 0
+        let tc = readTextureFloats(payloads.tcLutTexture)
+        XCTAssertEqual(payloads.tcLutTexture.width, tables.tcSide)
+        XCTAssertEqual(payloads.tcLutTexture.pixelFormat, .rgba32Float)
+        XCTAssertEqual(tc.count, tables.tcSide * tables.tcSide * 4)
+        for i in 0..<(tables.tcSide * tables.tcSide) {
+            XCTAssertEqual(tc[i * 4 + 3], 0, "alpha pad")
+            XCTAssertEqual(tc[i * 4 + 0].bitPattern, tables.tcLut[i].x.bitPattern)
+            XCTAssertEqual(tc[i * 4 + 1].bitPattern, tables.tcLut[i].y.bitPattern)
+            XCTAssertEqual(tc[i * 4 + 2].bitPattern, tables.tcLut[i].z.bitPattern)
+        }
+
+        // buffers: bit-exact
+        func assertBitExact(_ gpu: [Float], _ host: [Float], _ name: String) {
+            XCTAssertEqual(gpu.count, host.count, name)
+            for (i, pair) in zip(gpu, host).enumerated() {
+                XCTAssertEqual(pair.0.bitPattern, pair.1.bitPattern,
+                               "\(name)[\(i)] must be a lossless float copy")
+            }
+        }
+        assertBitExact(bufferFloats(payloads.curvesBuffer), tables.curvesNorm, "curves")
+        assertBitExact(bufferFloats(payloads.printLut), tables.print.lut, "print.lut")
+        assertBitExact(bufferFloats(payloads.scanLut), tables.scan.lut, "scan.lut")
+        assertBitExact(bufferFloats(payloads.printSx), tables.print.sx, "print.sx")
+        assertBitExact(bufferFloats(payloads.printCmin), tables.print.cmin, "print.cmin")
+        assertBitExact(bufferFloats(payloads.scanCmax), tables.scan.cmax, "scan.cmax")
+
+        // the constant block: m_in / the coupler zeros / the OkLab inverse
+        // faces hold the derived values; the uniforms hold the STORED
+        // reciprocals (nail ②)
+        let consts = bufferFloats(payloads.constBlockBuffer)
+        XCTAssertEqual(consts.count, SpectralGPUPayloads.ConstBlockOffset.total)
+        for r in 0..<3 {
+            for k in 0..<3 {
+                XCTAssertEqual(
+                    consts[SpectralGPUPayloads.ConstBlockOffset.mIn + r * 3 + k]
+                        .bitPattern,
+                    tables.mIn[r][k].bitPattern, "mIn row \(r) col \(k)")
+            }
+        }
+        let ok1i = Array(consts[SpectralGPUPayloads.ConstBlockOffset.ok1i
+            ..< SpectralGPUPayloads.ConstBlockOffset.ok1i + 9])
+        // M1 is unit-determinant orthogonal-ish: its inverse must reproduce
+        // the identity through M1·M1⁻¹ (the derivation sanity, float face)
+        let m1 = SpectralConstants.oklabM1
+        for r in 0..<3 {
+            for k in 0..<3 {
+                var acc = 0.0
+                for j in 0..<3 { acc += Double(m1[r][j]) * Double(ok1i[j * 3 + k]) }
+                XCTAssertEqual(acc, r == k ? 1.0 : 0.0, accuracy: 1e-6,
+                               "OkLab M1·M1⁻¹ must be the identity")
+            }
+        }
+        let u = bufferFloats(payloads.uniformsBuffer)
+        XCTAssertEqual(u.count, SpectralGPUPayloads.UniformSlot.total)
+        XCTAssertEqual(u[SpectralGPUPayloads.UniformSlot.invLeStep].bitPattern,
+                       tables.invLeStep.bitPattern,
+                       "nail ②: the device consumes the stored reciprocal")
+        XCTAssertEqual(u[SpectralGPUPayloads.UniformSlot.scanInvRange].bitPattern,
+                       tables.scanInvRange.x.bitPattern)
+        XCTAssertEqual(u[SpectralGPUPayloads.UniformSlot.width], 100)
+        XCTAssertEqual(u[SpectralGPUPayloads.UniformSlot.height], 60)
+        XCTAssertEqual(u[SpectralGPUPayloads.UniformSlot.corrW], 25)
+        XCTAssertEqual(u[SpectralGPUPayloads.UniformSlot.corrH], 15)
+        XCTAssertEqual(u[SpectralGPUPayloads.UniformSlot.useCorr], 0,
+                       "neutral couplers = the corr arm off")
+
+        // per-run geometry rewrite (the M8-2 instance-carrier face)
+        payloads.updateFrameGeometry(width: 33, height: 17)
+        let u2 = bufferFloats(payloads.uniformsBuffer)
+        XCTAssertEqual(u2[SpectralGPUPayloads.UniformSlot.corrW], 9)
+        XCTAssertEqual(u2[SpectralGPUPayloads.UniformSlot.corrH], 5)
+    }
+
+    /// The carrier volume face (the RESEARCH §4.1 order) + the corr grid
+    /// dimension form + the blur weights normalization.
+    func testPayloadVolumeAndDerivedFaces() throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try MetalContext()
+        let tables = try Self.payloadFixture()
+        let payloads = try SpectralGPUPayloads(
+            device: metal.device, tables: tables, frameWidth: 64, frameHeight: 64)
+
+        // the tc table face: 192² × 4 floats = 589,824 B (the packed 3-float
+        // budget face is 442,368 B; the texture pads alpha)
+        XCTAssertEqual(
+            tables.tcLut.count * 3 * MemoryLayout<Float>.size, 442_368,
+            "the packed tc budget face (the M8-1a measured value)")
+        XCTAssertEqual(
+            payloads.tcLutTexture.width * payloads.tcLutTexture.height * 16,
+            589_824, "the padded texture face (review m9)")
+        // the bundle: the engine's packed face + the padded tc texture +
+        // cmax + the constant/uniform/weights faces (the structural sum —
+        // the cross-commit magic constant is the M8-1a packed accounting,
+        // this carrier adds the alpha pad and the GPU-only faces)
+        let pchipFloats = { (set: SpectralFilmPchipSet) -> Int in
+            set.lut.count + set.sx.count + set.sy.count + set.sz.count
+                + set.cmin.count + set.cmax.count
+        }
+        let expected = tables.tcLut.count * 16            // padded texture face
+            + (pchipFloats(tables.print) + pchipFloats(tables.scan)) * 4
+            + (tables.curvesNorm.count + tables.printCurves.count) * 4
+            + SpectralGPUPayloads.CmaxTable.count * 4
+            + SpectralGPUPayloads.ConstBlockOffset.total * 4
+            + SpectralGPUPayloads.UniformSlot.total * 4
+            + payloads.blurWeightsLength * 4
+        let bytes = payloads.carrierByteCount
+        XCTAssertEqual(bytes, expected)
+        // the order-of-magnitude gate (RESEARCH §4.1 ~5.5 MB + cmax)
+        XCTAssertGreaterThan(bytes, 5_000_000)
+        XCTAssertLessThan(bytes, 6_500_000)
+
+        // the corr grid = ceil(w/ds)
+        XCTAssertEqual(
+            SpectralGPUPayloads.corrDimension(width: 33, decimation: 4), 9)
+        XCTAssertEqual(
+            SpectralGPUPayloads.corrDimension(width: 32, decimation: 8), 4)
+        XCTAssertEqual(
+            SpectralGPUPayloads.corrDimension(width: 0, decimation: 4), 0)
+
+        // the blur weights: host-normalized (sum = 1), odd tap count
+        let weights = SpectralGPUPayloads.blurWeights(radius: 2, sigma: 1.2)
+        XCTAssertEqual(weights.count, 5)
+        XCTAssertEqual(weights.reduce(0, +), 1.0, accuracy: 1e-6)
+        XCTAssertEqual(payloads.blurWeightsLength, 3, "the neutral 1-radius face")
+    }
+
+    /// The carrier lifecycle: dropping the payload releases the GPU
+    /// resources (the deinit face — the M8-2 per-run carrier just lets the
+    /// instance go).
+    func testPayloadLifecycleReleasesResources() throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try MetalContext()
+        let tables = try Self.payloadFixture()
+        var payload: SpectralGPUPayloads? = try SpectralGPUPayloads(
+            device: metal.device, tables: tables)
+        weak var weakPayload = payload
+        XCTAssertNotNil(weakPayload)
+        let texture: any MTLTexture = payload!.tcLutTexture
+        _ = texture
+        payload = nil
+        XCTAssertNil(weakPayload,
+                     "the carrier releases its GPU resources on deinit")
+    }
 }
