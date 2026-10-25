@@ -81,12 +81,13 @@ public struct RenderProcessVersion: Hashable, Sendable {
     /// from any real process number by design (RESEARCH §3.1).
     public static let legacy = RenderProcessVersion(rawValue: 0)!
 
-    /// The number a NEW document is minted with ("this build's generation").
+    /// The current document generation's number ("this build's generation").
     /// The ONLY legal bump point: a look-changing iop semantic change bumps
     /// this, appends the matching `RenderProcess` case, keeps the old
     /// number's frozen branch, and ships old+new goldens (the file header's
-    /// discipline).
-    public static let current = RenderProcessVersion(rawValue: 1)!
+    /// discipline). M8-2 (2026-10-25): bumped 1 → 2 — the FSIM spectral
+    /// film core's production generation (the film leg's `.v2` arm).
+    public static let current = RenderProcessVersion(rawValue: 2)!
 }
 
 /// The build's IMPLEMENTED render-process generations (LightCraft `Process`
@@ -112,11 +113,30 @@ public enum RenderProcess: Sendable {
     /// 首个语义分叉开 v2 时：①追加 case 于此（编译器逐点指向所有分叉处）
     /// ②`all` 尾插 ③`RenderProcessVersion.current` 升号 ④AGENTS.md 账本行
     /// ⑤新旧号 golden 三件套随批交付。
+    ///
+    /// M8-2 起为本批 FROZEN ARM（M6-2 预案 ①-⑤ 全数兑现）：v1 文档的 film
+    /// sub-run 走密度核（`assembleDensityFilmLeg` 逐字节冻结——密度核代码、
+    /// 65³ bake、FilmFilterPackSolver、`film_subrun` kernel 全保留），缓存
+    /// 键（seed 的 policyTag 段）保持 `lightamer.film.subrun.v1` 逐位恒等
+    /// ——v1/legacy 文档渲染零漂移是 M8 双臂 golden 主门。
     case v1
+
+    /// M8 光谱核代际（Plan M8-2 bump，2026-10-25）。FORK 点 = film leg 工厂
+    /// （`PixelPipe.assembleFilmLeg` 的 exhaustive switch——编译器逐点指向）：
+    /// `.v2` 文档的 film sub-run 走光谱核（tc_lut 缓存槽 per-pair 表 +
+    /// `FilmRuntimeSolve.solveSpectral` 光谱域求解 + `SpectralFilmKernels`
+    /// dispatch 编排 A→corr 模糊→B + RFC-025 strength mix）。冻结臂 = v1
+    /// 密度核；光谱开关单源 = 文档级 `process` 键（D-M8-1——零 FilmRecord
+    /// 字段、零 schema bump、零 sidecar 新键）；缓存折键「非 legacy 才折」
+    /// = 光谱臂 policyTag 升 `lightamer.film.subrun.v2-spectral`（review
+    /// m1：fold discriminator = resolved arm，窄于 header `rawValue > 0`
+    /// 字面形——v1 键字节恒等是 filmRampPlaneHash 冻结主门）。sub-run 之外
+    /// 的渲染面（主链/显示尾/导出递缝）v1/v2 零分叉。
+    case v2
 
     /// The implemented generations, OLDEST FIRST (the `resolving` clamp
     /// table's backbone; a case's number = its 1-based index here).
-    public static let all: [RenderProcess] = [.v1]
+    public static let all: [RenderProcess] = [.v1, .v2]
 
     /// The newest implemented generation (the mint target + the
     /// forward-number clamp).
@@ -128,9 +148,11 @@ public enum RenderProcess: Sendable {
     /// value itself is NEVER rewritten, only the render clamps); an in-range
     /// number → its own case.
     ///
-    /// M6-2 has NO production consumption point (KD-5 — the seam is armed,
-    /// zero behavior); the first fork batch calls this at its match site and
-    /// switches exhaustively over the result.
+    /// M8-2 owns the FIRST production consumption point: the film leg
+    /// factory's exhaustive switch (`PixelPipe.assembleFilmLeg`) and the
+    /// film seed's arm-tag fold (`FilmTailAssembly.policyTag(for:)`) —
+    /// every other render face (main chain, display tail, export seam) is
+    /// fork-free.
     public static func resolving(_ raw: RenderProcessVersion) -> RenderProcess {
         if raw.rawValue <= 0 { return all[0] }
         let index = raw.rawValue - 1
@@ -145,6 +167,7 @@ public enum RenderProcess: Sendable {
     public var processVersion: RenderProcessVersion {
         switch self {
         case .v1: return RenderProcessVersion(rawValue: 1)!
+        case .v2: return RenderProcessVersion(rawValue: 2)!
         }
     }
 }

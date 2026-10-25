@@ -222,7 +222,8 @@ final class RenderProcessSeamTests: XCTestCase {
         let metal = try await makeMetal()
         let image = makeImage()
         for (version, want) in [(RenderProcessVersion.legacy, 0),
-                                (RenderProcessVersion.current, 1)] {
+                                (RenderProcessVersion.current,
+                                    RenderProcessVersion.current.rawValue)] {
             let recorder = ProbeRecorder()
             let probe = ModuleBox(
                 module: ProcessProbeModule(tag: "p", recorder: recorder),
@@ -252,7 +253,8 @@ final class RenderProcessSeamTests: XCTestCase {
         XCTAssertGreaterThan(legacyBytes.count, 100, "防空转: planes rendered")
         XCTAssertEqual(
             legacyBytes, currentBytes,
-            "M6-2 has no semantic fork — 0 and 1 must render bit-identical")
+            "the fork-free faces render bit-identical (M8's fork lives in "
+                + "the film leg; a filmTail-less chain cannot see it)")
     }
 
     // MARK: - 3: G2① — the frozen gate (the legacy arm stays on baseline)
@@ -317,7 +319,8 @@ final class RenderProcessSeamTests: XCTestCase {
             forkedBytes, baselineBytes,
             "renderProcess 1 must take the fork arm (G2②)")
         let entries = await forkedRecorder.entries
-        XCTAssertEqual(entries.first?.raw, 1, "the v1 arm ran (raw 1)")
+        XCTAssertEqual(entries.first?.raw, RenderProcessVersion.current.rawValue,
+                       "the current arm ran (the stamp is verbatim)")
     }
 
     // MARK: - 5: G2③ — a key-less document decodes legacy and runs the arm
@@ -429,7 +432,7 @@ final class RenderProcessSeamTests: XCTestCase {
         let entries = await recorder.entries
         XCTAssertEqual(entries.count, 1)
         XCTAssertEqual(
-            entries.first?.raw, 1,
+            entries.first?.raw, RenderProcessVersion.current.rawValue,
             "the composite's terminal sub-run pipe inherited the value")
     }
 }

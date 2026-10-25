@@ -395,7 +395,7 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 - **FIX2③**：`LibraryProjectController.swift` 零 diff（连续六波亲证）。
 - **封存面清单**（M7-6 收口登记，全批零 diff 义务）：DrtRecord / TerminalTailPolicy / DrtTailAssembly / PixelPipe / Lut3dKernels.metal / DrtEotf / ExportQueueContract / 六格式导出矩阵（ExportFormatSpec·ImageIOEncoders·WebPEncoder）/ NodeGraphCommand / sidecar schema（LightamerSidecar）/ HistoryStack / HistoryHash / PipelineDocument（Core）/ V50Order / GradeCatalog（NodeOwnershipCatalog）。
 - **D-H1**：滑杆 begin/setLive/end 三段提交语义（live 值不进 discrete commit；end 才提交）。
-- **process version**（M6-2）：改观感 = 新 process 号 + 旧号冻结；per-photo 载体，RenderProcess 单源。
+- **process version**（M6-2）：改观感 = 新 process 号 + 旧号冻结；per-photo 载体，RenderProcess 单源。**process 账本（bump 登记）**：**v1** = M6-2 基线代际（2026-10-01 M6-2-01 起 mint 盖章）→ **v2** = M8 光谱核代际（2026-10-25 M8-2 bump，`RenderProcessVersion.current = 2`）——fork 点 = film leg 工厂 exhaustive switch（`assembleFilmLeg` + seed policyTag 折叠两处编译期指向）；v1/legacy = 冻结密度核臂零漂移（filmRampPlaneHash 主门）；v2 = 光谱核（tc_lut 缓存槽 + solveSpectral + SpectralFilmKernels 编排）；折键「非 legacy 才折」= 光谱臂 policyTag `lightamer.film.subrun.v2-spectral`（fold discriminator = resolved arm，v1 键字节恒等）；process 不折 HistoryHash/ModuleInstance.version（正交性红线）。
 - **L013**：跨进程身份哈希一律 StableHash（FNV-1a 64，decimal string 入 JSON）；Swift Hasher 与未排序 JSON 禁入。
 - **L057**：面板/对话框呈现禁 `runModal` 族，唯一缝 = PanelPresentation.present。
 - **disable-not-unmount**：agent 控制期/隐藏态 UI 用 `.disabled` 不条件卸载（M7-5 三纪律）。
@@ -438,6 +438,7 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 | LENS-01 | Lensfun 收口（三态互斥探测/系数快照/投影四型/数据钉版/isNeutral 含 lensfun 态/reloadDefaults 三缝接线）（正本 `.work/gsd/phases/lens-01-lensfun/`） |
 | R12 | 修复批（M-1 CullingView pair 切换 pane 装载/.task id 身份；标记链 write face；F2-4 Settings repoint；R2 卫生 43 处）（正本 `.work/gsd/phases/r12-repairs/`） |
 | lumen-culling | 图库选片增强（schema v6 分析六列/BurstAnnotator/EyeClosureAnalyzer/LibraryAnalysisService/SmartPreviewStore float16 LRU/CullFace 选片视图/MaskRefine 采样式抠图/MCP refine_masks）（正本 `.work/gsd/phases/lumen-culling/`） |
+| M8 | FSIM 光谱升维（process v2 bump 五件套：case doc/AGENTS 账本行/双臂 golden/mint 升号/分叉点登记；tc_lut 缓存槽 X7；coupler 降采样臂 1/4 数据未至默认 off；光谱臂 strength mix kernel；**UserDefaults 零新键**——adaptation 恒 build 期常量无 UI 面，迁移动作不落偏好）（正本 `.work/gsd/phases/m8-fsim-spectral/`） |
 
 <!-- GSD:architecture-end -->
 
