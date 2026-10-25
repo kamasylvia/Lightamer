@@ -42,11 +42,12 @@ internal struct FilmPanelView: View {
                         .foregroundStyle(ThemeTokens.textSecondary)
                         .padding(8)
                 } else {
-                    if model.isPristine {
-                        enableEntry
-                    } else {
-                        SessionControlsView(model: model)
-                    }
+                if model.isPristine {
+                    enableEntry
+                } else {
+                    SessionControlsView(model: model)
+                    ProcessMigrationRow(model: model)
+                }
                     LatitudeSectionView(model: model)
                     PlacementSectionView(model: model)
                 }
@@ -112,6 +113,91 @@ internal struct FilmPanelView: View {
                 || !(model?.paperStocks.isEmpty == false))
         }
         .padding(.horizontal, 8)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ProcessMigrationRow (Plan M8-3 T3) — the ONE new panel element the M8
+// batch allows (D-M8-7's registered exception, M6-2 §6 挂账正主): the
+// "Update to Current Process" row for documents still rendering the frozen
+// density arm. Hidden for v2 documents (zero visual delta), guarded by the
+// pure FilmMigrationAction model; the confirmation rides a SwiftUI sheet —
+// the L057 seam (never a runModal). The sheet content takes INIT PARAMS
+// only (no @Environment reads) — the M2-8 sheet-environment hazard class
+// is structurally absent.
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct ProcessMigrationRow: View {
+
+    let model: FilmPanelModel
+
+    @State private var confirmPresented = false
+
+    var body: some View {
+        Group {
+            if model.migrationAction.migratable {
+                Button {
+                    confirmPresented = true
+                } label: {
+                    Text(String(
+                            localized: "panel_film_migrate_button",
+                            defaultValue: "Update to Current Process"))
+                        .frame(maxWidth: .infinity)
+                }
+                .controlSize(.small)
+                .padding(.horizontal, 8)
+                .padding(.top, 4)
+                .accessibilityIdentifier("film.migrate.button")
+                .sheet(isPresented: $confirmPresented) {
+                    MigrationConfirmSheet(model: model, presented: $confirmPresented)
+                }
+            }
+        }
+    }
+}
+
+/// The migration confirm sheet's content face (the
+/// AdjustmentTransferSheetContent form: a self-sufficient content struct —
+/// init-parameter injection, zero environment reads, so the sheet
+/// hierarchy's environment snapshot cannot miss an injection).
+struct MigrationConfirmSheet: View {
+
+    let model: FilmPanelModel
+    @Binding var presented: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(String(
+                    localized: "panel_film_migrate_title",
+                    defaultValue: "Update to Current Process?"))
+                .font(.callout.weight(.medium))
+            Text(String(
+                    localized: "panel_film_migrate_body",
+                    defaultValue: "This document still renders with the frozen previous film generation. Updating re-renders it with the current spectral film core. Your edits and history stay untouched."))
+                .font(.caption)
+                .foregroundStyle(ThemeTokens.textSecondary)
+            HStack {
+                Spacer(minLength: 0)
+                Button(String(
+                        localized: "panel_film_migrate_cancel",
+                        defaultValue: "Cancel")) {
+                    presented = false
+                }
+                .keyboardShortcut(.cancelAction)
+                .accessibilityIdentifier("film.migrate.cancel")
+                Button(String(
+                        localized: "panel_film_migrate_confirm",
+                        defaultValue: "Update")) {
+                    presented = false
+                    model.runMigration()
+                }
+                .keyboardShortcut(.defaultAction)
+                .accessibilityIdentifier("film.migrate.confirm")
+            }
+        }
+        .padding(16)
+        .frame(width: 320)
+        .accessibilityIdentifier("film.migrate.sheet")
     }
 }
 

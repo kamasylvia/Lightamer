@@ -38,6 +38,12 @@ import XCTest
 @MainActor
 final class FilmPanelSpectralUITests: XCTestCase {
 
+    /// The recorder box (the SheetEnvironmentInjectionTests ProbeBox
+    /// precedent — a reference box the onAppear side effect writes into).
+    private final class ProbeBox: @unchecked Sendable {
+        var appeared = false
+    }
+
     private var metal: MetalContext!
     private var editorState: EditorState!
     private var coordinator: PipeCoordinator!
@@ -181,6 +187,10 @@ final class FilmPanelSpectralUITests: XCTestCase {
         "film.placement.reject.knee",
         "film.placement.reject.nh",
         "film.placement.reject.ns",
+        "film.migrate.button",
+        "film.migrate.sheet",
+        "film.migrate.cancel",
+        "film.migrate.confirm",
     ]
 
     /// The identifier literals parsed out of the panel source: the panel's
@@ -310,5 +320,211 @@ final class FilmPanelSpectralUITests: XCTestCase {
                 source.contains(token),
                 "the film panel must expose no adaptation control (token \(token))")
         }
+    }
+
+    // MARK: - T3: the process migration (M6-2 §6 挂账正主)
+
+    /// The migration action model's table (the pure gate over the stored
+    /// process / the film-record presence / the in-flight-edit flag):
+    /// v1 and legacy are migratable, v2 and forward numbers are already
+    /// current (the row hides), an open film drag window refuses, and a
+    /// film-less document is not applicable.
+    func testMigrationActionModelTable() {
+        // The film-record audience gate first.
+        XCTAssertEqual(
+            FilmMigrationAction.evaluate(
+                processRawValue: 1, hasFilmRecord: false, editingInFlight: false),
+            .notApplicable,
+            "a film-less document renders process-invisibly — nothing to migrate")
+        XCTAssertEqual(
+            FilmMigrationAction.evaluate(
+                processRawValue: nil, hasFilmRecord: true, editingInFlight: false),
+            .notApplicable, "no image — nothing to migrate")
+        // The in-flight-edit guard (the unsaved-edit posture).
+        XCTAssertEqual(
+            FilmMigrationAction.evaluate(
+                processRawValue: 1, hasFilmRecord: true, editingInFlight: true),
+            .editingInFlight,
+            "an open film drag window refuses the migration")
+        // The audience: v1 AND legacy (the frozen arm's domains).
+        XCTAssertEqual(
+            FilmMigrationAction.evaluate(
+                processRawValue: 1, hasFilmRecord: true, editingInFlight: false),
+            .migrate(targetRawValue: 2), "a v1 document migrates")
+        XCTAssertEqual(
+            FilmMigrationAction.evaluate(
+                processRawValue: 0, hasFilmRecord: true, editingInFlight: false),
+            .migrate(targetRawValue: 2),
+            "a legacy document (the absent key) migrates")
+        // The repeat-migration refusal: current and forward numbers.
+        XCTAssertEqual(
+            FilmMigrationAction.evaluate(
+                processRawValue: 2, hasFilmRecord: true, editingInFlight: false),
+            .alreadyCurrent, "a v2 document never re-migrates")
+        XCTAssertEqual(
+            FilmMigrationAction.evaluate(
+                processRawValue: 7, hasFilmRecord: true, editingInFlight: false),
+            .alreadyCurrent,
+            "a forward number (clamped rendering) is already current")
+        // The row's visibility face rides the migratable arm only.
+        XCTAssertTrue(FilmMigrationAction.migrate(targetRawValue: 2).migratable)
+        XCTAssertFalse(FilmMigrationAction.alreadyCurrent.migratable)
+        XCTAssertFalse(FilmMigrationAction.editingInFlight.migratable)
+        XCTAssertFalse(FilmMigrationAction.notApplicable.migratable)
+    }
+
+    /// The end-to-end migration: a v1-simulated document (the runtime
+    /// write face puts 1 into the carrier — the pre-M8-2 disk state's
+    /// session twin) migrates through the panel model's ONE action face:
+    /// the carrier flips to `.current`, the sidecar persists `"process":
+    /// 2` on a flush, ONE document-scope marker item lands under the
+    /// `history_process_migrate` label, the PIXEL instance set grows by
+    /// ZERO (the migration is not an edit), and the row's gate reads
+    /// already-current afterwards (no re-migration).
+    func testMigrationEndToEndFlipsCarrierAndPersistsProcess2() async throws {
+        try await loadGradient()
+        model.enableFilm()
+        let start = Date()
+        while !workspace.hasFilmRecord(for: coordinator.liveImageURL!) {
+            if Date().timeIntervalSince(start) > 5 {
+                XCTFail("the film record never reached the carrier")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        let url = try XCTUnwrap(coordinator.liveImageURL)
+
+        // Simulate the pre-M8-2 disk state: the stored generation is 1
+        // (a v1 document -- the migration audience).
+        workspace.setProcessVersion(RenderProcessVersion(rawValue: 1)!, for: url)
+        XCTAssertEqual(workspace.processVersion(for: url).rawValue, 1)
+        XCTAssertEqual(model.migrationAction, .migrate(targetRawValue: 2))
+
+        let itemsBefore = editorState.history.items.count
+        let instancesBefore = editorState.instances.count
+
+        model.runMigration()
+        // The carrier flip is synchronous inside the coordinator face;
+        // the marker item lands before the awaited re-render returns.
+        let settle = Date()
+        while editorState.history.items.count <= itemsBefore {
+            if Date().timeIntervalSince(settle) > 5 {
+                XCTFail("the migration marker item never landed")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+
+        XCTAssertEqual(workspace.processVersion(for: url).rawValue, 2,
+                       "the carrier flipped to the current generation")
+        XCTAssertEqual(model.migrationAction, .alreadyCurrent,
+                       "the row hides after the migration (no re-migration)")
+        XCTAssertEqual(
+            editorState.history.items.count, itemsBefore + 1,
+            "exactly ONE document-scope marker item (zero pixel items)")
+        XCTAssertEqual(
+            editorState.history.items.last?.label,
+            String(localized: "history_process_migrate"),
+            "the marker lands under the history_process_migrate label")
+        XCTAssertEqual(
+            editorState.instances.count, instancesBefore,
+            "the migration must not add any pixel instance (not an edit)")
+
+        // The sidecar round trip: flush → the stored key reads 2. The
+        // scheduleWrite Task and the 2s debounce both race the explicit
+        // flush (the flush can consume an empty pending slot when the
+        // schedule Task hasn't landed yet), so the file-poll covers the
+        // debounce's own write.
+        await coordinator.flushSidecar()
+        let sidecarURL = LightamerSidecar.sidecarURL(for: url)
+        let fileStart = Date()
+        while !FileManager.default.fileExists(atPath: sidecarURL.path) {
+            if Date().timeIntervalSince(fileStart) > 10 {
+                XCTFail("the sidecar never landed at \(sidecarURL.path)")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        let data = try Data(contentsOf: sidecarURL)
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(
+            object["process"] as? Int, 2,
+            "the sidecar persists the migrated generation")
+
+        // The undo boundary (the DECISIONS-registered face): one ⌘Z steps
+        // over the MARKER item; the process carrier stays at the current
+        // generation (the process has no history slot — the flip is not
+        // undoable, the marker is).
+        await coordinator.undo()
+        XCTAssertEqual(
+            workspace.processVersion(for: url).rawValue, 2,
+            "undoing the marker does not flip the process back (registered)")
+    }
+
+    /// The confirm sheet mounts through a REAL `.sheet` presentation with
+    /// the production content face (the SheetEnvironmentInjectionTests
+    /// shape). The content is init-parameter injected (zero @Environment
+    /// reads) — the M2-8 hazard class is structurally absent; this pins
+    /// the presentation face (the sheet appears, its first update cycle
+    /// completes, and the sheet window stays attached).
+    func testMigrationConfirmSheetMountsThroughARealSheetPresentation() throws {
+        let model = FilmPanelModel(editorState: nil, pipeCoordinator: nil)
+        let box = ProbeBox()
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 300),
+            styleMask: [.titled, .closable],
+            backing: .buffered, defer: false)
+        let host = NSHostingView(rootView: MigrationSheetHost(
+            model: model, onAppear: { box.appeared = true }))
+        host.frame = NSRect(x: 0, y: 0, width: 420, height: 300)
+        window.contentView = host
+        window.orderFrontRegardless()
+        defer {
+            window.orderOut(nil)
+            window.contentView = nil
+        }
+        let deadline = Date().addingTimeInterval(8)
+        while !box.appeared && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            host.layoutSubtreeIfNeeded()
+        }
+        XCTAssertTrue(box.appeared, "the sheet content never appeared")
+        for _ in 0..<5 {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            host.layoutSubtreeIfNeeded()
+        }
+        XCTAssertNotNil(window.childWindows, "the sheet window must stay attached")
+    }
+
+    /// The zero-automatic-migration negative: the ONLY production callers
+    /// of the runtime write face / the migration face are the load legs'
+    /// prime+mint and the panel's explicit action — no background path.
+    /// (The grep runs in the shell — this test pins the model-side face:
+    /// a detached harness with no image answers notApplicable and the
+    /// runMigration call is a no-op.)
+    func testMigrationModelOnADetachedHarnessIsInert() {
+        let model = FilmPanelModel(editorState: nil, pipeCoordinator: nil)
+        XCTAssertEqual(model.migrationAction, .notApplicable)
+        XCTAssertEqual(model.documentProcess, nil)
+        // The call must not trap (the face no-ops without a coordinator).
+        model.runMigration()
+    }
+}
+
+/// The migration-sheet hosting root (the ImportSheetHost shape — the
+/// production content face through a real `.sheet`).
+private struct MigrationSheetHost: View {
+    let model: FilmPanelModel
+    let onAppear: () -> Void
+    @State private var presented = true
+
+    var body: some View {
+        Color.clear
+            .frame(width: 300, height: 200)
+            .sheet(isPresented: $presented) {
+                MigrationConfirmSheet(model: model, presented: .constant(true))
+                    .onAppear { onAppear() }
+            }
     }
 }

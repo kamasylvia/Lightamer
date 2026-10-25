@@ -212,11 +212,11 @@ final class ProcessVersionCarrierTests: XCTestCase {
 
         await commitOneEdit(editorState, coordinator)
         try await flushUntil(url, coordinator) { object in
-            object["process"] as? Int == 1
+            object["process"] as? Int == RenderProcessVersion.current.rawValue
         }
         let object = try readJSONObject(url)
         XCTAssertEqual(
-            object["process"] as? Int, 1,
+            object["process"] as? Int, RenderProcessVersion.current.rawValue,
             "the first committed edit lands the mint stamp (G4)")
 
         // Reload on a FRESH assembly: the file's value primes the carrier.
@@ -358,12 +358,13 @@ final class ProcessVersionCarrierTests: XCTestCase {
         let implicitID = versionsCoordinator.slots[0].id
         versionsCoordinator.switchTo(implicitID)
         try await flushUntil(url, coordinator) { object in
-            object["process"] as? Int == 1 && object["versions"] != nil
+            object["process"] as? Int == RenderProcessVersion.current.rawValue
+                && object["versions"] != nil
         }
 
         let object = try readJSONObject(url)
         XCTAssertEqual(
-            object["process"] as? Int, 1,
+            object["process"] as? Int, RenderProcessVersion.current.rawValue,
             "undo/swap never touch the document-level value (OQ-2)")
         // Zero history-item face: the item records carry no process key.
         let items = try XCTUnwrap(
