@@ -861,3 +861,9 @@ APP	4	LibraryAnalysisWiringTests.swift
 APP	6	MaskRefineCoordinatorTests.swift
 APP	5	McpRefineMasksToolTests.swift
 APP	22	CullFaceModelTests.swift
+#   M8-1a T5（2026-10-25）：谱数据面四文件入域——解码/常量 sanity/拟合器 = IOP，
+#   golden（含 28-profile 全表构建冒烟）= IOPParity（*Golden* 域模式）。
+IOP	3	SpectralProfileDecodeTests.swift
+IOP	4	SpectralConstantsSanityTests.swift
+IOP	5	SpectralTcFitTests.swift
+IOPP	7	SpectralBuildGoldenTests.swift

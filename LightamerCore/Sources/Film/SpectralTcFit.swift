@@ -21,8 +21,10 @@ import Foundation
 // quadratic sigmoid and not a unimodal bump: a Gaussian-shaped log
 // spectrum cannot pass the middle while blocking both ends, measured
 // during T3: >13k of 24k in-locus cells unreachable), and a convex one
-// the complementary notch. Every spectrum is strictly inside (0, 1) and
-// total on the axis.
+// the complementary notch. In exact arithmetic every spectrum is strictly
+// inside (0, 1); the SATURATED step/band members (|q| beyond ~40, the
+// locus-edge shells' limit shapes) clamp to exactly 0/1 in Float64 — a
+// legitimate limit the integrals and the gates accept as total.
 //
 // FIT TARGET — per tc cell (a chromaticity), the metameric spectrum with
 // THAT chromaticity: two log-ratio residuals pin X/Y and Z/Y (the
