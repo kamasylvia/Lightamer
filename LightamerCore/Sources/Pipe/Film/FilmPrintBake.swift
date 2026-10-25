@@ -341,3 +341,138 @@ public enum FilmPrintBake {
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SpectralPrintBake (Plan M8-2 T3, X7) — the spectral film core's per-pair
+// bake cache family, the FilmPrintBake.Cache mechanism shape (NSLock +
+// dictionary + insertion-order LRU + observable counts) applied to the
+// M8-1a build engine's products:
+//
+//   • the TC_LUT SLOT — the build bundle itself (`SpectralFilmTables`):
+//     the tc_lut carries its upstream fit + expand + integrate FULL cost
+//     (the seconds-band build), and the engine emits it as one monolithic
+//     Float64 build together with the PCHIP sets and the curve faces
+//     (inseparable — the engine is zero-diff frozen), so the tc slot's
+//     value is the whole bundle. This is the slot X7 names ("构建引擎的
+//     tc_lut 产物跨 run 缓存——禁每 run 重建、禁逐帧重建");
+//   • the PRINT PCHIP SLOT and the SCAN PCHIP SLOT — the two 33³
+//     monotone-PCHIP sets as named slices, each its OWN LRU (X7: the three
+//     slots 并存、各自 LRU 槽互不挤兑 — one family's eviction never touches
+//     another's). Capacities are DECISIONS-declared (tc 6 / print 8 /
+//     scan 8 — the bundle is ~5.6 MB, so the tc slot caps at ~34 MB).
+//
+// The consult facade fills all three slots from ONE build under a build
+// lock (the seconds-band build serializes; a concurrent cold-start miss
+// waits instead of building twice), and a tc-slot HIT touches the PCHIP
+// slices (fill-if-missing from the hit bundle — no rebuild). The slots
+// are keyed by `FilmMaterialStore.materialPairHash` (the 01 identity
+// single source, the FilmSolveCache key-shape precedent).
+// ─────────────────────────────────────────────────────────────────────────────
+
+public enum SpectralPrintBake {
+
+    /// One per-pair LRU slot (the mechanism-twin of `FilmPrintBake.Cache`:
+    /// NSLock + dictionary + insertion-order LRU). `bakeCount` observes how
+    /// many fills the slot performed (a re-fill of an existing key counts —
+    /// it replaced the slot's content; a consult touch does not).
+    public final class Slot<Value: Sendable>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var entries: [UInt64: Value] = [:]
+        private var order: [UInt64] = []
+        private let capacity: Int
+        private var fills = 0
+
+        public init(capacity: Int) {
+            self.capacity = max(capacity, 1)
+        }
+
+        /// Consult + LRU touch (nil = miss).
+        public func consult(_ key: UInt64) -> Value? {
+            lock.lock()
+            defer { lock.unlock() }
+            guard let hit = entries[key] else { return nil }
+            order.removeAll { $0 == key }
+            order.append(key)
+            return hit
+        }
+
+        /// Insert or replace + evict the LRU tail beyond capacity.
+        public func store(_ value: Value, for key: UInt64) {
+            lock.lock()
+            defer { lock.unlock() }
+            entries[key] = value
+            if !order.contains(key) { order.append(key) }
+            fills += 1
+            while order.count > capacity {
+                let evicted = order.removeFirst()
+                entries.removeValue(forKey: evicted)
+            }
+        }
+
+        /// Test face: the cached entry count.
+        public var countForTesting: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return entries.count
+        }
+
+        /// Test face: the fill count (the bakeCount-observable form).
+        public var bakeCountForTesting: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return fills
+        }
+    }
+
+    /// The tc_lut slot (the full build bundle — X7's named face).
+    public static let tcLutSlot = Slot<SpectralFilmTables>(capacity: 6)
+    /// The print PCHIP slot (the 33³ print set).
+    public static let printSlot = Slot<SpectralFilmPchipSet>(capacity: 8)
+    /// The scan PCHIP slot (the 33³ scan set).
+    public static let scanSlot = Slot<SpectralFilmPchipSet>(capacity: 8)
+
+    /// The seconds-band build serializes (a concurrent cold-start miss
+    /// waits; the build is deterministic so either order lands the same
+    /// bytes).
+    private static let buildLock = NSLock()
+
+    /// The consult facade the spectral film arm's payload construction
+    /// consumes (X7's "T1 光谱臂 payload 构造消费缓存命中面"): a tc-slot
+    /// hit returns the SAME bundle instance (the build is deterministic —
+    /// hit-vs-miss is value-invisible) and touches the PCHIP slices; a
+    /// miss builds ONCE and fills all three slots.
+    public static func tables(
+        forPairHash pairHash: UInt64, film: FilmProfile, paper: FilmProfile
+    ) throws -> SpectralFilmTables {
+        if let hit = tcLutSlot.consult(pairHash) {
+            touchPchipSlices(of: hit, for: pairHash)
+            return hit
+        }
+        buildLock.lock()
+        defer { buildLock.unlock() }
+        // Double-check under the build lock (a concurrent builder filled).
+        if let hit = tcLutSlot.consult(pairHash) {
+            touchPchipSlices(of: hit, for: pairHash)
+            return hit
+        }
+        let built = try SpectralBuildEngine.build(film: film, paper: paper)
+        tcLutSlot.store(built, for: pairHash)
+        printSlot.store(built.print, for: pairHash)
+        scanSlot.store(built.scan, for: pairHash)
+        return built
+    }
+
+    /// Fill-if-missing the PCHIP slices from a hit bundle (no rebuild —
+    /// the slices ARE the bundle's own values, bit-identical by
+    /// construction; the test pins the bit face).
+    private static func touchPchipSlices(
+        of bundle: SpectralFilmTables, for pairHash: UInt64
+    ) {
+        if printSlot.consult(pairHash) == nil {
+            printSlot.store(bundle.print, for: pairHash)
+        }
+        if scanSlot.consult(pairHash) == nil {
+            scanSlot.store(bundle.scan, for: pairHash)
+        }
+    }
+}
