@@ -834,6 +834,48 @@ final class PipeCoordinator {
             materialPairHash: FilmMaterialStore.materialPairHash(film: film, paper: paper))
     }
 
+    // ── M8-3 T3 (the migration UX + the D-M8-1 read path): the document's
+    //    stored render generation. The M6-2-01 registered coordinator
+    //    threading follow-up lands HERE — the render chain reads the
+    //    session carrier and arms the film leg factory with it (the
+    //    first fork batch's production face; D-M8-1's "process ≥ 2 = the
+    //    spectral core" is only executable once SOMETHING reads the key).
+
+    /// The current document's stored render generation (nil = no image;
+    /// the absent carrier answers `.legacy` — the read face's contract).
+    var documentProcessVersion: RenderProcessVersion? {
+        guard let url = currentImageURL else { return nil }
+        return workspace?.processVersion(for: url)
+    }
+
+    /// The film D-H1 live-window flag (the migration row's in-flight-edit
+    /// guard face).
+    var filmEditInFlight: Bool { isEditingFilm }
+
+    /// The explicit "Update to Current Process" action (M6-2 §6 挂账正主):
+    /// ONE discrete document-level step — the carrier flips to
+    /// `.current`, ONE document-scope film item carries the CURRENT film
+    /// record VERBATIM as the migration's history marker (the migration is
+    /// not a data transformation — zero record diff, zero pixel items;
+    /// the `history_process_migrate` label family), then the re-render
+    /// (the film leg's arm flips on the resolved process) and the sidecar
+    /// write (the stored key becomes 2). NOT undoable as a process flip —
+    /// the process has no history slot (HistoryStack is a sealed face);
+    /// M8-3-DECISIONS registers the boundary. No automatic caller exists:
+    /// this face fires ONLY from the panel's confirm sheet.
+    func runProcessMigration() async {
+        guard decoded != nil, let url = currentImageURL, let workspace,
+            let editorState
+        else { return }
+        guard workspace.hasFilmRecord(for: url) else { return }
+        workspace.setProcessVersion(.current, for: url)
+        editorState.commitProcessMigrationMarker(
+            record: workspace.filmRecord(for: url),
+            label: String(localized: "history_process_migrate"))
+        await historyDidChange()
+        scheduleSidecarWrite()
+    }
+
     /// The film material store (KD-6): injected at composition (the
     /// bundle's FilmProfiles/profiles); nil = the film face dark (tests /
     /// a failed store build — the typed degrade logged once).
@@ -2460,6 +2502,17 @@ final class PipeCoordinator {
         // 08-3 T3: the yiyin per-run context rides the run's entry scale
         // (joint layout / EXIF / logo faces — per-run DATA, never params).
         injectYiyinRunContext(longEdge: longEdge, resolution: resolution)
+        // M8-3 T3 (the M6-2-01 registered coordinator threading — the
+        // first fork batch's production face): the document's stored
+        // process arms the film leg factory. THUMBNAIL stays legacy (the
+        // M3-3 thumbnail gate twin — the grid consumes display-ready SDR
+        // planes and the thumbnail cache-key space never moves).
+        let migratedProcess: RenderProcessVersion = {
+            guard resolution != .thumbnail, let url = currentImageURL else {
+                return .legacy
+            }
+            return workspace?.processVersion(for: url) ?? .legacy
+        }()
         // 13-2 T2: the soft-proof box rides the DISPLAY legs only — proof
         // OFF leaves `instances` untouched (byte-identical chain).
         let chain = chainWithSoftProof(instances, resolution: resolution)
@@ -2483,7 +2536,8 @@ final class PipeCoordinator {
                     RasterMaskStore.masksDirectory(forImageURL: $0)
                 },
                 terminalTail: terminalTailPolicy(for: resolution),
-                filmTail: filmTailPolicy(for: resolution))
+                filmTail: filmTailPolicy(for: resolution),
+                renderProcess: migratedProcess)
             return RenderChainOutput(texture: texture, stats: stats)
         }
         let (texture, stats) = try await RenderPipeline.process(
@@ -2495,7 +2549,8 @@ final class PipeCoordinator {
             metal: metal,
             longEdge: longEdge,
             terminalTail: terminalTailPolicy(for: resolution),
-            filmTail: filmTailPolicy(for: resolution)
+            filmTail: filmTailPolicy(for: resolution),
+            renderProcess: migratedProcess
         )
         return RenderChainOutput(texture: texture, stats: stats)
     }

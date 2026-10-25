@@ -328,6 +328,25 @@ final class EditorState {
         Task { await pipeCoordinator.filmRecordDidChange(record) }
     }
 
+    // ── M8-3 T3 (the migration UX): the process migration's history
+    //    marker face — the recordFilmChange shape with a CALLER-SUPPLIED
+    //    record, because the migration lands the CURRENT record verbatim
+    //    (the marker's payload must equal the projected truth so no
+    //    projection drifts; the process flip itself rides the coordinator's
+    //    carrier + sidecar seam — the process has no history slot).
+
+    /// ONE document-scope film item carrying `record` verbatim under the
+    /// `history_process_migrate` label (the coordinator's
+    /// `runProcessMigration` is the only production caller). Zero pixel
+    /// items: the placeholder slot rides `commitFilm`'s document-scope
+    /// marker, the instance set is never polluted.
+    func commitProcessMigrationMarker(record: FilmRecord, label: String) {
+        if projectWriteSuppressed() { return }
+        let placeholder = instances.first ?? baseInstances.first
+        guard let placeholder else { return }
+        history.commitFilm(record: record, placeholder: placeholder, label: label)
+    }
+
     /// 04-08-F2 (GUI-9 闭环): menu enablement source — true while the
     /// stack has an entry at/below the pointer to step back into.
     /// The Edit → Undo menu binds `.disabled(!canUndo)` to this, so ⌘Z

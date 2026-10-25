@@ -237,6 +237,34 @@ final class FilmPanelModel {
             label: String(localized: "history_film_shift")) }
     }
 
+    // MARK: - The process migration row (Plan M8-3 T3, M6-2 §6 正主)
+
+    /// The document's stored render generation (nil = no image; the absent
+    /// carrier answers `.legacy` — the coordinator read face's contract).
+    var documentProcess: RenderProcessVersion? {
+        guard let coordinator = pipeCoordinator, coordinator.liveImageURL != nil
+        else { return nil }
+        return coordinator.documentProcessVersion
+    }
+
+    /// The migration row's gate — the pure model's evaluate face (the
+    /// panel never re-derives it: the action's inputs are the coordinator's
+    /// read faces and the evaluation is a pure function).
+    var migrationAction: FilmMigrationAction {
+        guard let coordinator = pipeCoordinator, let url = coordinator.liveImageURL
+        else { return .notApplicable }
+        return FilmMigrationAction.evaluate(
+            processRawValue: coordinator.documentProcessVersion?.rawValue,
+            hasFilmRecord: coordinator.hasFilmRecord(for: url),
+            editingInFlight: coordinator.filmEditInFlight)
+    }
+
+    /// The confirm sheet's confirm leg (the ONE production caller of the
+    /// coordinator's migration face).
+    func runMigration() {
+        Task { await pipeCoordinator?.runProcessMigration() }
+    }
+
     // MARK: - The latitude section (FSIM-02, KD-3)
 
     /// The histogram's native EV axis (256 bins × [0,1] linear through the

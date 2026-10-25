@@ -411,18 +411,23 @@ public enum ExportRenderer {
         // on-disk META is the truth). The step-3 read is reused when it
         // already happened.
         var namingDocument: LightamerSidecar?
+        // M8-3 T3: the export face follows the document's stored process
+        // (red line 12's filmTail-follows-record+process form) — the DISK
+        // sidecar is the truth in BOTH arms (the override mode reads it
+        // for the same purpose the naming face does).
+        var documentProcess = RenderProcessVersion.legacy
         if let override = request.instancesOverride {
             records = override
             layerRecord = nil
             imageID = UUID()
-            if naming != nil {
-                namingDocument = Self.readDocument(imageURL: request.imageURL)
-            }
+            namingDocument = Self.readDocument(imageURL: request.imageURL)
+            documentProcess = namingDocument?.process ?? .legacy
         } else if let document = Self.readDocument(imageURL: request.imageURL) {
             records = document.instances
             layerRecord = document.layerStack
             imageID = document.imageID
             namingDocument = document
+            documentProcess = document.process ?? .legacy
         } else {
             records = []
             layerRecord = nil
@@ -542,6 +547,7 @@ public enum ExportRenderer {
                     terminalTail: terminalTailPolicy,
                     tailFormatFloatOverride: tailFormatFloatOverride,
                     filmTail: filmTail,
+                    renderProcess: documentProcess,
                     linearGainCapture: linearGainCapture)
             }
             outputTexture = texture
@@ -553,6 +559,7 @@ public enum ExportRenderer {
                     longEdge: entryLongEdge, terminalTail: terminalTailPolicy,
                     tailFormatFloatOverride: tailFormatFloatOverride,
                     filmTail: filmTail,
+                    renderProcess: documentProcess,
                     linearGainCapture: linearGainCapture)
             }
             outputTexture = texture

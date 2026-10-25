@@ -371,6 +371,20 @@ final class WorkspaceModel {
         }
     }
 
+    /// The runtime write face (Plan M8-3 T3, the migration UX — the
+    /// M6-2-01 registered "first runtime write face"): the ONLY caller is
+    /// the explicit "Update to Current Process" action. The zero-automatic-
+    /// migration rule (M6-2 OQ-5) stands: the load legs (the stored-value
+    /// prime / the pristine mint) stay the only other writers, and no
+    /// background or batch path exists.
+    func setProcessVersion(_ version: RenderProcessVersion, for url: URL) {
+        if version == .legacy {
+            processVersions.removeValue(forKey: url.path)
+        } else {
+            processVersions[url.path] = version
+        }
+    }
+
     /// The editor-close drop face (the 关图丢弃 family).
     func dropSessionProcessVersions() {
         processVersions.removeAll()
