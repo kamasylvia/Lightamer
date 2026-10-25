@@ -136,8 +136,12 @@ using namespace metal;
 /* ---------------------------------------------------------------- */
 /* the shared log2/exp2 polynomial pair — the port of grain.h's
    grain_log2f/grain_exp2f/grain_exp2i (GPL-3.0, (C) darktable
-   developers). Deliberately NOT fma-pinned: both sides must run the
-   SAME bare-rounding form or the nail ③ bit-identity breaks.        */
+   developers). The Horner chains are FMA-PINNED: the first device run
+   showed the Metal compiler contracts a handful of the bare forms (the
+   T3 bit-identity battery measured 41/384 divergent samples on the
+   bare spelling), so the pin replaces "both sides bare" with "both
+   sides pinned" — the same by-construction agreement, one compiler
+   mood shorter (the M8-1B-DECISIONS nail-③ note).                    */
 /* ---------------------------------------------------------------- */
 
 static inline float sf_exp2i(int k)
@@ -155,34 +159,48 @@ static inline float sf_exp2f(float x)
   const int k = (int)floor(x + 0.5f);
   const float t = (x - (float)k) * 0.6931471824645996f; /* ln(2) */
   float p = 0.000198412700f;                            /* 1/5040 */
-  p = p * t + 0.00138888892f;                           /* 1/720 */
-  p = p * t + 0.00833333377f;                           /* 1/120 */
-  p = p * t + 0.0416666679f;                            /* 1/24 */
-  p = p * t + 0.166666672f;                             /* 1/6 */
-  p = p * t + 0.5f;
-  p = p * t + 1.0f;
-  p = p * t + 1.0f;
+  p = fma(p, t, 0.00138888892f);                        /* 1/720 */
+  p = fma(p, t, 0.00833333377f);                        /* 1/120 */
+  p = fma(p, t, 0.0416666679f);                         /* 1/24 */
+  p = fma(p, t, 0.166666672f);                          /* 1/6 */
+  p = fma(p, t, 0.5f);
+  p = fma(p, t, 1.0f);
+  p = fma(p, t, 1.0f);
   return p * sf_exp2i(k);
 }
 
 static inline float sf_log2f(float x)
 {
   /* Take the binary exponent off by hand, then fold the mantissa into
-     [1/sqrt2, sqrt2] so that s = (m-1)/(m+1) stays inside +-0.1716,
-     where log(m) = 2(s + s^3/3 + s^5/5 + s^7/7 + s^9/9) is good to
-     well under an ULP. Both steps of the fold are exact. */
+     [1/sqrt2, sqrt2]. The series itself is DIVISION-FREE: a degree-13
+     fma-Horner fit of ln(1+q) over q = m-1 in [-0.293, 0.414] (max
+     measured error 3.2e-8 in ln units). The upstream grain.h form used
+     s = (m-1)/(m+1) with the host and the OpenCL device BOTH rounding
+     the division correctly; this device divides differently (the first
+     T3 run measured 13/384 samples one-two ULP off, all near the
+     cancellation zone), so the fit removes the division from the shared
+     face — determinism by construction, the same remedy class as the
+     fma pins. The exponent peel + fold steps stay the upstream form
+     (exact bit manipulation). */
   const uint xu = as_type<uint>(x);
   int e = (int)((xu >> 23) & 0xffu) - 127;
   float m = as_type<float>((xu & 0x007fffffu) | 0x3f800000u);
   if (m > 1.41421356f) { m *= 0.5f; e += 1; }
-  const float s = (m - 1.0f) / (m + 1.0f);
-  const float s2 = s * s;
-  float p = 0.222222224f;    /* 2/9 */
-  p = p * s2 + 0.285714298f; /* 2/7 */
-  p = p * s2 + 0.400000006f; /* 2/5 */
-  p = p * s2 + 0.666666687f; /* 2/3 */
-  p = p * s2 + 2.0f;
-  return (float)e + p * s * 1.4426950216293335f; /* log2(e) */
+  const float q = m - 1.0f;
+  float p = 0.05207313597202301f;
+  p = fma(p, q, -0.09844003617763519f);
+  p = fma(p, q, 0.10096900165081024f);
+  p = fma(p, q, -0.09942647814750671f);
+  p = fma(p, q, 0.10994011908769608f);
+  p = fma(p, q, -0.12494739145040512f);
+  p = fma(p, q, 0.14291955530643463f);
+  p = fma(p, q, -0.16667121648788452f);
+  p = fma(p, q, 0.1999983936548233f);
+  p = fma(p, q, -0.24999989569187164f);
+  p = fma(p, q, 0.3333333432674408f);
+  p = fma(p, q, -0.5f);
+  p = fma(p, q, 1.0f);
+  return fma(p * q, 1.4426950216293335f, (float)e); /* log2(e) */
 }
 
 /* base-10 <-> base-2, matching the host twins (the upstream spektrafilm.cl
@@ -307,7 +325,8 @@ static inline float sf_curve(device const float *curves, float x,
   if (t >= (float)(count - 1)) return curves[(count - 1) * 3 + c];
   const int i = (int)t;
   const float f = t - (float)i;
-  return curves[i * 3 + c] + f * (curves[(i + 1) * 3 + c] - curves[i * 3 + c]);
+  /* fma pin — the same compiler-mood argument as the Horner chains */
+  return fma(f, curves[(i + 1) * 3 + c] - curves[i * 3 + c], curves[i * 3 + c]);
 }
 
 /* ---------------------------------------------------------------- */
@@ -317,9 +336,23 @@ static inline float sf_curve(device const float *curves, float x,
 
 static inline float sf_hermite(float y0, float y1, float m0, float m1, float t)
 {
-  const float t2 = t * t, t3 = t2 * t;
-  return (2.0f * t3 - 3.0f * t2 + 1.0f) * y0 + (t3 - 2.0f * t2 + t) * m0
-         + (-2.0f * t3 + 3.0f * t2) * y1 + (t3 - t2) * m1;
+  /* the same cubic in Horner form, fma-pinned: t^3*A + t^2*B + t*m0 + y0
+     with A = 2y0 + m0 - 2y1 + m1, B = 3y1 - 3y0 - 2m0 - m1 (the bare
+     spelling contracted differently on the device — the same first-run
+     finding as the polynomial chains) */
+  /* even the COEFFICIENT spellings are pinned: every mul+add pattern is
+     an explicit fma (the bare `2*y0 + m0` contracted on the device —
+     the second-run finding) */
+  float a = fma(2.0f, y0, m0);
+  a = fma(-2.0f, y1, a);
+  a = a + m1;
+  float b = 3.0f * y1;
+  b = fma(-3.0f, y0, b);
+  b = fma(-2.0f, m0, b);
+  b = b - m1;
+  float r = fma(t, a, b);
+  r = fma(t, r, m0);
+  return fma(t, r, y0);
 }
 
 static inline float3 sf_pchip3d(device const float *lut, device const float *sx,
@@ -346,16 +379,21 @@ static inline float3 sf_pchip3d(device const float *lut, device const float *sx,
                                   SF_AT(sx, i, j, k + 1, c), SF_AT(sx, i + 1, j, k + 1, c), tr);
     const float v011 = sf_hermite(SF_AT(lut, i, j + 1, k + 1, c), SF_AT(lut, i + 1, j + 1, k + 1, c),
                                   SF_AT(sx, i, j + 1, k + 1, c), SF_AT(sx, i + 1, j + 1, k + 1, c), tr);
-    const float sy00 = mix(SF_AT(sy, i, j, k, c), SF_AT(sy, i + 1, j, k, c), tr);
-    const float sy10 = mix(SF_AT(sy, i, j + 1, k, c), SF_AT(sy, i + 1, j + 1, k, c), tr);
-    const float sy01 = mix(SF_AT(sy, i, j, k + 1, c), SF_AT(sy, i + 1, j, k + 1, c), tr);
-    const float sy11 = mix(SF_AT(sy, i, j + 1, k + 1, c), SF_AT(sy, i + 1, j + 1, k + 1, c), tr);
+    /* the mixes spell the explicit x*(1−t) + y*t form with the SECOND
+       product fma-fused (NOT the mix() intrinsic — the OpenCL and MSL
+       specs state DIFFERENT roundings for it; and the bare spelling
+       contracted differently on the device — the first-run finding — so
+       the pin is the only form both sides agree on by construction) */
+    const float sy00 = fma(SF_AT(sy, i + 1, j, k, c), tr, SF_AT(sy, i, j, k, c) * (1.0f - tr));
+    const float sy10 = fma(SF_AT(sy, i + 1, j + 1, k, c), tr, SF_AT(sy, i, j + 1, k, c) * (1.0f - tr));
+    const float sy01 = fma(SF_AT(sy, i + 1, j, k + 1, c), tr, SF_AT(sy, i, j, k + 1, c) * (1.0f - tr));
+    const float sy11 = fma(SF_AT(sy, i + 1, j + 1, k + 1, c), tr, SF_AT(sy, i, j + 1, k + 1, c) * (1.0f - tr));
     const float vz0 = sf_hermite(v000, v010, sy00, sy10, tg);
     const float vz1 = sf_hermite(v001, v011, sy01, sy11, tg);
-    const float sz0 = mix(mix(SF_AT(sz, i, j, k, c), SF_AT(sz, i + 1, j, k, c), tr),
-                          mix(SF_AT(sz, i, j + 1, k, c), SF_AT(sz, i + 1, j + 1, k, c), tr), tg);
-    const float sz1 = mix(mix(SF_AT(sz, i, j, k + 1, c), SF_AT(sz, i + 1, j, k + 1, c), tr),
-                          mix(SF_AT(sz, i, j + 1, k + 1, c), SF_AT(sz, i + 1, j + 1, k + 1, c), tr), tg);
+    const float sz0 = fma(fma(SF_AT(sz, i + 1, j + 1, k, c), tr, SF_AT(sz, i, j + 1, k, c) * (1.0f - tr)),
+                          tg, fma(SF_AT(sz, i + 1, j, k, c), tr, SF_AT(sz, i, j, k, c) * (1.0f - tr)) * (1.0f - tg));
+    const float sz1 = fma(fma(SF_AT(sz, i + 1, j + 1, k + 1, c), tr, SF_AT(sz, i, j + 1, k + 1, c) * (1.0f - tr)),
+                          tg, fma(SF_AT(sz, i + 1, j, k + 1, c), tr, SF_AT(sz, i, j, k + 1, c) * (1.0f - tr)) * (1.0f - tg));
     float v = sf_hermite(vz0, vz1, sz0, sz1, tb);
     const size_t ci = ((((size_t)i) * m + j) * m + k) * 3 + c;
     v = fmin(fmax(v, cmin[ci]), cmax[ci]);
@@ -370,13 +408,23 @@ static inline float3 sf_pchip3d(device const float *lut, device const float *sx,
    sf_knee / sf_xyz_to_oklab / sf_oklab_to_xyz / sf_cmax_lookup ports */
 /* ---------------------------------------------------------------- */
 
+/* pow over the SHARED pair (nail ③'s own remedy extended to the knee:
+   Metal's pow is spec'd to a few ULP against the host's correctly-rounded
+   powf — the same class of gap the grain.h polynomial exists for; riding
+   the shared pair makes both sides agree by construction). Domain: x > 0
+   (the knee only computes above its threshold). */
+static inline float sf_powf_shared(float x, float p)
+{
+  return sf_exp2f(p * sf_log2f(x));
+}
+
 static inline float sf_knee(float d, float threshold, float limit, float power)
 {
   if (d <= threshold) return d;
   const float scale = limit - threshold;
   const float x = (d - threshold) / scale;
-  const float y = x / pow(1.0f + pow(x, power), 1.0f / power);
-  return threshold + scale * y;
+  const float y = x / sf_powf_shared(1.0f + sf_powf_shared(x, power), 1.0f / power);
+  return fma(scale, y, threshold);
 }
 
 /* Metal ships no cbrt — the cube root rides the SHARED polynomial pair
@@ -425,8 +473,16 @@ static float sf_cmax_lookup(device const float *table, const int nl, const int n
   const float v01 = table[(size_t)L_lo * nh + h_hi];
   const float v10 = table[(size_t)(L_lo + 1) * nh + h_lo];
   const float v11 = table[(size_t)(L_lo + 1) * nh + h_hi];
-  return v00 * (1 - L_frac) * (1 - h_frac) + v01 * (1 - L_frac) * h_frac
-         + v10 * L_frac * (1 - h_frac) + v11 * L_frac * h_frac;
+  /* the four-tap bilinear in a pinned accumulation order (v00 base,
+     fma folds toward it) — the bare spelling contracted on the device */
+  const float w00 = (1 - L_frac) * (1 - h_frac);
+  const float w01 = (1 - L_frac) * h_frac;
+  const float w10 = L_frac * (1 - h_frac);
+  const float w11 = L_frac * h_frac;
+  float acc = v00 * w00;
+  acc = fma(v01, w01, acc);
+  acc = fma(v10, w10, acc);
+  return fma(v11, w11, acc);
 }
 
 /* ---------------------------------------------------------------- */
@@ -625,12 +681,17 @@ static inline float3 spectral_stage_scan(
   {
     float3 lab = sf_xyz_to_oklab(consts, sf_mat3(consts + SF_M_RGB2XYZ, rgb));
     float L = sf_knee(lab.x, 0.7f, 1.0f, 2.2f); /* lightness first */
-    const float C = sqrt(lab.y * lab.y + lab.z * lab.z);
+    const float C = sqrt(fma(lab.z, lab.z, lab.y * lab.y));
     const float hh = atan2(lab.z, lab.y);
     const float C_max = fmax(sf_cmax_lookup(cmaxTable, cmaxNL, cmaxNH, L, hh), 1e-9f);
     const float d = sf_knee(C / C_max, 0.0f, 1.0f, 6.0f);
     const float C_new = d * C_max;
-    float3 lab_new = float3(L, C_new * cos(hh), C_new * sin(hh));
+    /* the hue reconstruction rides the RATIO form (cos(h) = a/C exactly)
+       — no trig in the reconstruction, and the C = 0 degenerate pixel
+       (pure black) lands on 0, not 0/0 */
+    const float ratioX = C > 0.0f ? lab.y / C : 0.0f;
+    const float ratioY = C > 0.0f ? lab.z / C : 0.0f;
+    float3 lab_new = float3(L, C_new * ratioX, C_new * ratioY);
     rgb = sf_mat3(consts + SF_M_XYZ2RGB, sf_oklab_to_xyz(consts, lab_new));
   }
 
