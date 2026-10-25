@@ -939,6 +939,7 @@ let project = Project(
                 "Tests/LightamerTests/FilmCoordinatorTests.swift",
                 "Tests/LightamerTests/DrtPanelModelTests.swift",
                 "Tests/LightamerTests/FilmPanelTests.swift",
+                "Tests/LightamerTests/FilmPanelSpectralUITests.swift",
                 "Tests/LightamerTests/FilmCardTests.swift",
                 "Tests/LightamerTests/FilmLatitudePanelTests.swift",
                 "Tests/LightamerTests/DrtViewportTests.swift",
