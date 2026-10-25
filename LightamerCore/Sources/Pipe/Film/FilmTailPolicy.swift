@@ -646,6 +646,17 @@ public enum FilmRuntimeSolve {
         contentAdaptive ? "film.solve.contentAdaptive.v1" : "film.solve.spektraLab.v1"
     }
 
+    /// The spectral domain's mode tags (M8-2, D-M8-8's solve face): the
+    /// SAME key shape, a DISTINCT tag space — the density and spectral
+    /// cores are different kernels, so their AUTO solutions must never
+    /// share a cache slot even for the identical pair ⊕ stats (the
+    /// cross-core isolation the negative test pins).
+    public static func spectralModeTag(contentAdaptive: Bool) -> String {
+        contentAdaptive
+            ? "film.solve.spectral.contentAdaptive.v1"
+            : "film.solve.spectral.v1"
+    }
+
     public static func cacheKey(
         materialPairHash: UInt64, statsHash: UInt64, contentAdaptive: Bool
     ) -> UInt64 {
@@ -653,6 +664,23 @@ public enum FilmRuntimeSolve {
         withUnsafeBytes(of: materialPairHash) { h = StableHash.combine(h, $0) }
         withUnsafeBytes(of: statsHash) { h = StableHash.combine(h, $0) }
         let tag = Array(modeTag(contentAdaptive: contentAdaptive).utf8)
+        h = tag.withUnsafeBufferPointer {
+            StableHash.combine(h, UnsafeRawBufferPointer($0))
+        }
+        return h
+    }
+
+    /// The key fold with the tag handed in DIRECTLY (M8-2, additive): the
+    /// spectral solve passes its domain's tag — the fold CONTRACT (this
+    /// exact fnv order over the three terms) is shared, only the tag's
+    /// VALUE differs per core.
+    public static func cacheKey(
+        materialPairHash: UInt64, statsHash: UInt64, modeTag: String
+    ) -> UInt64 {
+        var h = StableHash.fnvOffsetBasis
+        withUnsafeBytes(of: materialPairHash) { h = StableHash.combine(h, $0) }
+        withUnsafeBytes(of: statsHash) { h = StableHash.combine(h, $0) }
+        let tag = Array(modeTag.utf8)
         h = tag.withUnsafeBufferPointer {
             StableHash.combine(h, UnsafeRawBufferPointer($0))
         }
@@ -761,6 +789,72 @@ public enum FilmRuntimeSolve {
         }
         // The manual shifts ALWAYS on top (CC point domain, unclamped here —
         // the consumption clamp is the panel/consumer's face).
+        let m = auto.neutralMagentaCC + auto.contentDeltaM + Double(record.mFilterShift)
+        let y = auto.neutralYellowCC + auto.contentDeltaY + Double(record.yFilterShift)
+        let totalGain = auto.autoGain * Foundation.pow(2.0, Double(record.exposureEv))
+        return FilmSolveCache.Solution(magentaCC: m, yellowCC: y, exposureGain: totalGain)
+    }
+
+    /// The SPECTRAL-domain solve (M8-2, D-M8-8's consumption layer): the
+    /// SAME Solution shape and the SAME cache contract (key =
+    /// fnv(pair ⊕ stats ⊕ tag), the record terms layer at consumption and
+    /// are NEVER cached), with the spectral arm's AUTO core:
+    ///
+    ///   • the neutral pair = the BUILD-RESOLVED print CC (`tables
+    ///     .solvedPrintCC` — the spectral-domain neutral balance: the 2D
+    ///     Newton ladder over the dichroic SPD × film spectral density ×
+    ///     paper sensitivity integral drove the mid-gray log-channel
+    ///     ratios to zero, M8-1a III.1's gray-error-exactly-0 discipline).
+    ///     The CC lives in the TABLES via the solved dichroic light, so
+    ///     only the DELTAS shift at run time (the E3 exposure form);
+    ///   • the exposure normalization = the SAME runtime histogram face
+    ///     as the density arm (the integer-rank P50 → mid-gray gain — the
+    ///     consumption-layer semantic M3-4's descriptor math is anchored
+    ///     to; the uninstalled seam degrades to gain 1 deterministically);
+    ///   • the K calibration is the session operating point's spectral
+    ///     face: `midgrayFactor` (baked by the build) + the solved pair —
+    ///     the run-time face adds nothing to it (the solved values ARE
+    ///     the calibration; the T2 test pins the gray-error-exactly-0
+    ///     anchor through `midgrayPrintRaw`).
+    ///
+    /// The record terms ride the recordHash exactly as in the density arm:
+    /// manual Y/M shifts add on top of the neutral pair (CC points), and
+    /// `exposureEv` folds into the exposure gain (× 2^ev) — the solution
+    /// GAIN changes, the neutral pair does not, and the cache key holds
+    /// neither term.
+    public static func solveSpectral(
+        record: FilmRecord, tables: SpectralFilmTables,
+        materialPairHash: UInt64, histogram: FilmStatsSeam.PlaneHistogram?
+    ) throws -> FilmSolveCache.Solution {
+        let statsHash = histogram?.statsHash ?? 0
+        let key = cacheKey(
+            materialPairHash: materialPairHash, statsHash: statsHash,
+            modeTag: spectralModeTag(contentAdaptive: record.contentAdaptiveShift))
+        var auto: FilmSolveCache.AutoSolution
+        if let cached = FilmSolveCache.shared.autoSolution(for: key) {
+            auto = cached
+        } else {
+            // The spectral AUTO core (the build's neutral balance + the
+            // runtime histogram gain + the content deltas).
+            var gain = 1.0
+            var dM = 0.0
+            var dY = 0.0
+            if record.contentAdaptiveShift, let histogram {
+                let shift = contentAdaptiveShift(histogram: histogram)
+                dM = shift.deltaM
+                dY = shift.deltaY
+            }
+            if let histogram {
+                gain = exposureGain(histogram: histogram)
+            }
+            auto = FilmSolveCache.AutoSolution(
+                neutralMagentaCC: Double(tables.solvedPrintCC.y),
+                neutralYellowCC: Double(tables.solvedPrintCC.z),
+                autoGain: gain, contentDeltaM: dM, contentDeltaY: dY)
+            FilmSolveCache.shared.store(auto, for: key)
+        }
+        // The manual shifts ALWAYS on top (the density arm's consumption
+        // shape verbatim — CC point domain, unclamped here).
         let m = auto.neutralMagentaCC + auto.contentDeltaM + Double(record.mFilterShift)
         let y = auto.neutralYellowCC + auto.contentDeltaY + Double(record.yFilterShift)
         let totalGain = auto.autoGain * Foundation.pow(2.0, Double(record.exposureEv))
