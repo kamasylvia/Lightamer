@@ -144,7 +144,9 @@ public struct SpectralFilmTables: Sendable, Equatable {
             (set.lut.count + set.sx.count + set.sy.count + set.sz.count
                 + set.cmin.count + set.cmax.count) * MemoryLayout<Float>.size
         }
-        return tcLut.count * MemoryLayout<SIMD3<Float>>.size
+        // The PACKED float3 face (3 floats per cell — the Swift SIMD3
+        // type itself is 16-byte sized, which would overstate by ⅓).
+        return tcLut.count * 3 * MemoryLayout<Float>.size
             + pchipBytes(print) + pchipBytes(scan)
             + (curvesNorm.count + printCurves.count) * MemoryLayout<Float>.size
     }
@@ -281,8 +283,32 @@ public enum SpectralBuildEngine {
 
     // MARK: - The shared coefficient table memo (film-independent)
 
-    private static let coefficientMemoLock = NSLock()
-    private static var coefficientMemo: [UInt64: [SpectralTcFit.Coefficients]] = [:]
+    /// The memo box (the FilmPrintBake.Cache pattern — a static let class
+    /// instance keeps the mutable state off the global-actor checker).
+    private final class CoefficientMemo: @unchecked Sendable {
+        private let lock = NSLock()
+        private var tables: [UInt64: [SpectralTcFit.Coefficients]] = [:]
+
+        func table(
+            for key: UInt64, make: () -> [SpectralTcFit.Coefficients]
+        ) -> [SpectralTcFit.Coefficients] {
+            lock.lock()
+            if let hit = tables[key] {
+                lock.unlock()
+                return hit
+            }
+            lock.unlock()
+            // The fit runs OUTSIDE the lock (deterministic — a concurrent
+            // same-key miss refits identically and both land).
+            let made = make()
+            lock.lock()
+            tables[key] = made
+            lock.unlock()
+            return made
+        }
+    }
+
+    private static let coefficientMemo = CoefficientMemo()
 
     /// The in-process memo key (L013 spirit: StableHash over the table
     /// identity — side, axis, CMFs; no Swift Hasher).
@@ -314,18 +340,10 @@ public enum SpectralBuildEngine {
         axis: [Double], cmfs: [[Double]], side: Int
     ) -> [SpectralTcFit.Coefficients] {
         let key = coefficientMemoKey(axis: axis, cmfs: cmfs, side: side)
-        coefficientMemoLock.lock()
-        if let hit = coefficientMemo[key] {
-            coefficientMemoLock.unlock()
-            return hit
+        return coefficientMemo.table(for: key) {
+            SpectralTcFit.fitCoefficientTable(
+                axis: axis, cmfs: cmfs, side: side)
         }
-        coefficientMemoLock.unlock()
-        let table = SpectralTcFit.fitCoefficientTable(
-            axis: axis, cmfs: cmfs, side: side)
-        coefficientMemoLock.lock()
-        coefficientMemo[key] = table
-        coefficientMemoLock.unlock()
-        return table
     }
 
     // MARK: - The build
