@@ -529,4 +529,93 @@ final class SpectralDualArmGoldenTests: XCTestCase {
             "a pristine document renders byte-identically across v1/v2 "
                 + "(the zero path is process-invisible)")
     }
+
+    // MARK: - T6: the end-to-end matrix smoke (the whole vendored set)
+
+    /// The 28-profile × dual-arm render matrix (the smoke level — the
+    /// golden level is the ramp/fixture pins above): every profile takes
+    /// the film seat against the shared endura paper, renders under BOTH
+    /// arms through the REAL pipe, and every render comes back finite;
+    /// the fork is real across the set (the arms differ on the overwhelming
+    /// majority of pairs — a coincidental bitwise match is possible in
+    /// principle, so the pin is a count, not a per-pair identity). The
+    /// builds ride the tc_lut slot's LRU (the capacity keeps ~6 bundles —
+    /// the smoke thrashes it deliberately, the eviction face under load).
+    func testAll28ProfilesRenderBothArmsEndToEnd() async throws {
+        let metal = try await makeMetal()
+        let chain = try await makeColorOut(registry: ModuleRegistry.makeDefault())
+        let paper = try endura
+        let names = try FileManager.default.contentsOfDirectory(
+            atPath: profilesDirectory().path)
+            .filter { $0.hasSuffix(".json") }
+            .sorted()
+        XCTAssertEqual(names.count, 28)
+
+        let image = makeRampImage(width: 24, height: 16)
+        var differingPairs = 0
+        for name in names {
+            let profile = try FilmProfile.load(
+                profilesDirectory().appendingPathComponent(name))
+            let filmTail = makeFilmTail(film: profile, paper: paper)
+            let v1 = try await render(
+                image, chain: chain, filmTail: filmTail,
+                renderProcess: RenderProcessVersion(rawValue: 1)!, metal: metal)
+            let v2 = try await render(
+                image, chain: chain, filmTail: filmTail,
+                renderProcess: RenderProcessVersion(rawValue: 2)!, metal: metal)
+            let v1Bytes = Self.readAllBytes(v1)
+            let v2Bytes = Self.readAllBytes(v2)
+            // Both arms finite (the smoke's sanity face).
+            let v1Floats = v1Bytes.withUnsafeBytes {
+                Array($0.bindMemory(to: Float.self))
+            }
+            let v2Floats = v2Bytes.withUnsafeBytes {
+                Array($0.bindMemory(to: Float.self))
+            }
+            for i in stride(from: 0, to: v1Floats.count, by: 4) {
+                XCTAssertTrue(
+                    v1Floats[i].isFinite && v1Floats[i + 1].isFinite
+                        && v1Floats[i + 2].isFinite, "\(name): v1 texel \(i / 4)")
+                XCTAssertTrue(
+                    v2Floats[i].isFinite && v2Floats[i + 1].isFinite
+                        && v2Floats[i + 2].isFinite, "\(name): v2 texel \(i / 4)")
+            }
+            if v1Bytes != v2Bytes { differingPairs += 1 }
+        }
+        XCTAssertGreaterThan(
+            differingPairs, 25,
+            "the spectral fork must be visible across the vendored set "
+                + "(\(differingPairs)/28 pairs differ)")
+        print("M8-2-SMOKE|matrix|28 profiles|differing pairs \(differingPairs)/28")
+    }
+
+    /// The export-seam smoke: a v2 document's film leg through the EXPORT
+    /// resolution renders finite — the `$jobFilmTail` recursion seam is
+    /// zero-changed (ExportQueueContract is a zero-diff face; the per-job
+    /// carrier hands the same FilmTailParams through, and the arm rides the
+    /// document's process inside the leg). The full export GUI walkthrough
+    /// is M8-3's face; this pins the pipeline-level seam only.
+    func testV2FilmLegRendersThroughTheExportResolution() async throws {
+        let metal = try await makeMetal()
+        let film = try portra
+        let paper = try endura
+        let image = makeRampImage(width: 32, height: 24)
+        let chain = try await makeColorOut(registry: ModuleRegistry.makeDefault())
+        let (texture, stats) = try await RenderPipeline.process(
+            image: image, instances: chain, imageID: Self.fixtureImageID,
+            resolution: .export, cache: PipeCache(), metal: metal,
+            terminalTail: .edrLinear,
+            filmTail: makeFilmTail(film: film, paper: paper),
+            renderProcess: RenderProcessVersion(rawValue: 2)!)
+        await Self.drain(metal)
+        XCTAssertGreaterThan(stats.planesRendered, 0, "防空转: the export run rendered")
+        let floats = Self.readAllBytes(texture).withUnsafeBytes {
+            Array($0.bindMemory(to: Float.self))
+        }
+        for i in stride(from: 0, to: floats.count, by: 4) {
+            XCTAssertTrue(
+                floats[i].isFinite && floats[i + 1].isFinite && floats[i + 2].isFinite,
+                "export texel \(i / 4) must be finite")
+        }
+    }
 }
