@@ -1219,11 +1219,15 @@ internal final class PixelPipe: @unchecked Sendable {
             (params.filmProfile != nil && params.paperProfile != nil)
             ? try? await FilmStatsSeam.histogram(input, metal) : nil
         // ② ③ the solve + the GPU payload assembly (the shared factory —
-        // the descriptor probe constructs through the SAME path).
+        // the descriptor probe constructs through the SAME path). M8-2: the
+        // factory forks on the run's resolved process (the X4 fork point —
+        // the exhaustive switch is the compile-time fork guarantee); the
+        // resolved arm also folds the seed's tag段 (the「非 legacy 才折」
+        // contract — v1/legacy keys byte-identical).
         let assembled = Self.assembleFilmLeg(
             record: params.record, film: params.filmProfile, paper: params.paperProfile,
             materialPairHash: params.materialPairHash, histogram: histogram,
-            plane: input, metal: metal)
+            plane: input, metal: metal, renderProcess: renderProcess)
         // fix(film-leg): the payloads ride the box INSTANCE (handed in
         // through `FilmTailAssembly.instances` below) — the former
         // process-wide `FilmMethodBox.runContext` static slot was set here
@@ -1242,11 +1246,10 @@ internal final class PixelPipe: @unchecked Sendable {
         filmPipe.renderProcess = renderProcess
         let seed = FilmTailAssembly.seed(
             upstream: upstreamSeed, params: params,
-            solvedPackHash: assembled.solvedPackHash)
+            solvedPackHash: assembled.solvedPackHash, renderProcess: renderProcess)
         let (output, _) = try await filmPipe.runSub(
             input: input, inputROI: inputROI,
-            instances: FilmTailAssembly.instances(
-                method: assembled.method, payloads: assembled.payloads),
+            instances: FilmTailAssembly.instances(assembly: assembled),
             decodeHash: seed, metal: metal, layerID: cacheLayerID)
         let outputHash = Self.chain(
             seed, FilmTailAssembly.methodParamsHash(method: assembled.method))
@@ -1254,16 +1257,47 @@ internal final class PixelPipe: @unchecked Sendable {
     }
 
     /// The film leg's payload assembly FACTORY (M3-4-01 T2 extraction,
-    /// KD-2 — zero behavior diff: the production leg and the descriptor
-    /// probe construct through this ONE path, RFC-023 §8.1 "same code path
-    /// as the picture"). histogram → solve (cached) → the GPU payload
-    /// build. Unresolved materials / a failed solve = the identity face
-    /// (solvedPackHash 0, nil payloads — the byte-neutral carrier).
+    /// KD-2 — zero behavior diff for the density arm: the production leg
+    /// and the descriptor probe construct through this ONE path, RFC-023
+    /// §8.1 "same code path as the picture"). histogram → solve (cached) →
+    /// the GPU payload build. Unresolved materials / a failed solve = the
+    /// identity face (solvedPackHash 0, nil payloads — the byte-neutral
+    /// carrier).
+    ///
+    /// M8-2 (X4, the process fork point): the RESOLVED arm selects the
+    /// payload construction INSIDE the factory — the exhaustive switch is
+    /// the compile-time fork guarantee (a new RenderProcess case fails
+    /// compilation HERE first). `.v1` = the density arm, byte-for-byte the
+    /// pre-M8-2 path (the FROZEN arm — the density kernels, the 65³ bake,
+    /// FilmFilterPackSolver and `film_subrun` are untouched); `.v2` (at the
+    /// M8-2 bump) = the spectral arm (the tc-slot tables + the spectral
+    /// solve + the SpectralFilmKernels dispatch chain). The default
+    /// `.legacy` keeps every pre-M8-2 call site (the descriptor probe's
+    /// exact form) compiling and behaving identically — the probe follows
+    /// the factory by construction, its call site zero-diff.
     static func assembleFilmLeg(
         record: FilmRecord, film: FilmProfile?, paper: FilmProfile?,
         materialPairHash: UInt64, histogram: FilmStatsSeam.PlaneHistogram?,
+        plane: any MTLTexture, metal: MetalContext,
+        renderProcess: RenderProcessVersion = .legacy
+    ) -> FilmLegAssembly {
+        switch RenderProcess.resolving(renderProcess) {
+        case .v1:
+            return assembleDensityFilmLeg(
+                record: record, film: film, paper: paper,
+                materialPairHash: materialPairHash, histogram: histogram,
+                plane: plane, metal: metal)
+        }
+    }
+
+    /// The DENSITY arm (the frozen arm — the pre-M8-2 assembly bytes
+    /// verbatim; nothing in this function's behavior may change without a
+    /// new process generation).
+    private static func assembleDensityFilmLeg(
+        record: FilmRecord, film: FilmProfile?, paper: FilmProfile?,
+        materialPairHash: UInt64, histogram: FilmStatsSeam.PlaneHistogram?,
         plane: any MTLTexture, metal: MetalContext
-    ) -> (method: FilmMethodBox.Params, payloads: FilmGPUPayloads?, solvedPackHash: UInt64) {
+    ) -> FilmLegAssembly {
         var solvedPackHash: UInt64 = 0
         var method = FilmMethodBox.Params(record: record)
         var payloads: FilmGPUPayloads? = nil
@@ -1283,7 +1317,8 @@ internal final class PixelPipe: @unchecked Sendable {
             payloads = assembleFilmPayloads(
                 film: film, paper: paper, method: method, plane: plane, metal: metal)
         }
-        return (method, payloads, solvedPackHash)
+        return FilmLegAssembly(
+            method: method, payloads: payloads, solvedPackHash: solvedPackHash)
     }
 
     /// The film leg's GPU payload assembly: the curve buffer (channel-major

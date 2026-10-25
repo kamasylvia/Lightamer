@@ -213,7 +213,10 @@ public final class SpectralGPUPayloads {
     }
 
     /// The uniforms slots (float-encoded; integer-valued slots are cast at
-    /// the use site — no Swift/Metal struct ABI to keep in sync).
+    /// the use site — no Swift/Metal struct ABI to keep in sync). Slots
+    /// 34/35 are the M8-2 EXTENDED face (the frozen kernel family's
+    /// SF_U_TOTAL = 34 define belongs to the seven-stage kernels; the
+    /// strength-mix kernel reads the additions by literal index).
     public enum UniformSlot {
         public static let width = 0
         public static let height = 1
@@ -239,7 +242,10 @@ public final class SpectralGPUPayloads {
         public static let corrH = 31
         public static let corrDS = 32
         public static let blurRadius = 33
-        public static let total = 34
+        /// The M8-2 strength-mix face (the kernel reads u[34]/u[35]).
+        public static let mixStrength = 34
+        public static let mixGain = 35
+        public static let total = 36
     }
 
     /// The kernel argument layout (the tests' and M8-2's binding map).
@@ -433,52 +439,245 @@ public final class SpectralGPUPayloads {
 
     /// Rewrite the per-run frame geometry into the uniforms buffer (the
     /// M8-2 instance-carrier face: one small shared-storage write, the
-    /// tables untouched — the read-only-table discipline holds).
+    /// tables untouched — the read-only-table discipline holds). The
+    /// session tuning slots are RESET here — `applySessionTuning` re-applies
+    /// them after this when a run carries one.
     public func updateFrameGeometry(width: Int, height: Int) {
         let newW = Self.corrDimension(width: width, decimation: decimation)
         let newH = Self.corrDimension(width: height, decimation: decimation)
-        var u = [Float](repeating: 0, count: UniformSlot.total)
-        u[UniformSlot.width] = Float(width)
-        u[UniformSlot.height] = Float(height)
-        u[UniformSlot.tcSide] = Float(tables.tcSide)
-        u[UniformSlot.steps] = Float(SpectralFilmPchipSet.steps)
-        u[UniformSlot.curveCount] = Float(tables.curvesNorm.count / 3)
-        u[UniformSlot.le0] = tables.le0
-        u[UniformSlot.invLeStep] = tables.invLeStep  // nail ②: the stored value
-        u[UniformSlot.evScale] = tables.evScale      // ≡ 1 (D-M8-8)
-        u[UniformSlot.log10PrintExposure] = tables.log10PrintExposure
-        u[UniformSlot.outScale] = 1.0
-        u[UniformSlot.dmax + 0] = tables.filmDmax.x
-        u[UniformSlot.dmax + 1] = tables.filmDmax.y
-        u[UniformSlot.dmax + 2] = tables.filmDmax.z
-        u[UniformSlot.enlLo + 0] = tables.enlLo.x
-        u[UniformSlot.enlLo + 1] = tables.enlLo.y
-        u[UniformSlot.enlLo + 2] = tables.enlLo.z
-        u[UniformSlot.enlInvRange + 0] = tables.enlInvRange.x  // nail ②
-        u[UniformSlot.enlInvRange + 1] = tables.enlInvRange.y
-        u[UniformSlot.enlInvRange + 2] = tables.enlInvRange.z
-        u[UniformSlot.scanLo + 0] = tables.scanLo.x
-        u[UniformSlot.scanLo + 1] = tables.scanLo.y
-        u[UniformSlot.scanLo + 2] = tables.scanLo.z
-        u[UniformSlot.scanInvRange + 0] = tables.scanInvRange.x  // nail ②
-        u[UniformSlot.scanInvRange + 1] = tables.scanInvRange.y
-        u[UniformSlot.scanInvRange + 2] = tables.scanInvRange.z
-        u[UniformSlot.positive] = couplers.positive ? 1 : 0
-        u[UniformSlot.useCorr] = (couplers.active && newW > 0) ? 1 : 0
-        u[UniformSlot.donorLM] = couplers.donorLM ? 1 : 0
-        u[UniformSlot.recvLM] = couplers.recvLM ? 1 : 0
-        u[UniformSlot.compressMode] = 1  // OkLCh (the only v1 mode)
-        u[UniformSlot.corrW] = Float(newW)
-        u[UniformSlot.corrH] = Float(newH)
-        u[UniformSlot.corrDS] = Float(decimation)
-        u[UniformSlot.blurRadius] = Float(blurRadius)
-        let stride = MemoryLayout<Float>.stride
-        u.withUnsafeBytes {
-            uniformsBuffer.contents().copyMemory(
-                from: $0.baseAddress!, byteCount: UniformSlot.total * stride)
-        }
+        uniformShadow = [Float](repeating: 0, count: UniformSlot.total)
+        uniformShadow[UniformSlot.width] = Float(width)
+        uniformShadow[UniformSlot.height] = Float(height)
+        uniformShadow[UniformSlot.tcSide] = Float(tables.tcSide)
+        uniformShadow[UniformSlot.steps] = Float(SpectralFilmPchipSet.steps)
+        uniformShadow[UniformSlot.curveCount] = Float(tables.curvesNorm.count / 3)
+        uniformShadow[UniformSlot.le0] = tables.le0
+        uniformShadow[UniformSlot.invLeStep] = tables.invLeStep  // nail ②: the stored value
+        uniformShadow[UniformSlot.evScale] = tables.evScale      // ≡ 1 (D-M8-8)
+        uniformShadow[UniformSlot.log10PrintExposure] = tables.log10PrintExposure
+        uniformShadow[UniformSlot.outScale] = 1.0
+        uniformShadow[UniformSlot.dmax + 0] = tables.filmDmax.x
+        uniformShadow[UniformSlot.dmax + 1] = tables.filmDmax.y
+        uniformShadow[UniformSlot.dmax + 2] = tables.filmDmax.z
+        uniformShadow[UniformSlot.enlLo + 0] = tables.enlLo.x
+        uniformShadow[UniformSlot.enlLo + 1] = tables.enlLo.y
+        uniformShadow[UniformSlot.enlLo + 2] = tables.enlLo.z
+        uniformShadow[UniformSlot.enlInvRange + 0] = tables.enlInvRange.x  // nail ②
+        uniformShadow[UniformSlot.enlInvRange + 1] = tables.enlInvRange.y
+        uniformShadow[UniformSlot.enlInvRange + 2] = tables.enlInvRange.z
+        uniformShadow[UniformSlot.scanLo + 0] = tables.scanLo.x
+        uniformShadow[UniformSlot.scanLo + 1] = tables.scanLo.y
+        uniformShadow[UniformSlot.scanLo + 2] = tables.scanLo.z
+        uniformShadow[UniformSlot.scanInvRange + 0] = tables.scanInvRange.x  // nail ②
+        uniformShadow[UniformSlot.scanInvRange + 1] = tables.scanInvRange.y
+        uniformShadow[UniformSlot.scanInvRange + 2] = tables.scanInvRange.z
+        uniformShadow[UniformSlot.positive] = couplers.positive ? 1 : 0
+        uniformShadow[UniformSlot.useCorr] = (couplers.active && newW > 0) ? 1 : 0
+        uniformShadow[UniformSlot.donorLM] = couplers.donorLM ? 1 : 0
+        uniformShadow[UniformSlot.recvLM] = couplers.recvLM ? 1 : 0
+        uniformShadow[UniformSlot.compressMode] = 1  // OkLCh (the only v1 mode)
+        uniformShadow[UniformSlot.corrW] = Float(newW)
+        uniformShadow[UniformSlot.corrH] = Float(newH)
+        uniformShadow[UniformSlot.corrDS] = Float(decimation)
+        uniformShadow[UniformSlot.blurRadius] = Float(blurRadius)
+        uploadUniforms()
         self.corrWidth = newW
         self.corrHeight = newH
+    }
+
+    /// The Swift-side uniform mirror (the single upload source —
+    /// `updateFrameGeometry` rewrites it wholesale, `applySessionTuning`
+    /// mutates the session slots in place and re-uploads once).
+    private var uniformShadow: [Float] = []
+
+    private func uploadUniforms() {
+        uniformShadow.withUnsafeBytes {
+            uniformsBuffer.contents().copyMemory(
+                from: $0.baseAddress!, byteCount: UniformSlot.total * MemoryLayout<Float>.stride)
+        }
+    }
+
+    /// Per-run session tuning (M8-2, the film leg's spectral arm) — written
+    /// AFTER `updateFrameGeometry`:
+    ///
+    ///   • the solved session gain (the auto normalization × 2^exposureEv —
+    ///     D-M8-8's solve-gain consumption layer) rides the PRINT-exposure
+    ///     slot: `log10_print_exposure += log10(gain)` lands in the
+    ///     kernel's `l1 + pe` add (the 印相曝光归一 face — the expose chain
+    ///     head's ev_scale stays ≡ 1 by construction);
+    ///   • the manual + content-adaptive CC deltas ride the E3
+    ///     filter-vector form: `enl_lo[1] += kM`, `enl_lo[2] += kY` — the
+    ///     print-table INPUT-coordinate density shift, the exact algebraic
+    ///     twin of the frozen density kernel's `density.g -= kM` before
+    ///     its print LUT (the E3 channel mapping: Magenta → GREEN,
+    ///     Yellow → BLUE; the build's own neutral CC rides the tables via
+    ///     the solved dichroic light, so only the deltas shift here);
+    ///   • the strength-mix slots (34/35) carry the mix kernel's face.
+    ///
+    /// All values arrive in float (the caller's conversion face — the
+    /// Float64 solve values rounded once at the Params face).
+    public func applySessionTuning(
+        exposureGain: Float, kM: Float, kY: Float, strength: Float
+    ) {
+        uniformShadow[UniformSlot.log10PrintExposure] +=
+            Float(Foundation.log10(Double(max(exposureGain, 1e-6))))
+        uniformShadow[UniformSlot.enlLo + 1] += kM
+        uniformShadow[UniformSlot.enlLo + 2] += kY
+        uniformShadow[UniformSlot.mixStrength] = strength
+        uniformShadow[UniformSlot.mixGain] = exposureGain
+        uploadUniforms()
+    }
+
+    // MARK: - The M8-2 production dispatch chain (the film leg's spectral arm)
+
+    /// The full spectral film chain for ONE run (X3's dispatch form):
+    /// stage A (expose + lograw + develop_corr at the decimated grid) →
+    /// the separable blur pair (ping-pong) → stage B (develop + print +
+    /// scan, sampling the blurred corr bilinearly) → the strength mix when
+    /// the document's strength < 1 (the RFC-025 density-domain blend — at
+    /// strength >= 1 stage B writes the OUTPUT directly, so the default
+    /// face is the bitwise-raw chain). The corr arm leg runs ONLY when the
+    /// coupler face is active (`use_corr`) — the neutral couplers-off face
+    /// skips A + blur entirely (the corr field would be identically zero:
+    /// zero matrix → develop_corr ≡ 0 → develop subtracts nothing; the
+    /// skip is value-identical and holds the H-M2 memory posture).
+    ///
+    /// The per-run corr planes are allocated here (run-scoped — never
+    /// cached beyond the call); the tables stay read-only throughout.
+    public func dispatchFilmChain(
+        input: any MTLTexture, output: any MTLTexture, metal: MetalContext,
+        exposureGain: Float, kM: Float, kY: Float, strength: Float
+    ) async throws {
+        precondition(
+            input.width == output.width && input.height == output.height,
+            "the film chain writes a same-shape plane")
+        updateFrameGeometry(width: input.width, height: input.height)
+        applySessionTuning(exposureGain: exposureGain, kM: kM, kY: kY, strength: strength)
+        let w = input.width, h = input.height
+        let useCorr = couplers.active && corrWidth > 0 && corrHeight > 0
+        // The strength<1 path needs stage B's raw output as a MIX SOURCE —
+        // stage B then targets an intermediate and the mix kernel blends
+        // against the original input. At strength >= 1 B targets the
+        // output directly (no intermediate ever exists — the default
+        // face's memory posture).
+        let wantsMix = strength < 1.0
+        let stageBTarget: any MTLTexture
+        if wantsMix {
+            guard let intermediate = try Self.makeReadWriteTexture(
+                metal: metal, width: w, height: h)
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: mix intermediate allocation")
+            }
+            stageBTarget = intermediate
+        } else {
+            stageBTarget = output
+        }
+
+        if useCorr {
+            let cw = corrWidth, ch = corrHeight
+            guard let corrA = try Self.makeReadWriteTexture(metal: metal, width: cw, height: ch),
+                let corrB = try Self.makeReadWriteTexture(metal: metal, width: cw, height: ch)
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: corr plane allocation")
+            }
+            // A: the decimated-grid corr generation (box-averages its ds×ds
+            // source block — the downsample IS the write pattern).
+            let sessionA = try await metal.makeEncoder(functionName: "spectral_film_stage_a")
+            sessionA.encoder.setTexture(input, index: SpectralGPUPayloads.TextureIndex.input)
+            sessionA.encoder.setTexture(corrA, index: 1)
+            sessionA.encoder.setTexture(tcLutTexture, index: 2)  // the A-face tc slot
+            sessionA.encoder.setBuffer(curvesBuffer, offset: 0, index: 0)
+            sessionA.encoder.setBuffer(constBlockBuffer, offset: 0, index: 1)
+            sessionA.encoder.setBuffer(uniformsBuffer, offset: 0, index: 2)
+            sessionA.encoder.dispatchThreads(
+                MTLSize(width: cw, height: ch, depth: 1),
+                threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
+            sessionA.encoder.endEncoding()
+            sessionA.commandBuffer.commit()
+            await sessionA.commandBuffer.completed()
+            // The separable blur pair, ping-pong (row → col; the blurred
+            // field lands back in corrA).
+            for (kernel, src, dst) in [
+                ("spectral_film_blur_row", corrA, corrB),
+                ("spectral_film_blur_col", corrB, corrA),
+            ] {
+                let blur = try await metal.makeEncoder(functionName: kernel)
+                blur.encoder.setTexture(src, index: 0)
+                blur.encoder.setTexture(dst, index: 1)
+                blur.encoder.setBuffer(blurWeightsBuffer, offset: 0, index: 0)
+                blur.encoder.setBuffer(uniformsBuffer, offset: 0, index: 2)
+                blur.encoder.dispatchThreads(
+                    MTLSize(width: cw, height: ch, depth: 1),
+                    threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
+                blur.encoder.endEncoding()
+                blur.commandBuffer.commit()
+                await blur.commandBuffer.completed()
+            }
+            try await dispatchStageB(
+                input: input, output: stageBTarget, corr: corrA, metal: metal)
+        } else {
+            // The couplers-off face: B only. The corr slot binds the tc
+            // texture as a never-read placeholder (the kernel guards on
+            // use_corr = 0 before touching it).
+            try await dispatchStageB(
+                input: input, output: stageBTarget, corr: tcLutTexture, metal: metal)
+        }
+
+        if wantsMix {
+            let mix = try await metal.makeEncoder(functionName: "spectral_film_strength_mix")
+            mix.encoder.setTexture(stageBTarget, index: 0)
+            mix.encoder.setTexture(input, index: 1)
+            mix.encoder.setTexture(output, index: 2)
+            mix.encoder.setBuffer(uniformsBuffer, offset: 0, index: 0)
+            mix.encoder.dispatchThreads(
+                MTLSize(width: w, height: h, depth: 1),
+                threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
+            mix.encoder.endEncoding()
+            mix.commandBuffer.commit()
+            await mix.commandBuffer.completed()
+        }
+    }
+
+    /// Stage B (the fused tail: develop + print_expose + print_develop +
+    /// scan; the corr field rides texture 2 per the kernel ABI).
+    private func dispatchStageB(
+        input: any MTLTexture, output: any MTLTexture,
+        corr: any MTLTexture, metal: MetalContext
+    ) async throws {
+        let sessionB = try await metal.makeEncoder(functionName: "spectral_film_stage_b")
+        sessionB.encoder.setTexture(input, index: SpectralGPUPayloads.TextureIndex.input)
+        sessionB.encoder.setTexture(output, index: SpectralGPUPayloads.TextureIndex.output)
+        sessionB.encoder.setTexture(corr, index: SpectralGPUPayloads.TextureIndex.corr)
+        sessionB.encoder.setTexture(tcLutTexture, index: SpectralGPUPayloads.TextureIndex.tcLut)
+        let buffers: [any MTLBuffer] = [
+            curvesBuffer, printCurvesBuffer,
+            printLut, printSx, printSy, printSz, printCmin, printCmax,
+            scanLut, scanSx, scanSy, scanSz, scanCmin, scanCmax,
+            cmaxBuffer, constBlockBuffer, uniformsBuffer,
+        ]
+        for (index, buffer) in buffers.enumerated() {
+            sessionB.encoder.setBuffer(buffer, offset: 0, index: index)
+        }
+        sessionB.encoder.dispatchThreads(
+            MTLSize(width: input.width, height: input.height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
+        sessionB.encoder.endEncoding()
+        sessionB.commandBuffer.commit()
+        await sessionB.commandBuffer.completed()
+    }
+
+    /// A read/write rgba32Float plane (the run-scoped corr + mix faces).
+    private static func makeReadWriteTexture(
+        metal: MetalContext, width: Int, height: Int
+    ) throws -> (any MTLTexture)? {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: max(width, 1), height: max(height, 1),
+            mipmapped: false)
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        return metal.device.makeTexture(descriptor: descriptor)
     }
 
     // MARK: - The host-side block builders (the T3 upload/round-trip faces)

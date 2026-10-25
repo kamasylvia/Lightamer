@@ -88,6 +88,26 @@ public enum FilmTailAssembly {
     /// record hash; the tag namespaces the fold).
     static let policyTag = "lightamer.film.subrun.v1"
 
+    /// The spectral arm's namespace tag (M8-2, the「非 legacy 才折」fold):
+    /// ONLY the resolved `.v2` arm folds this — the `.v1`/legacy documents
+    /// keep `policyTag` verbatim, so every legacy cache key (the film
+    /// sub-run seed above all) stays byte-identical forever (the
+    /// filmRampPlaneHash freeze's key half). Review m1's narrow-fold
+    /// declaration: the fold discriminator is the RESOLVED ARM, narrower
+    /// than the RenderProcess header's literal `rawValue > 0` form (which
+    /// would fold v1 too).
+    static let spectralPolicyTag = "lightamer.film.subrun.v2-spectral"
+
+    /// The arm's fold tag (the exhaustive switch is the compile-time half:
+    /// a new RenderProcess case fails compilation HERE first — the `.v2`
+    /// arm's tag lands WITH the M8-2 bump, the compiler points at this
+    /// switch).
+    static func policyTag(for arm: RenderProcess) -> String {
+        switch arm {
+        case .v1: return policyTag
+        }
+    }
+
     /// The display-replay sub-run's namespace tag (the replay keys must be
     /// distinct from every other sub-run's at the same upstream).
     static let replayTag = "lightamer.film.replay.v1"
@@ -97,12 +117,39 @@ public enum FilmTailAssembly {
     /// DrtTailAssembly.seed shape). T1 passes the placeholder 0; T2's solve
     /// cache fills the real value (the fold ORDER is final from day one so
     /// the T2 activation cannot move existing keys relative to the spec).
+    /// This 3-arg form is the DENSITY arm's canonical face — every legacy
+    /// (v1/absent process) key flows through it byte-identically.
     public static func seed(
         upstream: UInt64, params: FilmTailParams, solvedPackHash: UInt64
     ) -> UInt64 {
+        seedFolding(
+            upstream: upstream, params: params, solvedPackHash: solvedPackHash,
+            tag: policyTag)
+    }
+
+    /// The process-aware seed (M8-2, the「非 legacy 才折」contract): the
+    /// tag段 of the SAME four-term canonical order resolves through the
+    /// arm's fold tag — v1/legacy resolve to `policyTag` (byte-identical
+    /// keys, the negative-test-pinned face), the spectral arm folds
+    /// `spectralPolicyTag` (a new keyspace; no legacy key can collide).
+    /// The FOLD ORDER never changed — only the tag's VALUE per arm.
+    public static func seed(
+        upstream: UInt64, params: FilmTailParams, solvedPackHash: UInt64,
+        renderProcess: RenderProcessVersion
+    ) -> UInt64 {
+        seedFolding(
+            upstream: upstream, params: params, solvedPackHash: solvedPackHash,
+            tag: policyTag(for: RenderProcess.resolving(renderProcess)))
+    }
+
+    /// The seed's single fold body (the KD-1 canonical order — the two
+    /// public faces above differ ONLY in the tag they hand in).
+    private static func seedFolding(
+        upstream: UInt64, params: FilmTailParams, solvedPackHash: UInt64, tag: String
+    ) -> UInt64 {
         var h = StableHash.fnvOffsetBasis
         withUnsafeBytes(of: params.recordHash) { h = StableHash.combine(h, $0) }
-        let tagBytes = Array(policyTag.utf8)
+        let tagBytes = Array(tag.utf8)
         h = tagBytes.withUnsafeBufferPointer {
             StableHash.combine(h, UnsafeRawBufferPointer($0))
         }
@@ -145,6 +192,16 @@ public enum FilmTailAssembly {
             record: method.record, method: method, payloads: payloads))]
     }
 
+    /// The assembly-carrier form (M8-2): the forked factory's whole return
+    /// rides ONE box — density and spectral payloads both travel by the
+    /// instance, the arm-select happens inside the box's process face.
+    public static func instances(assembly: FilmLegAssembly) -> [any ModuleBoxing] {
+        [ModuleBox(module: FilmMethodBox(
+            record: assembly.method.record, method: assembly.method,
+            payloads: assembly.payloads,
+            spectralPayloads: assembly.spectralPayloads))]
+    }
+
     /// The display-replay resident filter (the 3×2 matrix's replay half,
     /// checker E4): the boxes the CURRENT policy demoted and must replay
     /// AFTER the film leg.
@@ -184,6 +241,36 @@ public enum FilmTailAssembly {
     }
 }
 
+/// The film leg's assembly carrier (M8-2 — the forked factory's return,
+/// the pre-M8-2 tuple's structural successor): the solved method params +
+/// the per-run GPU payloads of the RESOLVED arm + the solvedPackHash seed
+/// term. Exactly one payload face is populated per arm (the density arm
+/// sets `payloads`, the spectral arm `spectralPayloads`; both nil = the
+/// typed degrade — the byte-neutral identity carrier). The labels the
+/// descriptor probe consumes (`method` / `payloads` / `solvedPackHash`
+/// tuple labels before it) keep their spellings — the probe's call site
+/// is untouched (the follow-the-factory guarantee).
+public struct FilmLegAssembly {
+    public let method: FilmMethodBox.Params
+    /// The density arm's payloads (nil under the spectral arm).
+    public let payloads: FilmGPUPayloads?
+    /// The spectral arm's payloads (nil under the density arm). Non-Sendable
+    /// by design (the payloads are per-run instance state — the M5-1-03
+    /// single-owner discipline; the struct mirrors that posture).
+    public let spectralPayloads: SpectralGPUPayloads?
+    public let solvedPackHash: UInt64
+
+    public init(
+        method: FilmMethodBox.Params, payloads: FilmGPUPayloads?,
+        spectralPayloads: SpectralGPUPayloads? = nil, solvedPackHash: UInt64
+    ) {
+        self.method = method
+        self.payloads = payloads
+        self.spectralPayloads = spectralPayloads
+        self.solvedPackHash = solvedPackHash
+    }
+}
+
 /// The film transform box (KD-1/T1 carrier, T2 fused kernel) — the
 /// sub-run's sole module, driver-constructed (never registered, never in
 /// sidecars, no add face).
@@ -194,6 +281,12 @@ public enum FilmTailAssembly {
 /// — negative segment → filter pack → print LUT → strength mix, ONE pass).
 /// A nil `method` payload (the T1 face: unresolved materials) keeps the
 /// routed-blit identity carrier — cache-neutral, byte-exact.
+///
+/// M8-2: the spectral arm's payloads ride the additive `runSpectralPayloads`
+/// instance face (the fork's arm-select: spectral payloads present → the
+/// spectral chain dispatches; otherwise the density face above, byte-untouched).
+/// The box's external face (opName / iopOrder 74.0 / nil-payload blit
+/// identity / the per-run instance carrier) is unchanged.
 public final class FilmMethodBox: IOPModule {
 
     /// The box's committed payload: the record + the solved pack. The
@@ -243,13 +336,20 @@ public final class FilmMethodBox: IOPModule {
     /// the box lives in the leg pipe's pieces for the sub-run's duration.
     /// nil (or the test seam) = the identity degrade.
     public let runPayloads: FilmGPUPayloads?
+    /// The spectral arm's payloads (M8-2, additive): present → the box
+    /// dispatches the spectral chain (`SpectralFilmKernels` — A/blur/B +
+    /// the strength mix), the density face stays untouched. Same instance
+    /// ownership discipline as `runPayloads`.
+    public let runSpectralPayloads: SpectralGPUPayloads?
 
     public init(
-        record: FilmRecord, method: Params? = nil, payloads: FilmGPUPayloads? = nil
+        record: FilmRecord, method: Params? = nil, payloads: FilmGPUPayloads? = nil,
+        spectralPayloads: SpectralGPUPayloads? = nil
     ) {
         self.record = record
         self.method = method ?? Params(record: record)
         self.runPayloads = payloads
+        self.runSpectralPayloads = spectralPayloads
     }
 
     public func reloadDefaults(image: DecodedImage) async -> Params {
@@ -277,6 +377,18 @@ public final class FilmMethodBox: IOPModule {
         piece: inout IOPiece,
         metal: MetalContext
     ) async throws {
+        // The spectral arm (M8-2): the forked factory hands the spectral
+        // payloads in — the chain dispatch rides the payload instance (the
+        // solved gain + CC deltas ride the per-run session tuning inside).
+        if let spectral = runSpectralPayloads {
+            try await spectral.dispatchFilmChain(
+                input: input, output: output, metal: metal,
+                exposureGain: method.exposureGain,
+                kM: method.magentaCC * Float(FilmFilterPackSolver.magentaExposurePerCC),
+                kY: method.yellowCC * Float(FilmFilterPackSolver.yellowExposurePerCC),
+                strength: method.record.strength)
+            return
+        }
         // The fused leg needs the run's GPU payloads (the curve buffer +
         // the baked table — handed in at construction by the pipe's film
         // leg assembly). Absent payloads = the identity degrade: the T1
