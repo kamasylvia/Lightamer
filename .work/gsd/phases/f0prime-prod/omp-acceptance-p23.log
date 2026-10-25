@@ -1,1 +1,31 @@
 Working...
+# F0P-02/03 终审（omp 独占眼，computer-use 实机）——结论头
+
+**PASS / 0 blocking + 1 major + 2 minor + 3 obs**
+
+审验对象 = P2 `5a651b44..b5fd46b2` + P3 `0c70e608..98a5db6e`（lane HEAD `9ca2f326` 亲核：与 P3 收口差仅 ops/docs 四文件 59 行，无产品差）。验收窗 2026-10-24 19:04–19:30（retry 轮；前轮 10-23 报告已入 commit `6cc3e8ae`，本轮独立重验）。方法 = 零源码改动 + lane HEAD 独立 worktree + 独立 DerivedData 自建二进制（BUILD SUCCEEDED，strings 亲证 LightamerShellMain×1 + NSMenuBridgeController×2）+ 探针协议（70s settle + frontmost 先行 + stay 标记，pid=80939 ppid=本 omp 进程）+ 六项实机全做。唯一写产物 = `f0prime-prod/F0P-02-03-ACCEPTANCE-OMP.md`（重写）+ `.work/gui-acceptance/f0prime-p23/omp2/`（10 截图 + 8 菜单 dump + sample + stderr + ips；`omp/` 为前轮已 commit 卷保留未覆盖）。收尾：worktree + 容器 + fixtures 拆除，自出 pid 经 F2-1 崩溃自然消亡，`pgrep` 零自出残留；defaults labelingMode/connection/AppleLanguages 终核全 absent。
+
+## 六项实机抽验
+
+- **a) 冷启动→图库→编辑器主链 ✓**：双 ARW 导入（row id=1/2）→ 双 `rendered=yes` → 编辑器面渲染（omp2-01/02，AI modal「用 AI 分析照片内容？」Esc 可解）→ ⌘W 图库（2 缩略图 + SONY ILCE-7RM5 概览 + AI 区引导行，omp2-06）→ ⌘E 回编辑器（使能环翻转 enter=false/back=true）。画布 false-color = 探针 fixture 无 sidecar 显示态（P1 obs-2 同构，非回归）。
+- **b) 菜单七族抽 10 项 ✓**：menubar 九项上屏（中英混排 = D-F0P-01-5.4 登记态）；七族 dump 全量存档（File 18/Edit 21/显示 20/标记 18/图像 2/Window 20/Help 1 + Lightamer 12）= 桥族形 ∪ AppKit 出厂件，**零自定义幽灵项**。10 项 AX 真点击全活：Settings→真窗 / ⌘W/⌘E 往返 / 导出→全装配页（omp2-08：预设/输出位置/10 token 命名/Increment/元数据与色彩/JPEG 95%/原尺寸/高级折叠）/ 复制→粘贴族 false→true 实时翻转 / 5 星写链存活 / 撤销重做环双向翻转 / 预设+MCP 双窗 / 软打样+双缩放+居中。软打样开→色域警告恒 disabled（无 profile 恒 OFF by-design）；Help 唯项 disabled（使能面正确）；标记族 16 语义项全 enabled。
+- **c) 三窗 ✓**：Settings（10 侧栏 + 语言与主题详情，AX 56 节点）/ 预设管理器（Tone-Sunny + 未分类-Web150 + 坏预设脚注）/ MCP 启动器（工具栏 + 空闲 + 暂无输出占位）——逐窗菜单路由开窗、截图识图、红叉关窗，内容真实渲染零空白，开关全程 ALIVE。
+- **d) 编辑器静置 CPU ✓（D-6 绝对门 PASS）**：六采样 1.3→1.0 单调衰减（中位 1.15），<10% 余量 8.8pp；主线程 4510/4510 泊 `LightamerShellMain.run → NSApplication.run → mach_msg`；churn 符号族全 0（`runloop` 命中 = 泊链帧）。非零归因见 minor-1。
+- **e) F2-1 崩溃复现 ✓（预期 pre-existing）**：File > Import Folder… → NSOpenPanel（6s 内，omp2-12）→ Return → sheet 挂载即崩。新 ips `Lightamer-2026-10-24-192534` = **EXC_BREAKPOINT / SIGTRAP / Trace/BPT trap: 5** + stderr `Environment+Objects.swift:34: No Observable object of type AgentControlCoordinator`——与四代（064532 B 臂 / 065317 A 臂 / 000557 二路 / 092209 前轮）逐字段同签名，**第五代复现一致**，非翻转/退役回归，维持既有缺陷队列路由（M2-8-3 范式修复候选不变）。
+- **f) F2-4 死钮复证 ✓（major-1 追认，第二轮独立复现）**：connection 键 absent → AI 区「打开设置…」在位 → AX coordinate click 命中真实元素（button 6 of scroll area 2）→ **无窗、无深链（随后 ⌘, 落语言与主题通用页，omp2-11）、无崩溃**（窗名单仍单主窗，omp2-10）。worktree 源码亲核 `:340 SettingsLink` 在位。HEAD 主树 `926ba65d` 已修，重验终态故仍见死钮——修复有效性属 r12-repairs 面（该批终审已实机复验真窗+ACA 深链），不越界。
+
+## 分级残留
+
+- **major-1（追认二路）**：F2-4 SettingsLink 死钮（退役引入静默回归），路由修复队列（HEAD 已修），不构成 P2/P3 plan AC 违反（审计枚举外；本轮七族 dump 零幽灵项佐证审计域内完备），不阻断收口。
+- **minor-1**：CPU 读数中位 1.15（前五方 0.0/0.0/0.0/0.1/1.2）——`ps %cpu` 衰减平均采样时点差，主证据链已闭合无 churn；诚实留痕不开修复项。
+- **minor-2**：一路 16 面计数口径注记（面 15 双列）追认属实，建议后续卷补一行说明。
+- **obs-1**：worktree 旧 guard G3=1GB 门 BLOCK → `--wait 600` 超时（本机 swap 常态 ~5.9G，结构性不可达——二路已申报获 4GB 校准；`| tail -3` 吞 exit 致构建照常起跑）。实质单重活成立：构建窗零他路进程 + `--monitor` 伴跑零触发 + BUILD SUCCEEDED。形式 BLOCK 如实留痕；后续 worktree 轮应拷主树 guard v1.4 或显式判 exit。
+- **obs-2**：图像族使能面差（本轮编辑器面 enabled=true vs 二路库面 disabled）= 面 enabler 上下文差，非回归。
+- **obs-3**：AI modal Esc 解配方复用有效，defaults 零副作用。
+
+双路遗留路由追认：F2-1 既有队列 / F2-2 设计态 / F2-3 证据链弱 / P1 major-1（r12 已修）/ P1 major-2（归因欠账悬置），本轮不重验。revert 叙事（P1 范畴）不在边界内。
+
+## 过程注记
+
+- 主树起跑 `bc2baf39` → 收口 `6cc3e8ae`（窗内他人推进：前轮 omp 报告入库）；本轮零源码改动，未 commit。未追踪改动 `r12-repairs/omp-acceptance.log`（M）= 他人并发会话产物，未触。
+- 实机窗（19:19–19:25）GUI 独占成立；收尾复核（19:29）见他路实例 pid 83064（ppid=1，~19:27 后起，未污染抽验）——非自出，按纪律未触。
