@@ -618,4 +618,149 @@ final class SpectralDualArmGoldenTests: XCTestCase {
                 "export texel \(i / 4) must be finite")
         }
     }
+
+    // MARK: - E: the M8-3 probe-follow faces (Plan M8-3 T2)
+
+    //
+    // FilmDescriptorProbe constructs through `PixelPipe.assembleFilmLeg` —
+    // the production film leg's OWN factory (the M3-4-01 §8.1 same-code-path
+    // discipline). M8-2 forked that factory on the render process, so the
+    // probe follows the factory BY CONSTRUCTION; these two faces pin the
+    // M8-3 verification on the M8-2-integrated binary:
+    //
+    //   E1 the v2 arm SERVES the probe's exact call form (the 1024×1 neutral
+    //      E-ladder ramp, histogram nil, the default record): the assembly
+    //      resolves the spectral payloads, the box dispatches them, and the
+    //      output plane comes back finite;
+    //   E2 the two arms' probe outputs on the SAME ramp both resolve and
+    //      DIVERGE — the readouts differ because the core differs (by
+    //      design, D-M8-7; the sampled numbers are recorded in
+    //      M8-3-DECISIONS, never asserted equal — the production descriptor
+    //      probe's call site keeps the default arm, the density-anchored
+    //      latitude posture, this batch).
+    //
+    // FilmDescriptor.swift (the ISO 6846 reduction) carries zero diff — the
+    // machine check is the build itself plus FilmDescriptorTests staying
+    // green; no behavioral re-pin lives here.
+
+    /// The descriptor probe's exact 1024×1 neutral ramp texture
+    /// (0.184·2^E, E uniform on [−12, +12] — FilmDescriptorProbe's ① shape,
+    /// mirrored here so the factory receives the probe's own input).
+    private func makeProbeRampTexture(
+        _ metal: MetalContext, length: Int = 1024
+    ) throws -> any MTLTexture {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: length, height: 1, mipmapped: false)
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        guard let texture = metal.device.makeTexture(descriptor: descriptor) else {
+            throw XCTSkip("no Metal texture")
+        }
+        var texels = [Float](repeating: 0, count: length * 4)
+        for index in 0..<length {
+            let e = FilmDescriptorProbe.domainMin
+                + (FilmDescriptorProbe.domainMax - FilmDescriptorProbe.domainMin)
+                * Double(index) / Double(length - 1)
+            let value = Float(0.184 * Foundation.pow(2.0, e))
+            texels[index * 4 + 0] = value
+            texels[index * 4 + 1] = value
+            texels[index * 4 + 2] = value
+            texels[index * 4 + 3] = 1.0
+        }
+        texels.withUnsafeBytes {
+            texture.replace(
+                region: MTLRegionMake2D(0, 0, length, 1),
+                mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: length * 16)
+        }
+        return texture
+    }
+
+    /// The probe's call form through ONE arm, dispatched through the
+    /// production FilmMethodBox, read back after a fence (L014).
+    private func probeFormOutput(
+        renderProcess: RenderProcessVersion, film: FilmProfile, paper: FilmProfile,
+        metal: MetalContext
+    ) async throws -> (planeHash: UInt64, midLuma: Float, finite: Bool) {
+        let pairHash = FilmMaterialStore.materialPairHash(film: film, paper: paper)
+        let input = try makeProbeRampTexture(metal)
+        var record = FilmRecord()
+        record.filmStock = film.info.stock ?? ""
+        record.paperStock = paper.info.stock ?? ""
+        let assembled = PixelPipe.assembleFilmLeg(
+            record: record, film: film, paper: paper,
+            materialPairHash: pairHash, histogram: nil,
+            plane: input, metal: metal, renderProcess: renderProcess)
+        let outputDescriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: FilmDescriptorProbe.rampLength,
+            height: 1, mipmapped: false)
+        outputDescriptor.usage = [.shaderRead, .shaderWrite]
+        outputDescriptor.storageMode = .shared
+        let output = try XCTUnwrap(metal.device.makeTexture(descriptor: outputDescriptor))
+        let box: FilmMethodBox
+        if let spectral = assembled.spectralPayloads {
+            box = FilmMethodBox(
+                record: assembled.method.record, method: assembled.method,
+                spectralPayloads: spectral)
+        } else {
+            box = FilmMethodBox(
+                record: assembled.method.record, method: assembled.method,
+                payloads: try XCTUnwrap(assembled.payloads))
+        }
+        var piece = IOPiece()
+        try await box.process(
+            input: input, output: output, roiIn: ROI(), roiOut: ROI(),
+            piece: &piece, metal: metal)
+        await Self.drain(metal)
+        var values = [Float](repeating: 0, count: FilmDescriptorProbe.rampLength * 4)
+        values.withUnsafeMutableBytes {
+            output.getBytes(
+                $0.baseAddress!, bytesPerRow: FilmDescriptorProbe.rampLength * 16,
+                from: MTLRegionMake2D(0, 0, FilmDescriptorProbe.rampLength, 1),
+                mipmapLevel: 0)
+        }
+        var finite = true
+        for v in values where !v.isFinite { finite = false }
+        let mid = FilmDescriptorProbe.rampLength / 2
+        let midLuma =
+            0.2627 * Double(values[mid * 4]) + 0.6780 * Double(values[mid * 4 + 1])
+            + 0.0593 * Double(values[mid * 4 + 2])
+        return (
+            Self.fnv1a(values.withUnsafeBytes {
+                Array($0.bindMemory(to: UInt8.self))
+            }),
+            Float(midLuma), finite)
+    }
+
+    /// E1: the v2 arm serves the probe call form — the spectral payloads
+    /// resolve for the probe's exact inputs and the output plane is finite.
+    func testProbeCallFormResolvesThroughTheV2Arm() async throws {
+        let metal = try await makeMetal()
+        let out = try await probeFormOutput(
+            renderProcess: RenderProcessVersion(rawValue: 2)!,
+            film: try portra, paper: try endura, metal: metal)
+        XCTAssertTrue(out.finite, "the v2-arm probe output must be finite")
+        XCTAssertNotEqual(out.planeHash, 0, "防空转: the v2 probe dispatch rendered")
+    }
+
+    /// E2: the same probe ramp through both arms — both resolve, the
+    /// readouts DIVERGE (the core changed; never asserted equal). The
+    /// sampled numbers print with the M83 marker and are recorded in
+    /// M8-3-DECISIONS (the readout comparison table).
+    func testProbeReadoutsDivergeAcrossArmsOnTheSameRamp() async throws {
+        let metal = try await makeMetal()
+        let film = try portra
+        let paper = try endura
+        let density = try await probeFormOutput(
+            renderProcess: .legacy, film: film, paper: paper, metal: metal)
+        let spectral = try await probeFormOutput(
+            renderProcess: RenderProcessVersion(rawValue: 2)!,
+            film: film, paper: paper, metal: metal)
+        XCTAssertTrue(density.finite && spectral.finite)
+        print("M83-PROBE-READOUT|density|hash=\(density.planeHash)|midLuma=\(density.midLuma)")
+        print("M83-PROBE-READOUT|spectral|hash=\(spectral.planeHash)|midLuma=\(spectral.midLuma)")
+        XCTAssertNotEqual(
+            density.planeHash, spectral.planeHash,
+            "the two arms' probe outputs must differ — the core changed "
+                + "(the readout delta is BY DESIGN, D-M8-7)")
+    }
 }
