@@ -1287,6 +1287,11 @@ internal final class PixelPipe: @unchecked Sendable {
                 record: record, film: film, paper: paper,
                 materialPairHash: materialPairHash, histogram: histogram,
                 plane: plane, metal: metal)
+        case .v2:
+            return assembleSpectralFilmLeg(
+                record: record, film: film, paper: paper,
+                materialPairHash: materialPairHash, histogram: histogram,
+                plane: plane, metal: metal)
         }
     }
 
@@ -1319,6 +1324,57 @@ internal final class PixelPipe: @unchecked Sendable {
         }
         return FilmLegAssembly(
             method: method, payloads: payloads, solvedPackHash: solvedPackHash)
+    }
+
+    /// The SPECTRAL arm (M8-2, the `.v2` generation — the X4 fork's other
+    /// half): the tc-slot tables (`SpectralPrintBake`, X7's per-pair cache
+    /// — a seconds-band build rides the LRU, never a per-run rebuild) →
+    /// the spectral solve (`FilmRuntimeSolve.solveSpectral` — the build's
+    /// self-solved neutral pair + the runtime histogram gain, the record
+    /// terms at consumption) → the GPU payload build (`SpectralGPUPayloads`
+    /// from the cached tables — run-scoped instance, the tables read-only)
+    /// → the dispatch chain rides the box (A → blur → B + the strength
+    /// mix, `SpectralFilmKernels`). The neutral coupler face (couplers-off)
+    /// is v1's production posture: the profile asset set carries no
+    /// coupler matrix / Langmuir data (the pack lives upstream-side only),
+    /// so the corr arm stays off — the ds=1/4 arm is in place (probe ③'s
+    /// verdict) for the data-ingestion turn-on.
+    ///
+    /// Fail-closed degrade: unresolved materials / a failed build / solve /
+    /// allocation = the identity face (nil payloads, solvedPackHash 0) —
+    /// the same typed-degrade posture as the density arm.
+    private static func assembleSpectralFilmLeg(
+        record: FilmRecord, film: FilmProfile?, paper: FilmProfile?,
+        materialPairHash: UInt64, histogram: FilmStatsSeam.PlaneHistogram?,
+        plane: any MTLTexture, metal: MetalContext
+    ) -> FilmLegAssembly {
+        var solvedPackHash: UInt64 = 0
+        guard let film, let paper,
+            let tables = try? SpectralPrintBake.tables(
+                forPairHash: materialPairHash, film: film, paper: paper),
+            let solution = try? FilmRuntimeSolve.solveSpectral(
+                record: record, tables: tables,
+                materialPairHash: materialPairHash, histogram: histogram)
+        else {
+            return FilmLegAssembly(
+                method: FilmMethodBox.Params(record: record), payloads: nil,
+                spectralPayloads: nil, solvedPackHash: solvedPackHash)
+        }
+        solvedPackHash = solution.solvedPackHash
+        let solvedMethod = FilmMethodBox.Params(
+            record: record,
+            magentaCC: Float(solution.magentaCC),
+            yellowCC: Float(solution.yellowCC),
+            exposureGain: Float(solution.exposureGain))
+        // The GPU payload assembly (run-scoped instance over the CACHED
+        // tables — the X7 hit face; the tables stay read-only).
+        let payloads = try? SpectralGPUPayloads(
+            device: metal.device, tables: tables,
+            couplers: .neutral, decimation: 4,
+            frameWidth: plane.width, frameHeight: plane.height)
+        return FilmLegAssembly(
+            method: solvedMethod, payloads: nil,
+            spectralPayloads: payloads, solvedPackHash: solvedPackHash)
     }
 
     /// The film leg's GPU payload assembly: the curve buffer (channel-major

@@ -346,16 +346,24 @@ final class SidecarV10Tests: XCTestCase {
             XCTAssertEqual(RenderProcessVersion(rawValue: raw)?.rawValue, raw)
         }
         XCTAssertEqual(RenderProcessVersion.legacy.rawValue, 0)
-        XCTAssertEqual(RenderProcessVersion.current.rawValue, 1)
+        // The M8-2 bump: the spectral film core's generation is the mint
+        // (the ledger case doc = the ledger line; the re-pin discipline).
+        XCTAssertEqual(RenderProcessVersion.current.rawValue, 2)
         XCTAssertNotEqual(RenderProcessVersion.legacy, RenderProcessVersion.current)
     }
 
     // MARK: - 5b: the ALL/current ledger face
 
     func testLedgerAllAndCurrentFaces() {
-        // Oldest-first; current = last; the single-case M6-2 shape.
-        XCTAssertEqual(RenderProcess.all.count, 1)
-        XCTAssertEqual(RenderProcess.all.first, RenderProcess.current)
+        // Oldest-first; current = last; the M8-2 two-generation shape (v1
+        // the frozen density arm, v2 the spectral core -- the ledger case
+        // docs are the register).
+        XCTAssertEqual(RenderProcess.all, [.v1, .v2])
+        XCTAssertEqual(RenderProcess.all.first, .v1,
+                       "the oldest generation stays first (the freeze's arm)")
+        XCTAssertEqual(RenderProcess.current, .v2)
+        XCTAssertNotEqual(RenderProcess.all.first, RenderProcess.current,
+                          "M8-2 opened the first real semantic fork")
         XCTAssertEqual(
             RenderProcess.current.processVersion, RenderProcessVersion.current)
     }

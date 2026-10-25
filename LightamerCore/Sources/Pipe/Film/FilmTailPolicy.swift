@@ -99,12 +99,12 @@ public enum FilmTailAssembly {
     static let spectralPolicyTag = "lightamer.film.subrun.v2-spectral"
 
     /// The arm's fold tag (the exhaustive switch is the compile-time half:
-    /// a new RenderProcess case fails compilation HERE first — the `.v2`
-    /// arm's tag lands WITH the M8-2 bump, the compiler points at this
-    /// switch).
+    /// a new RenderProcess case fails compilation HERE first — the M8-2
+    /// bump pointed at this switch to add the spectral arm's tag).
     static func policyTag(for arm: RenderProcess) -> String {
         switch arm {
         case .v1: return policyTag
+        case .v2: return spectralPolicyTag
         }
     }
 
