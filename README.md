@@ -39,6 +39,17 @@ polish and remaining iops continue to land. Watch the repo for releases.
 - **Soft proofing** — printer-profile soft proof with gamut-check
   (out-of-gamut black clipping), multi-display ICC with per-window
   profiles
+- **Burst grouping & best-of-burst** — same-body ≤2 s + 16×16 signature
+  auto-grouping, open-eyes-then-sharpest best selection, one-tap collapse
+- **Sharpness & closed-eye batch hints** — library-wide background
+  analysis feeds smart-album conditions (`eyes:closed`, `sharp`, `burst`)
+- **Fast culling view** — full-screen review on camera embedded previews
+  (zero RAW decode), ±3 prefetch, C side-by-side compare with synced zoom
+- **Smart preview cache** — 1600 px linear float16 persistent LRU;
+  reopen in ~50 ms, shared across GUI / CLI / MCP
+- **AI mask edge refinement** — sampling-based matting refines fast
+  masks to 4096 px on the original decode (no extra model); MCP
+  `refine_masks` included
 
 ## Requirements
 
@@ -79,13 +90,16 @@ agent can screen and edit the photos of the currently open session.
   and configuring `http://<host>:<port>/mcp` as a Streamable HTTP server.
   The Origin check requires a PORT in the origin (e.g.
   `http://localhost:51234`; a portless origin is rejected).
-- **Tool face** (19 tools, closed set): 5 editing tools (load_image,
+- **Tool face** (33 tools, closed set): 5 editing tools (load_image,
   apply_params, render_preview, list_iops, export_image), 14 culling
   tools (list_photos, get_thumbnails, get_contact_sheet, get_detail_crop,
   list_bursts, get_face_regions, set_rating, set_flag, set_color_label,
-  append_note, set_keywords, list_presets, apply_preset, diff_presets).
-  Writes go through the same single-source services the GUI uses and
-  land in the sidecar truth + the session index.
+  append_note, set_keywords, list_presets, apply_preset, diff_presets),
+  spectral film tools, mask refinement (`refine_masks`), search & state
+  (search_photos, get_history, get_state), and agent control (acquire /
+  release / get) with turn-taking. Writes go through the same
+  single-source services the GUI uses and land in the sidecar truth +
+  the session index.
 - **Honesty clauses**: `render_preview` returns the SAVED edit state as
   an sRGB-encoded JPEG — no yiyin frame/watermark (that is export-time)
   and it is NOT aligned with the GUI's EDR display domain. Same
@@ -114,6 +128,16 @@ Tests that need full-size RAW camera samples (~1.2 GB, not distributed
 — see *Sample images*) skip automatically when the samples are absent.
 Golden-reference regeneration against a local darktable build:
 `DT=/path/to/darktable-cli bash input/golden/regenerate.sh`.
+
+## Architecture note
+
+The app runs under a **manual NSApplication lifecycle** (not the SwiftUI
+`App` scene lifecycle). The SwiftUI views are hosted inside an
+`NSHostingView` on a hand-rolled `NSWindow`/`NSApplicationDelegate`.
+This eliminates the macOS 27 SwiftUI scene-lifecycle idle-CPU churn
+(editor idles at 0.0% vs upstream's ~96%) at the cost of manually
+re-creating the menu bar and window management that `App` used to provide
+for free.
 
 ## Known issues
 
