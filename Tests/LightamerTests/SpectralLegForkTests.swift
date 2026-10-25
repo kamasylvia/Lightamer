@@ -443,11 +443,17 @@ final class SpectralLegForkTests: XCTestCase {
         Self.fillRamp(input)
         let inputData = Self.readback(input)
 
+        // The neutral face: the solved CC hands in EXACTLY the build's
+        // operating point — the dispatch derives zero deltas (the density
+        // arm's counterpart hands the TOTAL; the spectral arm's tables
+        // already carry the neutral pair in the light).
+        let neutralM = tables.solvedPrintCC.y, neutralY = tables.solvedPrintCC.z
         func run(strength: Float) async throws -> [Float] {
             let output = try makePlaneTexture(metal, width: 48, height: 32, write: true)
             try await payloads.dispatchFilmChain(
                 input: input, output: output, metal: metal,
-                exposureGain: 1.0, kM: 0, kY: 0, strength: strength)
+                exposureGain: 1.0, magentaCC: neutralM, yellowCC: neutralY,
+                strength: strength)
             await Self.drain(metal)
             return Self.readback(output)
         }
@@ -477,6 +483,23 @@ final class SpectralLegForkTests: XCTestCase {
         XCTAssertTrue(rawDifferent, "the blend moved the output vs the raw chain")
         XCTAssertTrue(identityDifferent, "the blend moved the output vs the input face")
         XCTAssertTrue(mixedDifferent, "the blend is not the identity")
+        // The CC delta face: a manual shift MOVES the output (the delta is
+        // derived against the build's operating point — not a no-op).
+        func runWithShift(mShift: Float) async throws -> [Float] {
+            let output = try makePlaneTexture(metal, width: 48, height: 32, write: true)
+            try await payloads.dispatchFilmChain(
+                input: input, output: output, metal: metal,
+                exposureGain: 1.0, magentaCC: neutralM + mShift, yellowCC: neutralY,
+                strength: 1.0)
+            await Self.drain(metal)
+            return Self.readback(output)
+        }
+        let shifted = try await runWithShift(mShift: 10)
+        var shiftMoved = false
+        for i in stride(from: 0, to: raw.count, by: 4) {
+            if shifted[i].bitPattern != raw[i].bitPattern { shiftMoved = true }
+        }
+        XCTAssertTrue(shiftMoved, "a +10 CC M shift moved the output (the delta face)")
         // The mix is a log-domain blend: strength 0.5's output stays
         // between the input and the film faces (with a small tolerance for
         // the chain's nonmonotone ends).

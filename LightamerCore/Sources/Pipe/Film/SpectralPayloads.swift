@@ -544,15 +544,31 @@ public final class SpectralGPUPayloads {
     ///
     /// The per-run corr planes are allocated here (run-scoped — never
     /// cached beyond the call); the tables stay read-only throughout.
+    ///
+    /// The CC face (the T5 golden's catch): `magentaCC`/`yellowCC` are the
+    /// SOLVED session totals (the density arm's Solution shape), but the
+    /// spectral tables ALREADY carry the build's own neutral CC (the solved
+    /// dichroic light baked into the print leg), so the runtime shift is
+    /// the DELTA against the build's operating point (`tables
+    /// .solvedPrintCC`) — the density arm folds the whole pack into its
+    /// LUT's inverted coordinate system (the kernel subtracts the TOTAL),
+    /// the spectral arm folds it into the light (the runtime shifts only
+    /// the deltas); double-applying the neutral pair was the first
+    /// integration's real defect (the T5 ramp golden caught it).
     public func dispatchFilmChain(
         input: any MTLTexture, output: any MTLTexture, metal: MetalContext,
-        exposureGain: Float, kM: Float, kY: Float, strength: Float
+        exposureGain: Float, magentaCC: Float, yellowCC: Float, strength: Float
     ) async throws {
         precondition(
             input.width == output.width && input.height == output.height,
             "the film chain writes a same-shape plane")
+        let kM = (Double(magentaCC) - Double(tables.solvedPrintCC.y))
+            * FilmFilterPackSolver.magentaExposurePerCC
+        let kY = (Double(yellowCC) - Double(tables.solvedPrintCC.z))
+            * FilmFilterPackSolver.yellowExposurePerCC
         updateFrameGeometry(width: input.width, height: input.height)
-        applySessionTuning(exposureGain: exposureGain, kM: kM, kY: kY, strength: strength)
+        applySessionTuning(exposureGain: exposureGain, kM: Float(kM), kY: Float(kY),
+                           strength: strength)
         let w = input.width, h = input.height
         let useCorr = couplers.active && corrWidth > 0 && corrHeight > 0
         // The strength<1 path needs stage B's raw output as a MIX SOURCE —

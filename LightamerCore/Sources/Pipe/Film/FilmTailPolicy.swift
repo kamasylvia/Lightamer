@@ -379,13 +379,15 @@ public final class FilmMethodBox: IOPModule {
     ) async throws {
         // The spectral arm (M8-2): the forked factory hands the spectral
         // payloads in — the chain dispatch rides the payload instance (the
-        // solved gain + CC deltas ride the per-run session tuning inside).
+        // solved gain + the CC DELTAS relative to the build's operating
+        // point — the payload derives them against its own tables; the
+        // density arm's shape differs: its LUT inverts the post-pack
+        // system, so it shifts the TOTAL CC — see the dispatch's doc).
         if let spectral = runSpectralPayloads {
             try await spectral.dispatchFilmChain(
                 input: input, output: output, metal: metal,
                 exposureGain: method.exposureGain,
-                kM: method.magentaCC * Float(FilmFilterPackSolver.magentaExposurePerCC),
-                kY: method.yellowCC * Float(FilmFilterPackSolver.yellowExposurePerCC),
+                magentaCC: method.magentaCC, yellowCC: method.yellowCC,
                 strength: method.record.strength)
             return
         }
