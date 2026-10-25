@@ -480,7 +480,9 @@ final class StackMergeServiceTests: XCTestCase {
         let sidecarURL = LightamerSidecar.sidecarURL(for: product)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(
             with: Data(contentsOf: sidecarURL)) as? [String: Any])
-        XCTAssertEqual(object["process"] as? Int, 1, "the HDR birth stamp")
+        XCTAssertEqual(
+            object["process"] as? Int, RenderProcessVersion.current.rawValue,
+            "the HDR birth stamp (the mint value -- M8-2 bumped it to 2)")
         let document = try JSONDecoder().decode(
             LightamerSidecar.self, from: Data(contentsOf: sidecarURL))
         XCTAssertEqual(document.process, .current)
@@ -507,7 +509,9 @@ final class StackMergeServiceTests: XCTestCase {
         let sidecarURL = LightamerSidecar.sidecarURL(for: product)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(
             with: Data(contentsOf: sidecarURL)) as? [String: Any])
-        XCTAssertEqual(object["process"] as? Int, 1, "the Mertens birth stamp")
+        XCTAssertEqual(
+            object["process"] as? Int, RenderProcessVersion.current.rawValue,
+            "the Mertens birth stamp (the mint value -- M8-2 bumped it to 2)")
         let document = try JSONDecoder().decode(
             LightamerSidecar.self, from: Data(contentsOf: sidecarURL))
         XCTAssertEqual(document.process, .current)

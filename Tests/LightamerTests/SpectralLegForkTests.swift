@@ -142,18 +142,18 @@ final class SpectralLegForkTests: XCTestCase {
             histogram: nil, plane: plane, metal: metal)
     }
 
-    // MARK: - 1: the resolving clamp face (the T1-time form)
+    // MARK: - 1: the resolving clamp face (the post-bump form)
 
-    func testResolvingWholeDomainIsTheDensityArmBeforeTheBump() {
-        // While the ledger is [.v1], every stored value resolves to v1 —
-        // the fork skeleton arms with zero behavior (the bumped table's
-        // four-domain form is the T4 ledger suite's face).
-        XCTAssertEqual(RenderProcess.all, [.v1])
+    func testResolvingDomainsAfterTheBump() {
+        // The bump split the domain: the frozen arm owns 0/1, the spectral
+        // arm owns 2, forward numbers clamp to current (the ledger suite's
+        // four-domain table is the value face; this pins the fork-side
+        // resolution the factory consumes).
+        XCTAssertEqual(RenderProcess.all, [.v1, .v2])
         XCTAssertEqual(RenderProcess.resolving(.legacy), .v1)
         XCTAssertEqual(RenderProcess.resolving(RenderProcessVersion(rawValue: 1)!), .v1)
-        XCTAssertEqual(RenderProcess.resolving(RenderProcessVersion(rawValue: 2)!), .v1,
-                       "forward numbers clamp to current (.v1) before the bump")
-        XCTAssertEqual(RenderProcess.resolving(.current), .v1)
+        XCTAssertEqual(RenderProcess.resolving(RenderProcessVersion(rawValue: 2)!), .v2)
+        XCTAssertEqual(RenderProcess.resolving(.current), .v2)
     }
 
     // MARK: - 2: the fork's density shape for every domain
@@ -171,7 +171,9 @@ final class SpectralLegForkTests: XCTestCase {
         let legacy = probeFormAssemble(film: film, paper: paper, plane: plane, metal: metal)
         let legacyCommand = try XCTUnwrap(
             try XCTUnwrap(legacy.payloads).payload(for: legacy.method))
-        for raw in [0, 1, 2, 7] {
+        // The density domains (0/1): the frozen arm's ONE path — identical
+        // payload values whichever stored number resolved into it.
+        for raw in [0, 1] {
             var record = FilmRecord()
             record.filmStock = film.info.stock ?? ""
             record.paperStock = paper.info.stock ?? ""
@@ -181,11 +183,9 @@ final class SpectralLegForkTests: XCTestCase {
                 histogram: nil, plane: plane, metal: metal,
                 renderProcess: RenderProcessVersion(rawValue: raw)!)
             XCTAssertNil(assembled.spectralPayloads,
-                         "raw \(raw): the spectral face is unreachable before the bump")
+                         "raw \(raw): the density arm carries no spectral face")
             XCTAssertNotNil(assembled.payloads,
                             "raw \(raw): the density face resolves (the frozen arm)")
-            // The frozen arm is ONE path: the payload values are identical
-            // no matter which stored number resolved into it.
             let armCommand = try XCTUnwrap(
                 try XCTUnwrap(assembled.payloads).payload(for: assembled.method))
             XCTAssertEqual(
@@ -202,6 +202,25 @@ final class SpectralLegForkTests: XCTestCase {
                 legacyCommand.curveBuffer.length, armCommand.curveBuffer.length)
             XCTAssertEqual(
                 legacyCommand.tableTexture.width, armCommand.tableTexture.width)
+        }
+        // The spectral domains (2/forward): the spectral arm's shape —
+        // payloads nil, spectralPayloads resolved (the T4 ledger suite
+        // pins the shape; this pins it at the fork's own call form).
+        for raw in [2, 7] {
+            var record = FilmRecord()
+            record.filmStock = film.info.stock ?? ""
+            record.paperStock = paper.info.stock ?? ""
+            let assembled = PixelPipe.assembleFilmLeg(
+                record: record, film: film, paper: paper,
+                materialPairHash: FilmMaterialStore.materialPairHash(film: film, paper: paper),
+                histogram: nil, plane: plane, metal: metal,
+                renderProcess: RenderProcessVersion(rawValue: raw)!)
+            XCTAssertNil(assembled.payloads,
+                         "raw \(raw): the spectral arm carries no density face")
+            XCTAssertNotNil(assembled.spectralPayloads,
+                            "raw \(raw): the spectral face resolves (forward clamps to v2)")
+            XCTAssertNotEqual(assembled.solvedPackHash, 0,
+                              "raw \(raw): the spectral solve solved")
         }
         await Self.drain(metal)
     }
@@ -241,8 +260,10 @@ final class SpectralLegForkTests: XCTestCase {
         XCTAssertGreaterThan(legacyBytes?.count ?? 0, 100, "防空转: planes rendered")
         XCTAssertEqual(legacyBytes, currentBytes,
                        "legacy and v1 render bit-identical (the frozen arm)")
-        XCTAssertEqual(legacyBytes, forwardBytes,
-                       "a forward number clamps to v1 — the same bytes before the bump")
+        XCTAssertNotEqual(legacyBytes, forwardBytes,
+                          "a forward number clamps to v2 — the spectral arm renders "
+                              + "(the post-bump fork face; the pre-bump identity "
+                              + "form is superseded)")
     }
 
     // MARK: - 4: the probe's follow-the-factory face
@@ -394,11 +415,17 @@ final class SpectralLegForkTests: XCTestCase {
             metal, payloads: payloads, input: input, output: before)
 
         // The production face (through the box's dispatch entry — the
-        // exact face the film leg's instances(assembly:) consumes).
+        // exact face the film leg's instances(assembly:) consumes). The
+        // method carries the SOLVED CC — the dispatch derives the deltas
+        // against the tables' operating point, so this is the delta-ZERO
+        // face (a zero-CC Params would shift by the whole neutral pair).
         let production = try makePlaneTexture(metal, width: 48, height: 32, write: true)
         let box = FilmMethodBox(
             record: FilmRecord(),
-            method: FilmMethodBox.Params(record: FilmRecord()),
+            method: FilmMethodBox.Params(
+                record: FilmRecord(),
+                magentaCC: tables.solvedPrintCC.y,
+                yellowCC: tables.solvedPrintCC.z),
             spectralPayloads: payloads)
         var piece = IOPiece()
         try await box.process(
