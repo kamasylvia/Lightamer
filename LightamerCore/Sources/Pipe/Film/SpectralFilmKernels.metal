@@ -56,6 +56,9 @@
  *   - the input gamut compression remap is PRE-FOLDED into the tc LUT at
  *     build time (review M1) — the kernel face has no remap code, the
  *     gather addresses the already-compressed domain.
+ *   (M8-2 addition) spectral_film_strength_mix — the RFC-025 strength
+ *     blend the film leg dispatches AFTER stage B when the document's
+ *     strength < 1; the seven-stage fused family above is untouched.
  *
  * NOT PORTED (upstream spatial-effect family, M8 v1 scope decision,
  * CONTEXT D-M8-4): grain, halation, diffusion, highlight boost, glare,
@@ -959,4 +962,48 @@ kernel void spectral_film_stage_probe(
       break;
   }
   out.write(result, gid);
+}
+
+/* ---------------------------------------------------------------- */
+/* The RFC-025 strength mix (M8-2 production face) — the film leg's
+   spectral arm dispatches this AFTER stage B when the document's
+   strength < 1: the DENSITY-domain geometric blend
+   out = in^(1-k) · film^k (the frozen film_subrun kernel's own
+   convention) with the solved session exposure gain folded into the
+   input leg's log face (the density arm applies the same gain before
+   the mix — one consumption-layer shape). At strength >= 1 the leg
+   dispatches B straight into the output and this kernel never runs
+   (the bitwise-raw-chain face — the ramp golden's anchor).
+
+   u slots 34/35 are the EXTENDED uniform face (this file's frozen
+   SF_U_TOTAL = 34 define belongs to the seven-stage family above, so
+   the additions read by literal index): 34 = strength, 35 = gain.
+   The log/exp faces are the SHARED polynomial pair (nail 3), the same
+   sf_log10f/sf_pow10f the seven stages use — NOT the platform
+   built-ins the frozen density kernel uses. Alpha rides the film leg's
+   own output (the crop_out convention — the mix never invents alpha). */
+kernel void spectral_film_strength_mix(
+    texture2d<float, access::read> film [[texture(0)]],
+    texture2d<float, access::read> orig [[texture(1)]],
+    texture2d<float, access::write> out [[texture(2)]],
+    constant const float *u [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+  const int w = (int)u[SF_U_WIDTH], h = (int)u[SF_U_HEIGHT];
+  if ((int)gid.x >= w || (int)gid.y >= h) { return; }
+  const float strength = u[34];
+  const float gain = u[35];
+  const float4 f = film.read(gid);
+  const float4 o = orig.read(gid);
+  const float3 lin = o.rgb * gain;
+  const float3 inLog = float3(
+      sf_log10f(fmax(lin.x, 1e-6f)),
+      sf_log10f(fmax(lin.y, 1e-6f)),
+      sf_log10f(fmax(lin.z, 1e-6f)));
+  const float3 filmLog = float3(
+      sf_log10f(fmax(f.x, 1e-6f)),
+      sf_log10f(fmax(f.y, 1e-6f)),
+      sf_log10f(fmax(f.z, 1e-6f)));
+  const float3 outLog = mix(inLog, filmLog, strength);
+  out.write(float4(sf_pow10f(outLog.x), sf_pow10f(outLog.y), sf_pow10f(outLog.z), f.w), gid);
 }
