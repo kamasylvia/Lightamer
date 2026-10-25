@@ -109,6 +109,30 @@ Third-party provenance
    compression.h (GPL-3.0) was consulted READ-ONLY to cross-check the RGC
    shape; zero GPL code or text copied.
 
+3. darktable spektrafilm (spectral film core GPU face — Plan M8-1b T1;
+   code-level port with attribution)
+
+   Upstream: darktable (darktable developers)
+   https://github.com/darktable-org/darktable
+   License: GPL-3.0 (c) 2026 darktable developers.
+
+   Lightamer's spectral film kernel family
+   (LightamerCore/Sources/Pipe/Film/SpectralFilmKernels.metal) is PORTED
+   from `data/kernels/spektrafilm.cl` (the seven per-pixel colour-science
+   kernels: expose/lograw/develop_corr/develop/print_expose/print_develop/
+   scan, the Mitchell-cubic tc gather, the monotone-PCHIP 3D evaluator, the
+   Reinhard knee + OkLCh compression face, and the separable corr-blur
+   pair) with the upstream copyright preserved in the file header and the
+   modifications marked there (the OpenCL→Metal translation, the fused
+   A/B dispatch restructuring with the decimated corr arm, the shared
+   log2/exp2 polynomial pair ported from the upstream grain.h, the
+   NaN-hardened base/fraction form). The cmax(L,h) builder and the Swift
+   Float64 reference faces (SpectralBuildEngine / SpectralPayloads /
+   the golden tests) are the Float64 twin faces of the same upstream math
+   (spektra_sim.c read as the guide). This file is GPL-3.0 as part of
+   Lightamer. The film/paper PROFILE data the core consumes stays with its
+   own CC BY-SA attribution (Resources/FilmProfiles/NOTICE).
+
 ──────────────────────────────────────────────────────────────────────────────
 LENS-01 batch additions (Lensfun lens correction, 2026-10-21)
 ──────────────────────────────────────────────────────────────────────────────
