@@ -47,8 +47,10 @@ import Metal
 /// sf_log2f/sf_exp2f/sf_exp2i (nail ③; see the kernel file header for the
 /// upstream record of WHY: platform built-ins are spec'd to ≤3 ULP and the
 /// segment boundaries of the curve lookups amplify that into whole-value
-/// differences). Deliberately NOT fma-pinned — both sides must run the
-/// same bare-rounding form.
+/// differences). The Horner chains are fma-pinned on BOTH sides — the
+/// first device run measured the bare spelling diverging (Metal contracts
+/// a handful of forms), and the pin restores the by-construction
+/// agreement.
 public enum SpectralLogMath {
 
     /// 2^k by writing k into the binary32 exponent field — exact bit
@@ -59,38 +61,49 @@ public enum SpectralLogMath {
 
     /// x = k + r, k integer and |r| ≤ 0.5, so 2^x = 2^k·e^(r·ln2) with the
     /// exponential over |t| ≤ 0.347 by a degree-7 Taylor polynomial in
-    /// Horner form and 2^k injected exactly.
+    /// Horner form (fma-pinned — the twin of the kernel's spelling; the
+    /// first device run showed Metal contracts some bare forms, so both
+    /// sides pin) and 2^k injected exactly.
     public static func exp2f(_ x: Float) -> Float {
         let k = Int(floor(x + 0.5))
         let t = (x - Float(k)) * 0.6931471824645996 /* ln(2) */
         var p: Float = 0.000198412700 /* 1/5040 */
-        p = p * t + 0.00138888892 /* 1/720 */
-        p = p * t + 0.00833333377 /* 1/120 */
-        p = p * t + 0.0416666679 /* 1/24 */
-        p = p * t + 0.166666672 /* 1/6 */
-        p = p * t + 0.5
-        p = p * t + 1.0
-        p = p * t + 1.0
+        p = fmaf(p, t, 0.00138888892) /* 1/720 */
+        p = fmaf(p, t, 0.00833333377) /* 1/120 */
+        p = fmaf(p, t, 0.0416666679) /* 1/24 */
+        p = fmaf(p, t, 0.166666672) /* 1/6 */
+        p = fmaf(p, t, 0.5)
+        p = fmaf(p, t, 1.0)
+        p = fmaf(p, t, 1.0)
         return p * exp2i(k)
     }
 
     /// The binary exponent peeled by hand, the mantissa folded into
-    /// [1/√2, √2] so s = (m−1)/(m+1) stays inside ±0.1716, where
-    /// log(m) = 2(s + s³/3 + s⁵/5 + s⁷/7 + s⁹/9) is good to well under an
-    /// ULP. Both fold steps are exact.
+    /// [1/√2, √2], then a DIVISION-FREE degree-13 fma-Horner fit of
+    /// ln(1+q) over q = m−1 (max measured error 3.2e-8 in ln units; the
+    /// kernel twin is the same polynomial — the device division rounds
+    /// differently from the host's, and the fit removes the shared face's
+    /// only non-deterministic op). The fold steps are exact bit work.
     public static func log2f(_ x: Float) -> Float {
         let xu = x.bitPattern
         var e = Int((xu >> 23) & 0xff) - 127
         var m = Float(bitPattern: (xu & 0x007fffff) | 0x3f800000)
         if m > 1.41421356 { m *= 0.5; e += 1 }
-        let s = (m - 1.0) / (m + 1.0)
-        let s2 = s * s
-        var p: Float = 0.222222224 /* 2/9 */
-        p = p * s2 + 0.285714298 /* 2/7 */
-        p = p * s2 + 0.400000006 /* 2/5 */
-        p = p * s2 + 0.666666687 /* 2/3 */
-        p = p * s2 + 2.0
-        return Float(e) + p * s * 1.4426950216293335 /* log2(e) */
+        let q = m - 1.0
+        var p: Float = 0.05207313597202301
+        p = fmaf(p, q, -0.09844003617763519)
+        p = fmaf(p, q, 0.10096900165081024)
+        p = fmaf(p, q, -0.09942647814750671)
+        p = fmaf(p, q, 0.10994011908769608)
+        p = fmaf(p, q, -0.12494739145040512)
+        p = fmaf(p, q, 0.14291955530643463)
+        p = fmaf(p, q, -0.16667121648788452)
+        p = fmaf(p, q, 0.1999983936548233)
+        p = fmaf(p, q, -0.24999989569187164)
+        p = fmaf(p, q, 0.3333333432674408)
+        p = fmaf(p, q, -0.5)
+        p = fmaf(p, q, 1.0)
+        return fmaf(p * q, 1.4426950216293335, Float(e)) /* log2(e) */
     }
 
     /// The host's SF_LOG10F form: log2(x) · log10(2) — the scaling
@@ -347,13 +360,21 @@ public final class SpectralGPUPayloads {
             throw SpectralBuildError.projectionUnavailable(
                 "SpectralGPUPayloads: tc texture allocation")
         }
+        // the upload TRANSPOSES: the engine array is u-major
+        // (index = u·side + v) while the kernel's gather addresses texels
+        // as (x = u, y = v) — texel(u, v) = array[u·side + v] requires the
+        // v-major write order below (the T3 bit-identity battery caught
+        // the original linear upload as a transposed gather).
         var tcData = [Float](repeating: 0, count: side * side * 4)
-        for i in 0..<(side * side) {
-            let c = tables.tcLut[i]
-            tcData[i * 4 + 0] = c.x
-            tcData[i * 4 + 1] = c.y
-            tcData[i * 4 + 2] = c.z
-            tcData[i * 4 + 3] = 0  // the alpha pad
+        for u in 0..<side {
+            for v in 0..<side {
+                let c = tables.tcLut[u * side + v]
+                let o = (v * side + u) * 4
+                tcData[o + 0] = c.x
+                tcData[o + 1] = c.y
+                tcData[o + 2] = c.z
+                tcData[o + 3] = 0  // the alpha pad
+            }
         }
         tcData.withUnsafeBytes {
             tcTexture.replace(
@@ -488,15 +509,23 @@ public final class SpectralGPUPayloads {
         putD(ConstBlockOffset.ok2, SpectralConstants.oklabM2)
         putD(ConstBlockOffset.ok1i, SpectralConstants.inverse3(SpectralConstants.oklabM1))
         putD(ConstBlockOffset.ok2i, SpectralConstants.inverse3(SpectralConstants.oklabM2))
-        c[ConstBlockOffset.lmDonor + 0] = couplers.donorK.x
-        c[ConstBlockOffset.lmDonor + 1] = couplers.donorK.y
-        c[ConstBlockOffset.lmDonor + 2] = couplers.donorK.z
+        // the Langmuir faces with the ZERO sentinel (the upstream build
+        // rule: a zero K/Kr — an all-zero matrix column, or a pack
+        // shipping langmuir_*_k_rgb == 0 — would evaluate c*(K+cref)/
+        // (K+c) as 0*0/0 for every pixel and NaN through the table; the
+        // linear sentinel passes the inhibitor through unchanged):
+        // K == 0 → 1e30 at the BLOCK face, so the kernel never sees the
+        // degenerate denominator (X3's NaN defense).
+        func sentinel(_ v: Float) -> Float { v == 0 ? 1e30 : v }
+        c[ConstBlockOffset.lmDonor + 0] = sentinel(couplers.donorK.x)
+        c[ConstBlockOffset.lmDonor + 1] = sentinel(couplers.donorK.y)
+        c[ConstBlockOffset.lmDonor + 2] = sentinel(couplers.donorK.z)
         c[ConstBlockOffset.lmDonor + 3] = couplers.donorDref.x
         c[ConstBlockOffset.lmDonor + 4] = couplers.donorDref.y
         c[ConstBlockOffset.lmDonor + 5] = couplers.donorDref.z
-        c[ConstBlockOffset.lmRecv + 0] = couplers.recvKr.x
-        c[ConstBlockOffset.lmRecv + 1] = couplers.recvKr.y
-        c[ConstBlockOffset.lmRecv + 2] = couplers.recvKr.z
+        c[ConstBlockOffset.lmRecv + 0] = sentinel(couplers.recvKr.x)
+        c[ConstBlockOffset.lmRecv + 1] = sentinel(couplers.recvKr.y)
+        c[ConstBlockOffset.lmRecv + 2] = sentinel(couplers.recvKr.z)
         c[ConstBlockOffset.lmRecv + 3] = couplers.recvCref.x
         c[ConstBlockOffset.lmRecv + 4] = couplers.recvCref.y
         c[ConstBlockOffset.lmRecv + 5] = couplers.recvCref.z
