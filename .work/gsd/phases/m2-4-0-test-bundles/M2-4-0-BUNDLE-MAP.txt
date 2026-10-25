@@ -871,3 +871,11 @@ IOPP	7	SpectralBuildGoldenTests.swift
 #   （*Golden*/*PerfProbe* 域模式；probe 族默认 skip = LIGHTAMER_PERF_PROBE 门）。
 IOPP	4	SpectralKernelGoldenTests.swift
 IOPP	5	SpectralPerfProbeTests.swift
+#   M8-2 T6（2026-10-25）：管线集成五文件入域——分叉/golden（*Golden*）+ bake
+#   键控 = IOPParity，solve（纯函数域）= IOP，process 账本/sidecar 投影面 =
+#   Layers；行内 method 数 = 终态对账（DualArm 8 + T6 冒烟 2 = 10）。
+IOPP	6	SpectralLegForkTests.swift
+IOP	5	SpectralSolveTests.swift
+IOPP	5	SpectralBakeTests.swift
+LAYERS	5	RenderProcessLedgerTests.swift
+IOPP	10	SpectralDualArmGoldenTests.swift
