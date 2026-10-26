@@ -46,16 +46,31 @@ internal struct DrtPanelView: View {
             if let model {
                 panelBody(model: model)
             } else {
-                EmptyView()
+                // R6-R1 (m-1): a bare EmptyView never "appears" in THIS
+                // mount (the display-transform page's ScrollView/VStack
+                // switch branch) — the onAppear lazy build never ran and
+                // the panel stayed empty forever (the omp6-09 phenotype,
+                // black-box reproduced 2026-10-27 with a [drt-obs] probe:
+                // body evaluated once at model=nil, ZERO onAppear firings;
+                // the Color.clear A/B re-run fired onAppear and the panel
+                // rendered in full — method/encoding/EOTF/peak/limiting).
+                // A real zero-size leaf gives the appear event a content
+                // hook — the role FilmPanelView's always-rendered header
+                // plays in that panel's working lazy build.
+                Color.clear
+                    .frame(height: 0)
+                    .accessibilityHidden(true)
             }
         }
         .accessibilityIdentifier("editor.stack.drt.panel")
         // The house lazy-build form (the FilmPanelView onAppear shape): the
         // ancestor body no longer allocates a throwaway model per evaluation
         // (m11); the build is one async execution after appear.
-        .onAppear { model = DrtPanelModel(
-            workspace: workspace, editorState: editorState,
-            pipeCoordinator: pipeCoordinator) }
+        .onAppear {
+            model = DrtPanelModel(
+                workspace: workspace, editorState: editorState,
+                pipeCoordinator: pipeCoordinator)
+        }
     }
 
     private func panelBody(model: DrtPanelModel) -> some View {
