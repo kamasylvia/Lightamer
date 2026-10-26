@@ -171,4 +171,116 @@ final class ImportCompletionRegressionTests: XCTestCase {
         XCTAssertEqual(statement.columnInt(0) ?? 0, 3,
                        "all three link rows must be committed")
     }
+
+    // MARK: R6-R1 (B-1 second lesion) — the run-end EVENT channel
+
+    /// The instrumented GUI rounds (2026-10-27, /tmp/r6r1-runs) pinned the
+    /// second lesion: the WorkspaceHostView onChange OF the nil terminal
+    /// fires only ~72%/round — the failing rounds show `fire(.completed)`,
+    /// the tail's nil write, a subsequent modifier-body evaluation that
+    /// READS nil with the @State adapter alive, and NO final onChange
+    /// firing (the value input's re-evaluation is the attribute graph's
+    /// own scheduling decision; nil is the run's LAST write, so one missed
+    /// propagation is lost forever — the zero-row phenotype). The fix's
+    /// primary channel is the tail's direct `onImportRunEnded` event. This
+    /// test pins the ordering contract: the event fires in the SAME
+    /// main-actor turn as the nil write (the listener observes nil), fires
+    /// exactly once, and clears itself (idempotent vs the onChange else-arm
+    /// that stays armed as the second channel).
+    func testRunEndEventFiresAfterNilTerminalAndClears() async throws {
+        let source = try makeSource(named: "SrcR6R1a", count: 3)
+        let suiteName = "import-r6r1-a-\(UUID().uuidString)"
+        let controller = LibraryProjectController(defaultsSuiteName: suiteName)
+        defer { UserDefaults().removePersistentDomain(forName: suiteName) }
+
+        let package = root.appendingPathComponent("ProjR6R1a.lalb")
+        _ = try await controller.createProject(at: package, name: "ProjR6R1a")
+
+        var fireCount = 0
+        var progressAtFire: ImportProgress? =
+            ImportProgress(phase: .importing, total: 1, processed: 1)
+        controller.onImportRunEnded = {
+            fireCount += 1
+            progressAtFire = controller.importProgress
+        }
+
+        await controller.runImport(
+            folder: source, choice: ImportModeChoice(mode: .link, remember: false))
+
+        XCTAssertEqual(fireCount, 1,
+                       "the run-end event fires exactly once per run")
+        XCTAssertNil(
+            progressAtFire,
+            "the event fires AFTER the nil terminal write (same main-actor "
+                + "turn — the terminal ordering the onChange channel loses)")
+        XCTAssertNil(
+            controller.onImportRunEnded,
+            "the listener clears at fire — the onChange else-arm stays a "
+                + "structural no-op (idempotent double channel)")
+    }
+
+    /// The deterministic LOSS SHAPE: this process has NO SwiftUI graph, so
+    /// the onChange consumer is structurally ABSENT — exactly the failing
+    /// rounds' world (the final transition never reaches a consumer). The
+    /// production consumer's arm (ImportProgressModifier) mirrors the
+    /// onChange arms: register the adapter, apply the terminal snapshot
+    /// (the omp stay-alive evidence face: the bar shows "Import complete"
+    /// while the grid stays zero-row), route the run-end through the tail
+    /// listener. The adapter must finish and the reload must fire — with
+    /// the pre-fix code the ONLY channel was the onChange that this world
+    /// does not have.
+    func testRunEndEventDrivesFinishAndReloadWhenObservationAbsent() async throws {
+        let source = try makeSource(named: "SrcR6R1b", count: 3)
+        let suiteName = "import-r6r1-b-\(UUID().uuidString)"
+        let controller = LibraryProjectController(defaultsSuiteName: suiteName)
+        defer { UserDefaults().removePersistentDomain(forName: suiteName) }
+
+        let package = root.appendingPathComponent("ProjR6R1b.lalb")
+        _ = try await controller.createProject(at: package, name: "ProjR6R1b")
+
+        // The modifier's adapter arm (verbatim shape): adapter registered,
+        // terminal snapshot applied, listener armed.
+        let registry = BackgroundTaskRegistry()
+        let adapter = ImportTaskAdapter(controller: controller)
+        registry.register(adapter)
+        adapter.apply(ImportProgress(phase: .importing, total: 3, processed: 3))
+        adapter.apply(ImportProgress(phase: .completed, total: 3, processed: 3))
+        var reloadCount = 0
+        controller.onImportRunEnded = { [weak adapter] in
+            guard let adapter else { return }
+            registry.finish(id: adapter.id)
+            reloadCount += 1   // the reloadFirstPage stand-in
+        }
+
+        await controller.runImport(
+            folder: source, choice: ImportModeChoice(mode: .link, remember: false))
+
+        XCTAssertEqual(
+            reloadCount, 1,
+            "the tail's direct event must drive the finish+reload even when "
+                + "the onChange channel is structurally absent (the second "
+                + "lesion's deterministic loss shape)")
+        XCTAssertTrue(
+            registry.handles.isEmpty,
+            "the adapter must be finished (the bar's row leaves)")
+    }
+
+    /// An unarmed tail (no consumer — tests, no-shell contexts, a run that
+    /// pre-dates the modifier's mount) is a clean no-op; the run still
+    /// publishes its nil terminal.
+    func testRunEndEventUnarmedTailIsNoOp() async throws {
+        let source = try makeSource(named: "SrcR6R1c", count: 3)
+        let suiteName = "import-r6r1-c-\(UUID().uuidString)"
+        let controller = LibraryProjectController(defaultsSuiteName: suiteName)
+        defer { UserDefaults().removePersistentDomain(forName: suiteName) }
+
+        let package = root.appendingPathComponent("ProjR6R1c.lalb")
+        _ = try await controller.createProject(at: package, name: "ProjR6R1c")
+        XCTAssertNil(controller.onImportRunEnded)
+
+        await controller.runImport(
+            folder: source, choice: ImportModeChoice(mode: .link, remember: false))
+        XCTAssertEqual(controller.importProgress, nil,
+                       "an unarmed tail still publishes the nil terminal")
+    }
 }

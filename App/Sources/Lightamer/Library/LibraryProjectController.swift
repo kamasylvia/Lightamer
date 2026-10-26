@@ -93,6 +93,23 @@ final class LibraryProjectController {
     var aiAnalysis: AIAnalysisRegistry?
     var labelingPrompts: LabelingPromptController?
 
+    /// R6-R1 (B-1 second lesion): the run-end EVENT face. The nil-finish
+    /// side effects (the task bar's finish + the grid's reloadFirstPage)
+    /// previously rode ONLY the WorkspaceHostView onChange's else-arm —
+    /// the instrumented GUI rounds proved that channel probabilistically
+    /// drops the run's FINAL transition (.completed → nil): the modifier
+    /// body re-evaluates and READS nil while the onChange node never
+    /// consumes the change, and with no further writes behind the nil one
+    /// missed propagation is lost forever (the zero-row phenotype,
+    /// ~28%/round under the omp harness). The run tail now fires this
+    /// listener directly — the SAME main-actor turn as the nil write,
+    /// before any SwiftUI transaction — making the terminal an EVENT, not
+    /// a value-observation artifact. The consumer (ImportProgressModifier)
+    /// arms it when it registers the adapter; the onChange else-arm stays
+    /// as the idempotent second channel (it covers a run already in
+    /// flight when the modifier mounts, which arms no listener).
+    var onImportRunEnded: (@MainActor () -> Void)?
+
     private let defaultsSuiteName: String?
     private var activeImportService: LightamerCore.ImportService?
 
@@ -415,6 +432,10 @@ final class LibraryProjectController {
         // would hang the bar again. The controller-nil carrier below (the
         // run tail) is the SECOND terminal carrier and stays a direct write.
         let coalescer = ImportProgressCoalescer { [weak self] snapshot in
+            #if DEBUG
+            FileHandle.standardError.write(Data(
+                "[import-obs] deliver \(snapshot.phase) \(snapshot.processed)/\(snapshot.total)\n".utf8))
+            #endif
             self?.importProgress = snapshot
         }
         importProgressCoalescer = coalescer
@@ -464,6 +485,18 @@ final class LibraryProjectController {
         coalescer.invalidate()
         importProgress = nil
         importProgressCoalescer = nil
+        #if DEBUG
+        FileHandle.standardError.write(Data(
+            "[import-obs] tail nil written\n".utf8))
+        #endif
+        // R6-R1 (B-1 second lesion): fire the run-end listener DIRECTLY —
+        // same main-actor turn as the nil write, before any SwiftUI
+        // transaction. Clear-first (a listener that re-arms itself keeps
+        // its own ordering); an unarmed face (no modifier / pre-mount run)
+        // is a no-op — the onChange else-arm is the only channel there.
+        let runEnded = onImportRunEnded
+        onImportRunEnded = nil
+        runEnded?()
 
         // The AI tail (auto leg first, no prompt; then the labeling mode
         // three-state). Everything here is post-close: the prompt publishes
