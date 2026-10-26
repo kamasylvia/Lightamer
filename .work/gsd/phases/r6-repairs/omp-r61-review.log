@@ -1,0 +1,65 @@
+Working...
+# R6-R1 修复批 — omp 复核（上轮 FAIL 的正主复审，computer-use 实机，2026-10-27）
+
+**PASS / 0 B + 0 M + 1 m + 4 obs**
+
+> 第二眼独立复核。复核对象 = R6-R1 两 fix（`80f8814f` 导入 tail 直通道 / `0507135b` DRT 真叶）与 zcode 验收报告 `R6-R1-ACCEPTANCE.md`（PASS/0B+0M+0m+2obs）。本场 = 现成 Debug 构建复用（binary mtime 10-27 05:41，晚于两 fix commit 04:15，HEAD `c24c9043` 一致，strings 双特征在位）+ 导入复走 15 轮 + 大导入/双并发腿 + DRT 面板三实例 AX + zcode 对账。**上轮 B-1 已除**（18 独立轮 0 败 + 补偿语义活体三现）；DRT 面板渲染恢复（上轮 m-1 闭环），但新现两处 DRT 交互异常，合并记 minor（§三）。
+
+## 一、逐面判定表
+
+| 面 | 配方预期 | 实机观察 | 判定 |
+|---|---|---|---|
+| ① 导入复走（≥15 轮 + zcode 对照） | 0/15 零行 | **15/15 全绿**（逐轮 16/16 行 1-2s；round10/13/15 = fire#2→tail→无fire#3→行到达，补偿语义活体三现） | ✅ |
+| ② 定向再触发（上轮活体配方：切界面/双开） | 无复活 | 双并发双绿（A16/B20 行全达）+ B 实例导入后切显示变换页 DRT 渲染在 + A 行存活（stressA/B 双 fire#3 正常序） | ✅ |
+| ③ 回归：大导入 N=20 | 完成态照常 | 3/3（20 行全达；big3 = 无 fire#3 补偿形态） | ✅ |
+| ④ DRT 面板在位（上轮 m-1） | 控件渲染 | 方法 radio 组（ACES 2.0/OpenDRT 双钮可读可点）+ 编码/编码 EOTF 双 popup + 峰值滑杆（初值 100.0，`r1-01..03` 截图三证） | ✅ |
+| ⑤ DRT 峰值写读 | 设值回读 | **写通道死**：AXSetAttributeValue/AXIncrement/System Events set 三通道 err=0 但回读恒 100.0（双实例 × 双 method，§三 m-1a） | ❌ m |
+| ⑥ DRT 方法切换联动 | 限色组随切 | **切换不联动**：ACES 2.0 radio 值翻 1 但 sections 仍 OpenDRT 三件套（Look/Tonescale/Creative White），无 Limiting Space 行；20s 滞后/切页往返均不刷新，重进复位 OpenDRT（§三 m-1b） | ❌ m |
+| ⑦ zcode 报告对账 | 逐条裁决 | round9 实证认同；obs-4 未复现（初值 100.0 三实例一致）；obs-5 认同（§四） | ✅ |
+
+## 二、B-1 闭环：导入零行已除（上轮 FAIL 正主）
+
+- **数据**：本轮独立 18 轮（T1a 15 + 大导入 3）**0 败**；zcode 15/15 + executor 35 轮三方合计 **68 轮 0 败**（未修复基线 28%/轮下 68 连绿概率 ≈ 3e-11）。
+- **补偿语义活体实证（本轮独立三现）**：round10/13/15 trace = `fire#1 → fire#2 completed 16/16 → tail nil written →（无 fire#3）→ 16 行到达`——onChange (.completed→nil) 丢失真实发生（丢失率 3/15 = 20%，与上轮 28% 同量级），tail 直通道补偿后行到达。其余 12 轮 = 双通道序贯幂等形态（`fire#3 -> nil adapter=nil`）。
+- **定向再触发**：上轮失败配方（导入中切界面/双开）在本轮双并发腿下双绿；大导入上轮 1/3 零行本轮 3/3 全达。**上轮 B-1 = 已修复，签核放行**。
+
+## 三、m-1：DRT 面板两处交互异常（minor，新现，合并一记）
+
+- **m-1a（峰值滑杆 AX 写通道死）**：全树唯一 AXSlider（min=100/max=1000，初值 100.0）——`AXUIElementSetAttributeValue(400)` err=0 回读 100.0、`AXIncrement` err=0 回读 100.0、System Events set 400/700 回读 100.0；双实例 × 双 method（OpenDRT/ACES）四组合同。注意 zcode 报告 400/700 双值回读——本轮在其 stay2 实例上**原文重跑其 `drt-full-v3.swift` 得 FINAL VERDICT: FAIL**（set err=0 readback=100.0），其 400/700 在本环境不可复现。人手拖拽通道是否活未知（CG 双死先例，未试）。
+- **m-1b（方法切换 sections 不联动）**：点 ACES 2.0 radio 后其 AX value=1（点击生效），但 panel sections 仍渲染 OpenDRT 三件套（Look/Tonescale/Creative White），`sections(method:)` 的 `.acesLimiting` 臂不现、`Limiting Space` 行全树零命中；20s 滞后等待不刷新；切页往返后 radio 复位 OpenDRT=1（commit 未落地或 model 重建丢弃）。录屏行为证据 = `r1-03-aces.png`（ACES 选中 + 仍 OpenDRT 三件套）。根因候选：radio 点选未走 `setMethod` commit 缝（AX click 与 binding 脱钩？）或 sections 计算未订阅 record 变更——黑盒不可达，需源码断点。
+- **定级 minor**：m-1 修法目标 = 面板渲染恢复（已达成，§一④）；m-1a/m-1b 属 DRT 面板交互纵深缺陷（M2-6 面），非 R6-R1 引入（diff 仅 else 臂叶 + onAppear 重排，不触 binding/commit 语义）。T3-DRT 存活链 GUI 腿仍阻（上轮 m-1 的链 blocker 名义已除、实际被 m-1b 替代阻断）——路由 M2-6 面专项或下轮顺路，不阻 R6-R1 签核。
+
+## 四、zcode 报告对账
+
+| 条 | zcode 申报 | 第三眼裁决 |
+|---|---|---|
+| round9 补偿语义实证 | fire#2→tail→无fire#3→行到达 | **认同**：其 `acc-round9.log` 插桩 trace 在案亲核（fire#1→fire#2→tail nil→16 行，无 fire#3）；本轮 round10/13/15 同形态三现，丢失率 20% vs 其 1/15 均落在 28% 同量级，互证 |
+| obs-4（峰值初值 400≠100） | 初值语义待查 | **未复现→降级**：本轮三 stay 实例初值恒 100.0（SE + 自研 AX 双通道一致），与其理论读序（pristine 全链 100）吻合；其 400 系实例态污染（D-H1 live 窗/某前序 set 残留）可能性大。按任务书「复现=新判定」——未复现，不新立项，obs-4 转观察关闭 |
+| obs-5（AX id 容器传播） | 子 id 被 panel id 覆盖 | **认同**：本轮唯一滑杆 id=`editor.stack.drt.panel`（`drt.peak.slider` 不达树），逐字复现；role+desc 断言惯例有效（本轮全程采用） |
+| 15/15 全绿 | 修复实证 | **认同**：本轮同配方 15/15 + 三方 68 轮 0 败；上轮「小样本推翻」逻辑在本样本量下不再适用（68 连绿 p≈3e-11） |
+| DRT 控件 ALL-PRESENT | 方法/编码/EOTF/限色/峰值 | **部分推翻**：方法/编码/EOTF/峰值四组在位认同；「限色」在其脚本中断言 `popups.contains("限色")`——本轮原文重跑其脚本得 MISSING-SOME（OpenDRT 默认态本无 Limiting 组，该断言恒假），其 ALL-PRESENT 申报与脚本实际语义矛盾；且其 400/700 写回读本轮不可复现（§三 m-1a） |
+| 反自取消 | 机制法①②真红 | **维持**（未独立重跑掏空；其 5 断言败形态与修法语义自洽，采信） |
+
+## 五、观察项（obs，本轮新增 4）
+
+- **obs-1（zcode drt-full-v3 脚本两处恒败）**：其一「限色」断言在默认 OpenDRT 态恒假（Limiting 组 = aces20 专属）；其二 peak set 在本环境恒回读初值。其报告 PASS 结论与脚本实际输出矛盾——验收脚本应先自证全绿再申报结论。
+- **obs-2（Deep AX 通道能力再确认）**：自研 swift 遍历（depth 12）漏 scroll area 2 内 DRT 全组，System Events `entire contents` 全可见——omp obs-2（R6 轮）再证；面板走查 SE 优先。
+- **obs-3（AI 分析 sheet 常驻）**：三 stay 实例每次 DT 页截图均有「用 AI 分析照片内容？」sheet 遮挡（button 1 = 暂不，有效关闭）。走查截图前应先关 sheet。
+- **obs-4（tab 轨坐标稳定）**：本轮三实例 rail 七钮 x=[1200..1421] 逐位同、DT=button23(1307,488)——索引漂移（executor obs-2）在本机未现，但位置聚类法仍为准式。
+
+## 六、证据索引
+
+- 截图（本目录 `omp-evidence-r1/`）：`r1-01-drt-panel.png`（DT 页全景：方法双钮 + Rec.709/Gamma 2.2 + 峰值 100 nits + OpenDRT 三件套）/ `r1-02-drt-open.png`（fresh 实例同态复证）/ `r1-03-aces.png`（ACES 选中但 sections 仍 OpenDRT 三件套 = m-1b 活证）。
+- 日志（/tmp 即弃域）：`/tmp/r61-omp/round{1..15}.log`（15/15，10/13/15 补偿形态）/ `big{1..3}.log`（3/3）/ `stressA/B.log`（双并发双绿）/ `ax/se-dt*.txt`（DT 页 SE 树全套）/ `stay*.log`。
+- 构建：binary mtime 10-27 05:41（晚于 80f8814f/0507135b 04:15，HEAD c24c9043 一致）；strings `tail nil written`×1 + `import-obs`×3；monitor 全程零 RSS-KILL（`RSS-MONITOR start` 单行）。
+
+## 七、卫生
+
+- 每轮实例 kill 清零（ps 复核 0 实例）；`library.recentProjects` 探针污染整键删除（键不存在复核）；monitor 用后停（pgrep 空）；/tmp fixture（r61-omp/big + round log）即弃留存；tracked 零 diff（本报告 + omp-evidence-r1 为唯一新增 untracked）。
+- guard 说明：`--wait` 自身命令行误判 G1（上轮教训复用），改手动三门实质通过（heavy-zero / Data 卷 38% / 真重活零 / GUI 起跑前零）后推进；起跑链内联 ps 清零；monitor `--monitor 7200` 全程伴跑。
+
+## 八、结论
+
+上轮 B-1（导入零行 28% 复活）**已除**：本轮 18 独立轮 0 败 + 补偿语义活体三现 + 三方 68 轮 0 败，tail 直通道修法签核放行。DRT 面板渲染恢复（上轮 m-1 闭环），新现峰值写死 + 方法切换不联动两处交互异常合并记 minor（M2-6 面纵深，非本批引入，不阻签核）。zcode round9 实证与 15/15 认同；其 DRT 峰值 400/700 与 ALL-PRESENT 申报部分推翻（本环境不可复现 + 脚本恒败项）。**R6-R1 批 omp 复核 = PASS（0 blocking + 0 major + 1 minor + 4 observations）**。
+
+正本 `.work/gsd/phases/r6-repairs/R6-R1-ACCEPTANCE-OMP.md`；截图 `.work/gsd/phases/r6-repairs/omp-evidence-r1/r1-0{1,2,3}-*.png`。
