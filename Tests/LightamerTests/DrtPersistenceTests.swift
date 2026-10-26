@@ -82,9 +82,24 @@ final class DrtPersistenceTests: XCTestCase {
         XCTAssertFalse(workspace.hasDrtRecord(for: urlA))
         XCTAssertTrue(workspace.hasDrtRecord(for: urlB), "the sibling url is untouched")
 
-        // The editor-close drop face (关图丢弃).
-        workspace.dropSessionDrtRecords()
-        XCTAssertTrue(workspace.drtRecords.isEmpty)
+        // R6: the editor close KEEPS the carrier (the M8-FIX-1 process
+        // deviation extended to the DRT sister). The disease chain: a
+        // same-image reopen runs NO load leg (the historyLoadedURL +
+        // loadedImageURL guards both skip), so a close-time drop left
+        // `terminalTailPolicy`'s two read faces — hasDrtRecord + the
+        // record read — answering pristine/off until the next DRT
+        // commit/navigation re-synced the carrier, while the panel read
+        // the history projection and masked the loss (the omp M-1 chain's
+        // DRT twin, M8-FIX-1-DECISIONS §1.6).
+        workspace.setSessionDrtRecord(Self.editedRecord(peak: 650), for: urlA)
+        XCTAssertTrue(workspace.hasDrtRecord(for: urlA))
+        workspace.closeEditor()
+        XCTAssertTrue(
+            workspace.hasDrtRecord(for: urlA),
+            "close must keep the DRT carrier — the reopen runs no load leg")
+        XCTAssertEqual(
+            workspace.drtRecord(for: urlA).peakLuminance, 650,
+            "the render gate's record read must answer the retained record")
     }
 
     // MARK: - 2: the additive history item
