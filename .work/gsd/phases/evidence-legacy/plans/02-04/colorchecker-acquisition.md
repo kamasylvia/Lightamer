@@ -1,20 +1,25 @@
 # ColorChecker ARW 采集记录（02-04 遗留 → 2026-10-26 网上寻获，标定完毕）
 
-> **2026-10-26 晚首启结局：标定成功（含产线帧变换勘误），双 ARW 门真红 = 两个真发现，坐标表回退为空（门维持 skip），专项调查批已立项登记（见下「首启发现」节）。**
+> **2026-10-27 调查批结案：两项首启发现均已归因闭环，坐标表已回填，两 ARW 门解禁常跑（定向 6/0/0 全绿）——正本 = `.work/gsd/phases/cc-arw-investigation/{SUMMARY,DECISIONS}.md`。**
 
-## 首启发现（2026-10-26 20:17，IOPParity GoldenColorTests）
+## 首启发现（2026-10-26 20:17，IOPParity GoldenColorTests）→ 2026-10-27 调查批裁决
 
-1. **中性门红（样本表型级）**：六中性补丁透过产线呈一致 **+7/255 蓝偏**（如 N8.0 =
-   R234 G236 B243；|G−B|≈7 > 2/255 门）——日光 AWB 表型（相机 as-shot WB 蓝偏），
-   非管线缺陷；合成目标同门通过 = 管线中性处理本身正确。处置方向（调查批裁决）：
-   ARW 腿独立容差（如 8/255 + 注记）或样本 WB 预处理,合成腿维持 2/255。
-2. **交叉一致性门红（真发现）**：pipe 全链 vs CIContext/ColorSync 直渲（**同一
-   decode 输出**）在**暗区**（floor=60 下）maxInZone = **255**（门 = 完全分歧）——
-   合成 TIFF 无此表型。两腿同源排除朝向错配；疑似真传感器暗部（黑位/线性低段）
-   处理分歧。**这是该供件本要抓的实传感器分歧类——最有价值产出**，需专项归因
-   （候选：黑位/线性段 vs ColorSync 内嵌 profile 换算、premultiply、暗部 clip
-   语义）。失败转储 = `.work/plans/02-04/golden-dump-1793017{011,846}-*-arw/`
-   （plane.pfm 产线帧 + 基线帧）。
+1. **中性门红（样本表型级）→ 确证 + 分档容差**：六中性补丁透过产线呈一致
+   **+B 偏**，fence 后干净帧实测 |G−B| 随暗度单调增（N9.5 白被 255 钳制掩盖 →
+   N8.0 3.4 → N3.5 7.4 → N2.0 黑 31.2，线性域 B ≈ 40× R/G）；|R−G| 恒 <2。
+   EXIF WhiteBalance=0（Auto，日光）+ 合成腿 PASS + 交叉一致性 PASS 三证 =
+   as-shot AWB 蓝增益样本表型，非管线缺陷。处置落地 = ARW 腿分档容差
+   `neutralARW=8` / `neutralARWBlack=40`（GoldenTolerance），合成腿 2/255 不动。
+2. **交叉一致性门红（首启判「真发现」）→ 证伪：读回竞争，非色彩分歧**。
+   pipe 腿帧 = `readRGB8` 裸 getBytes 在 60MP 全链 GPU 编码 in-flight 时读回 =
+   **整帧全零**（转储逐像素验证 nonzero=0.0；中性转储 1.5 分钟后同路径正常）；
+   diff-table p50=110/maxInZone=255 全是 |0−baseline|。修复 = drain fence
+   （L014，AgXTests idiom）后 **交叉门直接 PASS（42.7s 真跑）**——pipe 全链 vs
+   ColorSync 直渲真分歧在容差内，四个候选归因（premultiply/黑位 clip/working
+   space 差/PRC）全部证伪。产线零改动（PixelPipe 无同步是产线 FIFO 安全形态）。
+   失败转储 = `.work/plans/02-04/golden-dump-1793017{011,846}-*-arw/`
+   （plane.pfm 均为 pipe 帧——首启注记「产线帧+基线帧」有误，dumpFailure 只落
+   pipe 腿）。
 
 ## 产线帧变换勘误（重要）
 

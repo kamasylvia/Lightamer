@@ -1,0 +1,33 @@
+# 首启 dump 解析（2026-10-27 调查批，python numpy 逐像素）
+
+## 输入
+
+- `.work/plans/02-04/golden-dump-1793016846-cross-arw/plane.pfm`（交叉一致性门失败转储，pipe 腿帧，P7 6336×9504 float32 RGB，722,608,146 字节 = 头 18 + 60,217,344 px × 3ch × 4B 严丝合缝）
+- 对照 `.work/plans/02-04/golden-dump-1793017011-neutral-arw/plane.pfm`（中性门失败转储，同为 pipe 腿帧）
+
+## 结果
+
+### cross-arw dump（交叉一致性门，正主）
+
+- **整帧全零**：60,217,344 像素 nonzero fraction = 0.0、sum = 0.0、max = 0.0
+  （首尾字节 od 验证均为 \0；无任何空间结构——不存在「暗区分歧/亮度带分歧」）
+- 六中性补丁坐标采样（登记档案产线帧坐标）全部 0.0/0.0/0.0
+- **diff-table 重解读**：p50=110 / p90=208 / p99=238 / p100=255
+  = |0 − baseline| = baseline 自身亮度分布（基线是正常曝光照片），
+  非色彩分歧幅度。「暗区 maxInZone=255」= pipe 全 0 → 每像素都落 floor=60
+  低区 → maxInZone = max(baseline) = 255。maxOutside 断言实际是通过的（全部
+  像素入 zone → maxOutside=0）。
+
+### neutral-arw dump（1.5 分钟后同一 runFullChain 路径）
+
+- 正常帧：nonzero fraction = 0.886，max = 1.0
+- 六补丁采样（3×3 均值 /255）：N9.5 = 249/249/250；N8.0 = 235/236/240；
+  N6.5 = 211/212/216；N5.0 = 167/168/174；N3.5 = 108/110/117；N2.0 = 1/1/20
+- **同一测试类、同一 ARW、同一渲染路径产出了正常帧** → 渲染链本身无缺陷，
+  cross 腿的全零帧是读回时序问题（见 SUMMARY 归因）。
+- N2.0 黑补丁 1/1/20 与首启登记的 46 有出入（黑补丁噪声 + 该帧 11.4% 零像素
+  是否为部分竞争痕迹——次要，不影响主结论：中性 +B 偏移跨六补丁一致存在）。
+
+## 解析脚本
+
+`read_pipe.py`（本目录，uv run --with numpy，剥死代理 env 后运行）
