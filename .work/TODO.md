@@ -354,6 +354,7 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 - [x] **M8-3 面板接线 + golden/收口（SPEC-05）** —— ✅ 执行+验收闭环（`06ac0d41..af84ddc1` + 收口 `903d23fe` ΔN+13；迁移 UX 四面走查〔`.work/gui-acceptance/m8/MANIFEST.md`〕+ 曝光语义四法〔solve gain 消费层 / ev_scale ≡ 1 双钉 / descriptor 曝光不变 / NOTICE 升格〕+ 面板零新增控件〔FilmPanelSpectralUITests 源清单快照 + AX 活树〕+ L057 缝零 runModal + 旧档迁移 undo 边界）
 - [x] **M8 批验收三眼** —— ✅ 全 PASS（2026-10-26 收口：全套三轮 **4286/46/0** ∈ [4283,4287]〔ΔN +80 独立直数精确闭合〕；路 1 `45f88435` PASS/0B+0M+0m+4obs〔复跑 4001s 同值，封存面零越线〕+ 路 2 `f5bbe17c` PASS/0B+0M+0m+5obs〔盲评 + 反自取消金样：改 CMF 波长点 → 白点+生产缝 ramp 哨兵双真红〕+ omp 终审 `7b53e95d` PASS/0B+**1M**+0m+6obs〔computer-use 实机：迁移 UX 四面 + v2 readout 逐字同值 + 面板零新增 AX 核 + undo 边界 + 静置 0.0%〕）
 - [ ] **M8 修正批（omp M-1 挂账首项）**：probe 缝新档启用后迁移行可见 / sidecar 缺 `process` 键〔pristine mint 未执行或 carrier 缺席候选——载体写面/写腿/端到端机检已排除；自愈通道无数据风险〕→ pristine mint 根因二分 + 真图 v1/v2 并排走查 + obs-1 白场幅度「亮调」配方字面
+- [x] **RAW 供件恢复（2026-10-26 运维批）**：Fixtures 六样本全数在位——补回落 `7RM5-LosslessCompressedLarge.ARW`（82M）+ `5G4A9394-compressed-lossless.DNG`（22M）至 `~/Library/Application Support/Lightamer/TestRAW/`（首选腿；raw.pixls.us CC0，download.sh 配方正本 = `phases/01-foundation-app-skeleton-capability-spikes/evidence/01-05/download.sh`；file(1) 验真；代理用后即停）。预期收敛样本门 skip ≤12（arw 10 法 + dng 2 法），修正批 T4 全套轮起生效——「供件备料可收敛 11 skip」兑现。**仍真缺的用户侧采集**：ColorChecker 物理色卡实拍 / 磨皮 pore-level 人脸样张 / 多主体样张 / denoise 高 ISO 样本（raw.pixls.us 无对应物）
 - [ ] **M8 VALIDATION（verify-work + 签核）** —— C 档第 3 停：三眼验收全 PASS 后呈晨审（M8-VALIDATION.md 预备正本在库），用户过目后另批执行
 
 ---
