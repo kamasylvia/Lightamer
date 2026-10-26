@@ -122,4 +122,53 @@ final class ImportCompletionRegressionTests: XCTestCase {
         XCTAssertEqual(received, Array(1...64),
                        "snapshot order must survive the fire-and-forget delivery")
     }
+
+    /// Contract 3 (R6, the R5-2 / omp obs-4 zero-row root cause): the nil
+    /// terminal is the LAST writer of the run. The delivery coalescer's
+    /// queued jobs (window drain / terminal flush) race the run tail's
+    /// direct nil write on the main queue; a delivery landing after the
+    /// nil resurrects the published progress with no writer behind it, so
+    /// the WorkspaceHostView onChange's nil-finish branch — the grid's
+    /// `reloadFirstPage`, the row-arrival publication — never fires while
+    /// the DB rows sit committed (the probe's "grid rows never arrived"
+    /// phenotype). This test drains the main queue AFTER the run and
+    /// asserts the terminal stays nil: any late coalescer writer must have
+    /// been invalidated before the nil write (the deterministic interleave
+    /// itself is pinned in ImportProgressCoalescingTests' invalidation
+    /// suite). Assertion face = publication state, not a timed grid wait.
+    func testRunImportNilTerminalNeverResurrects() async throws {
+        let source = try makeSource(named: "SrcR6", count: 3)
+        let suiteName = "import-r6-\(UUID().uuidString)"
+        let controller = LibraryProjectController(defaultsSuiteName: suiteName)
+        defer { UserDefaults().removePersistentDomain(forName: suiteName) }
+
+        let package = root.appendingPathComponent("ProjR6.lalb")
+        _ = try await controller.createProject(at: package, name: "ProjR6")
+
+        await controller.runImport(
+            folder: source,
+            choice: ImportModeChoice(mode: .link, remember: false))
+        XCTAssertEqual(controller.importProgress, nil,
+                       "the run's terminal is nil")
+
+        // Drain the main queue: every straggler delivery job the run queued
+        // gets its turn here. A resurrecting writer flips the state back to
+        // non-nil — exactly the zero-row disease the fix removes.
+        for _ in 0..<20 {
+            await MainActor.run {}
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(
+            controller.importProgress, nil,
+            "a late coalescer delivery must never resurrect the nil terminal; "
+                + "the grid's reloadFirstPage keys on the nil-finish publication")
+
+        // Rows landed (the import actually ran — not a silent guard return).
+        let handle = try SQLiteHandle(path: package.path)
+        defer { handle.close() }
+        let statement = try handle.prepare("SELECT COUNT(*) FROM images")
+        _ = try statement.step()
+        XCTAssertEqual(statement.columnInt(0) ?? 0, 3,
+                       "all three link rows must be committed")
+    }
 }
