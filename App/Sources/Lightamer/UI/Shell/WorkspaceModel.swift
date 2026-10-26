@@ -313,6 +313,15 @@ final class WorkspaceModel {
     /// The session-level document film records, keyed by the source file
     /// path. ABSENT KEY = pristine — a default record never occupies the
     /// map (the `isFilmRecordDefault` judgment folds at the write faces).
+    /// R6 (2026-10-26): EXEMPT from the editor-close drop (the M8-FIX-1
+    /// process-carrier deviation extended to the sisters): a same-image
+    /// reopen runs NO load leg (the `historyLoadedURL` +
+    /// `loadedImageURL` guards both skip), so the sidecar restore leg
+    /// never re-primes after a close — the drop left `filmTailPolicy`
+    /// reading an empty carrier (the film leg silently off) until the
+    /// next film commit/navigation re-synced it, while the panel read
+    /// the history projection and masked the loss (M8-FIX-1-DECISIONS
+    /// §1.6, the registered sister gap this closes).
     private(set) var filmRecords: [String: FilmRecord] = [:]
 
     /// The read face (pristine when the image has no session record).
@@ -334,11 +343,6 @@ final class WorkspaceModel {
         } else {
             filmRecords.removeValue(forKey: url.path)
         }
-    }
-
-    /// The editor-close drop face.
-    func dropSessionFilmRecords() {
-        filmRecords.removeAll()
     }
 
     // MARK: - Render process version carrier (Plan M6-2-01 T3, KD-3 — the
@@ -520,12 +524,14 @@ final class WorkspaceModel {
 
     /// Close the editor back to the library, restoring the snapshotted face
     /// field-for-field (the D2 red line). The session RAW-decode overrides
-    /// drop with the editor (KD-4: 关图丢弃) and the film carrier with it
-    /// (M3-3-02 KD-6). **The DRT carrier does NOT drop** (R6): a
-    /// same-image reopen runs no load leg, so the drop left the DRT tail
-    /// reading an empty carrier until the next commit — the M8-FIX-1
-    /// process-carrier disease chain's DRT twin (see the carrier doc
-    /// comment). **The process carrier does NOT drop** (M8-FIX-1): a
+    /// drop with the editor (KD-4: 关图丢弃). **The DRT carrier does NOT
+    /// drop** (R6): a same-image reopen runs no load leg, so the drop left
+    /// the DRT tail reading an empty carrier until the next commit — the
+    /// M8-FIX-1 process-carrier disease chain's DRT twin (see the carrier
+    /// doc comment). **The film carrier does NOT drop** (R6): the same
+    /// reopen-no-load-leg shape left `filmTailPolicy` reading an empty
+    /// carrier — the registered sister gap (M8-FIX-1-DECISIONS §1.6)
+    /// this closes. **The process carrier does NOT drop** (M8-FIX-1): a
     /// pristine document's mint lives only in the carrier until the first
     /// sidecar write, and a same-image reopen runs no load leg to re-prime
     /// it — the drop orphaned the mint into a legacy-shaped next write
@@ -534,7 +540,6 @@ final class WorkspaceModel {
     func closeEditor() {
         libraryState = preservedLibraryState
         dropSessionOverrides()
-        dropSessionFilmRecords()  // M3-3-02 T5: the film carrier rides the close (KD-6)
         phase = .library
     }
 
