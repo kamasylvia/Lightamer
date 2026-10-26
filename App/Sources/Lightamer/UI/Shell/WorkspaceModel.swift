@@ -181,9 +181,17 @@ final class WorkspaceModel {
     // MARK: - RAW decode overrides carrier (Plan M2-3-3 T4, KD-4)
 
     /// The session-level RAW decode overrides, keyed by the source file
-    /// path. Session-scoped by contract: a switched-away image keeps its
-    /// values for the session; closing the editor drops them (sidecar
-    /// persistence = M2-4's node-model schema, the D3 boundary).
+    /// path. R6 (2026-10-26): EXEMPT from the editor-close drop (the
+    /// M8-FIX-1 process-carrier deviation extended to the sisters): a
+    /// same-image reopen runs NO load leg (the `historyLoadedURL` +
+    /// `loadedImageURL` guards both skip), so the sidecar restore leg
+    /// never re-primes after a close — the drop left the Raw Decode
+    /// panel's reseed reading identity (the user's NR/sharpen/boost
+    /// controls visually zeroed) and any post-reopen re-decode running
+    /// with identity overrides (the stored technical parameters lost)
+    /// until the next real load re-primed the carrier. Retention is
+    /// inert across closes: per-path keying, the load legs overwrite on
+    /// every real load.
     ///
     /// M2-4-1 T5: the map is ALSO the persisted truth's in-memory face —
     /// `PipeCoordinator.makeSidecarDocument` reads it for the sidecar v5
@@ -231,11 +239,6 @@ final class WorkspaceModel {
         if rawDecodeOverrides[url.path] == nil {
             rawDecodeOverrides.removeValue(forKey: url.path)
         }
-    }
-
-    /// The editor-close drop face (KD-4: 关图丢弃).
-    func dropSessionOverrides() {
-        rawDecodeOverrides.removeAll()
     }
 
     // MARK: - DRT record carrier (Plan M2-6-3 T1, KD-1 — the rawOverrides
@@ -523,23 +526,18 @@ final class WorkspaceModel {
     }
 
     /// Close the editor back to the library, restoring the snapshotted face
-    /// field-for-field (the D2 red line). The session RAW-decode overrides
-    /// drop with the editor (KD-4: 关图丢弃). **The DRT carrier does NOT
-    /// drop** (R6): a same-image reopen runs no load leg, so the drop left
-    /// the DRT tail reading an empty carrier until the next commit — the
-    /// M8-FIX-1 process-carrier disease chain's DRT twin (see the carrier
-    /// doc comment). **The film carrier does NOT drop** (R6): the same
-    /// reopen-no-load-leg shape left `filmTailPolicy` reading an empty
-    /// carrier — the registered sister gap (M8-FIX-1-DECISIONS §1.6)
-    /// this closes. **The process carrier does NOT drop** (M8-FIX-1): a
-    /// pristine document's mint lives only in the carrier until the first
-    /// sidecar write, and a same-image reopen runs no load leg to re-prime
-    /// it — the drop orphaned the mint into a legacy-shaped next write
-    /// (the omp M-1 root cause; the registered deviation is on the carrier
-    /// doc comment).
+    /// field-for-field (the D2 red line). **NO session carrier drops**
+    /// (R6, the M8-FIX-1 registered deviation extended to the whole
+    /// family): a same-image reopen runs no load leg (the
+    /// historyLoadedURL + loadedImageURL guards both skip), so a
+    /// close-time drop starved each carrier's read face until the next
+    /// commit/navigation/load re-prime — the DRT/film render gates went
+    /// silently pristine (the tails off), the raw panel's reseed read
+    /// identity, and the process carrier's orphaned mint wrote the
+    /// legacy-shaped sidecar (the omp M-1 physical evidence). See each
+    /// carrier's doc comment; retention across closes is inert.
     func closeEditor() {
         libraryState = preservedLibraryState
-        dropSessionOverrides()
         phase = .library
     }
 
