@@ -456,6 +456,12 @@ final class LibraryProjectController {
             Self.importWatchdog.info(
                 "import run finished in \(elapsed, privacy: .public)s — last service-side face \(lastPhase, privacy: .public); publishing nil terminal")
         }
+        // R6 (import zero-row): quiesce the delivery coalescer BEFORE the
+        // direct nil write — a queued drain/flush delivery landing after the
+        // nil would resurrect the published progress with no writer left
+        // behind, so the onChange consumer's nil-finish branch (the grid's
+        // reloadFirstPage) would never fire (the R5-2 / obs-4 phenotype).
+        coalescer.invalidate()
         importProgress = nil
         importProgressCoalescer = nil
 
@@ -755,6 +761,9 @@ final class ImportProgressCoalescer: @unchecked Sendable {
     private var pending: ImportProgress?
     /// One window-drain task in flight at most (the FIFO pin's guard).
     private var windowDrainArmed = false
+    /// R6 (import zero-row): once invalidated, every face is a no-op —
+    /// see `invalidate()`.
+    private var invalidated = false
     /// nil = never delivered (the leading delivery is always immediate).
     private var lastDelivery: ContinuousClock.Instant?
     private let interval: Duration
@@ -787,6 +796,7 @@ final class ImportProgressCoalescer: @unchecked Sendable {
     func submit(_ snapshot: ImportProgress) {
         let terminal = snapshot.phase == .completed || snapshot.phase == .cancelled
         lock.lock()
+        guard !invalidated else { lock.unlock(); return }
         pending = snapshot
         var arm = false
         if !terminal, !windowDrainArmed {
@@ -827,6 +837,7 @@ final class ImportProgressCoalescer: @unchecked Sendable {
     @MainActor
     private func drainWindow() {
         lock.lock()
+        guard !invalidated else { lock.unlock(); return }
         let snapshot = pending
         pending = nil
         lastDelivery = now()
@@ -840,11 +851,35 @@ final class ImportProgressCoalescer: @unchecked Sendable {
     @MainActor
     private func flushTerminal() {
         lock.lock()
+        guard !invalidated else { lock.unlock(); return }
         let snapshot = pending
         pending = nil
         lock.unlock()
         if let snapshot {
             deliver(snapshot)
         }
+    }
+
+    /// R6 (import zero-row, the R5-2 / omp obs-4 root cause): the run-tail
+    /// coordination face. The run tail writes `importProgress = nil`
+    /// DIRECTLY (the controller-nil terminal carrier), racing the queued
+    /// window-drain / terminal-flush delivery jobs on the main queue — a
+    /// delivery that lands AFTER the nil write resurrects the published
+    /// state (an interim or `.completed` snapshot) with NO further writer
+    /// behind it, so the onChange consumer's nil-finish branch — the grid's
+    /// `reloadFirstPage`, the row-arrival publication — never fires. The
+    /// DB rows are committed but the grid page never shows them (the
+    /// "grid rows never arrived" probe phenotype; load-sensitive because
+    /// the queue interleave widens under pressure, present at low load too
+    /// — a bare scheduling race, the 2/5 idle baseline). The run tail calls
+    /// this BEFORE the nil write: the pending slot drops, every in-flight
+    /// delivery no-ops, and nil is the terminal writer by construction.
+    /// Already-delivered snapshots are NOT retracted (the bar's history is
+    /// honest; only the future dies).
+    func invalidate() {
+        lock.lock()
+        invalidated = true
+        pending = nil
+        lock.unlock()
     }
 }

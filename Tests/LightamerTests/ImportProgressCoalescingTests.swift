@@ -142,6 +142,73 @@ final class ImportProgressCoalescingTests: XCTestCase {
             "inside the window the window is open")
     }
 
+    // MARK: R6 (import zero-row) — the run-tail invalidation
+
+    /// The R5-2 / omp obs-4 root cause, deterministically interleaved: the
+    /// run tail's DIRECT `importProgress = nil` write races the coalescer's
+    /// QUEUED delivery jobs (leading drain / window drain / terminal flush
+    /// all hop the main queue). A delivery that lands after the nil write
+    /// resurrects the published progress with no writer behind it — the
+    /// onChange consumer's nil-finish branch (the grid's reloadFirstPage)
+    /// never fires, and the committed DB rows never reach the grid page.
+    /// `invalidate()` is the run tail's coordination move BEFORE the nil
+    /// write: here it is issued with all three delivery jobs still queued,
+    /// and NOTHING may deliver afterwards.
+    func testInvalidationDropsPendingAndEveryQueuedDelivery() async throws {
+        let clock = TestClock()
+        let sink = Sink()
+        let coalescer = ImportProgressCoalescer(
+            interval: interval,
+            now: { clock.now },
+            deliver: { sink.append($0) })
+
+        // Queue the leading drain (immediate delivery job), an in-window
+        // interim, and the terminal flush — then have the "run tail" win
+        // the race BEFORE the main queue drains any of them.
+        coalescer.submit(snapshot(1))            // leading drain job queued
+        coalescer.submit(snapshot(2))            // in-window pending
+        coalescer.submit(snapshot(6, .completed)) // terminal flush job queued
+        coalescer.invalidate()                   // the run tail, pre-nil
+        await waitMain()
+        try await Task.sleep(for: .milliseconds(300))  // let any straggler job run
+        XCTAssertTrue(
+            sink.read.isEmpty,
+            "an invalidated coalescer must deliver NOTHING; a post-invalidate "
+                + "delivery resurrects the controller's nil terminal (the zero-row phenotype)")
+
+        // A late submit (a straggler emission) is a no-op too.
+        coalescer.submit(snapshot(7))
+        await waitMain()
+        XCTAssertTrue(sink.read.isEmpty, "post-invalidation submits must drop")
+    }
+
+    /// Already-delivered snapshots are NOT retracted — only the future
+    /// dies. The leading delivery landed before the invalidation must stay
+    /// visible (the bar's history is honest), while the queued window
+    /// drain and any pending slot die with the invalidation.
+    func testInvalidationKeepsDeliveredHistoryAndKillsTheQueuedWindow() async throws {
+        let clock = TestClock()
+        let sink = Sink()
+        let coalescer = ImportProgressCoalescer(
+            interval: interval,
+            now: { clock.now },
+            deliver: { sink.append($0) })
+
+        coalescer.submit(snapshot(1))
+        await waitMain()                          // the leading delivery landed
+        XCTAssertEqual(sink.read.map(\.processed), [1])
+
+        coalescer.submit(snapshot(2))             // arms the window drain
+        coalescer.invalidate()                    // the run tail, pre-nil
+        clock.advance(interval + .milliseconds(50))  // the drain's sleep expires
+        await waitMain()
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(
+            sink.read.map(\.processed), [1],
+            "the queued window drain must not deliver after the invalidation; "
+                + "the delivered leading snapshot stays")
+    }
+
     // MARK: helpers
 
     private func waitMain() async {
