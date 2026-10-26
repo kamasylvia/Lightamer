@@ -168,3 +168,43 @@ AI 作用域 = developed RGB 非 mosaic（我方 RAW 9 在解码层融合降噪�
 - **五项缺口入队**（UQ-LU1..LU5，见 UPSTREAM-QUEUE Lumen 区；编号避让里程碑 M8）。
 - **两件特殊不选**：延时摄影视频（跨 scope）、Lightroom 预设导入（撞「预设不互通」既定决策）。
 - 直方图拖动归 UQ-L1 族；调色吸管登记小候选不排队。
+
+---
+
+## 增量节（2026-10-25 M9 charter 输入批；+8，2.0.1..2.1.1）
+
+> 2.1.0（`a862e0c`）= AI removal + landscape masks + picked objects + curve end points；
+> 2.1.1（`dd53fcd`）= in-app updates + AI 模型分离分发 + DeepSeek Harness/MiMo；
+> `a152f5d` Linux CUDA 移植（churn）。正本判定 = `M9-CHARTER-INPUT.md` §3/§4。
+
+### 2.1.0 面逐项
+
+- **AI removal（Retouch 面板）**：LaMa（big-lama ONNX，CPU）——全分辨率原图取上下文
+  （模型侧 ≤1024px），结果存 **16-bit RGBA patch（pre-white-balance linear）挂
+  'remove' retouch op**，tiles/preview/export 一致；放大填充**补回 grain**；队列化
+  （Activity.REMOVAL）+ 可隐藏/删/undo + export/save/close 等待；patch 进 project
+  rasters 表。**判定：M9 不入（OQ-M9-3 挂起）**——工程形态完整可参照（patch 挂 op +
+  grain 补回 + 队列三件是关键设计）；LaMa 模型 Apache-2.0 可合法引入，M 级独立站。
+- **landscape masks**：water/vegetation/mountain/building/ground 五类一个
+  **EfficientViT-Seg B2 ADE20K** 网络（`tools/convert_landscape.py`，模型发布于
+  editing-models-1 release）；同作 natural-language/CLI/MCP regions。**判定：不入
+  （OQ-M9-4，与 OQ-M9-2 B 路绑定）**——Vision 无原生语义景观分割 API（person/
+  foreground/saliency 有、sky/植被/建筑无）；若引此模型（MIT）转 CoreML 即解 Sky +
+  五类。**注意：任务书「Vision 原生可达性高」预判不成立**——五类语义分割必须引模型。
+- **Pick Object（EfficientViT-SAM L0）**：点选 + Shift 加 / Alt 减；Alt 点的单击蒙版
+  也一并减去（除非含加点）——修 SAM decoder 孤岛缺陷的工程细节。**判定：已有等价**
+  ——我方 Layer B included/excluded 点迭代（07-3）+ person 实例；孤岛细节记质量参考。
+- **AI/luminance mask 一致读 lens 校正 + retouch 后帧**（`engine.selection_view`）：
+  与我方 AI mask 输入面同构纪律，注记。
+
+### 2.1.1 面逐项
+
+- **AI 模型分离分发**：模型独立目录 `<name>.<sha256[:12]>.onnx` + ai-models.json 清单
+  （name+size 查找）；程序安装器 135MB vs 全量 597MB；models/import 按 hash 收养旧版；
+  缺模型 = 启动提示 + Help 面板 + `lumen-cli models --download`。**判定：注记（形态
+  参照）**——我方 ModelAssetCatalog/Store + Layer B DownloadableAssetsRequest（Apple
+  官方管道）已覆盖零模型常态；若 OQ-M9-2/3/4 引模型，此形态（hash 命名 + 清单 + 收养）
+  是自管下载面的直接参照。
+- **in-app updates**：lumen-update.json feed + 增量模型下载（断点续传 + SHA-256）+
+  Windows 安装器接力。**判定：不入（OQ-M9-6）**——我方 unsigned DMG/zip 分发终裁下
+  自更新价值打折；Sparkle 评估挂 UPSTREAM-QUEUE。

@@ -146,3 +146,39 @@ MIT OR Apache-2.0（任选其一）——**代码级移植合法**（与 darktab
 - `ab64e9a5` **KEY-SLIDER-SCRUB 滑杆值横扫**：拖值左右扫动调参。借鉴候选：**是**——与上件合为一个滑杆 UX 小件（UQ-L1）。
 - `0242a75b` + `f625c74c` **Faces 网络整体 GPU 化（wgpu）**：整网卷积 GPU + 批处理 + CPU-only 开关 + 限速 GPU 使用。借鉴候选：方法论级——人脸检测不在范围；「GPU 批处理 + CPU 回退 + pacing」模式对 M2AI 推理 worker 一次参考即弃。
 - 其余 ~35：batch 39/40 整合（brush Shift-click 直线笔画 `e5c6e17b`、PERF-SYNC 目录清单直读 `540a281c`、格鲁吉亚语 i18n、parity 清单文档维护、CI font pin `fd9d045c`、clippy 1.99 修复 `76f12dca`）——无独立借鉴面；brush Shift-click 直线登记为蒙版笔刷 UX 小注记（我方笔刷若建，Shift-click 直线是 Lightroom 惯例）。
+
+---
+
+## 增量节（2026-10-25 M9 charter 输入批；+1031，churn 为主 + Upright 主料）
+
+> churn 主体（~900 commits）：docking 移植（craft-libs repin 连环）、egui 0.37 迁移、
+> title-bar movable、HEIF/RAW 安全加固（`d00df631`/`b88f72b9` 等 hostile 输入内存
+> 预算）、相机 profile 补录（ILCE-7RM5）、依赖刷新。**真主料 = Guided Upright 落地**。
+> 正本判定 = `M9-CHARTER-INPUT.md` §2.3。
+
+### Guided Upright（M9 站 3 主料）
+
+- **`crates/pipeline/src/upright.rs`（611 行，MIT OR Apache-2.0）**：①线段检测——梯度
+  level-line 方向一致区域（最强梯度种子）+ 加权主轴拟合；②消失点——近垂直/近水平分组
+  + RANSAC 线对 + 加权最小二乘（`Σ w·l·lᵀ` 最小特征向量）精化（含无穷远点）；③校正
+  ——虚拟相机旋转 `K·R·K⁻¹`（Level 纯旋转；Full 双消失点 + 正交性估焦距）；坐标居中
+  归一（lens 校正后，长边/2），分析分辨率无关。
+- **Guided 形态**（`fbc927f0`/`7635b38c`）：≤4 条用户导线解同问题；press 画线 + 端点
+  拖拽编辑 + 选中删除；G 键开网格、⇧G 开 guided（tests_masking.rs:843）。
+- **auto straighten 防呆**（`693c3593` LR-CROP-AUTO）：仅 ≤10° 且 ≥3 一致线才转、
+  找不到明说——实测 300 原样片误转 79→19。**判定：站 3 全量候选**——我方几何面 =
+  Crop 纯裁切框（CropModule.swift:63-70 无 rotation）+ Flip + Liquify，旋转/拉直/
+  透视全缺；`PanoCamera.swift:95 focalFromHomography` homography 基建可复用；
+  CPU Float64 构建期一次解 + GPU warp dispatch（Lens warp 同形态）。
+- **XMP Upright 警告模式跨导入路径保留**（`7d3cd8af`）：sidecar 互操作细节，注记。
+
+### 其余判定
+
+- **自更新**（craft-update + startup prompt modal `2b931751`）：OQ-M9-6 不入，挂
+  UPSTREAM-QUEUE（与 lumen 同判）。
+- **安全加固批**（HEIF iloc/重建预算、RAW 解码敌意内存路径、denoise/tiff/merge 有界
+  化）：我方 ImageIO/CIRAW 官方解码面攻击模型不同，注记观察；「reconstruction 前预算」
+  纪律入未来面。
+- **docking/egui/title-bar/craft-libs repin**：UI 框架演进 churn，与我方 SwiftUI 无关。
+- **Info 面板多选元数据/关键词/Add Keywords**（`31ec62cd`）：我方 Inspector 元数据面
+  已有同域，注记。

@@ -131,6 +131,20 @@ A macOS-native (Swift 6 + SwiftUI + Metal 3 + Core Image RAW) **Alcedo Studio cl
 
 **边界与纪律**：M8 = **升维非重写**——M3 密度域管线保留为冻结 legacy 臂 + golden 对照臂（process ≤ 1 老档恒走密度核；FSIM-01a..d/FSIM-02 原样在册）；M3 基建四件（film sub-run 缝 / FilmSolveCache / 65³ bake 家族 / 宽容度面板）同机制换内核（融合点测绘正本 = RESEARCH-PRE §4）；「零新 kernel 红线」在光谱核语境自然重开 = 新核新 kernel 家族，M8-1 解封申报面列清单；零新 SPM 维持；dt/spektra GPL 只读读解零拷贝；与 UI 栈迁移正交（头部边界声明）；`--all` 全套轮仍须 orchestrator 批准 + 8G 门监视（AGENTS 资源监控节）。
 
+## Milestone 9: AI Mask 交互 + 光谱延展 + 几何 Upright（2026-10-27 夜间授权 charter——用户睡前令「M9 直接按推荐自动推进」〔晨审可推翻，D-07-3-T5-1 先例〕；组成 = 调研批推荐 B 案四站，正本 = `research/M9-CHARTER-INPUT.md`；OQ-M9-1..9 全按推荐生效）
+
+> 站形态（M3/M7/M8 先例：research → plan 链逐站走）；预期 ΔN +55..75（L 档）。核心边界：**零新 SPM、零 AI 模型引入**（OQ-M9-1 否——macOS 27 Vision Layer B `GenerateIterativeSegmentationRequest` 原生 tap-to-segment 等价已建成 07-3；bake-to-raster 非黑箱范式〔AI-06〕维持，Alcedo 的 AI Mask source kind + R8 asset + sidecar 进程 + 模型下载面板 = **显式合法 parity 偏离**〔DRT pristine 先例，charter 声明〕）；GPL 仓读解读解、黑白数据自建（厂商发表规格数字化，非 GPL 复制）；`--all` 全套轮批准制 + 8G 门维持。
+
+| Phase | 组成 | 要点 | 依赖 |
+|---|---|---|---|
+| M9-0 | Charter（本批） | 五正本落账 + OQ-M9-1..9 生效值 | — |
+| M9-1 | AI Mask 工具 parity（M-L，20-28N） | 任务蒙版三件 Subject/Background/People（Background = 1−Subject 纯逻辑；**Sky 砍留槽** OQ-2A）+ viewport 交互工具（tap-to-segment 迭代点）+ coverage 显示专属视口通道（淡红 tint）+ GPU Feather/Expand + 编辑会话语义（open/commit/cancel + paste skip） | 07-3 Layer B / M6-4 蒙版基建 / lumen MaskRefine |
+| M9-2 | 光谱延展：黑白族 + 滤色镜（M，15-20N） | 黑白胶片族 profile 自建（Tri-X/HP5+/T-Max/Acros II 级）+ 变反差相纸（Multigrade 级）+ camera_filter 镜头滤色镜（光谱域精确化 M3 s_m/s_y）+ **per-film granularity 标定**（OQ-8：grain 强度 1 = 发表 RMS；grain 算子接谱继续挂账 M8 D-M8-4 族） | M8 光谱核直消费 / 谱面体系 |
+| M9-3 | 几何校正 Upright 系（M，12-18N） | **rotate/straighten（真缺口——我方 Crop 纯裁切框无旋转）**+ Guided Upright 参考线（lightcraft upright.rs MIT 可移植 + M5-3 Pano homography 复用） | lightcraft（MIT） |
+| M9-4 | 小件池（S-M，10-15N） | **ColorWheels LGG+Offset 修订（主件**——上游已废弃我方现行旧公式 = 真 parity gap；迁移走 process v3 双臂〔OQ-7：单公式读入转换 + 旧号冻结零漂移，M6-2 五件套现成〕）+ LUT encodings +24 条 + Filmstrip stars/编辑态磁贴 + Show in Finder + XPan 类 ratio 预设（OQ-5 trivial 并入） | 零依赖 |
+
+**挂账不消费**（OQ 裁决留档）：AI removal LaMa（OQ-3 挂起，M 级独立站可换站 3）/ landscape masks（OQ-4 不入，绑 OQ-2B 未选）/ 幅面族（OQ-5 不入）/ 自更新 Sparkle（OQ-6 → UPSTREAM-QUEUE）/ film edge + date back（OQ-9 不入）/ grain 算子接谱（OQ-8 挂 M8 D-M8-4 族独立站）。
+
 ## Milestone 2: Alcedo V1 — 2026-09-27 重定义【M2-0 细化完成 2026-09-27，待用户签核开工】
 
 > 规格正本 = `.work/gsd/research/ALCEDO-FEATURE-MAP.md`（301 行，HEAD `34241d0b`：UI 逐屏/18 项调整封闭目录含 JSON key 与默认值/节点图命令级语义/蒙版参数/DRT 45 参数/项目文件全 DDL/导出 recipe/AI 侧车）。已交付资产延续：pixelpipe/39 iop/Layers/sidecar/Presets/LUT/Export 队列/MCP server/测试基线（1881/11skip/0fail）。

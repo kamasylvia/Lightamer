@@ -347,6 +347,16 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 
 ---
 
+## Milestone 9（AI Mask 交互 + 光谱延展 + 几何 Upright——2026-10-27 夜间授权 charter：用户睡前令「M9 直接按推荐自动推进」〔晨审可推翻，D-07-3-T5-1 先例〕；调研正本 = `.work/gsd/research/M9-CHARTER-INPUT.md`〔310 行，五 NOTES 增量节同步〕；OQ-M9-1..9 全按推荐：①否模型引入〔Vision Layer B 原生 + bake-to-raster 合法偏离声明〕②砍 Sky 留槽 ③AI removal 挂起 ④landscape 不入 ⑤幅面不入〔ratio 预设并入 M9-4〕⑥自更新→UPSTREAM-QUEUE ⑦ColorWheels = process v3 双臂 ⑧grain 仅 granularity 标定 ⑨film edge 不入；**调研证伪修正**：dehaze/clarity 我方已有〔08-5-T1 + 04-05-T2〕不入））—— M9-0 ✅ 闭环（本批五正本落账）；下一步 = M9-1 research 起草
+
+- [x] **M9-0 charter（四站 B 案：M9-1 AI Mask 工具 parity〔M-L 20-28N〕/ M9-2 黑白族+滤色镜〔M 15-20N〕/ M9-3 Upright 系〔M 12-18N，含真缺口 rotate/straighten〕/ M9-4 小件池〔S-M 10-15N，ColorWheels LGG+Offset 修订主件〕；预期 ΔN +55..75）** —— ✅ 完成（2026-10-27 夜间授权批，doc-only 零源码）
+- [ ] **M9-1 AI Mask 工具 parity**（M9AIM-01..03：任务蒙版三件 + viewport 交互 + coverage 通道 + GPU Feather/Expand + 会话语义）
+- [ ] **M9-2 光谱延展：黑白族 + 滤色镜**（M9BW-01..03：黑白 profile 自建 + 变反差相纸 + camera_filter + granularity 标定）
+- [ ] **M9-3 几何校正 Upright 系**（M9GEO-01..02：rotate/straighten 真缺口 + Guided Upright）
+- [ ] **M9-4 小件池**（M9SM-01..02：ColorWheels LGG+Offset 修订〔process v3〕+ LUT encodings +24 + Filmstrip 磁贴 + Show in Finder + ratio 预设）
+
+---
+
 ## Milestone 8（FSIM 光谱升维——ROADMAP §Milestone 8，2026-10-17 预告立项〔charter-pending〕→ **2026-10-18 正式 charter**〔用户「按推荐」批含「M8 charter 照常走」，夜间授权先例 D-07-3-T5-1，晨审可推翻；OQ-M8-1..7 全按推荐生效；轻量 research 正本 = `phases/m8-fsim-spectral/RESEARCH-PRE.md`；REQUIREMENTS 正式族 = SPEC-01..06；与 UI 栈迁移正交——FSIM 面板 AppKit 化若发生在 F1 编辑器迁移窗口内属迁移波内事项不属 M8〕）—— M8-0 ✅ 闭环（charter 批 2026-10-18：五正本落账 = ROADMAP §M8 块正式 charter〔UI 迁移边界声明头部 + M8 Phase 表〕+ REQUIREMENTS SPEC 族正式条目化 + STATE M8 段〔含 M7 Ledger 补翻勘误〕+ 本头部 + GOAL-STATE 续接点）；下一步 = M8-1 research 起草（数学核 + probe）
 
 - [x] **M8-0 charter（正式立项：phase 表 / SC 门 / 范围红线 / OQ-M8-1..7 裁决）** —— ✅ 完成（2026-10-18 charter 批，doc-only 零源码；OQ-M8-1..7 生效值 = 核拓扑 process 单源〔不设 FilmRecord.engine〕/ tc 表自拟合 clean-room / 重积分 3D 表臂 / coupler 模糊场降采样 1/4 res / 四阶段切分 / FSIM-01c 措辞修订随 M8-2 / UI 无 Alcedo 对标项；晨审可推翻）

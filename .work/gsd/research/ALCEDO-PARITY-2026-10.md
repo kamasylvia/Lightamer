@@ -135,3 +135,46 @@
 
 **已有 1**（`36db9a8` 导出嵌入半，L053 先行）；**入队 2**（UQ-A1 预览层同 profile 标注、UQ-A2 FAIL 原子不覆盖终写——均小件，落 `research/UPSTREAM-QUEUE.md`）；**不立项/注记 16**（含 merge 与未来面纪律两条）。无新 REQUIREMENTS ID。
 
+
+---
+
+## 增量节二：+138（2026-10-13..10-25，v0.3.2..v0.3.4 主干；M9 charter 输入批，2026-10-25）
+
+> 范围 = `7052355..origin/main`（本地 checkout 落后，经 origin/main 读）。类型分布
+> feat 55 / fix 38 / docs 30 / test 5 / merge 10。上游主叙事 = **「AI Segmentation Mask」
+> （0.3.4 主功能，#447 master plan + SM1-SM9 十六子阶段，~90% 增量）**；副线 =
+> color wheels LGG 语义修订、filmstrip 过滤器跟随、search palette、LUT encodings
+> +24、解码器/镜头库更新。正本判定已入 `M9-CHARTER-INPUT.md`（候选站/OQ/排除），
+> 本节按 parity 三档逐主题记账。
+
+### 主题 B：AI Segmentation Mask 工具（SM1-SM9，~110 commits）
+
+| # | 上游交付 | 上游锚 | 判定 | 依据 |
+|---|---|---|---|---|
+| B1 | 模型集选型定案：SAM 2.1 Hiera tiny（Apache-2.0，macOS CoreML 134+21MB）+ people_sky_head（自有，1.1MB）+ S3OD s3od-synth（MIT+DINOv3，271MB）；EfficientSAM3/SAM3 弃用 | master plan §8.2 | **不跟（路线豁免）** | 我方 macOS 27 `GenerateIterativeSegmentationRequest`（AIMaskService Layer B）原生交互分割已建成；Alcedo 引模型是 Windows DirectML 跨平台需求。427MB 模型 + 3.19GB 内存 + sidecar 进程全免付。OQ-M9-1 |
+| B2 | sidecar 分离进程推理（Rust puerh_mind + gRPC 持久通道）+ 闲时停/按需载（U6）+ S3OD 常驻（D22）+ embedding 缓存 4 张 | `ce66fd2` `4cae651` `6a52abf` | **不适用** | Vision 进程内推理，无 sidecar 治理面；按请求载卸天然满足 |
+| B3 | 任务蒙版四件 Subject/Background/Sky/People（S3OD Subject，Background=反转；head 定位 Sky/People；People = person box 裁切 S3OD 逐人加减） | `cc7c7d3` `6ad7e7b` | **立项候选（站 1 主料）** | 我方 subject（Layer A）/person（实例级）已有；**Background = 1−Subject 纯逻辑即加；Sky 无原生 API（OQ-M9-2：砍/引 EfficientViT-Seg/启发式三选）**；无任务面板入口 |
+| B4 | 分析渲染 ReferenceSpace（无 crop/rotation，D7/D8）+ 视口坐标→prompt 映射 | `b8b9675` | **已有（语义等价）** | 我方 SegmentEditingOverlayHost 全解码帧归一化坐标 + `AIMaskPoint.visionPoint` 单缝 Y 翻转（07-3 T2）；几何指纹失配提示（D9）我方未做，站 1 小件 |
+| B5 | AI Mask 编辑会话两级 history（session 内存栈 + Commit 单发布 + Cancel 零发布 D16）+ R8 coverage asset 内容寻址（D17）+ Feather/Expand 为 source 字段（D20）+ paste 跳过 AI Mask（D18） | `96ff8cd` `98909ed` `4bde35a` | **立项候选（形态取舍）** | 我方 bake-to-raster 范式（AI-06 非黑箱：参数不持久、像素即真相、confirm=1 条 stackSnapshot）更简；**真差距 = 会话内 undo/redo 直通主 history（无 session 栈）+ 无候选保留/失败 Retry 面**。站 1 按「SegmentSession 内存栈 + live 候选 tint」吸收，不引 R8 asset（范式已定，charter 显式声明合法偏离） |
+| B6 | GPU Feather/Expand（三后端，coverage texture 生成期应用） | `038af91` `4f12146` `57dc80d` | **半已有** | Feather ±100 双腿已有（AIMaskFeather KD-3，GPU Deriche + logit-gain）；**Expand 缺**——站 1 形态学膨胀接 GPU bake 缝 |
+| B7 | coverage 专属视口通道（RGBA32F 红通道）+ 淡红 tint（#515）+ 单一 viewport composite（候选/已提交/Union 共用）+ Commit 后隐藏 | `b94382c` `be16a27` `0e22116` | **立项候选（站 1 显示面）** | 我方 maskOverlayStyle tint 交换语义近似（MaskToolbarView:136）；无候选态 live 预览样式。SwiftUI overlay 形态实现成本低（无需 Alcedo 的 QSG 专属通道重活） |
+| B8 | SM9 工具面板（icon 工具面 + 三 prompt 工具 Point/Box/Path ≤64 点 + Add/Subtract + Click level + People 列表 + 五段开进度 + 单 Confirm） | `48d7e91` `9cfe688` `ec3ac37` | **立项候选（站 1 交互面）** | 我方 click/⌥-click/⇧-box 三手势已有；**Path 笔触（24px 间隔 ≤16 点采样）与 click level 缺**；Layer B addIncludedPoint 序列投喂等价 SAM 多点 |
+| B9 | S3OD alpha 上采样（joint bilateral，guide 图引导，D23：20ms/换算 + 50ms/会话） | `1d41e79` `65339f7` | **注记（质量参考）** | 我方 Layer B 原生输出分辨率较高 + AIMaskResample 上采样已有；若 Sky/语义分割后边缘出阶梯，此法是现成药方 |
+| B10 | SM2 模型下载面板（R2/HuggingFace + SHA-256 + 许可随附） | outline（SM9 后） | **不适用** | 零模型引入即零下载面；我方 Layer B DownloadableAssetsRequest 走 Apple 官方管道 |
+
+### 主题 C：杂项（~28 commits）
+
+| # | 上游交付 | 上游锚 | 判定 | 依据 |
+|---|---|---|---|---|
+| C1 | **color wheels LGG+Offset 语义修订**：归一化影调坐标（黑−6EV..白+6EV，t∈[0,1]）四轮各自支点 + Offset 整体；K 单位 EV；旧公式废弃（我方 M2-5 照抄的正是旧版） | `e1effd8` + `color_wheel_tonal_lgg_plan.md` | **立项候选（站 4 主件）** | 我方 `ColorWheels.metal` = 上游已废弃旧 CDL 公式（三支点全在可见范围外，Lift≈整体乘法）——**真 parity gap**；数学照 plan §3 重写 + offset 第四轮 + 旧档迁移（OQ-M9-7：process v3 双臂） |
+| C2 | **filmstrip 跟随 Library 过滤器 + 磁贴 editing/selected 双态 + caption 两行（stars 右对齐 + 文件名）+ 被滤掉的打开图关闭** | `7ccb0ec` | **大部分已有** | 我方 FilmstripView 已跟 LibraryGridModel.rows 同过滤器游标 + selection ring + current accent；**差 stars on tiles**（站 4 小件）+ 双 token 细化 |
+| C3 | LUT encodings 26→50 条（Canon Log 1/2/3×gamut、Cineon、REDLogFilm、F-Log2C、Apple Log 2、L-Log、KineLOG3、GP-Log2、LogC3 EI 阶）+ searchable picker | `eedc0c0` `0fa8548` | **立项候选（站 4）** | 我方 LutEncodingCatalog 16 条（M3-1 表驱动形态平移 +24）；picker 搜索框 |
+| C4 | search palette（全局搜索对话框→⌘K palette + recent + filter rows）+ 语义搜索 folder scope + relevance 校准 | `6ee9fab` `1c21de7` `023a1d1` | **已有** | 我方 M7-2 MCP search_photos + SemanticEngine/EmbeddingScanner 已交付；palette UI 形态差异非功能缺口，注记 |
+| C5 | LibRaw 并行 LJPEG DNG 解码 / Canon R50V·PowerShot V1 支持 / Adobe camera matrices 扩覆盖 / Lensfun 43f9e001 + Nikon Z 镜头名 | `ada6f00` `4258595` `8b17e2a` `c0d8dd4` | **不适用** | CIRAW 官方解码 + LENS-01 数据钉版自管 |
+| C6 | macOS CI in-process 自动化测试 segfault 修复 / DuckDB 钉版 / QML 大写信号 handler / clang-tidy 命名 | `2f5431b` `c0427b9` `5790330` | 注记 | 上游工程卫生 |
+| C7 | 编辑器 GPU 资源导出前释放 / sidecar 冷启动 UI 线程释放 / search palette settings drawer | `dab2473` `8d851f1` `c004d5c` | 注记 | Alcedo 自研 RHI/sidecar 结构缺陷修复，我方无同构面；「导出前释放编辑 GPU 资源」质量点观察（MetalContext clearCICaches 邻域） |
+
+**增量节二总判定**：**立项候选 5**（B3 任务蒙版 / B5 会话形态 / B6 Expand / B7 显示 /
+B8 交互 → 站 1；C1 色轮 → 站 4；C2 stars/C3 encodings → 站 4）；**路线豁免 2**（B1
+模型集、B2 sidecar——Vision 原生替代）；**已有/不适用 5**；注记 3。正本 =
+`M9-CHARTER-INPUT.md` §2.1/§2.4。

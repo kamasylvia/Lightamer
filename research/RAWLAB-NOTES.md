@@ -37,3 +37,43 @@ MCP 32 工具 + turn-taking（其 Agent JSON 0.8.0 才完整，无 MCP）；AI �
 - **GPL-3.0 可加入参考项目**（第七个；只读纪律同 darktable/Alcedo）：价值点 = 透视校正/Lensfun 数据路线/DNG 导出/配方系统四件的**实现形态参照**（C++ 核 + 四端一致性设计有可读性）。
 - 六真缺口入 `research/UPSTREAM-QUEUE.md`（编号 UQ-R1..R6）待下一特性批裁；推荐优先级 = ①DNG 导出 ②透视校正 ③自动曝光（小件高感知）④Lensfun 数据路线 ⑤续传导出 ⑥配方系统。
 - 本地克隆：`/tmp/rawlab-inspect`（shallow，即弃）；若采纳则正式克隆到 `/Volumes/UNITEK/Documents/Development/RawLab`。
+
+---
+
+## 增量节（2026-10-25 M9 charter 输入批；main +203 release/CI churn + development 0.9 真货）
+
+> main 增量 = 0.8.0..0.8.2 发布批（四平台 CI runner 自建、iOS/Android 导入缓存与
+> 批处理日志、ARW6 重建溢出拒绝、Windows Lensfun 前缀化）——平台工程 churn，与我方无关。
+> **真货在 `origin/development`**（0.9 在飞，2026-10-23..26）。正本判定 =
+> `M9-CHARTER-INPUT.md` §0.3/§4。
+
+### development 分支 0.9 面（逐项判定）
+
+- **clarity + dehaze**（`33d4a9bd`）：AdjustmentKind 加 `.clarity`/`.dehaze` 两标量 +
+  AtmosphereSettings → 闭源 sony2fuji 引擎 `sony2fuji_session_set_atmosphere` API。
+  **判定：排除**——我方已有 DehazeModule（dark-channel-prior，Registry.swift:448，
+  Plan 08-5-T1）+ Clarity（Equalizer EIGF，Plan 04-05-T2）；上游算法体不可读（闭源
+  native 引擎），无移植面。
+- **AI 降噪 = DualDn Big/Restormer**（`b9e5de06` + `docs/architecture/dualdn-inline-denoise.md`）：
+  RAW 四相位张量（RGGB packed 384/halo 128）+ RGB 分支（512/64）双网络；噪声参数
+  k/b 传感器标定（Sony ILCE-7CM2 ISO 100-12800，范围外不外推）；GPU-only 无 CPU 回退；
+  RGB 修正量桥接协议 v2（保护图 8px 膨胀 + smoothstep 权重）。**判定：排除（双壁垒）**
+  ——①许可：DualDn = CC BY-NC 4.0、Restormer = Academic Public License（`77dce309`
+  AGENTS 明示），均禁商用，开源再分发违约风险；②架构：需解包 Bayer 原始 + 黑白位 +
+  CFA，CIRAWFilter 不暴露（我方「不写 RAW 解码器」约束）；我方 RAW 9 NE 融合降噪 +
+  DenoiseProfile（dt 移植）已覆盖。**噪声标定方法论（k/b per-ISO 传感器实测 + 不外推
+  纪律）注记为质量参考**——DenoiseProfile 后续增强可借鉴。
+- **selective adjustments**（`405ceff3` 等 6 commits 跨平台 + 会话 history + transfer
+  transactions）：全局参数蒙版化局部应用。**判定：排除**——我方 layers + masks + AI
+  mask 五源体系（Phase 6 + M2/M4/M6-4/lumen 批）能力超集。
+- **compare 视图**：单图 before/after split（EditorView.swift:198 中性显影）。
+  **判定：已有**——我方 09-04 T7 compare point + CullingView 双窗。
+- **JPEG XL DNG（0.7）/ DCP import 跨端（0.8）/ 跨相机 preset roadmap**：自养解码器
+  与 DCP 路线，与 CIRAW 冲突，排除；注记 DCP 路线若我方未来需要输入 profile 面再评估。
+- **三区色彩分级（colorGrading）**：我方 ColorBalanceRGB + colorWheels + Hls 超集，排除。
+
+### 可取小点（注记）
+
+- 「Auto 直方化前 cold AI preparation」（`155439c3`）= 冷启动模型预备的测试面形态，
+  我方 AIAssetStatus 同域，质量参考。
+- ARW6 重建溢出/空低带拒绝（`aa9fbb15`）：CIRAW 路线无此面，注记。

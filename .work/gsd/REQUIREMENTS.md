@@ -728,3 +728,17 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 - [ ] **ALCE-05**: 每片命名版本（named versions）——同一原片多个命名编辑版本并存，可从 history stack 任意步分叉；sidecar schema 扩展 + 浏览器版本切换 UI
 - [ ] **ALCE-06**: in-app 自然语言搜索 + 自动打标签——本地 CLIP 多语言模型（导入后后台索引），按自然语言查询图库；对标 Alcedo 图库搜索；与 Phase 14 MCP 外接 AI 通道互补（不依赖外部 MCP 客户端）
 - [ ] **ALCE-07**: in-app AI 评片与描述——OpenAI/Anthropic 兼容 API（钥匙串存 key，后台批跑），输出 1-5 星 + 理由 + 描述文本；评分写入 rating 管线，与 culling/MCP-10 通道共享落地字段
+
+
+### M9 AI Mask 交互 + 光谱延展 + 几何 Upright（2026-10-27 夜间授权 charter——调研批推荐 B 案四站；正本 = `research/M9-CHARTER-INPUT.md`；OQ-M9-1..9 全按推荐，晨审可推翻）
+
+- **M9AIM-01**: AI Mask 任务蒙版三件——Subject / Background（= 1−Subject 纯逻辑） / People（Vision person 路线；**Sky 砍留槽** OQ-2A：面板第四槽 disabled 占位）。**验收形态**：三件经 M6-4 分割基建落位 + Background 恒等负测 + Sky 槽 disabled 断言 ✓ —— **→ M9-1**
+- **M9AIM-02**: viewport 交互工具——tap-to-segment（Layer B `GenerateIterativeSegmentationRequest` 迭代点：include/exclude 点增删再解）+ coverage 显示专属视口通道（淡红 tint，Alcedo 同款语义）+ Commit 后隐藏。**验收形态**：探针脚本（合成事件→AX）驱动真视口 tap→蒙版更新→coverage 消长 + 交互不改参数真相（bake-to-raster，AI-06）✓ —— **→ M9-1**
+- **M9AIM-03**: GPU Feather/Expand + 编辑会话语义——蒙版边缘羽化/扩展 GPU 算子（MaskRefine fine() 家族邻接）+ open/commit/cancel 会话流（commit = raster bake 入 layer；cancel = 丢弃；paste 跳过 AI mask 面）。**验收形态**：会话三命令端到端 + paste 排除负测 + Feather/Expand golden（对称半径/边界行为）✓ —— **→ M9-1**
+- **M9BW-01**: 黑白胶片族光谱 profile 自建——4+ 卷黑白（Tri-X 400/HP5+ 400/T-Max 100/Acros II 级）密度谱数据数字化（厂商发表规格/公开测定文献，非 GPL 复制）+ 光谱臂消费（黑白域 = 密度单通道化）。**验收形态**：profile 入谱面体系 + MANIFEST 对账 + 中性/阶调 golden ✓ —— **→ M9-2**
+- **M9BW-02**: 变反差相纸 + 镜头滤色镜——Multigrade 级变反差相纸对 + camera_filter（黄/红/绿滤色镜光谱透射，SHOOT 域；光谱域精确化 M3 s_m/s_y 增益语义）。**验收形态**：滤色镜 ON/OFF 中性链零漂移负测 + 光谱透传 golden ✓ —— **→ M9-2**
+- **M9BW-03**: per-film granularity 标定——grain IOP 强度 1 = 该胶片发表 RMS granularity（OQ-8：仅标定面；grain 算子接谱挂 M8 D-M8-4 族）。**验收形态**：per-film 标定表 + 强度语义断言 ✓ —— **→ M9-2**
+- **M9GEO-01**: rotate/straighten——自由旋转 + 拉直工具（**真缺口：Crop 纯裁切框无旋转**；非破坏 = 参数入 history，几何域 iop）。**验收形态**：旋转 90/任意角 golden + sidecar 持久化 + 视口交互探针 ✓ —— **→ M9-3**
+- **M9GEO-02**: Guided Upright——画线拖端点参考线透视校正（lightcraft upright.rs MIT 移植 + M5-3 Pano homography 复用）。**验收形态**：合成梯形畸变恢复 golden（已知单应逆解误差门）+ 参考线交互探针 ✓ —— **→ M9-3**
+- **M9SM-01**: ColorWheels LGG+Offset 修订（**主件**）——Lift/Gamma/Gain 分离色调域语义 + Offset 新轴（对齐上游修订公式）；迁移 = process v3 双臂（OQ-7：v2 档读入单公式转换、旧号冻结零漂移，M6-2 五件套）。**验收形态**：新公式 golden vs 上游数值锚 + v2 旧档逐位零漂移负测 + v3 bump 五件套 ✓ —— **→ M9-4**
+- **M9SM-02**: 小件尾——LUT encodings +24 条（LutEncodingCatalog 表扩）+ Filmstrip stars/编辑态磁贴（Alcedo filmstrip 对齐）+ Show in Finder（Reveal in Finder 菜单/上下文）+ XPan 类 ratio 预设（65:24 等三行）。**验收形态**：逐件定向测试 + zh-audit PASS ✓ —— **→ M9-4**
