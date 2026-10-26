@@ -39,6 +39,12 @@
 2. 每个 plan 执行+验收闭环后停——汇报该 plan 战果 + 下一 plan 摘要，等用户确认。
 3. Phase 签核（VALIDATION）前停——verify-work 结论给用户过目。
 
+## 样张与测试供件（2026-10-26 用户登记）
+
+- **用户实拍 RAW 库（样张主源）**：`/Volumes/UNITEK/Cloud Drive/QSync/Medias/Photos/Workspace`——**3.7TB / 52,296 张 Sony ARW**（2026-10-26 实测），五类目录 = 摄影会/旅行/展会/约拍/扫街。用途映射：**约拍 ≈ 人脸/人像样张**（磨皮 pore-level 走查）·**展会/扫街 ≈ 高 ISO 暗光样张**（denoise torture）·**摄影会/展会 ≈ 多主体样张**（instance 浮层）。**隐私红线：用户个人照片——只读本机走查/golden 派生，永不入 git、永不外发、永不入 evidence 私仓**（README Sample images 政策同源）。
+- **CC0 机器样张（Fixtures 套件腿）**：`~/Library/Application Support/Lightamer/TestRAW/`（首选腿，六样本全数在位）+ 回落腿 repo `.work/plans/01-05/samples/`；下载配方 = `phases/01-foundation-app-skeleton-capability-spikes/evidence/01-05/download.sh`（raw.pixls.us，13 URL）。选样规则 = `Tests/LightamerTests/Fixtures.swift`（`LIGHTAMER_RAW_SAMPLES_DIR` env 可覆盖；搜索序 env → AppSupport → repo）。
+- **仍缺**：ColorChecker 物理色卡实拍（采集路径登记 = `phases/evidence-legacy/plans/02-04/colorchecker-acquisition.md`）。
+
 ## Project
 
 **Lightamer**
