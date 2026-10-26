@@ -1114,15 +1114,61 @@ private struct ImportProgressModifier: ViewModifier {
 
     @State private var importAdapter: ImportTaskAdapter?
 
+    // R6-R1 (B-1 second-lesion diagnosis, DEBUG-only probe face): the
+    // onChange firing trace. The 2026-10-27 instrumented rounds pinned the
+    // second lesion with exactly this line family — the failing rounds show
+    // fire(.completed) then the tail's nil write with NO final fire, while
+    // the modifier body re-evaluated reading nil (kept for recurrence
+    // forensics; the fix's primary channel is the tail event below).
+    #if DEBUG
+    private nonisolated(unsafe) static var obsFirings = 0
+    private static func obsNote(_ line: String) {
+        FileHandle.standardError.write(Data("[import-obs] \(line)\n".utf8))
+    }
+    #endif
+
     func body(content: Content) -> some View {
         content
             .onChange(of: projectController?.importProgress) { _, progress in
+                #if DEBUG
+                Self.obsFirings += 1
+                Self.obsNote(
+                    "fire#\(Self.obsFirings) -> \(progress.map { "\($0.phase) \($0.processed)/\($0.total)" } ?? "nil")"
+                        + " adapter=\(importAdapter == nil ? "nil" : "alive")")
+                #endif
                 guard let controller = projectController else { return }
                 if progress != nil {
                     if importAdapter == nil {
                         let adapter = ImportTaskAdapter(controller: controller)
                         taskRegistry.register(adapter)
                         importAdapter = adapter
+                        // R6-R1 (B-1 second lesion): arm the TAIL's direct
+                        // run-end channel — the onChange above
+                        // probabilistically drops the run's final
+                        // (.completed → nil) transition (the value input's
+                        // re-evaluation is the graph's own scheduling
+                        // decision; with nil the last write there is no
+                        // later change to force a re-sync). The body below
+                        // mirrors the onChange else-arm exactly; either
+                        // channel running first nils the @State adapter, so
+                        // the second one is a structural no-op (idempotent
+                        // by construction).
+                        controller.onImportRunEnded = { [weak adapter] in
+                            guard let adapter, importAdapter != nil else { return }
+                            taskRegistry.finish(id: adapter.id)
+                            importAdapter = nil
+                            guard gridModel != nil else { return }
+                            Task {
+                                // Hoisted locals: the optional-chain compound
+                                // below the locals trips the Release -O
+                                // type-checker timeout (M2-11-02 T5 execution
+                                // finding — Debug face identical).
+                                let grid = gridModel
+                                try? await grid?.reloadFirstPage()
+                                let inspector = inspectorModel
+                                await inspector?.refresh()
+                            }
+                        }
                     }
                     importAdapter?.apply(progress)
                 } else if let adapter = importAdapter {
