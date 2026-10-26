@@ -206,3 +206,20 @@ Q. Lumen RAW (culling analysis algorithms — Plan LUMEN-A T3/T4/T6; Plan C
      LightamerCore/Sources/Library/EyeClosureAnalyzer.swift   (eye-opening ratio, Lumen CLOSED semantics)
      LightamerCore/Sources/Library/BurstAnnotator.swift       (burst grouping + best-of-burst)
      LightamerCore/Sources/AI/MaskRefine.swift                (sample-based mask refinement, fine())
+
+R. darktable noiseprofiles (camera noise profile dataset — Plan 05-01)
+
+   Upstream: darktable data/noiseprofiles.json
+   https://github.com/darktable-org/darktable
+   Snapshot: tree dc58cf0ba1 (2026-08-02); data lineage since 2012-11
+   (commits d770677b691 → eff9e743c61 → 91b989c7d69) with per-camera
+   community contributions credited in the file's "comment" fields.
+   License: GPL-3.0-or-later (c) 2012-2026 darktable developers and
+   profile contributors.
+
+   LightamerIOP/Resources/NoiseProfiles/noiseprofiles.json is normalized
+   from the upstream snapshot by input/golden/fixtures/gen_noise_profiles.py
+   (alphabetical key ordering, ISO-ascending profiles, explicit float
+   formatting; semantic values unchanged). Contributor credits in the
+   "comment" fields are preserved verbatim. Modifications are marked per
+   GPL-3.0. This file is GPL-3.0 as part of Lightamer.
