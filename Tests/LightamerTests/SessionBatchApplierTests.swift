@@ -273,14 +273,15 @@ final class SessionBatchApplierTests: XCTestCase {
     /// The batch compose's stamp is BRANCH-CONDITIONAL: a pristine target
     /// (a NEW document) mints `.current`; an existing document's stored
     /// value rides through VERBATIM — legacy stays ABSENT (never passively
-    /// upgraded), 1 stays 1, a forward 7 stays 7. The compose REBUILDS a
+    /// upgraded), current stays current, a forward 7 stays 7. The compose
+    /// REBUILDS a
     /// fresh document here (only 5 fields + the stamp are promoted), so
     /// without the explicit carry every state would collapse to ABSENT.
     func testBatchApplyStampsProcessBranchConditionally() async throws {
         let seed = await seedInstances()
         let payloadItems = payload()
 
-        // ① The pristine arm: the minted document carries 1.
+        // ① The pristine arm: the minted document carries .current.
         let pristineRel = "pristine.ARW"
         try writeImage(pristineRel)
         try await openIndex(knownRels: [pristineRel])
@@ -290,13 +291,15 @@ final class SessionBatchApplierTests: XCTestCase {
             label: applyLabel()).composed.first)
         let pristineObject = try XCTUnwrap(JSONSerialization.jsonObject(
             with: JSONEncoder().encode(pristine.document)) as? [String: Any])
-        XCTAssertEqual(pristineObject["process"] as? Int, 1, "the pristine mint")
+        XCTAssertEqual(
+            pristineObject["process"] as? Int,
+            RenderProcessVersion.current.rawValue, "the pristine mint")
 
         // ②③④ The existing arm's three states (one sweep): the stamp rides
         // the STORED value through the rebuild.
         for (stored, want) in [
             (Optional<RenderProcessVersion>.none, Optional<Int>.none),
-            (RenderProcessVersion.current, 1),
+            (RenderProcessVersion.current, RenderProcessVersion.current.rawValue),
             (RenderProcessVersion(rawValue: 7)!, 7),
         ] {
             let rel = "existing-\(want.map(String.init) ?? "legacy").ARW"

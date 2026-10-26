@@ -879,3 +879,8 @@ IOP	5	SpectralSolveTests.swift
 IOPP	5	SpectralBakeTests.swift
 LAYERS	5	RenderProcessLedgerTests.swift
 IOPP	10	SpectralDualArmGoldenTests.swift
+#   M8-3（2026-10-26）：面板/迁移 UX 模型 = App（FilmPanelSpectralUITests，
+#   T1 3 法 + T3 扩 4 法 = 7）；曝光语义终账 + NOTICE 断言 = IOPParity
+#   （SpectralExposureSemanticsTests 4 法——*Semantics/*Golden 域模式）。
+APP	7	FilmPanelSpectralUITests.swift
+IOPP	4	SpectralExposureSemanticsTests.swift

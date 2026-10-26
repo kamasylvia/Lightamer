@@ -359,7 +359,9 @@ final class MetadataServiceTests: XCTestCase {
             with: Data(contentsOf: LightamerSidecar.sidecarURL(
                 for: sessionRoot.appendingPathComponent(pristine))))
             as? [String: Any])
-        XCTAssertEqual(pristineObject["process"] as? Int, 1)
+        XCTAssertEqual(
+            pristineObject["process"] as? Int,
+            RenderProcessVersion.current.rawValue)
     }
 
     func testUnreadableSidecarIsSkippedNeverClobbered() async throws {

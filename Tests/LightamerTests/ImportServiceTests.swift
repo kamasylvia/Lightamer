@@ -88,7 +88,8 @@ final class ImportServiceTests: XCTestCase {
         let data = try Data(contentsOf: sidecarURL)
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any])
-        XCTAssertEqual(object["process"] as? Int, 1, "the AI-copy birth stamp")
+        XCTAssertEqual(object["process"] as? Int,
+            RenderProcessVersion.current.rawValue, "the AI-copy birth stamp")
         let document = try JSONDecoder().decode(LightamerSidecar.self, from: data)
         XCTAssertEqual(document.process, .current)
         XCTAssertEqual(document.aiProvenance, provenance)
