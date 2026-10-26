@@ -349,9 +349,12 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 ## Milestone 8（FSIM 光谱升维——ROADMAP §Milestone 8，2026-10-17 预告立项〔charter-pending〕→ **2026-10-18 正式 charter**〔用户「按推荐」批含「M8 charter 照常走」，夜间授权先例 D-07-3-T5-1，晨审可推翻；OQ-M8-1..7 全按推荐生效；轻量 research 正本 = `phases/m8-fsim-spectral/RESEARCH-PRE.md`；REQUIREMENTS 正式族 = SPEC-01..06；与 UI 栈迁移正交——FSIM 面板 AppKit 化若发生在 F1 编辑器迁移窗口内属迁移波内事项不属 M8〕）—— M8-0 ✅ 闭环（charter 批 2026-10-18：五正本落账 = ROADMAP §M8 块正式 charter〔UI 迁移边界声明头部 + M8 Phase 表〕+ REQUIREMENTS SPEC 族正式条目化 + STATE M8 段〔含 M7 Ledger 补翻勘误〕+ 本头部 + GOAL-STATE 续接点）；下一步 = M8-1 research 起草（数学核 + probe）
 
 - [x] **M8-0 charter（正式立项：phase 表 / SC 门 / 范围红线 / OQ-M8-1..7 裁决）** —— ✅ 完成（2026-10-18 charter 批，doc-only 零源码；OQ-M8-1..7 生效值 = 核拓扑 process 单源〔不设 FilmRecord.engine〕/ tc 表自拟合 clean-room / 重积分 3D 表臂 / coupler 模糊场降采样 1/4 res / 四阶段切分 / FSIM-01c 措辞修订随 M8-2 / UI 无 Alcedo 对标项；晨审可推翻）
-- [ ] **M8-1 数学核 + probe**（SPEC-01/04：tc 表自拟合〔Jakob-Hanika 数学，GPL 零拷贝〕+ 逐像素 kernel 探针 + perf/内存真值 + coupler 方案裁决数据）
-- [ ] **M8-2 管线集成**（SPEC-02/03/06：sub-run 缝挂光谱核 + solve/bake 光谱域重推导 + process bump〔光谱 = current 臂，密度核冻结 legacy 臂〕+ 冻结 golden + CC BY-SA 谱面消费 + NOTICE 措辞修订）
-- [ ] **M8-3 面板接线 + golden/收口**（SPEC-05：Film 面板平移 + 宽容度 descriptor 换臂 + VALIDATION）
+- [x] **M8-1 数学核 + probe（SPEC-01/04）** —— ✅ 执行+验收闭环（M8-1a 数据面 `47b28be0` ΔN+19 + M8-1b GPU 面 `e702be76` ΔN+17；probe 真值 = tc 构建 Debug 29 对 293-318s〔gate 600s〕/ 100MP FULL **139.2ms ∈ [40,160]ms**〔A 26.3 / blur 8.8 / B 103.3〕/ corr 裁决 1/4 res = 95MB〔ds8 23MB〕/ nail 三板斧 fma 1357/4608 worst 5.96e-8 + 取倒 574/2000 + 多项式 4.77e-7 / micro band 六 stage ≤4.1e-7；正本 = SUMMARY/DECISIONS + probe 批 PROBE-RECORD）
+- [x] **M8-2 管线集成（SPEC-02/03/06）** —— ✅ 执行+验收闭环（`ff110abd` ΔN+31 越带 +5 申报；**process bump v2 双臂**〔光谱 = current 臂 / 密度核冻结 legacy 臂；RenderProcess 单源〕+ golden 哨兵三件〔ramp512 `3613671270926763817` / fixture `7557687968680693683` / 中性闭合 `0.1300766902548187` ±0.01 带〕+ legacy 主门 `filmRampPlaneHash = 14_365_179_805_968_017_957` 全批零触 + NOTICE 措辞修订（光谱重建材质模拟〔逐波长〕，非场景光谱重放）+ CC BY-SA 谱面字节零动 + 缓存键 X7 槽 + 折键非 legacy 才折新 tag）
+- [x] **M8-3 面板接线 + golden/收口（SPEC-05）** —— ✅ 执行+验收闭环（`06ac0d41..af84ddc1` + 收口 `903d23fe` ΔN+13；迁移 UX 四面走查〔`.work/gui-acceptance/m8/MANIFEST.md`〕+ 曝光语义四法〔solve gain 消费层 / ev_scale ≡ 1 双钉 / descriptor 曝光不变 / NOTICE 升格〕+ 面板零新增控件〔FilmPanelSpectralUITests 源清单快照 + AX 活树〕+ L057 缝零 runModal + 旧档迁移 undo 边界）
+- [x] **M8 批验收三眼** —— ✅ 全 PASS（2026-10-26 收口：全套三轮 **4286/46/0** ∈ [4283,4287]〔ΔN +80 独立直数精确闭合〕；路 1 `45f88435` PASS/0B+0M+0m+4obs〔复跑 4001s 同值，封存面零越线〕+ 路 2 `f5bbe17c` PASS/0B+0M+0m+5obs〔盲评 + 反自取消金样：改 CMF 波长点 → 白点+生产缝 ramp 哨兵双真红〕+ omp 终审 `7b53e95d` PASS/0B+**1M**+0m+6obs〔computer-use 实机：迁移 UX 四面 + v2 readout 逐字同值 + 面板零新增 AX 核 + undo 边界 + 静置 0.0%〕）
+- [ ] **M8 修正批（omp M-1 挂账首项）**：probe 缝新档启用后迁移行可见 / sidecar 缺 `process` 键〔pristine mint 未执行或 carrier 缺席候选——载体写面/写腿/端到端机检已排除；自愈通道无数据风险〕→ pristine mint 根因二分 + 真图 v1/v2 并排走查 + obs-1 白场幅度「亮调」配方字面
+- [ ] **M8 VALIDATION（verify-work + 签核）** —— C 档第 3 停：三眼验收全 PASS 后呈晨审（M8-VALIDATION.md 预备正本在库），用户过目后另批执行
 
 ---
 
