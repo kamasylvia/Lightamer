@@ -148,3 +148,43 @@ film/DRT/rawOverrides 三载体同受关图丢弃 + 同图重开零载入：已�
   佐证——omp S1 = close 后启用态。
 - 姐妹缺口（film/DRT/raw 载体 close 丢弃 × 零载入重开）= M8-3+ 挂账
   （1.6 节）。
+
+## 五、T4 全套对账节（2026-10-26 实测）
+
+**`Scripts/test-direct.sh --all` 单轮：TOTAL 4287/39/0（4097s，零 MEMFAIL
+零 crash，`--monitor 21600` 看门狗伴跑全程零 RSS-KILL，收工 kill）。**
+
+逐 bundle 对照 M8-3 三轮基线（c0f1e5a1 申报带 4286/46/0）：
+
+| bundle | M8-3 R1-R3 | 本轮 | Δ | 归因 |
+|---|---|---|---|---|
+| IOP | 788/5/0 | 788/5/0 | 0 | 零漂移 |
+| IOPParity | 529/11/0 | 529/11/0 | 0 | 零漂移（golden 三件套 + legacy 主门在册全绿） |
+| Layers | 507/6/0 | 507/5/0 | skip −1 | **U+1**（LayerE2ERoundTripTests `require(Fixtures.dng)` 门激活） |
+| Library | 778/4/0 | 778/4/0 | 0 | 零漂移 |
+| Sessions | 285/9/0 | 285/4/0 | skip −5 | **U+5**（SessionThumbnailProviderTests arw 五法激活） |
+| Export | 385/5/0 | 385/4/0 | skip −1 | **U+1**（Export 域 arw/dng 门法激活） |
+| App | 1014/6/0 | **1015/6/0** | **+1** | 本批 ΔN（#9 疾病链回归） |
+| **TOTAL** | 4286/46/0 | **4287/39/0** | | |
+
+**U 实测 = 7**（coordinator 带宽注记的样本供件恢复面：`0a21136c` 恢复
+ARW+DNG 后首次真实执行的 Fixtures 门法；预估 10..12 落空的下缘——另 3..5
+个预估法或属双门去重或其门法同 bundle 内 pass 数语义下不可分辨，如实按
+skip 计数差申报）。新激活七法**全数通过零失败**——「样本长期缺席未被锻炼
+的既有潜在失败」分支 = 空，无需 orchestrator 路由。
+
+**计数语义勘误（对账带口径）**：`test-direct.sh` 的 executed 取自 XCTest
+summary 行「Executed N tests」，N **含 skip**（skip 单列第二元）。故激活
+法在 executed 总数内**内部换位**（skip→executed），pass 总数表观持平是
+预期形貌——对账带宽注记的 `(4286+ΔN+U)/(46-U)` 分子/分母意向在此口径下
+实现为：分子 +ΔN（4287），分母 −U（39），U 在分子内部换位。
+
+**哨兵/封存面核验声明**：①filmRampPlaneHash `14_365_179_805_968_017_957`
++ 光谱三件套 + process ≤ 1 老档零漂移负测 = IOPParity 529/11/0 在册全绿
+承载；②封存面 15 项（DrtRecord/TerminalTailPolicy/DrtTailAssembly/
+PixelPipe/Lut3dKernels.metal/DrtEotf/ExportQueueContract/六格式导出矩阵/
+NodeGraphCommand/LightamerSidecar/HistoryStack/HistoryHash/PipelineDocument
+(Core)/V50Order/GradeCatalog）`git diff c0f1e5a1..HEAD` 逐项零 diff 机检
+在案（本批只触 WorkspaceModel + ProcessVersionCarrierTests + 三账本文件）；
+③orchestrator 侧并发三 commit（0a21136c/26cd0705/b325d8e8，样本供件 +
+样张登记）与本批零交集，AGENTS.md 双写共存核验（M8-FIX-1 行在册 :405）。
