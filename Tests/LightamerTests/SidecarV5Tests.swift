@@ -510,4 +510,37 @@ final class SidecarV5Tests: XCTestCase {
             workspace.rawDecodeOverrides.isEmpty,
             "a pristine document never primes the session carrier")
     }
+
+    /// R6 (the M8-FIX-1 sister exemption, the raw carrier's leg): the
+    /// editor close KEEPS the session overrides. The disease chain: a
+    /// same-image reopen runs NO load leg (the historyLoadedURL +
+    /// loadedImageURL guards both skip), so a close-time drop left BOTH
+    /// read faces of this carrier starving until the next real load —
+    /// the Raw Decode panel's `reseed` read identity (the user's
+    /// NR/sharpen/boost controls visually zeroed on reopen), and any
+    /// post-reopen re-decode (the panel commit chain / the load chain's
+    /// `overrides:` argument) ran with identity overrides, silently
+    /// discarding the stored technical parameters.
+    @MainActor
+    func testCloseKeepsTheSessionOverridesForTheReopen() {
+        let workspace = WorkspaceModel()
+        let urlA = URL(fileURLWithPath: "/tmp/raw-keep-a.arw")
+        let urlB = URL(fileURLWithPath: "/tmp/raw-keep-b.arw")
+        let overridesA = RAWTechnicalOverrides(boost: 0.6)
+        let overridesB = RAWTechnicalOverrides(noiseReductionAmount: 0.8)
+
+        workspace.setRawDecodeOverrides(overridesA, for: urlA)
+        workspace.setRawDecodeOverrides(overridesB, for: urlB)
+        XCTAssertEqual(workspace.rawDecodeOverrides(for: urlA), overridesA)
+
+        workspace.closeEditor()
+        XCTAssertEqual(
+            workspace.rawDecodeOverrides(for: urlA), overridesA,
+            "close must keep the overrides — the reopen runs no load leg, "
+                + "so the retained carrier is the panel reseed's and the "
+                + "re-decode chain's only source")
+        XCTAssertEqual(
+            workspace.rawDecodeOverrides(for: urlB), overridesB,
+            "the sibling url's overrides survive the close too")
+    }
 }
