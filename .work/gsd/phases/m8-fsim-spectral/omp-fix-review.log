@@ -1,0 +1,63 @@
+Working...
+# M8-FIX omp 复核（execute 道二次验收，computer-use 实机，2026-10-26）
+
+**PASS / 0 B + 0 M + 0 m + 4 obs**
+
+> 第二眼独立复核。复核对象 = M8-FIX 修正批（修复 `7422401a` + 账本 `73421ef9` + 收口 `3f24584c`）与 zcode 验收报告 `M8-FIX-ACCEPTANCE.md`（PASS/0B+0M+0m+3obs）。本场 = 实机走查（复用现成构建 binary mtime 10-26 20:26，含修复）+ M-1 原配方复走 + v1 对照 + 迁移 UX 回归抽查 + zcode 报告对账。probe 缝 `-la_film_probe` + fixture `Resources/TestFixtures/float32-gradient.tif`。三次会话：S1A（疾病链：开图→返回图库→图库态启用→重进编辑器→quit 落盘）、V1（真 v1 老档→迁移确认→渲染翻面→undo→40s 采样→quit 落盘）、另两次 probe 自灭（grid rows 未到，见 obs-4）。正本已落盘 `.work/gsd/phases/m8-fsim-spectral/M8-FIX-ACCEPTANCE-OMP.md`，截图 8 张 `fix-acceptance/omp/`。
+
+## 一、逐面判定表
+
+| 面 | 配方预期 | 实机观察 | 判定 |
+|---|---|---|---|
+| ① pristine 档（S1A 首屏） | hint「启用胶片模拟以开始印放会话」+ 启用按钮 + 宽容度/场景置位两节 | 逐字吻合（`ompfix-01`）；直方图占位文案在册 | ✅ |
+| ② 疾病链：关图后面板跨存活 | 「返回图库」后 Film 面板共存（omp S1 布局） | CGEvent 真实点击「返回图库」→ 图库面 + Film 面板共存（`ompfix-02`）= DECISIONS 复现 B 布局 | ✅ |
+| ②b 疾病链核心：图库态启用后迁移行 | 修复后迁移行缺席（M-1 反转） | 关图后启用：控制面浮现 + readout「M 18.3 · Y 16.7 · ×1.00」与 M8-3 登记面逐字同值 + 迁移行 8s 窗缺席（NOTHAS ok-absent，`ompfix-03`）。**M-1 表型反转** | ✅ |
+| ②c 磁盘腿：quit 重开 sidecar 含 process 键 | `process: 2` + filmRecord 共存 | **实机走通**：启用后去抖自发落盘（mtime 23:11:30，键入前无菜单/quit 动作——zcode obs-2 的「idle 不自发落盘」在本轮不成立，见 §二）；内容 `process: 2` + schema 11 + filmRecord（fujifilm_c200）+ 1 item「启用胶片模拟」+ position 0。quit 菜单干净退出（12s 内进程清零），落盘 mtime/内容不变（去抖已先落，quit-flush 无增量） | ✅（zcode obs-2 消费关闭） |
+| ②d 重进编辑器渲染面 | v2 档视口 + 读出链活 | File→进入编辑器活；视口灰渐变渲染（非黑/非空，`ompfix-04`）；readout/solve/四滑杆在位；CPU 收敛 0.0%（161MB）。「readout 走 v2」语义注记见 obs-1 | ✅ |
+| ③ v1 老档对照（判别力） | 真老档迁移行照常可见 | omp 时代 `.lra`（`process: 1` + filmRecord + schema 11）导入：启用按钮缺席（老档恢复）+ **蓝色「更新到当前渲染代」按钮在位**（AX + 截图 `ompfix-05` 双证）+ 视口青边渐变（v1 密度臂形态）。判别力未被修复盲化 | ✅ |
+| ④ 回归：确认 sheet | 标题/正文/取消/更新逐字 | AXPress（非 CGEvent，见 obs-3）点迁移按钮 → sheet 形态逐字吻合（`ompfix-06`，AX `film.migrate.sheet` 在位）；L057 runModal 禁令维持（M8-3 已机检，本批零面板 diff） | ✅ |
+| ⑤ 回归：渲染翻面 | 确认后 sheet 关 + 行消失 + 视口翻面 | AXPress「更新」→ 迁移行 6s 窗消失 + sheet 关闭 + 视口青边渐变→青边白场（`ompfix-07`，同图同参跨代际观感分叉再现 M8-3 obs-1 族形态）；落盘 `process: 2` + items［启用胶片模拟/迁移至当前渲染代］ | ✅ |
+| ⑥ 回归：undo 边界 | ⌘Z 撤 marker 不撤 process | ⌘Z×1（CGEvent cmd+Z）：仍启用态 + 迁移行不重现 + 视口维持光谱臂白场（`ompfix-08`）。边界兑现（position 回 0，marker 撤、process 保持 2——与 quit 后落盘 position=0 一致） | ✅ |
+| ⑦ 静置卫生（40s CPU） | D-6 spin 未复现 | 迁移+undo 后 `top -l 40`：n=40 mean=0.0 max=0.0（236MB，tc 烘焙已收敛态）。zcode D-6 门自测复现 | ✅ |
+
+## 二、磁盘腿走通注记（zcode obs-2 的消费）
+
+- zcode 报「idle 探针去抖不自发落盘（M8-3 既有登记复现）+ quit-flush 落在光谱烘焙窗口期 + 保存菜单需 Film 页先开而左轨无 AX 面」三条路均被阻断，写面由 #9 测试 in-process 承载。
+- 本轮实机：S1A 会话启用后约 5 分钟（烘焙收敛窗 + 走查操作期）去抖**自发落盘**（23:11:30，无菜单/quit 动作先行）；S1A quit 经菜单 12s 干净退出（进程清零，无挂死）；V1 会话迁移确认后 18s 内落盘（23:20:38，`process: 2` + marker 共存）。**磁盘腿三条路本轮两条走通**（去抖自发 + quit-flush 干净），第三条（保存菜单 AX）未试——菜单「保存 Sidecar」实为恒 disabled 占位（`NSMenuBridge.swift:367-368` `{ false }`），zcode 的「需 Film 页先开」是该占位键的误读，通道本就不存在（obs-2 部分归因修正，不影响其「不计缺陷」结论）。
+- 去抖自发 vs zcode「不自发」的差：最可能 = 烘焙窗口期长度差（zcode 会话 quit 落在首烘分钟级窗口内，本轮 S1A 烘焙收敛后去抖到期先落）。非矛盾，是同一机制的两侧观察。**obs-2 关闭**：#9 in-process + 本轮双会话磁盘实证互补闭环。
+
+## 三、zcode 报告对账（obs-1/2/3 各一句 + R5 三件抽查）
+
+| 条 | zcode 申报 | 第三眼裁决 |
+|---|---|---|
+| obs-1（IOP skip −4 宿主态） | IOP 5→1，消失 4 skip 最可能同属宿主态族，趋势更多法通过 | **认同**：零失败 + executed/fail 逐值不变 + 幸存唯一 skip 为宿主 Vision 态条件 skip（`no face detected in the cartoon drawing`），归因方向合理；差分不可枚举性已如实申报（日志覆盖），非账实缺口 |
+| obs-2（探针生命周期仪器面） | terminate 挂死×3 / 去抖不自发 / AI sheet 必现，仪器面不影响判定 | **部分修正后认同**：本轮 quit 双会话干净（挂死未复现 = 烘焙窗口期依赖的间歇面）；去抖本轮自发落盘（§二）；AI sheet 本轮 S1A/V1 两会话各现一次（dismiss 脚本稳定关闭）。结论「不影响判定」维持；「保存菜单」归因修正见 §二 |
+| obs-3（GUI 面板通道） | ⌘⇧G 在 AX/CGEvent 通道死路，导入面 GUI 走查需人工 | **认同**：FIX2 W3 + 本轮双判同源；本轮未走面板腿（probe 缝直驱），无新增证据亦无矛盾 |
+| R5-1（D-6 翻账建议） | 40 采样全 0.0 + 三面健康 → 翻账建议 | **抽查复现**：本轮 §一⑦ 独立 40 采样全 0.0（不同会话/不同探针域）。CPU 0.0% 作为翻账依据**可信**：D-6 病灶是 AttributeGraph 99.9% spin（全核满载型），0.0%×40 与其相距四个量级，不存在「采样恰 miss spin」的解释空间（spin 是持续态非脉冲）；两轮独立复现 + 三面健康形态一致。翻账建议维持，核销动作仍留 orchestrator |
+| R5-2（导入零行复现成功） | 4/9 负载敏感迟到 + DB n=1 恒落库 → 真修归后续批 | **侧证一致**：本轮 5 次探针启动 2 次 grid rows 未到自灭（40% vs zcode 44%），低载期仍有失败（本轮 load <2）——负载敏感是充分非必要条件，失败基线本身存在；DB 侧未复查（zcode 法证已确证 n=1 恒落库，不重复）。路由维持 |
+| R5-3（Vision 漂移维持） | 设备直查红 → 三漂移登记维持，测试类绿≠翻账依据 | **认同（文本面）**：判定逻辑正确（规避腿绿不能证伪设备面漂移）；本轮未跑设备探针（27.0.1 同版本下 zcode 直查已是终局证据，重复跑无信息增量）。维持登记 |
+
+## 四、回归测试文本抽查（mandate 外独立亲证）
+
+- #7 改写 `testCloseKeepsTheCarrierAndReopensStayIdempotent`（`ProcessVersionCarrierTests.swift:442-491`）：close 保留断言 + 新装配重开文件恢复 + legacy 档跨 close 恒 `.legacy`（OQ-1 延伸腿）逐字在位 ✅。
+- #9 新增 `testEnableAfterCloseWithoutReloadKeepsTheMintedGeneration`（`:521-594`）：透过 `FilmPanelModel.enableFilm` 生产缝（attachFilmStore 真材料库）四面断言（documentProcess==current / alreadyCurrent / flush 后 filmRecord+process:2 双含 / v1 孪生仍 migrate）逐字在位；与本轮实机链（②b+②c+③）逐面镜像 ✅。
+- 修复缝 `WorkspaceModel.closeEditor`（`WorkspaceModel.swift:526-532`）：三 drop 中仅 process 缺席（`dropSessionOverrides/DrtRecords/FilmRecords` 原样在位）+ M8-FIX-1 注释双登记 ✅。
+
+## 五、观察项（obs，本轮新增 4）
+
+- **obs-1（readout 走 v2 的语义边界）**：S1A 重进编辑器后 readout「M 18.3 · Y 16.7 · ×1.00」与 M8-3 密度锚定 posture 值逐字同值——readout 是 solve 面（密度锚定 posture，M8-2 DECISIONS 三）非渲染臂指示器；v2 走位由迁移行缺席 + sidecar `process: 2` + 光谱臂视口三重承载，readout 本身跨臂恒值。本场 mandate 的「readout 走 v2」按此语义判 ✅，非 readout 数值变化。
+- **obs-2（迁移确认→落盘 18s 去抖窗）**：V1 会话 AXPress「更新」后落盘 mtime 滞后确认时刻约 18s（去抖语义）；quit 后 position=0 证实 undo 边界（marker 撤、process 留）。去抖窗内 quit 的竞态面 = M8-3 既有登记的延续，非新发现。
+- **obs-3（合成输入通道分化：CGEvent 点迁移按钮无效，AXPress 有效）**：V1 会话 CGEvent 点击「更新到当前渲染代」返回 ok 但 sheet 未现（`film.migrate.sheet` 缺席）；同按钮 AXPress err=0 即现 sheet。与 M8 MANIFEST 的「sheet 内按钮对合成事件不可达」同族但方向新：**面板按钮亦可 CGEvent-dead**（该按钮 AXIdentifier 被父容器覆盖为 `Inspector`，`film.migrate.button` id 不可寻址——SwiftUI id 穿透面）。后续走查配方建议：迁移按钮统一改 AXPress（与 zcode obs-2 的工具面建议同向，可并案）。
+- **obs-4（probe 自灭基线 2/5）**：本轮 5 次 probe 启动 2 次「grid rows never arrived」自灭（含一次僵尸实例残留需 kill -9）。与 R5-2 同源（刷新迟到 >10s 窗），低载期亦发——并入 R5-2 后续批输入，不单独立项。
+
+## 六、证据索引
+
+- 截图（`fix-acceptance/omp/`）：`ompfix-01`（面①）/ `ompfix-02`（面②，关图后图库+面板共存）/ `ompfix-03`（面②b，疾病链反转）/ `ompfix-04`（面②d，重进编辑器）/ `ompfix-05`（面③，v1 迁移行）/ `ompfix-06`（面④，确认 sheet）/ `ompfix-07`（面⑤，渲染翻面）/ `ompfix-08`（面⑥，undo 边界）。
+- sidecar 实证（即弃域 `/tmp/m8fix-omp/`，转录在案）：S1A `process: 2` + schema 11 + filmRecord + 1 item「启用胶片模拟」；V1 `process: 2` + 2 items［启用胶片模拟/迁移至当前渲染代］+ position 0。
+- AX 驱动脚本 = `/tmp/m8fix-omp-drv.py` 等（即弃）；monitor 日志 `/tmp/m8fix-omp-monitor.log`（全程零 RSS-KILL）。
+
+## 七、结论
+
+M-1 三项物证逐项反转（迁移行缺席 + sidecar `process: 2` + v2 渲染），且磁盘腿由本轮实机直接承载（zcode 的测试承载升级为双证据闭环）；v1 老档判别力活（迁移行照常）；迁移 UX 四面抽查三面（sheet/翻面/undo 边界）零回归 + pristine 面健康；zcode obs 三条对账一致（obs-2 部分归因修正、结论维持），R5 三件路由维持（D-6 翻账建议经独立 40 采样复现加强）。**M8-FIX 批 omp 复核 = PASS（0 blocking / 0 major / 0 minor / 4 observations）**。obs-3（迁移按钮 CGEvent-dead + AXIdentifier 被覆盖）建议并入走查工具面与 R5-2 后续批一并消费；姐妹缺口（film/DRT/raw 载体）仍挂 M8-3+，本批边界未扩面。
+
+收工：GUI 进程清零（双会话菜单 quit 干净）；defaults `library.recentProjects` 5 条探针路径已删（其余用户键未触）；monitor 已 kill；tracked 零 diff（新增仅正本 md + omp/ 截图目录 + orchestrator 侧 review log，三者皆 untracked）。
