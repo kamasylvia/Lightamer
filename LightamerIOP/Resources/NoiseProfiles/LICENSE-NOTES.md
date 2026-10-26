@@ -12,9 +12,13 @@
 
 ## 许可证核对状态
 
-- darktable 主体为 GPL-3.0；`noiseprofiles.json` 系社区贡献的相机噪声
-  拟合数据（各 model `comment` 具贡献者署名）。数据文件再分发合规核对
-  **尚未完成**。
-- **待用户知悉项**（TODO 已登记）：核对未完成前，不对外分发含本文件的
-  release 构建。降级 fallback（保留）：运行时让用户指向其 darktable
-  安装的数据文件 + 内置 generic（`a=1e-4×3, b=0`），加载器接口不变。
+- darktable 主体与 `noiseprofiles.json` 数据均为 GPL-3.0-or-later（源文件
+  头声明；贡献无 CLA/无宽松许可特例）。本仓 2026-10-20 切 GPL-3.0
+  (`4071402d`) 后同许可再分发合规；修改 = 规范化转换（已标注）。核对结论
+  （2026-10-26）= 限制解除，attribution 已入根 NOTICE 条目 R——**发布门
+  解除**。正本 =
+  `.work/gsd/phases/evidence-legacy/plans/05-01/noiseprofiles-license-check.md`。
+- 维护性义务（持续）：从 dt 同步新相机 profile 时保留 `comment` 贡献者
+  署名 + 更新基准树 SHA 登记。降级 fallback（保留）：运行时让用户指向其
+  darktable 安装的数据文件 + 内置 generic（`a=1e-4×3, b=0`），加载器
+  接口不变。
