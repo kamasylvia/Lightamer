@@ -1,0 +1,28 @@
+sandbox_extension_issue_file_to_process failed for /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug//Lightamer.app: 1 (Operation not permitted)
+2026-10-23 11:23:21.313 Lightamer[45654:2109870] ApplePersistenceIgnoreState: Existing state will not be touched. New state will be written to /var/folders/l9/q57wlq2n7x3d_t0xb8g2jtyr0000gn/T/com.kamasylvia.lightamer.savedState
+Test Suite 'Selected tests' started at 2026-10-23 11:23:22.562.
+Test Suite 'LightamerTestsApp.xctest' started at 2026-10-23 11:23:22.562.
+Test Suite 'SheetEnvironmentInjectionTests' started at 2026-10-23 11:23:22.562.
+Test Case '-[LightamerTestsApp.SheetEnvironmentInjectionTests testCopyAdjustmentsSheetContentResolvesItsEnvironmentInTheSheetHierarchy]' started.
+Test Case '-[LightamerTestsApp.SheetEnvironmentInjectionTests testCopyAdjustmentsSheetContentResolvesItsEnvironmentInTheSheetHierarchy]' passed (0.980 seconds).
+Test Case '-[LightamerTestsApp.SheetEnvironmentInjectionTests testImportFolderSheetContentResolvesItsEnvironmentInTheSheetHierarchy]' started.
+SwiftUICore/Environment+Objects.swift:34: Fatal error: No Observable object of type AgentControlCoordinator found. A View.environmentObject(_:) for AgentControlCoordinator may be missing as an ancestor of this view.
+time: command terminated abnormally
+        3.84 real         0.76 user         0.60 sys
+           234274816  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                9752  page reclaims
+               16637  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   1  messages sent
+                   0  messages received
+                   0  signals received
+                3849  voluntary context switches
+                3302  involuntary context switches
+         13394500842  instructions retired
+          4877184103  cycles elapsed
+            89785520  peak memory footprint

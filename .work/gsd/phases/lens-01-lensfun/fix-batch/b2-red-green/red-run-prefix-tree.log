@@ -1,0 +1,34 @@
+sandbox_extension_issue_file_to_process failed for /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug//Lightamer.app: 1 (Operation not permitted)
+2026-10-21 17:47:58.150 Lightamer[84833:2116945] ApplePersistenceIgnoreState: Existing state will not be touched. New state will be written to /var/folders/l9/q57wlq2n7x3d_t0xb8g2jtyr0000gn/T/com.kamasylvia.lightamer.savedState
+Test Suite 'Selected tests' started at 2026-10-21 17:47:58.542.
+Test Suite 'LightamerTestsApp.xctest' started at 2026-10-21 17:47:58.542.
+Test Suite 'LensDefaultsWiringTests' started at 2026-10-21 17:47:58.542.
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testCoordinatorLoadSeedsLensThroughRealLoadChain]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LensDefaultsWiringTests.swift:80: error: -[LightamerTestsApp.LensDefaultsWiringTests testCoordinatorLoadSeedsLensThroughRealLoadChain] : XCTAssertEqual failed: ("off") is not equal to ("lensfun") - RED LEG (pre-wiring): the load chain must carry the auto-applied source
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LensDefaultsWiringTests.swift:83: error: -[LightamerTestsApp.LensDefaultsWiringTests testCoordinatorLoadSeedsLensThroughRealLoadChain] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(16.0)") - RED LEG (pre-wiring): EXIF must ride the seed
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LensDefaultsWiringTests.swift:84: error: -[LightamerTestsApp.LensDefaultsWiringTests testCoordinatorLoadSeedsLensThroughRealLoadChain] : XCTAssertNotNil failed - RED LEG (pre-wiring): the loaded document must RESOLVE
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testCoordinatorLoadSeedsLensThroughRealLoadChain]' failed (2.241 seconds).
+Test Suite 'LensDefaultsWiringTests' failed at 2026-10-21 17:48:00.783.
+	 Executed 1 test, with 3 failures (0 unexpected) in 2.241 (2.241) seconds
+Test Suite 'LightamerTestsApp.xctest' failed at 2026-10-21 17:48:00.783.
+	 Executed 1 test, with 3 failures (0 unexpected) in 2.241 (2.241) seconds
+Test Suite 'Selected tests' failed at 2026-10-21 17:48:00.783.
+	 Executed 1 test, with 3 failures (0 unexpected) in 2.241 (2.241) seconds
+        3.48 real         0.94 user         0.15 sys
+           294076416  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               23599  page reclaims
+                1896  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   1  messages sent
+                   0  messages received
+                   0  signals received
+                 404  voluntary context switches
+                4378  involuntary context switches
+         16837779809  instructions retired
+          4207440899  cycles elapsed
+           143525232  peak memory footprint

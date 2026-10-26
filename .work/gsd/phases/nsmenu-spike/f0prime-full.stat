@@ -1,0 +1,7 @@
+ App/Sources/Lightamer/UI/ContentView.swift         |    6 +
+ App/Sources/Lightamer/UI/InspectorView.swift       |    6 +
+ App/Sources/Lightamer/UI/LightamerApp.swift        |   11 +-
+ App/Sources/Lightamer/UI/Shell/F0PrimeShell.swift  | 2269 ++++++++++++++++++++
+ App/Sources/Lightamer/UI/Shell/NSMenuBridge.swift  |  671 ++++++
+ .../Lightamer/UI/Shell/WorkspaceHostView.swift     |   17 +
+ 6 files changed, 2978 insertions(+), 2 deletions(-)

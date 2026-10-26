@@ -1,0 +1,11 @@
+pid=22842 bin=/tmp/f0p1-dd-B/Build/Products/Debug/Lightamer.app/Contents/MacOS/Lightamer args=
+22842 22840 /tmp/f0p1-dd-B/Build/Products/Debug/Lightamer.app/Contents/MacOS/Lightamer
+rendered=yes
+editor-face=confirmed
+frontmost=true t=10:31:09
+symbols=done
+Call graph:
+    4616 Thread_1896409   DispatchQueue_1: com.apple.main-thread  (serial)
+    + 4616 start  (in dyld) + 6688  [0x18dddfe80]
+    +   4616 main  (in Lightamer) + 12  [0x1058c5f6c]  LightamerApp.swift:0
+VERDICT=OK median=0.0

@@ -1,0 +1,19 @@
+打开… | key=O | mod=0 | enabled=true
+--- | key=missing value | mod=0 | enabled=false
+New Project… | key=N | mod=0 | enabled=true
+Open Project… | key=O | mod=2 | enabled=true
+Open Recent Project | key=missing value | mod=0 | enabled=true
+--- | key=missing value | mod=0 | enabled=false
+Import Folder… | key=I | mod=1 | enabled=false
+--- | key=missing value | mod=0 | enabled=false
+Backup Project… | key=missing value | mod=0 | enabled=false
+Move Project… | key=missing value | mod=0 | enabled=false
+--- | key=missing value | mod=0 | enabled=false
+进入编辑器 | key=E | mod=0 | enabled=false
+返回图库 | key=W | mod=0 | enabled=false
+--- | key=missing value | mod=0 | enabled=false
+搜索图库… | key=F | mod=0 | enabled=false
+--- | key=missing value | mod=0 | enabled=false
+保存 Sidecar | key=S | mod=0 | enabled=false
+导出… | key=E | mod=1 | enabled=false
+

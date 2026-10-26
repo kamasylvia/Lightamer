@@ -1,0 +1,10 @@
+BUNDLE|IOP|0/0/0|peakRSS=192MB|1s|sampling=time
+BUNDLE|IOPParity|0/0/0|peakRSS=206MB|1s|sampling=time
+BUNDLE|Layers|0/0/0|peakRSS=192MB|0s|sampling=time
+BUNDLE|Library|0/0/0|peakRSS=193MB|1s|sampling=time
+BUNDLE|Sessions|0/0/0|peakRSS=192MB|0s|sampling=time
+BUNDLE|Export|0/0/0|peakRSS=193MB|1s|sampling=time
+  ↳ 宿主异常退出签名（terminated abnormally / Restarting after unexpected exit）——bundle 计数不可信置零（L055）；日志 /tmp/la-direct-tests-App.log
+BUNDLE|App|0/0/0|peakRSS=223MB|1s|sampling=time
+  ↳ App FAILED（crash；host exit=133 仅参考）— 完整输出: /tmp/la-direct-tests-App.log
+TOTAL|0/0/0|5s

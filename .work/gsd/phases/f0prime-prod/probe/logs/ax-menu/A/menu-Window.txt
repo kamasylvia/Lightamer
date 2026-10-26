@@ -1,0 +1,1 @@
+101:107: execution error: “System Events”遇到一个错误：不能获得“menu bar item "Window" of menu bar 1 of process "Lightamer"”。 (-1728)

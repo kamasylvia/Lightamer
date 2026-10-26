@@ -1,0 +1,5 @@
+pid=53815 bin=/tmp/f0prime-dd-A/Build/Products/Debug/Lightamer.app/Contents/MacOS/Lightamer args=
+editor-face=confirmed
+frontmost=true t=05:15:07
+symbols=done
+VERDICT=OK median=96.0

@@ -1,0 +1,34 @@
+From d8d1380a5ac5ab258807e59109e6d1026d6cf946 Mon Sep 17 00:00:00 2001
+From: Laniakea Kamasylvia <kamasylvia@zohomail.com>
+Date: Mon, 19 Oct 2026 05:40:57 +0800
+Subject: [PATCH 3/3] chore(spike): menu-dispatch trace for the F0' smoke
+ walkthrough (diagnostic)
+
+---
+ App/Sources/Lightamer/UI/Shell/NSMenuBridge.swift | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/App/Sources/Lightamer/UI/Shell/NSMenuBridge.swift b/App/Sources/Lightamer/UI/Shell/NSMenuBridge.swift
+index 17dffdb1..524fe3dc 100644
+--- a/App/Sources/Lightamer/UI/Shell/NSMenuBridge.swift
++++ b/App/Sources/Lightamer/UI/Shell/NSMenuBridge.swift
+@@ -654,9 +654,16 @@ final class NSMenuBridgeController: NSObject, NSMenuDelegate, NSMenuItemValidati
+     }
+ 
+     @objc private func handleMenu(_ sender: NSMenuItem) {
++        // F0' spike diagnostic: the dispatch trace (stderr) — discriminates
++        // the "action never fires" vs "fires but the face does not update"
++        // question for the smoke walkthrough.
++        let trace = "menu-dispatch: handleMenu title=\(sender.title) actions=\(itemActions[ObjectIdentifier(sender)] != nil)"
++        FileHandle.standardError.write(Data("[nsmenu-bridge] \(trace)\n".utf8))
+         // Stale-enablement backstop: a shortcut racing a state flip must not
+         // fire a command whose enablement predicate now says no.
+         if let enabler = itemEnablers[ObjectIdentifier(sender)], !enabler() {
++            FileHandle.standardError.write(
++                Data("[nsmenu-bridge] menu-dispatch: BLOCKED by enabler\n".utf8))
+             return
+         }
+         itemActions[ObjectIdentifier(sender)]?()
+-- 
+2.54.0
+
