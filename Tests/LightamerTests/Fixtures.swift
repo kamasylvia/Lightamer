@@ -163,7 +163,17 @@ final class Fixtures {
 
     /// ColorChecker 24-patch layout for the ARW fixture — normalized
     /// coordinates per patch, grays first (patches 19-24 in X-Rite order
-    /// include the 6 neutrals). EMPTY until a real capture is calibrated;
-    /// the ARW tests skip while this is empty.
+    /// include the 6 neutrals). Calibrated 2026-10-26 (pipeline frame,
+    /// see below) but HELD EMPTY: the first activation surfaced two real
+    /// findings — a ~+7/255 blue bias on the neutrals (daylight AWB
+    /// phenotype, sample-level) and a pipe-vs-ColorSync dark-zone
+    /// divergence hitting 255 (real divergence, synthetic targets carry
+    /// no such phenotype). Both route to a dedicated investigation batch
+    /// before these gates can carry release weight; the synthetic target
+    /// keeps the gate until then. Calibration record, pipeline-frame
+    /// coordinates, and finding data:
+    /// `.work/gsd/phases/evidence-legacy/plans/02-04/colorchecker-acquisition.md`
+    /// (the RAW leg renders orientation-applied — 90° CCW of the sensor
+    /// frame; coordinates there are already in the test frame).
     static let colorCheckerGrayPatches: [(name: String, x: Double, y: Double)] = []
 }
