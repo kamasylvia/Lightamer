@@ -1,0 +1,11 @@
+pid=93893 bin=/Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug/Lightamer.app/Contents/MacOS/Lightamer args=
+93893 93891 /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug/Lightamer.app/Contents/MacOS/Lightamer
+rendered=yes
+editor-face=confirmed
+frontmost=true t=06:37:33
+symbols=done
+Call graph:
+    4646 Thread_1771542   DispatchQueue_1: com.apple.main-thread  (serial)
+    + 4646 start  (in dyld) + 6688  [0x19d90be80]
+    +   4646 main  (in Lightamer) + 12  [0x102dadfb4]  LightamerApp.swift:0
+VERDICT=OK median=0.0

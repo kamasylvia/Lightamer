@@ -1,0 +1,9 @@
+BUNDLE|IOP|753/5/0|peakRSS=7435MB|411s|sampling=time
+TOTAL|753/5/0|411s
+OK (direct launch, no testmanagerd)
+BUNDLE|IOPParity|478/6/0|peakRSS=6369MB|806s|sampling=time
+TOTAL|478/6/0|806s
+OK (direct launch, no testmanagerd)
+BUNDLE|App|961/6/0|peakRSS=2832MB|409s|sampling=time
+TOTAL|961/6/0|409s
+OK (direct launch, no testmanagerd)

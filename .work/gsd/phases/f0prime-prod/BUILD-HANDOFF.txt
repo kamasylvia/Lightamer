@@ -1,0 +1,16 @@
+BUILD-HANDOFF — F0P-02/03 first-lane acceptance build (2026-10-20)
+
+container: /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi
+  (app: …/Build/Products/Debug/Lightamer.app — build-for-testing products,
+   seven .xctest bundles under Lightamer.app/Contents/PlugIns/)
+HEAD:        9ca2f3265537ab7f09e393f0f774a3937d45f8f6 (fix(ops): machine-level single-heavy-worker rule)
+built:       2026-10-20 ~22:00 (+0800), log = .work/gsd/phases/f0prime-prod/all-runs/acc-1-build.log
+recipe:      caffeinate -dis xcodebuild build-for-testing -workspace Lightamer.xcworkspace \
+               -scheme Lightamer -destination platform=macOS   (default DerivedData)
+result:      ** TEST BUILD SUCCEEDED **, 0 errors; SourcePackages reused
+             (zero network resolution).
+
+NOTE to lane 2: consume this container — do NOT rebuild. test-direct.sh
+picks the newest Lightamer-* container under ~/Library/Developer/Xcode/
+DerivedData by mtime; this one is the newest. Do not delete it before
+both lanes close out.

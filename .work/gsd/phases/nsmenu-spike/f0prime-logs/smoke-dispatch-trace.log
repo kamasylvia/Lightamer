@@ -1,0 +1,15 @@
+sandbox_extension_issue_file_to_process failed for /tmp/f0prime-dd-B/Build/Products/Debug/Lightamer.app: 1 (Operation not permitted)
+2026-10-19 05:33:55.285 Lightamer[58380:1402790] ApplePersistenceIgnoreState: Existing state will not be touched. New state will be written to /var/folders/l9/q57wlq2n7x3d_t0xb8g2jtyr0000gn/T/com.kamasylvia.lightamer.savedState
+[editor-probe] project created — importing nsmenu-spike-fixtures
+[editor-probe] row id=1 file=5G4A9394-compressed-lossless.DNG sidecar=no focal=70.0 aperture=2.8 exposure=0.008 iso=200
+[editor-probe] row id=2 file=IMG_1361.DNG sidecar=no focal=4.2 aperture=1.6 exposure=0.00017998559633268502 iso=32
+[editor-probe] load file=5G4A9394-compressed-lossless.DNG loaded=yes rendered=yes texture=5G4A9394-compressed-lossless.DNG
+[editor-probe] load file=IMG_1361.DNG loaded=yes rendered=yes texture=5G4A9394-compressed-lossless.DNG
+[editor-probe] staying alive for measurement
+[nsmenu-bridge] menu-dispatch: handleMenu title=实际大小 actions=true
+[nsmenu-bridge] menu-dispatch: handleMenu title=适配屏幕 actions=true
+[nsmenu-bridge] menu-dispatch: handleMenu title=实际大小 actions=true
+[nsmenu-bridge] menu-dispatch: handleMenu title=工具轨 actions=true
+[nsmenu-bridge] menu-dispatch: handleMenu title=返回图库 actions=true
+[nsmenu-bridge] menu-dispatch: handleMenu title=进入编辑器 actions=true
+[nsmenu-bridge] menu-dispatch: handleMenu title=New Project… actions=true

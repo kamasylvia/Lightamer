@@ -1,0 +1,45 @@
+sandbox_extension_issue_file_to_process failed for /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug//Lightamer.app: 1 (Operation not permitted)
+2026-10-21 17:49:10.426 Lightamer[85196:2119545] ApplePersistenceIgnoreState: Existing state will not be touched. New state will be written to /var/folders/l9/q57wlq2n7x3d_t0xb8g2jtyr0000gn/T/com.kamasylvia.lightamer.savedState
+Test Suite 'Selected tests' started at 2026-10-21 17:49:10.784.
+Test Suite 'LightamerTestsApp.xctest' started at 2026-10-21 17:49:10.784.
+Test Suite 'LensDefaultsWiringTests' started at 2026-10-21 17:49:10.784.
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testBrowserSelectionCommitFoldsExifAndBakes]' started.
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testBrowserSelectionCommitFoldsExifAndBakes]' passed (0.244 seconds).
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testBrowserSelectionMissClearsStaleSnapshot]' started.
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testBrowserSelectionMissClearsStaleSnapshot]' passed (0.006 seconds).
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testCoordinatorLoadSeedsLensThroughRealLoadChain]' started.
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testCoordinatorLoadSeedsLensThroughRealLoadChain]' passed (0.290 seconds).
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testLoadSeamAutoAppliesAndResolves]' started.
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testLoadSeamAutoAppliesAndResolves]' passed (0.010 seconds).
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testLoadSeamAutoApplyOffKeepsExifInputsOnly]' started.
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testLoadSeamAutoApplyOffKeepsExifInputsOnly]' passed (0.001 seconds).
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testLoadSeamHardGuardDetectedNeverAutoApplies]' started.
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testLoadSeamHardGuardDetectedNeverAutoApplies]' passed (0.001 seconds).
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testLoadSeamWithoutLensRecordIsVerbatim]' started.
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testLoadSeamWithoutLensRecordIsVerbatim]' passed (0.000 seconds).
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testManualArmFoldsProjectionRaws]' started.
+Test Case '-[LightamerTestsApp.LensDefaultsWiringTests testManualArmFoldsProjectionRaws]' passed (0.000 seconds).
+Test Suite 'LensDefaultsWiringTests' passed at 2026-10-21 17:49:11.338.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.553 (0.553) seconds
+Test Suite 'LightamerTestsApp.xctest' passed at 2026-10-21 17:49:11.338.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.553 (0.553) seconds
+Test Suite 'Selected tests' passed at 2026-10-21 17:49:11.338.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.553 (0.554) seconds
+        1.76 real         0.80 user         0.09 sys
+           236519424  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               19465  page reclaims
+                 290  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   1  messages sent
+                   0  messages received
+                   0  signals received
+                 214  voluntary context switches
+                2457  involuntary context switches
+         15920799360  instructions retired
+          3632371254  cycles elapsed
+           143213888  peak memory footprint

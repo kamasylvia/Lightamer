@@ -1,0 +1,9 @@
+BUNDLE|IOP|753/5/0|peakRSS=7013MB|574s|sampling=time
+BUNDLE|IOPParity|478/6/0|peakRSS=5781MB|817s|sampling=time
+BUNDLE|Layers|494/5/0|peakRSS=813MB|167s|sampling=time
+BUNDLE|Library|742/4/0|peakRSS=624MB|86s|sampling=time
+BUNDLE|Sessions|285/9/0|peakRSS=1222MB|77s|sampling=time
+BUNDLE|Export|385/5/0|peakRSS=5479MB|209s|sampling=time
+BUNDLE|App|969/6/0|peakRSS=2832MB|492s|sampling=time
+TOTAL|4106/40/0|2422s
+OK (direct launch, no testmanagerd)

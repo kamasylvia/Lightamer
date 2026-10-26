@@ -1,0 +1,7 @@
+2026-10-20 23:57:00.066 Lightamer[50453:361904] ApplePersistenceIgnoreState: Existing state will not be touched. New state will be written to /var/folders/l9/q57wlq2n7x3d_t0xb8g2jtyr0000gn/T/com.kamasylvia.lightamer.savedState
+[editor-probe] project created — importing nsmenu-spike-fixtures
+[editor-probe] row id=1 file=probe-a.ARW sidecar=no focal=0.0 aperture=0.0 exposure=0.04 iso=800
+[editor-probe] row id=2 file=probe-b.ARW sidecar=no focal=0.0 aperture=0.0 exposure=0.05 iso=800
+[editor-probe] load file=probe-a.ARW loaded=yes rendered=yes texture=probe-a.ARW
+[editor-probe] load file=probe-b.ARW loaded=yes rendered=yes texture=probe-a.ARW
+[editor-probe] staying alive for measurement

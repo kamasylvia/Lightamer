@@ -1,0 +1,7 @@
+2026-10-19 11:21:48.227 Lightamer[34648:1977314] ApplePersistenceIgnoreState: Existing state will not be touched. New state will be written to /var/folders/l9/q57wlq2n7x3d_t0xb8g2jtyr0000gn/T/com.kamasylvia.lightamer.savedState
+[editor-probe] project created — importing nsmenu-spike-fixtures
+[editor-probe] row id=1 file=5G4A9394-compressed-lossless.DNG sidecar=no focal=70.0 aperture=2.8 exposure=0.008 iso=200
+[editor-probe] row id=2 file=IMG_1361.DNG sidecar=no focal=4.2 aperture=1.6 exposure=0.00017998559633268502 iso=32
+[editor-probe] load file=5G4A9394-compressed-lossless.DNG loaded=yes rendered=yes texture=5G4A9394-compressed-lossless.DNG
+[editor-probe] load file=IMG_1361.DNG loaded=yes rendered=yes texture=5G4A9394-compressed-lossless.DNG
+[editor-probe] staying alive for measurement
