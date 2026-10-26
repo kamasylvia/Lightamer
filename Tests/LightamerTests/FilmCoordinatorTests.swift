@@ -12,7 +12,8 @@ import XCTest
 // DrtPersistenceTests harness) — the film persistence four-piece:
 //
 //   1. CARRIER: per-url isolation, default-absence (缺键 pristine), the
-//      editor-close drop.
+//      editor-close KEEP (R6 — the M8-FIX-1 sister exemption) + the
+//      real render-gate inversion (filmTailPolicy resolvable after close).
 //   2. COMMIT/UNDO: recordFilmChange lands EXACTLY ONE item; the carrier
 //      re-syncs on undo (the syncFilmCarrierWithHistory face).
 //   3. RESTORE LEG: a flushed document's filmRecord primes a FRESH
@@ -65,12 +66,56 @@ final class FilmCoordinatorTests: XCTestCase {
         XCTAssertEqual(workspace.filmRecord(for: urlA).strength, 0.3)
         XCTAssertEqual(workspace.filmRecord(for: urlB).strength, 0.8)
 
+        // Undoing back to pristine through the carrier face drops the key.
         workspace.setSessionFilmRecord(nil, for: urlA)
         XCTAssertFalse(workspace.hasFilmRecord(for: urlA))
         XCTAssertTrue(workspace.hasFilmRecord(for: urlB), "the sibling url is untouched")
 
-        workspace.dropSessionFilmRecords()
-        XCTAssertTrue(workspace.filmRecords.isEmpty)
+        // R6: the editor close KEEPS the carrier (the M8-FIX-1 process
+        // deviation extended to the film sister — the registered §1.6
+        // gap). The disease chain: a same-image reopen runs NO load leg
+        // (both guards skip), so a close-time drop left `filmTailPolicy`
+        // reading an empty carrier — the film leg silently off until the
+        // next film commit/navigation re-synced, the panel reading the
+        // history projection and masking the loss.
+        workspace.setSessionFilmRecord(Self.editedRecord(strength: 0.7), for: urlA)
+        XCTAssertTrue(workspace.hasFilmRecord(for: urlA))
+        workspace.closeEditor()
+        XCTAssertTrue(
+            workspace.hasFilmRecord(for: urlA),
+            "close must keep the film carrier — the reopen runs no load leg")
+        XCTAssertEqual(
+            workspace.filmRecord(for: urlA).strength, 0.7,
+            "the render gate's record read must answer the retained record")
+    }
+
+    /// R6's disease-chain inversion through the REAL render gate: after
+    /// the editor close the film tail policy must still resolve (the
+    /// carrier feeds it) — before the fix the close emptied the carrier
+    /// and every post-reopen render skipped the film leg.
+    @MainActor
+    func testCloseKeepsTheFilmTailPolicyResolvable() async throws {
+        let (editorState, coordinator, workspace, metal) = try await makeAssembly()
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("film-close-\(UUID().uuidString).tif")
+        defer { try? FileManager.default.removeItem(
+            at: LightamerSidecar.sidecarURL(for: url)) }
+        try await coordinator.load(
+            url: url, decoded: Self.decodedGradient(), instances: [], metal: metal)
+        coordinator.attachFilmStore(try FilmMaterialStore(
+            profilesDirectory: profilesDirectory()))
+
+        editorState.recordFilmChange(Self.editedRecord(), label: "history_film_param")
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertNotNil(
+            coordinator.filmTailPolicy(for: .preview),
+            "precondition: the film tail resolves with the carrier primed")
+
+        workspace.closeEditor()
+        XCTAssertNotNil(
+            coordinator.filmTailPolicy(for: .preview),
+            "the close must not starve the film tail — the reopen runs no "
+                + "load leg, so the retained carrier is the only re-prime")
     }
 
     // MARK: - 2: commit once + the undo carrier sync
