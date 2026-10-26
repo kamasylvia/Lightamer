@@ -164,16 +164,23 @@ final class Fixtures {
     /// ColorChecker 24-patch layout for the ARW fixture — normalized
     /// coordinates per patch, grays first (patches 19-24 in X-Rite order
     /// include the 6 neutrals). Calibrated 2026-10-26 (pipeline frame,
-    /// see below) but HELD EMPTY: the first activation surfaced two real
-    /// findings — a ~+7/255 blue bias on the neutrals (daylight AWB
-    /// phenotype, sample-level) and a pipe-vs-ColorSync dark-zone
-    /// divergence hitting 255 (real divergence, synthetic targets carry
-    /// no such phenotype). Both route to a dedicated investigation batch
-    /// before these gates can carry release weight; the synthetic target
-    /// keeps the gate until then. Calibration record, pipeline-frame
-    /// coordinates, and finding data:
+    /// see below). Held empty through the first activation (two real
+    /// findings); RE-ARMED by the CC-ARW investigation batch (2026-10-26):
+    /// finding 2 (cross-consistency 255 divergence) was the test leg's
+    /// unfenced readback racing the 60MP encode (L014 — `readRGB8` now
+    /// drains; see GoldenColorTests.drain), NOT a color divergence; the
+    /// neutrals carry a sample-level +7/255 blue bias (daylight AWB
+    /// phenotype) gated at the ARW-specific tolerance. Calibration record,
+    /// pipeline-frame coordinates, and finding data:
     /// `.work/gsd/phases/evidence-legacy/plans/02-04/colorchecker-acquisition.md`
     /// (the RAW leg renders orientation-applied — 90° CCW of the sensor
     /// frame; coordinates there are already in the test frame).
-    static let colorCheckerGrayPatches: [(name: String, x: Double, y: Double)] = []
+    static let colorCheckerGrayPatches: [(name: String, x: Double, y: Double)] = [
+        ("N9.5_white", 0.28117, 0.94997),
+        ("N8.0", 0.30721, 0.94997),
+        ("N6.5", 0.33286, 0.94997),
+        ("N5.0", 0.35906, 0.94997),
+        ("N3.5", 0.38573, 0.94997),
+        ("N2.0_black", 0.41383, 0.94997),
+    ]
 }
