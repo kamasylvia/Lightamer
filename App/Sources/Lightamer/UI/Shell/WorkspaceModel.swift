@@ -344,14 +344,27 @@ final class WorkspaceModel {
 
     /// The session-level per-image render process versions, keyed by the
     /// source file path. Session-scoped by contract (the carrier family's
-    /// shape): a switched-away image keeps its value for the session;
-    /// closing the editor drops them. **ABSENT KEY = `.legacy`** — unlike
-    /// the drt/film carriers (where the absent key means pristine) the
-    /// legacy IS a legal steady value here, so the read face defaults to
-    /// `.legacy` and the map only ever carries non-legacy entries. No
-    /// runtime write face exists in M6-2 (OQ-5: the value lands ONLY in
-    /// the load leg's two branches — a loaded document primes it, a
-    /// pristine image mints `.current`).
+    /// shape): a switched-away image keeps its value for the session.
+    /// **ABSENT KEY = `.legacy`** — unlike the drt/film carriers (where the
+    /// absent key means pristine) the legacy IS a legal steady value here,
+    /// so the read face defaults to `.legacy` and the map only ever carries
+    /// non-legacy entries. No runtime write face exists in M6-2 (OQ-5: the
+    /// value lands ONLY in the load leg's two branches — a loaded document
+    /// primes it, a pristine image mints `.current`).
+    ///
+    /// M8-FIX-1 (2026-10-26): the process carrier is EXEMPT from the
+    /// editor-close drop (the KD-3 family shape's registered deviation).
+    /// Unlike the film/DRT/raw carriers — whose session junk the sidecar
+    /// restore legs re-prime on the next load — a pristine document's mint
+    /// exists ONLY here until the first committed edit writes the sidecar,
+    /// and a same-image reopen runs NO load leg (`historyLoadedURL` +
+    /// `loadedImageURL` guards both skip): dropping at close orphaned the
+    /// mint, and the next commit (e.g. the film enable through the panel
+    /// that survives the phase switch) wrote the legacy-shape sidecar with
+    /// the migration row showing (the omp M-1 physical evidence). The value
+    /// is a per-path `Int`, the load legs overwrite on every real load, and
+    /// no read face exists outside the current document's render/write/
+    /// panel paths — retention across closes is inert.
     private(set) var processVersions: [String: RenderProcessVersion] = [:]
 
     /// The read face (legacy when the image has no session value).
@@ -384,12 +397,6 @@ final class WorkspaceModel {
             processVersions[url.path] = version
         }
     }
-
-    /// The editor-close drop face (the 关图丢弃 family).
-    func dropSessionProcessVersions() {
-        processVersions.removeAll()
-    }
-
 
     // MARK: - AI enhancement entry requests (Plan M2-10-07 T3, KD-3)
 
@@ -510,13 +517,17 @@ final class WorkspaceModel {
     /// Close the editor back to the library, restoring the snapshotted face
     /// field-for-field (the D2 red line). The session RAW-decode overrides
     /// drop with the editor (KD-4: 关图丢弃) — the DRT carrier rides the
-    /// same close (M2-6-3 KD-1 twin).
+    /// same close (M2-6-3 KD-1 twin) and the film carrier with it (M3-3-02
+    /// KD-6). **The process carrier does NOT drop** (M8-FIX-1): a pristine
+    /// document's mint lives only in the carrier until the first sidecar
+    /// write, and a same-image reopen runs no load leg to re-prime it — the
+    /// drop orphaned the mint into a legacy-shaped next write (the omp M-1
+    /// root cause; the registered deviation is on the carrier doc comment).
     func closeEditor() {
         libraryState = preservedLibraryState
         dropSessionOverrides()
         dropSessionDrtRecords()
         dropSessionFilmRecords()  // M3-3-02 T5: the film carrier rides the close (KD-6)
-        dropSessionProcessVersions()  // M6-2-01 T3: the process carrier rides the close (KD-3)
         phase = .library
     }
 

@@ -29,10 +29,22 @@ import XCTest
 //      carry no process field.
 //   6. THE COPY ADJUSTMENTS NEGATIVE (OQ-2): the paste transport never
 //      carries the process — a pasted-into legacy target re-saves ABSENT.
-//   7. THE CLOSE/REOPEN IDEMPOTENCE (KD-3): the editor-close drop empties
-//      the carrier; a fresh reopen restores the same value from the file.
+//   7. THE CLOSE/REOPEN IDEMPOTENCE (KD-3, M8-FIX-1 semantics): the
+//      editor-close does NOT drop the process carrier (the registered
+//      exemption — a pristine document's mint lives only in the carrier
+//      until the first sidecar write, and a same-image reopen runs no load
+//      leg to re-prime it); a fresh reopen restores the same value from
+//      the file, and a legacy (absent-key) document stays absent across
+//      the close (never passively upgraded).
 //   8. THE DETACHED-WORKSPACE FACE (KD-4): no workspace → the write leg
 //      reads the `.legacy` default → a key-less v10 document.
+//   9. THE M-1 DISEASE REGRESSION (M8-FIX-1, the omp acceptance physical
+//      evidence inverted): pristine mint → editor close BEFORE the first
+//      committed edit → the film enable through the PRODUCTION panel seam
+//      → the carrier still reads `.current`, the migration row's gate
+//      answers alreadyCurrent, and the flushed sidecar carries BOTH the
+//      film record AND `"process": 2`; the v1 twin still migrates (the
+//      row's discrimination survives the fix).
 // ─────────────────────────────────────────────────────────────────────────────
 
 @MainActor
@@ -427,9 +439,15 @@ final class ProcessVersionCarrierTests: XCTestCase {
         XCTAssertEqual(workspace?.processVersion(for: targetURL), .legacy)
     }
 
-    // MARK: - 7: the close / reopen idempotence
+    // MARK: - 7: the close / reopen idempotence (M8-FIX-1 semantics)
 
-    func testCloseDropsAndReopenRestoresTheCarrierIdempotently() async throws {
+    /// The editor-close does NOT drop the process carrier (the M8-FIX-1
+    /// exemption): a same-session reopen (no load leg — the
+    /// `historyLoadedURL`/`loadedImageURL` guards both skip a same-image
+    /// reopen) reads the kept value, a fresh reopen restores the same value
+    /// from the file, and a legacy document stays absent across the close
+    /// (the OQ-1 no-passive-upgrade negative survives the close).
+    func testCloseKeepsTheCarrierAndReopensStayIdempotent() async throws {
         let url = makeImageURL()
         try writeDriftFreeSidecar(to: url, process: .current, withEdit: true)
 
@@ -439,20 +457,36 @@ final class ProcessVersionCarrierTests: XCTestCase {
         let workspaceA = try XCTUnwrap(workspace)
         XCTAssertEqual(workspaceA.processVersion(for: url), .current)
 
-        // The editor-close drop (closeEditor's face): the map empties, the
-        // read face falls back to legacy.
+        // The close (the M8-FIX-1 exemption): the carrier KEEPS the value —
+        // the mint's only pre-sidecar copy must not orphan.
         workspaceA.closeEditor()
-        XCTAssertTrue(workspaceA.processVersions.isEmpty)
-        XCTAssertEqual(workspaceA.processVersion(for: url), .legacy)
+        XCTAssertEqual(
+            workspaceA.processVersion(for: url), .current,
+            "the close keeps the carrier (M8-FIX-1 — the same-image reopen runs no load leg)")
 
-        // The fresh reopen (the closed-editor semantics — a NEW assembly):
-        // the file's value restores the same carrier state.
+        // The fresh reopen (a NEW assembly — the relaunched-app semantics):
+        // the file's value restores the same carrier state (idempotent).
         let (_, coordinator2, workspace2, _, metal2) = try await makeAssembly()
         await coordinator2.load(
             url: url, decoded: Self.decodedFlat(), instances: [], metal: metal2)
         XCTAssertEqual(
             workspace2?.processVersion(for: url), .current,
             "the reopen restores the value from the file (idempotent)")
+
+        // The legacy discriminative leg: a key-less (v9-era) document's
+        // carrier stays ABSENT across the close — the retention never
+        // upgrades a legacy document.
+        let legacyURL = makeImageURL(prefix: "carrier-legacy-close")
+        try writeDriftFreeSidecar(to: legacyURL, process: nil, withEdit: true)
+        let (_, coordinator3, workspace3, _, metal3) = try await makeAssembly()
+        await coordinator3.load(
+            url: legacyURL, decoded: Self.decodedFlat(), instances: [], metal: metal3)
+        let workspaceB = try XCTUnwrap(workspace3)
+        XCTAssertEqual(workspaceB.processVersion(for: legacyURL), .legacy)
+        workspaceB.closeEditor()
+        XCTAssertEqual(
+            workspaceB.processVersion(for: legacyURL), .legacy,
+            "a legacy document is never passively upgraded across the close (OQ-1)")
     }
 
     // MARK: - 8: the detached-workspace face
@@ -479,5 +513,82 @@ final class ProcessVersionCarrierTests: XCTestCase {
         XCTAssertEqual(
             object["schemaVersion"] as? Int, LightamerSidecar.schemaVersionCurrent,
             "the writer face is v10")
+    }
+
+    // MARK: - 9: the M-1 disease regression (M8-FIX-1)
+
+    /// The omp acceptance M-1 chain, end to end through the PRODUCTION
+    /// seams (the FilmPanelModel.enableFilm enable path — never the
+    /// internal carrier faces alone): a pristine load mints `.current`;
+    /// the editor closes BEFORE the first committed edit (no sidecar on
+    /// disk — the mint's only copy is the carrier); the film enable then
+    /// commits through the panel seam (the panel survives the phase
+    /// switch — the omp walkthrough's enable-after-close state). Under the
+    /// pre-fix drop the carrier read legacy here, the migration row showed
+    /// and the sidecar landed key-less (the film record present + the
+    /// process key absent — the omp physical evidence); with the fix the
+    /// generation reads current, the row's gate answers alreadyCurrent,
+    /// and the flushed sidecar carries BOTH the film record AND
+    /// `"process": 2`. The v1 twin discriminates: the row still migrates.
+    func testEnableAfterCloseWithoutReloadKeepsTheMintedGeneration() async throws {
+        let url = makeImageURL()
+        let sidecarURL = LightamerSidecar.sidecarURL(for: url)
+        // The disease domain: no sidecar on disk at load (the pristine mint).
+        let (editorState, coordinator, workspace, _, metal) = try await makeAssembly()
+        let profiles = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Resources/FilmProfiles/profiles")
+        coordinator.attachFilmStore(try FilmMaterialStore(profilesDirectory: profiles))
+        let model = FilmPanelModel(editorState: editorState, pipeCoordinator: coordinator)
+
+        await coordinator.load(
+            url: url, decoded: Self.decodedFlat(), instances: [], metal: metal)
+        XCTAssertEqual(workspace?.processVersion(for: url), .current,
+                       "the pristine mint (the load leg)")
+
+        // The close BEFORE any committed edit (no sidecar may exist yet).
+        workspace?.closeEditor()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sidecarURL.path))
+
+        // The film enable through the PRODUCTION panel seam (the walkthrough's
+        // enable-after-close state — no load leg runs in between).
+        model.enableFilm()
+        let start = Date()
+        while !(workspace?.hasFilmRecord(for: url) ?? false) {
+            if Date().timeIntervalSince(start) > 5 {
+                XCTFail("the film record never reached the carrier")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+
+        // ① The document generation reads current (the mint survived).
+        XCTAssertEqual(
+            model.documentProcess?.rawValue, RenderProcessVersion.current.rawValue,
+            "the minted generation survives the close (M8-FIX-1)")
+        // ② The migration row's gate hides (already current).
+        XCTAssertEqual(
+            model.migrationAction, .alreadyCurrent,
+            "the migration row hides for the minted new document")
+        // ③ The sidecar persists BOTH the film record AND the process key
+        // (the omp physical evidence inverted: film present + key absent).
+        try await flushUntil(url, coordinator) { object in
+            object["process"] as? Int == RenderProcessVersion.current.rawValue
+                && object["filmRecord"] != nil
+        }
+        let object = try readJSONObject(url)
+        XCTAssertEqual(
+            object["process"] as? Int, RenderProcessVersion.current.rawValue,
+            "the first committed edit lands the mint stamp even after a close")
+        XCTAssertNotNil(object["filmRecord"], "the film record landed alongside")
+
+        // ④ The legacy discriminator: the v1 twin still shows the row —
+        // the close-retention must not blanket-hide the migration audience.
+        workspace?.setProcessVersion(RenderProcessVersion(rawValue: 1)!, for: url)
+        XCTAssertEqual(
+            model.migrationAction, .migrate(targetRawValue: 2),
+            "a v1 document still migrates (the row's discrimination survives)")
     }
 }
