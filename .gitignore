@@ -78,3 +78,4 @@ __pycache__/
 # (Azure DevOps, project Evidence). Files stay on disk, out of git.
 .work/gui-acceptance/
 .work/gsd/phases/*/evidence/
+.work/gsd/phases/cc-arw-investigation/data/*.npy
