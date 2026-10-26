@@ -846,6 +846,7 @@ let project = Project(
                 "Tests/LightamerTests/ChainBuilderHelpers.swift",
                 "Tests/LightamerTests/AIWorkerClientTests.swift",
                 "Tests/LightamerTests/AIMaskPatchFlowTests.swift",
+                "Tests/LightamerTests/AIMaskTaskPanelTests.swift",
                 "Tests/LightamerTests/MaskRefineCoordinatorTests.swift",
                 "Tests/LightamerTests/McpRefineMasksToolTests.swift",
                 "Tests/LightamerTests/ExportPresetTests.swift",

@@ -11,9 +11,14 @@ import SwiftUI
 // radio semantics via `LayerEditingState.setTool`) + the brush parameter
 // popover (size / hardness / flow / opacity sliders; the cmd-drag size
 // gesture is a Manual-Only item — L011) + the gradient profile toggle
-// (linear / sigmoidal) + the AI GROUP (Plan 07-3):
-//   「主体蒙版」  — layer A one-tap (offline built-in model); multi-subject
-//                 frames raise the InstancePickerOverlay first.
+// (linear / sigmoidal) + the AI GROUP (Plan 07-3; the M9AIM-01 task-panel
+// form):
+//   Subject / Background / Sky / People — the M9AIM-01 task-mask panel:
+//                 Subject/Background ride the SAME layer-A one-tap (the
+//                 per-ref invert bit carries 1−x); multi-subject frames
+//                 raise the InstancePickerOverlay first; People = the
+//                 person-instance family (subset one-shot confirm);
+//                 Sky = the charter-disabled slot (OQ-M9-2A).
 //   「点击选取」  — layer B tap-to-segment entry, gated by the AIAssetPhase
 //                 three-state (needsDownload → guided download action;
 //                 downloading → spinner; ready → the segment edit mode).
@@ -27,6 +32,34 @@ import SwiftUI
 // D-H1 (parameter sliders commit NOTHING — they are editing-mode state, not
 // history; the stroke they produce commits once at stroke end).
 // ─────────────────────────────────────────────────────────────────────────
+
+/// M9AIM-01 — the AI-mask TASK PANEL's four entries (the SM9 icon-row
+/// behavior alignment: Subject / Background / Sky / People). Sky is a
+/// DISABLED SLOT (charter OQ-M9-2A: Vision has no native sky API — the
+/// slot keeps the fourth place without any live code path;
+/// disable-not-unmount, never a conditional removal).
+enum AIMaskTask: String, CaseIterable, Sendable {
+    case subject
+    case background
+    case sky
+    case people
+
+    /// The AX identifier stem (L010: stable ids, not indexes).
+    var identifier: String { "ai.mask.task.\(rawValue)" }
+
+    /// Sky stays disabled — the ONLY false face (the slot is dead by
+    /// charter; its button action never fires).
+    var isEnabled: Bool { self != .sky }
+
+    var systemImage: String {
+        switch self {
+        case .subject: return "person.crop.square.badge.camera"
+        case .background: return "person.slash"
+        case .sky: return "cloud.sun"
+        case .people: return "person.2"
+        }
+    }
+}
 
 internal struct MaskToolbarView: View {
 
@@ -211,6 +244,15 @@ internal struct MaskToolbarView: View {
 
     private var hasSelection: Bool { editingState.selectedLayerID != nil }
 
+    /// One M9AIM-01 task-icon frame (the panel's shared shape — the icon
+    /// source is the `AIMaskTask` enum, one source of truth).
+    private func taskIcon(_ task: AIMaskTask) -> some View {
+        Image(systemName: task.systemImage)
+            .font(.callout)
+            .frame(width: 24, height: 22)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+    }
+
     /// The manual refine entry's gate (LUMEN-C): the selected layer's mask
     /// carries an AI-prefixed raster reference.
     private var selectedLayerHasAIMask: Bool {
@@ -350,7 +392,15 @@ internal struct MaskToolbarView: View {
         Divider()
             .frame(height: 16)
 
-        // 主体蒙版 — layer A one-tap (offline, built-in model).
+        // M9AIM-01 task panel — the four task-mask entries in the SM9
+        // icon-row order (Subject / Background / Sky / People). Subject
+        // and Background ride the SAME layer-A generation
+        // (`generateSubjectMask(invert:)` — the per-ref invert bit carries
+        // the 1−x semantics, zero second implementation); People rides
+        // the person-instance family (detect → the subset picker →
+        // unionSelection → the `.person` commit); Sky is the DISABLED
+        // fourth slot (charter OQ-M9-2A — the tooltip says why; the
+        // action never fires).
         Group {
             if aiPhase == .running {
                 ProgressView()
@@ -359,58 +409,61 @@ internal struct MaskToolbarView: View {
                     .accessibilityLabel(Text("ai_mask_generating"))
                     .accessibilityIdentifier("ai.mask.progress")
             } else {
+                // Subject — layer A one-tap (offline, built-in model).
                 Button {
                     Task { await generateSubjectMask(invert: false) }
                 } label: {
-                    Image(systemName: "person.crop.square.badge.camera")
-                        .font(.callout)
-                        .frame(width: 24, height: 22)
-                        .background {
-                            aiPhase == .running
-                                ? LightamerColors.accent.opacity(0.4)
-                                : Color.clear
-                        }
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                    taskIcon(AIMaskTask.subject)
                 }
                 .buttonStyle(.borderless)
                 .disabled(!hasSelection)
-                .accessibilityLabel(Text("ai_mask_subject"))
-                .accessibilityIdentifier("ai.mask.subject")
+                .accessibilityLabel(Text("ai_task_subject"))
+                .accessibilityIdentifier(AIMaskTask.subject.identifier)
 
-                // T7 (KD-7): the「主体以外」sugar — the SAME subject
-                // generation with the invert assembly baked via the per-ref
-                // invert bit (RasterMaskRef.invert). Zero new kernel, zero
+                // Background — the「主体以外」leg (T7 KD-7 semantics,
+                // M9AIM-01 panelized): the SAME subject generation, the
+                // invert assembly baked via the per-ref bit
+                // (RasterMaskRef.invert). Zero new kernel, zero
                 // AIMaskEditing/AIMaskService change.
                 Button {
                     Task { await generateSubjectMask(invert: true) }
                 } label: {
-                    Image(systemName: "person.slash")
-                        .font(.callout)
-                        .frame(width: 24, height: 22)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                    taskIcon(AIMaskTask.background)
                 }
                 .buttonStyle(.borderless)
                 .disabled(!hasSelection)
-                .accessibilityLabel(Text("ai_mask_subject_inverted"))
-                .accessibilityIdentifier("ai.mask.subject.inverted")
+                .accessibilityLabel(Text("ai_task_background"))
+                .accessibilityIdentifier(AIMaskTask.background.identifier)
 
-                // 人物实例 — the person-instance generation (M6-4-02 KD-2/
-                // KD-5): OS-built-in multi-person model, NO download gate
-                // (the `assets` three-state does not apply); multi-person
-                // scenes raise the instance picker, a single person bakes
-                // straight through (the layer-A form).
+                // Sky — the DISABLED slot: no native Vision sky API
+                // (charter OQ-M9-2A). The action is intentionally empty
+                // AND the control is permanently disabled — no live code
+                // path ever exists behind this slot.
+                Button {
+                } label: {
+                    taskIcon(AIMaskTask.sky)
+                }
+                .buttonStyle(.borderless)
+                .disabled(true)
+                .help(String(localized: "ai_task_sky_disabled_hint"))
+                .accessibilityLabel(Text("ai_task_sky"))
+                .accessibilityIdentifier(AIMaskTask.sky.identifier)
+
+                // People — the person-instance generation (M6-4-02 KD-2/
+                // KD-5, the M9AIM-01 task face): OS-built-in multi-person
+                // model, NO download gate; multi-person scenes raise the
+                // instance picker (the subset one-shot confirm — D-M9A-2),
+                // a single person bakes straight through (the layer-A
+                // form).
                 Button {
                     Task { await generatePersonInstances() }
                 } label: {
-                    Image(systemName: "person.2")
-                        .font(.callout)
-                        .frame(width: 24, height: 22)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                    taskIcon(AIMaskTask.people)
                 }
                 .buttonStyle(.borderless)
                 .disabled(!hasSelection)
-                .accessibilityLabel(Text("ai_mask_person_instance"))
-                .accessibilityIdentifier("ai.mask.person")
+                .accessibilityLabel(Text("ai_task_people"))
+                .accessibilityIdentifier(AIMaskTask.people.identifier)
 
                 // LUMEN-C (D-LU-7): the manual fine-refine entry — the
                 // selected layer's AI raster joins the coordinator's

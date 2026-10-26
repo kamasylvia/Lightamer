@@ -34152,6 +34152,86 @@
         }
       }
     }
+  },
+  "ai_task_subject" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Subject"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "主体"
+        }
+      }
+    }
+  },
+  "ai_task_background" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Background"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "背景"
+        }
+      }
+    }
+  },
+  "ai_task_sky" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Sky"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "天空"
+        }
+      }
+    }
+  },
+  "ai_task_people" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "People"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "人物"
+        }
+      }
+    }
+  },
+  "ai_task_sky_disabled_hint" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Sky masking is not available in this build (no native sky model)."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "天空蒙版在本构建中不可用（无原生天空模型）。"
+        }
+      }
+    }
   }
   },
   "version": "1.0"
