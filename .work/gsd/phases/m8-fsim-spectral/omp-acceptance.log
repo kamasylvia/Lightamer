@@ -1,0 +1,38 @@
+Working...
+# M8 omp 终审结论（一次性完整输出）
+
+**PASS / 0 B + 1 M + 0 m + 6 obs**
+
+正本已落盘：`.work/gsd/phases/m8-fsim-spectral/ACCEPTANCE-OMP.md`；截图 7 张存 `.work/gui-acceptance/m8/omp/`（该目录被 `.gitignore:79` 忽略，与 executor walk-*.png 同待遇——文件在盘，不入 git，符合卫生纪律；tracked 零 diff 已验）。
+
+## 走查面（实机，两次会话 S1/S2，07:29 构建）
+
+| 面 | 判定 |
+|---|---|
+| ① pristine 档（hint+启用按钮+宽容度/场景置位，迁移行缺席） | ✅ 与 MANIFEST 逐字吻合 |
+| ② v2 档 readout「M 18.3 · Y 16.7 · ×1.00」+ 重解 + 四滑杆 | ✅ 逐字同值 |
+| ②b 新档 mint（迁移行应隐藏） | ⚠️ **M-1**：实机新档启用后迁移行**可见**，sidecar `process` 键缺席——与 T3 申报矛盾 |
+| ③ 确认 sheet（标题/正文/取消/更新，SwiftUI sheet） | ✅ 逐字吻合，AX `sheet 1` 在位 |
+| ③b sheet 确认→落盘（MANIFEST 人工复核行） | ✅ **关闭**：真实点击更新 → quit 落盘 `process: 2` + marker「迁移至当前渲染代」，零 pixel item |
+| ④ 渲染翻面 | ✅ 双臂分叉亲证：v1=青边渐变，v2=白场（obs-1：幅度超配方「亮调」字面） |
+| 面板零新增（AX 活树 vs 快照） | ✅ 物化 5/5 ∈ 快照，adaptation 系零命中（快照实为 35 行非 31，时点口径差） |
+| 静置卫生 | ✅ tc build 约 2 分钟后归零，top 0.0%，RSS 306MB |
+| 回归：编辑器视口+示波器+读出链 | ✅ 全活 |
+| 回归：undo 边界（撤 marker 不撤 process） | ✅ ⌘Z×1 仍启用态迁移行不重现，×2 回 pristine，redo 可逆 |
+
+## M-1 详述（major，非 blocking）
+
+新档（盘上无 .lra）经 probe 缝启用胶片后迁移行可见、sidecar 无 process 键。载体写面/写腿/evaluate 模型/端到端机检逐项排除无误；根因候选 = probe 路径下 pristine mint 未执行或 carrier 缺席（面板从 history 投影读到 record 而 documentProcessVersion 读 carrier 缺席→legacy→migrate）。影响：新档连标带渲全 legacy 直到用户点迁移；迁移通道自愈、无数据风险。挂账 M8-3+：二分正常用户路径是否同病 + 真图 v1/v2 并排走查（obs-1 白场同案）。
+
+## 文本复核（双路各 4 组亲证，全绿）
+
+- 路 1：L1-A 迁移三文件行号 ✅ / L1-B 键族 6 新键 en/zh ✅ / L1-C runModal 零命中（复跑 0）✅ / L1-D 四哨兵值逐字在位 ✅
+- 路 2：L2-A current=2+case doc+all+clamp ✅ / L2-B 双 policyTag ✅ / L2-C ev_scale 双钉（uniform `:456` + 引擎 `:843`）+ NOTICE 升格段逐字 ✅ / L2-D 封存面抽查零 diff + v11 ✅
+
+## 三眼对账
+
+双路结论一致、obs 零矛盾：flake 面两路均单次收敛；人工复核行本终审已消费关闭；构建交接/挂账/G4/RSS/中性闭合/probe④口径全对齐。第三眼新增 obs-2（tc build 2 分钟 CPU 数据点，cmax 同族）/ obs-3（probe 竞态再现）/ obs-4（AX 懒物化方法论）/ obs-5（强制退出系统窗）/ obs-6（AI 分析 sheet 首步关闭建议）。
+
+## 收工状态
+
+GUI 两实例均已 quit；看门狗已 kill（全程零 RSS-KILL）；defaults 已清；/tmp 即弃已清；`git status` tracked 零 diff，新增仅 ACCEPTANCE-OMP.md（+ omp-acceptance-task.md/log 为派单预置）。
