@@ -242,13 +242,20 @@ final class WorkspaceModel {
     // four-piece shape's session-carrier twin)
 
     /// The session-level document DRT records, keyed by the source file
-    /// path. Session-scoped by contract (the rawDecodeOverrides carrier's
-    /// shape): a switched-away image keeps its record for the session;
-    /// closing the editor drops them (sidecar persistence = the v6
-    /// `displayTransform` field). ABSENT KEY = pristine — a DEFAULT record
-    /// never occupies the map (KD-1: 默认记录不写 sidecar, the
-    /// `isDrtRecordDefault` judgment folds here at the write faces so the
-    /// map is always the non-pristine truth).
+    /// path. ABSENT KEY = pristine — a DEFAULT record never occupies the
+    /// map (KD-1: 默认记录不写 sidecar, the `isDrtRecordDefault` judgment
+    /// folds here at the write faces so the map is always the non-pristine
+    /// truth). R6 (2026-10-26): EXEMPT from the editor-close drop (the
+    /// M8-FIX-1 process-carrier deviation extended to the sister
+    /// carriers): a same-image reopen runs NO load leg (the
+    /// `historyLoadedURL` + `loadedImageURL` guards both skip), so the
+    /// sidecar restore legs never re-prime after a close — the drop left
+    /// `terminalTailPolicy` reading an empty carrier (the DRT tail
+    /// silently off) until the next DRT commit/navigation re-synced it,
+    /// while the panel read the history projection and masked the loss.
+    /// Retention is inert across closes: per-path keying, the load legs
+    /// overwrite on every real load, and the raster seed keeps its
+    /// restore-wins-derive ordering.
     private(set) var drtRecords: [String: DrtRecord] = [:]
 
     /// The read face (pristine when the image has no session record).
@@ -273,11 +280,6 @@ final class WorkspaceModel {
         } else {
             drtRecords.removeValue(forKey: url.path)
         }
-    }
-
-    /// The editor-close drop face (the rawOverrides 关图丢弃 twin).
-    func dropSessionDrtRecords() {
-        drtRecords.removeAll()
     }
 
     // MARK: - Raster default record seed (Plan M4-1-02 T3, KD-2)
@@ -354,17 +356,19 @@ final class WorkspaceModel {
     ///
     /// M8-FIX-1 (2026-10-26): the process carrier is EXEMPT from the
     /// editor-close drop (the KD-3 family shape's registered deviation).
-    /// Unlike the film/DRT/raw carriers — whose session junk the sidecar
-    /// restore legs re-prime on the next load — a pristine document's mint
-    /// exists ONLY here until the first committed edit writes the sidecar,
-    /// and a same-image reopen runs NO load leg (`historyLoadedURL` +
-    /// `loadedImageURL` guards both skip): dropping at close orphaned the
-    /// mint, and the next commit (e.g. the film enable through the panel
-    /// that survives the phase switch) wrote the legacy-shape sidecar with
-    /// the migration row showing (the omp M-1 physical evidence). The value
-    /// is a per-path `Int`, the load legs overwrite on every real load, and
-    /// no read face exists outside the current document's render/write/
-    /// panel paths — retention across closes is inert.
+    /// A pristine document's mint exists ONLY here until the first
+    /// committed edit writes the sidecar, and a same-image reopen runs NO
+    /// load leg (`historyLoadedURL` + `loadedImageURL` guards both skip):
+    /// dropping at close orphaned the mint, and the next commit (e.g. the
+    /// film enable through the panel that survives the phase switch) wrote
+    /// the legacy-shape sidecar with the migration row showing (the omp
+    /// M-1 physical evidence). The value is a per-path `Int`, the load
+    /// legs overwrite on every real load, and no read face exists outside
+    /// the current document's render/write/panel paths — retention across
+    /// closes is inert. R6 (2026-10-26): the same exemption now covers
+    /// the raw/DRT/film carriers too (each with its own doc comment) —
+    /// the earlier "unlike the sisters" contrast is obsolete; every
+    /// carrier in the family survives the close.
     private(set) var processVersions: [String: RenderProcessVersion] = [:]
 
     /// The read face (legacy when the image has no session value).
@@ -516,17 +520,20 @@ final class WorkspaceModel {
 
     /// Close the editor back to the library, restoring the snapshotted face
     /// field-for-field (the D2 red line). The session RAW-decode overrides
-    /// drop with the editor (KD-4: 关图丢弃) — the DRT carrier rides the
-    /// same close (M2-6-3 KD-1 twin) and the film carrier with it (M3-3-02
-    /// KD-6). **The process carrier does NOT drop** (M8-FIX-1): a pristine
-    /// document's mint lives only in the carrier until the first sidecar
-    /// write, and a same-image reopen runs no load leg to re-prime it — the
-    /// drop orphaned the mint into a legacy-shaped next write (the omp M-1
-    /// root cause; the registered deviation is on the carrier doc comment).
+    /// drop with the editor (KD-4: 关图丢弃) and the film carrier with it
+    /// (M3-3-02 KD-6). **The DRT carrier does NOT drop** (R6): a
+    /// same-image reopen runs no load leg, so the drop left the DRT tail
+    /// reading an empty carrier until the next commit — the M8-FIX-1
+    /// process-carrier disease chain's DRT twin (see the carrier doc
+    /// comment). **The process carrier does NOT drop** (M8-FIX-1): a
+    /// pristine document's mint lives only in the carrier until the first
+    /// sidecar write, and a same-image reopen runs no load leg to re-prime
+    /// it — the drop orphaned the mint into a legacy-shaped next write
+    /// (the omp M-1 root cause; the registered deviation is on the carrier
+    /// doc comment).
     func closeEditor() {
         libraryState = preservedLibraryState
         dropSessionOverrides()
-        dropSessionDrtRecords()
         dropSessionFilmRecords()  // M3-3-02 T5: the film carrier rides the close (KD-6)
         phase = .library
     }

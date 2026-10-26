@@ -102,6 +102,15 @@ final class DrtPanelModelTests: XCTestCase {
             "the history never reached \(count) items")
     }
 
+    /// Reset the session carrier to the pristine (key-absent) state for
+    /// the current image. The pre-R6 drop face (`dropSessionDrtRecords`,
+    /// whole-map) retired with the close-exemption; the per-url write
+    /// face is the same reset for the single-image assemblies here.
+    private func resetToPristineCarrier() {
+        guard let url = coordinator.liveImageURL else { return }
+        workspace.setSessionDrtRecord(nil, for: url)
+    }
+
     /// Bounded wait for the carrier to reflect the committed record (the
     /// drtRecordDidChange Task hop + its re-render precede the sync).
     private func waitForCarrier(
@@ -318,7 +327,7 @@ final class DrtPanelModelTests: XCTestCase {
         // Pristine-entry branches: rec709/gamma22 (legal under rec709 AND
         // p3d65) vs every other target (snap to the first legal).
         for target in DrtEncodingSpace.allCases {
-            workspace.dropSessionDrtRecords()
+            resetToPristineCarrier()
             editorState.performJump(to: -1) // pristine pointer, instances intact
             let legal = legalEOTFs(for: target)
             model.setEncodingSpace(target)
@@ -342,7 +351,7 @@ final class DrtPanelModelTests: XCTestCase {
         for s0 in DrtEncodingSpace.allCases {
             for e0 in legalEOTFs(for: s0) {
                 // Reach (s0, e0) through the model.
-                workspace.dropSessionDrtRecords()
+                resetToPristineCarrier()
                 editorState.performJump(to: -1) // pristine pointer, instances intact
                 model.setEncodingSpace(s0)
                 model.setEncodingEotf(e0)
