@@ -200,19 +200,26 @@ enum AIMaskEditing {
         }
         // The segment-session feather resolution (KD-3/M5 — the double-
         // feather pin lives HERE: the negative leg's bake radius is 0).
+        // M9-1 T2: the session's `expandPx` also rides this leg (the
+        // bake-seam morphology pre-pass, order expand → feather →
+        // quantize — declared in M9-1-DECISIONS).
         var bakePlane = upsampled
         var bakeRadius = featherRadius
+        var bakeExpandPx = 0
         if source == .segment {
+            let session = editingState.segmentSession
             (bakePlane, bakeRadius) = resolveFeather(
-                plane: upsampled, percent: editingState.segmentSession.featherPercent,
-                fallbackRadius: featherRadius)
+                plane: upsampled, percent: session.featherPercent,
+                px: session.featherPx, fallbackRadius: featherRadius)
+            bakeExpandPx = session.expandPx
         }
         let texture = try AIMaskResample.texture(from: bakePlane, metal: metal)
         let directory = RasterMaskStore.masksDirectory(forImageURL: anchor)
         let ref = try await RasterMaskStore.bake(
             plane: texture, directory: directory,
             fileName: source.fileName(forLayerID: layerID),
-            invert: invert, featherRadius: bakeRadius, metal: metal)
+            invert: invert, featherRadius: bakeRadius,
+            expandPx: bakeExpandPx, metal: metal)
 
         // The mask slot write: KEEP existing payloads (a refine/draw-patch
         // world — the raster ref joins drawn/parametric through the
@@ -298,14 +305,20 @@ enum AIMaskEditing {
     // MARK: - M6-4-02: hi-res patch refine + Edge feather (KD-1/KD-3)
 
     /// The feather RESOLUTION face (the double-feather pin's parameter
-    /// surface): percent > 0 → the plane unchanged + the GPU bake radius =
-    /// sigma (the CPU face untouched); percent < 0 → the CPU logit-gain
-    /// plane + radius FORCED 0; percent == 0 → both legs inert (the
-    /// fallback radius — 0 at every existing call site — passes through,
-    /// byte-identical to the pre-M6-4-02 path).
+    /// surface): px > 0 (the M9-1 absolute-px face, D-M9A-7) → σ =
+    /// sigmaFromPx at the plane's long edge; else percent > 0 → the
+    /// plane unchanged + the GPU bake radius = sigma (the CPU face
+    /// untouched); percent < 0 → the CPU logit-gain plane + radius
+    /// FORCED 0; both zero → both legs inert (the fallback radius — 0 at
+    /// every existing call site — passes through, byte-identical to the
+    /// pre-M6-4-02 path).
     static func resolveFeather(
-        plane: AIMaskPlane, percent: Float, fallbackRadius: Float = 0
+        plane: AIMaskPlane, percent: Float, px: Float = 0, fallbackRadius: Float = 0
     ) -> (plane: AIMaskPlane, radius: Float) {
+        if px > 0 {
+            let longEdge = max(plane.width, plane.height)
+            return (plane, AIMaskFeather.sigmaFromPx(px: px, longEdgePixels: longEdge))
+        }
         if percent > 0 {
             let longEdge = max(plane.width, plane.height)
             return (plane, AIMaskFeather.sigma(percent: percent, longEdgePixels: longEdge))

@@ -81,6 +81,15 @@ public enum RasterMaskStore {
     /// coefficient source the parametric mask post chain runs — the v1
     /// Gaussian feather recorded in 06-04-DECISIONS D-06-04-T2-1.
     ///
+    /// `expandPx` (M9-1 T2 additive, default 0 = byte-identical to the
+    /// pre-M9-1 path): the Expand morphology pre-pass — |px| alternating
+    /// 3×3 dilate/erode steps over the float plane (CPU vImage,
+    /// `AIMaskMorphology.expand`, D-M9A-9). APPLICATION ORDER =
+    /// expand → feather → quantize (the boundary moves FIRST, the final
+    /// edge softens after — reversing would blur the eroded edge back
+    /// in; declared in M9-1-DECISIONS). One pass AT BAKE TIME only —
+    /// never a second processing over an already-baked PNG.
+    ///
     /// SOFT DEPENDENCY (the MaskCombiner contract): the blur kernels
     /// live in LightamerIOP's metallib — featherRadius > 0 requires the
     /// IOP library registered (every app/test context does;
@@ -91,10 +100,22 @@ public enum RasterMaskStore {
         fileName: String,
         invert: Bool,
         featherRadius: Float = 0,
+        expandPx: Int = 0,
         metal: MetalContext
     ) async throws -> RasterMaskRef {
         precondition(plane.pixelFormat == .r32Float, "bake needs an r32Float mask plane")
         var source = plane
+        if expandPx != 0 {
+            // The expand pre-pass: read the float plane back (L014 — the
+            // fence lives in readPlane), run the CPU morphology, and hand
+            // the result to the feather/quantize chain as the new source.
+            let floats = readPlane(source, metal: metal)
+            let expanded = AIMaskMorphology.expand(
+                plane: AIMaskPlane(
+                    width: source.width, height: source.height, floats: floats),
+                px: expandPx)
+            source = try AIMaskResample.texture(from: expanded, metal: metal)
+        }
         if featherRadius > 0.1 { // dt's post-chain gate (blend.c:306-307)
             source = try await MaskCombiner.blur(mask: source, sigma: featherRadius, metal: metal)
         }
