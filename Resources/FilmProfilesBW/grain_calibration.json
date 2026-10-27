@@ -1,0 +1,28 @@
+{
+ "schemaVersion": 1,
+ "note": "Skeleton (M9-2 T1): per-film diffuse RMS granularity values verified against each publisher's own datasheet (48 um aperture, net diffuse density 1.0 unless noted). The recommended-strength column is filled by the T4 calibration layer.",
+ "convention": {
+  "unit": "diffuse RMS granularity (Kodak/Ilford 1000x scale, dimensionless)",
+  "aperture_um": 48,
+  "sample_density": "1.0 above base+fog (films) / net diffuse 1.0",
+  "developers": "per-film as published (see notes)"
+ },
+ "films": {
+  "kodak_tri_x_400": {
+   "rms": 17,
+   "note": "SHEET: F-4017 p6 '17 (fine)' — HC-110 Dil B base"
+  },
+  "kodak_tmax_100": {
+   "rms": 8,
+   "note": "SHEET: F-4016 p8 image-structure table — D-76 base. Corrects third-party 7.4 (M9-2 DECISIONS R4)."
+  },
+  "fujifilm_neopan_acros_100_ii": {
+   "rms": 7,
+   "note": "SHEET: AF3-0258E 'DIFFUSE RMS GRANULARITY VALUE: 7' — Microfine dev"
+  },
+  "ilford_hp5_plus_400": {
+   "rms": null,
+   "note": "ASSUMED: null — Harman publishes no RMS figure for HP5 PLUS; T4 interpolates the family (M9-2 DECISIONS)."
+  }
+ }
+}

@@ -1,0 +1,6 @@
+[project]
+name = "bwprofile"
+version = "0.1.0"
+description = "BW film/paper profile digitization tools (M9-2 T1) — vector path extraction, raster tracing, axis affine, Wratten transcription"
+requires-python = ">=3.11"
+dependencies = ["pdfplumber>=0.11", "pillow>=10.0", "numpy>=1.26"]
