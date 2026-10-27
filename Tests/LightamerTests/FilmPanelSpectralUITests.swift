@@ -155,12 +155,19 @@ final class FilmPanelSpectralUITests: XCTestCase {
     /// (`axIdentifier:` on the shared row shells, `accessibilityID:` on the
     /// LightamerSlider rows). T3 adds EXACTLY the migrate row's identifiers
     /// to this table — nothing else ever may.
+    /// M9-2 (closeout): the three BW-family controls join the frozen set —
+    /// the grade picker (T2), the taking-filter picker (T3), and the
+    /// granularity one-click apply (T4) — a declared, diff-reviewed
+    /// increment (the suite's own purpose).
     static let frozenControlInventory: Set<String> = [
         "editor.stack.film.panel",
         "film.close",
         "film.enable",
         "film.film.picker",
         "film.paper.picker",
+        "film.grade.picker",
+        "film.filter.picker",
+        "film.grain.apply",
         "film.y.slider",
         "film.m.slider",
         "film.strength.slider",
