@@ -265,6 +265,12 @@ enum AIMaskEditing {
         // the 1s-debounced patch pass is armed — but NOT for the patch
         // pass's own re-bake (patchRebake breaks the loop).
         if source == .segment, !patchRebake {
+            // D-M9A-4 (the commit clearance): the candidate coverage
+            // channel DISAPPEARS at commit — the baked mask's ordinary
+            // edit tint (the setMaskOverlayRequest above) is the AI-06
+            // affordance, a different face by design.
+            editingState.segmentSession.releaseCandidate()
+            coordinator.setCandidateOverlayRequest(nil)
             // V2M-02 T3 (residual ② arm gate): if the image or the layer
             // switched while the generation was in flight, the plane below
             // belongs to the PREVIOUS identity — the mask leg landed on the
@@ -300,6 +306,89 @@ enum AIMaskEditing {
             }
         }
         return ref
+    }
+
+    // MARK: - M9-1 T3: the iterative candidate resolve (D-M9A-1)
+
+    /// The candidate re-solve DEBOUNCE (300ms after the LAST point-set
+    /// change — D-M9A-1: a burst of taps collapses into one solve; each
+    /// schedule cancels the previous, the last wins). `delay` is the
+    /// injected clock seam (the tests shrink it).
+    static func scheduleCandidateResolve(
+        session: SegmentSession,
+        delay: Duration = .milliseconds(SegmentSession.candidateDebounceMs),
+        operation: @escaping @MainActor () async -> Void
+    ) {
+        session.candidateDebounceTask?.cancel()
+        session.candidateDebounceTask = Task {
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            await operation()
+        }
+    }
+
+    /// ONE candidate solve (D-M9A-1): full re-solve of the CURRENT point
+    /// set (Layer B has no chained iteration — every solve is a fresh
+    /// request, the 07 probe verdict), the output held as the session's
+    /// candidate plane (quality-level resolution — the bake upsamples at
+    /// commit) and tinted through the coordinator's DEDICATED candidate
+    /// arm. The OLD candidate stays displayed while solving (the
+    /// upstream「推理期间保留旧 coverage」semantics); ANY failure keeps
+    /// the old candidate and surfaces the typed toast (nothing crashes,
+    /// no all-ones fallback — the generation-failure discipline).
+    static func runCandidateResolve(
+        coordinator: PipeCoordinator,
+        editorState: EditorState,
+        editingState: LayerEditingState,
+        metal: MetalContext,
+        assets: AIAssetStore = .shared
+    ) async {
+        let session = editingState.segmentSession
+        // The identity guard: the patch face's stamp check only applies
+        // when a patch stamp EXISTS (a candidate-only session carries nil
+        // stamps — the legacy nil-stamp-mismatches-live-image semantics
+        // would release a FRESH candidate face before its first solve;
+        // M9-1-DECISIONS). The session teardown itself is owned by the
+        // eager releases (select/load wires); the bake-side armed-URL
+        // gate remains the backstop for any stale-commit race.
+        if session.patchImageURL != nil {
+            session.releaseIfIdentityChanged(
+                imageURL: editorState.loadedImageURL,
+                layerID: editingState.selectedLayerID)
+        }
+        guard session.hasSeed, !session.isGenerating,
+            session.candidateState != .solving
+        else { return }
+        guard let (input, width, height) = decodeFrameInput(coordinator) else { return }
+        session.candidateState = .solving
+        do {
+            guard case let seed? = session.seed else {
+                session.candidateState = .idle
+                return
+            }
+            let plane = try await AIMaskService.segmentSubject(
+                input: input, seed: seed, refine: session.refinePoints,
+                quality: .accurate, assets: assets)
+            // Upsample ONCE here to the decode frame (the overlay needs
+            // display-sized data; the bake re-upsamples harmlessly —
+            // same-plane no-op when the sizes already match).
+            let upsampled: AIMaskPlane
+            if plane.width < width || plane.height < height {
+                upsampled = AIMaskResample.bilinear(
+                    plane, toWidth: width, toHeight: height)
+            } else {
+                upsampled = plane
+            }
+            session.candidatePlane = upsampled
+            session.candidateState = .ready
+            let texture = try AIMaskResample.texture(from: upsampled, metal: metal)
+            coordinator.setCandidateOverlayRequest((texture, 0.6))
+        } catch {
+            session.candidateState =
+                session.candidatePlane != nil ? .ready : .idle
+            editorState.presentToast(
+                String(localized: "ai_toast_generate_failed") + " (\(error))")
+        }
     }
 
     // MARK: - M6-4-02: hi-res patch refine + Edge feather (KD-1/KD-3)

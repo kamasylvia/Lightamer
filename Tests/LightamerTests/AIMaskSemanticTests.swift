@@ -281,19 +281,33 @@ final class AIMaskSemanticTests: XCTestCase {
             quality: .accurate, regionOfInterest: nil, device: .anePreferred))
     }
 
-    /// The scribble upgrade seam: constructing the reserved case throws
-    /// the typed error (D-07-CONTEXT-4 — v1 does not wire scribble).
-    func testScribbleSeamThrowsTyped() {
-        do {
-            _ = try AIMaskService.buildLayerBRequest(
-                seed: .scribble, refine: [], quality: .accurate,
-                regionOfInterest: nil, device: .anePreferred)
-            XCTFail("scribble must be refused in v1")
-        } catch let error as AIMaskError {
-            XCTAssertEqual(error, .scribbleNotSupported)
-        } catch {
-            XCTFail("untyped: \(error)")
+    /// The retired scribble seam (M9-1 T3, m-5): the Path tool landed as
+    /// a REFINE-POINT sequence (`AIMaskPathSampling` — the stroke
+    /// resample feeds addIncludedPoint through the one assembly path), so
+    /// the reserved `.scribble` seed case and its typed refusal were
+    /// REMOVED. The compile-time face of this test: the enum no longer
+    /// carries the case; the runtime face: a path-sampled request
+    /// assembles cleanly through the ordinary point-seed form.
+    func testPathStrokeSamplingFeedsTheRefineVector() throws {
+        // A 240px straight stroke at 24px spacing → 11 samples; capped
+        // at min(16, headroom): a fresh point-budget headroom of 13
+        // yields at most 12 samples.
+        var stroke: [SIMD2<Float>] = []
+        for index in 0...20 {
+            stroke.append(SIMD2(Float(index) * 12.0, 40.0))
         }
+        let samples = AIMaskPathSampling.sampleStroke(
+            stroke: stroke,
+            count: AIMaskPathSampling.sampleCount(budgetHeadroom: 13),
+            imageWidth: 480, imageHeight: 320)
+        XCTAssertFalse(samples.isEmpty, "the seam's activation: a stroke feeds points")
+        XCTAssertLessThanOrEqual(samples.count, 12)
+        // The assembled request with a path-sourced seed + refine vector
+        // goes through the ONE assembly path (no scribble form needed).
+        XCTAssertNoThrow(try AIMaskService.buildLayerBRequest(
+            seed: .point(samples[0]),
+            refine: samples.dropFirst().map { AIRefinePoint($0, .included) },
+            quality: .accurate, regionOfInterest: nil, device: .anePreferred))
     }
 
     /// Layer B gated by assets: a NOT-READY store refuses with the typed

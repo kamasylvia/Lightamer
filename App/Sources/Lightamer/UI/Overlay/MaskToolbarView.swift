@@ -167,6 +167,9 @@ internal struct MaskToolbarView: View {
             // 13-3 T5: the overlay display STYLE (On-Black / Rubylith /
             // 半透明) — a display-only enum; flipping it re-issues the
             // overlay request so the tint swaps without touching data.
+            // M9-1 T3 (M-1): the picker consumes the USER-SELECTABLE
+            // whitelist — `.candidate` (the AI session's coverage arm)
+            // never leaks into the menu.
             Picker("mask_overlay_style", selection: Binding(
                 get: { editingState.maskOverlayStyle },
                 set: { newValue in
@@ -174,7 +177,7 @@ internal struct MaskToolbarView: View {
                     refreshOverlayRequest()
                 }
             )) {
-                ForEach(MaskOverlayStyle.allCases, id: \.rawValue) { style in
+                ForEach(MaskOverlayStyle.userSelectableCases, id: \.rawValue) { style in
                     Text(String(localized: String.LocalizationValue(style.labelKey)))
                         .tag(style)
                 }

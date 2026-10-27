@@ -58,17 +58,16 @@ public struct AIMaskRect: Sendable, Equatable, Hashable {
     }
 }
 
-/// The layer-B seed (D-07-CONTEXT-4: v1 = tap point + ⇧-drag box ONLY).
+/// The layer-B seed (D-07-CONTEXT-4: tap point + ⇧-drag box; the M9-1
+/// Path tool rides the REFINE-point vector — a stroke resampled through
+/// `AIMaskPathSampling` feeds `addIncludedPoint`s, it needs no seed kind
+/// of its own — so the v1 `.scribble` reserved case and its typed
+/// refusal were RETIRED with the seam's activation, m-5).
 public enum AISubjectSeed: Sendable, Equatable, Hashable {
     /// Single tap (view-normalized).
     case point(AIMaskPoint)
     /// ⇧-drag box (view-normalized).
     case box(AIMaskRect)
-    /// UPGRADE SEAM (D-07-CONTEXT-4): scribble/lasso is deferred beyond v1.
-    /// The case exists so 07-3's LayerEditingState seed-type switch can be
-    /// written exhaustively from day one; constructing it in v1 throws
-    /// `AIMaskError.scribbleNotSupported` (typed, not a crash).
-    case scribble
 }
 
 /// One iterative-refinement point (layer B `addIncludedPoint` /
@@ -147,8 +146,6 @@ public enum AIMaskError: Error, Equatable, Sendable {
     case modelNotReady(String)
     /// The point budget (13/11) would be exceeded — UI counter's floor.
     case pointLimitExceeded(limit: Int)
-    /// The reserved scribble seam constructed in v1 (D-07-CONTEXT-4).
-    case scribbleNotSupported
     /// The produced mask buffer has an unexpected pixel format/layout.
     case invalidMask(String)
     /// The requested compute-device policy cannot be honored (e.g. no CPU
