@@ -895,3 +895,11 @@ APP	5	AIMaskTaskPanelTests.swift
 APP	8	AIMaskIterativeSessionTests.swift
 APP	5	AIMaskSessionCommandsTests.swift
 LAYERS	6	BWProfileAssetsTests.swift
+IOP	4	PaperGradeTableTests.swift
+IOP	4	CameraFilterTests.swift
+IOP	2	GrainCalibrationTests.swift
+LIB	3	SidecarV12Tests.swift
+IOPP	5	BWSpectralGoldenTests.swift
+IOPP	4	FilterBakeKeyTests.swift
+IOPP	2	GrainCalibrationSemanticsTests.swift
+APP	5	FilmPanelBWTests.swift

@@ -74,12 +74,15 @@ final class FilmPanelModel {
     private var liveRecord: FilmRecord?
 
     /// The pristine gate: the document carries NO film record (the panel
-    /// shows the enable entry; enabling = the first commit).
+    /// shows the enable entry; enabling = the first commit). M9-2 (MIN-5):
+    /// the two new optional faces are HAND-EXTENDED here — a grade-only or
+    /// filter-only record is a touched session (never pristine).
     var isPristine: Bool {
         let r = record
         return r.filmStock.isEmpty && r.paperStock.isEmpty
             && r.mFilterShift == 0 && r.yFilterShift == 0
             && !r.contentAdaptiveShift && r.strength == 1.0 && r.exposureEv == 0
+            && r.cameraFilter == nil && r.paperGrade == nil
             && !hasActiveRecord
     }
 
@@ -98,6 +101,150 @@ final class FilmPanelModel {
     /// The paper picker's data source.
     var paperStocks: [FilmProfile] {
         pipeCoordinator?.filmMaterialStore?.paperStocks() ?? []
+    }
+
+    // MARK: - M9-2: the stock sections + the paper grade picker
+
+    /// The film picker's SECTIONED data source (D-M92-7): BW stocks under
+    /// their own group when any exist (the picker shows "Color" / "B&W"
+    /// section headers; a set with no BW members keeps the flat list).
+    var filmStockSections: [(title: String?, stocks: [FilmProfile])] {
+        let all = filmStocks
+        let bw = all.filter { $0.info.channelModel == "bw" }
+        let color = all.filter { $0.info.channelModel != "bw" }
+        var sections: [(String?, [FilmProfile])] = []
+        if !color.isEmpty { sections.append((nil, color)) }
+        if !bw.isEmpty { sections.append(("bw", bw)) }
+        return sections
+    }
+
+    /// The paper picker's sectioned twin.
+    var paperStockSections: [(title: String?, stocks: [FilmProfile])] {
+        let all = paperStocks
+        let bw = all.filter { $0.info.channelModel == "bw" }
+        let color = all.filter { $0.info.channelModel != "bw" }
+        var sections: [(String?, [FilmProfile])] = []
+        if !color.isEmpty { sections.append((nil, color)) }
+        if !bw.isEmpty { sections.append(("bw", bw)) }
+        return sections
+    }
+
+    /// The grade keys available for the BOUND paper (empty = the paper is
+    /// not a graded BW stock — the picker shows the note row instead).
+    var availableGradeKeys: [String] {
+        guard let record = currentRecordIfBound,
+            let paper = pipeCoordinator?.filmMaterialStore?
+                .profile(id: record.paperStock),
+            paper.info.channelModel == "bw"
+        else { return [] }
+        // The persisted table is the data source (a paper without the
+        // graded face answers empty — MAJ-1's verbatim keys). The order
+        // = gradeKeys' DECLARED order (00→5, the soft-to-hard grade
+        // ladder) — NOT a string sort ("0" would sort before "00",
+        // flipping the ladder's head; closeout fix).
+        let table = PaperGradeTable.cachedTable(paper: paper)
+        return PaperGradeTable.gradeKeys.filter { table[$0] != nil }
+    }
+
+    private var currentRecordIfBound: FilmRecord? {
+        let r = record
+        return r.paperStock.isEmpty ? nil : r
+    }
+
+    /// The record's current grade (nil = the solver's own neutral).
+    var selectedGrade: String? {
+        record.paperGrade
+    }
+
+    /// Commit a grade choice (nil = back to the solve's neutral — ONE
+    /// discrete commit through the panel's funnel).
+    func setGrade(_ key: String?) {
+        let normalized = (key?.isEmpty == true) ? nil : key
+        commit({ $0.paperGrade = normalized },
+               label: String(localized: "history_film_grade"))
+    }
+
+    // MARK: - M9-2 T3: the SHOOT section (the taking filter)
+
+    /// The taking-filter picker's data source (the store's table keys,
+    /// sorted; empty = the table is absent — the section hides).
+    var availableCameraFilters: [String] {
+        guard let store = pipeCoordinator?.filmMaterialStore else { return [] }
+        return store.filters.keys.sorted()
+    }
+
+    /// The store's filter entry (nil = unknown name — the picker degrades
+    /// typed; the w58 note surfaces as the section's caption).
+    func cameraFilter(named name: String) -> CameraFilterTable.Filter? {
+        pipeCoordinator?.filmMaterialStore?.filters[name]
+    }
+
+    /// The record's current taking filter (nil = none).
+    var selectedCameraFilter: String? {
+        let f = record.cameraFilter ?? ""
+        return f.isEmpty ? nil : f
+    }
+
+    /// Commit a filter choice (nil = none — ONE discrete commit).
+    func setCameraFilter(_ name: String?) {
+        let normalized = (name?.isEmpty == true) ? nil : name
+        commit({ $0.cameraFilter = normalized },
+               label: String(localized: "history_film_filter"))
+    }
+
+    // MARK: - M9-2 T4: the granularity readout (the BW stock row)
+
+    /// The calibration table's URL (injectable — the App default is the
+    /// bundle's BW family root; tests point at the repo tree).
+    var grainCalibrationURL: URL? = Bundle.main.resourceURL?
+        .appendingPathComponent("FilmProfilesBW/grain_calibration.json") {
+        didSet { grainTableCache = nil }
+    }
+
+    private var grainTableCache: [String: GrainCalibration.Entry]?
+
+    /// The loaded calibration table (empty on any load failure — the
+    /// readout hides; never fatal).
+    var grainTable: [String: GrainCalibration.Entry] {
+        if let grainTableCache { return grainTableCache }
+        var table: [String: GrainCalibration.Entry] = [:]
+        if let url = grainCalibrationURL,
+            let loaded = try? GrainCalibration.load(url: url) {
+            table = loaded
+        }
+        grainTableCache = table
+        return table
+    }
+
+    /// The bound BW film's granularity readout (nil = not a calibrated BW
+    /// stock — the row hides).
+    var bwGrainReadout: (publishedRms: Int, recommendedStrength: Double)? {
+        let stock = record.filmStock
+        guard !stock.isEmpty,
+            let rms = GrainCalibration.publishedRms(forStock: stock, in: grainTable),
+            let strength = GrainCalibration.recommendedStrength(
+                forStock: stock, in: grainTable)
+        else { return nil }
+        return (rms, strength)
+    }
+
+    /// One-click apply (D-M92-2: a PLAIN grain params edit through the
+    /// existing instance commit funnel — the operator's semantic never
+    /// moves): sets the grain instance's strength to the recommended
+    /// value, landing ONE discrete history item.
+    func applyRecommendedGrainStrength() {
+        guard let editorState, let readout = bwGrainReadout,
+            let instance = editorState.instances.first(where: {
+                $0.opName == GrainModule.opName
+            }),
+            let params = PanelEditing.params(of: instance, as: GrainModule.self)
+        else { return }
+        var updated = params
+        updated.strength = Float(readout.recommendedStrength)
+        guard let record = PanelEditing.updated(
+            instance, params: updated, as: GrainModule.self)
+        else { return }
+        editorState.recordChange(record, label: String(localized: "history_grain"))
     }
 
     /// A stock's display name (the asset's info.name; unknown ids degrade to

@@ -37,33 +37,66 @@ public final class FilmMaterialStore: @unchecked Sendable {
     /// Every loaded profile, keyed by `info.stock` (immutable after init).
     private let profiles: [String: FilmProfile]
 
+    /// M9-2 T3: the taking-filter table — loaded from any
+    /// `camera_filters.json` sitting beside the profile DIRECTORIES (the
+    /// BW set's root); a missing file is legal (empty table — the filter
+    /// picker hides). Immutable after init.
+    private let cameraFilters: [String: CameraFilterTable.Filter]
+
+    /// The loaded filter table (the picker's data source; the coordinator
+    /// resolves the record's `cameraFilter` name through it).
+    public var filters: [String: CameraFilterTable.Filter] {
+        cameraFilters
+    }
+
     /// Read the directory, decode + validate every *.json (sorted by file
     /// name for deterministic first-seen order), index by stock id.
-    public init(profilesDirectory: URL) throws {
-        let names: [String]
-        do {
-            names = try FileManager.default
-                .contentsOfDirectory(atPath: profilesDirectory.path)
-                .filter { $0.hasSuffix(".json") }
-                .sorted()
-        } catch {
-            throw FilmMaterialStoreError.directoryUnreadable
-        }
+    public convenience init(profilesDirectory: URL) throws {
+        try self.init(profilesDirectories: [profilesDirectory])
+    }
 
+    /// M9-2 T2: the MULTI-directory face — the CC set and the self-digitized
+    /// BW set live in physically separate directories (the licensing
+    /// boundary the two NOTICEs document) and index into ONE store.
+    /// Directories are visited in array order (sorted per directory); the
+    /// duplicate-id guard spans the union — a BW id colliding with a CC id
+    /// fails closed at construction.
+    public init(profilesDirectories: [URL]) throws {
         var index: [String: FilmProfile] = [:]
-        index.reserveCapacity(names.count)
-        for name in names {
-            let profile = try FilmProfile.load(
-                profilesDirectory.appendingPathComponent(name))
-            guard let stock = profile.info.stock, !stock.isEmpty else {
-                throw FilmMaterialStoreError.missingStockId(name)
+        var filters: [String: CameraFilterTable.Filter] = [:]
+        for profilesDirectory in profilesDirectories {
+            let names: [String]
+            do {
+                names = try FileManager.default
+                    .contentsOfDirectory(atPath: profilesDirectory.path)
+                    .filter { $0.hasSuffix(".json") }
+                    .sorted()
+            } catch {
+                throw FilmMaterialStoreError.directoryUnreadable
             }
-            guard index[stock] == nil else {
-                throw FilmMaterialStoreError.duplicateStockId(stock)
+            index.reserveCapacity(index.count + names.count)
+            for name in names {
+                let profile = try FilmProfile.load(
+                    profilesDirectory.appendingPathComponent(name))
+                guard let stock = profile.info.stock, !stock.isEmpty else {
+                    throw FilmMaterialStoreError.missingStockId(name)
+                }
+                guard index[stock] == nil else {
+                    throw FilmMaterialStoreError.duplicateStockId(stock)
+                }
+                index[stock] = profile
             }
-            index[stock] = profile
+            // M9-2 T3: the sibling filter table (first-seen wins across
+            // directories — the BW root is the only expected seat).
+            let filterURL = profilesDirectory.deletingLastPathComponent()
+                .appendingPathComponent("camera_filters.json")
+            if FileManager.default.fileExists(atPath: filterURL.path),
+                filters.isEmpty {
+                filters = try CameraFilterTable.load(url: filterURL)
+            }
         }
         profiles = index
+        cameraFilters = filters
     }
 
     /// All film-support stocks, sorted by stock id (deterministic order
@@ -92,17 +125,23 @@ public final class FilmMaterialStore: @unchecked Sendable {
 
     /// FNV-1a 64 over the two profiles' CONSUMER data domain, film first
     /// then paper (L013: field-explicit folds — never JSON bytes, never
-    /// Swift `Hasher`). The folded fields are exactly the consumed ones:
-    /// log_exposure + density_curves (the dye-approximation payload),
-    /// base_density + wavelengths (the E2 projection + its axis — the
-    /// consumer set moves WITH the registered projection; if a future
-    /// ruling drops the projection these two folds move out with it, so
-    /// identity and consumption can never drift apart). Unconsumed
-    /// spectral payload and metadata/info prose never enter the identity.
+    /// Swift `Hasher`). The folded fields: log_exposure + density_curves
+    /// (the dye-approximation payload), base_density + wavelengths (the
+    /// E2 projection + its axis), and — M9-2 T3 (D-M92-5's alignment) —
+    /// log_sensitivity + channel_density + viewing_illuminant (the
+    /// spectral build's three CONSUMED spectral keys, grep-verified) and
+    /// midscale_neutral_density (a PRE-FOLD: the engine consumes nothing
+    /// from it today, but a future consumption widening must not silently
+    /// share stale cache slots — the two reasons are registered
+    /// separately in M9-2-DECISIONS). Unconsumed metadata/info prose
+    /// never enters the identity.
     ///
     /// This hash keys the runtime solve cache (M3-3-02:
     /// `fnv(pairHash ⊕ statisticHash ⊕ modeTag)` composition) — the same
-    /// materials must hash identically across launches and machines.
+    /// materials must hash identically across launches and machines. The
+    /// M9-2 fold widening moves EVERY existing pair key ONCE (the
+    /// registered cold-miss window — the hash is a cache key, not a
+    /// persisted identity, so old builds simply rebuild).
     public static func materialPairHash(
         film: FilmProfile, paper: FilmProfile
     ) -> UInt64 {
@@ -146,6 +185,62 @@ public final class FilmMaterialStore: @unchecked Sendable {
         // wavelengths — the projection axis.
         for value in profile.wavelengths {
             combined = chain(combined, UInt64(value.bitPattern))
+        }
+        // M9-2 T3 (D-M92-5): the spectral consumption keys —
+        // log_sensitivity (row-major [λ][c] as decoded) and
+        // channel_density (nil-vs-value tagged, the base_density form).
+        if let logSensitivity = profile.logSensitivity {
+            combined = chain(combined, 1)
+            for row in logSensitivity {
+                for value in row {
+                    combined = chain(combined, UInt64(value.bitPattern))
+                }
+            }
+        } else {
+            combined = chain(combined, 0)
+        }
+        if let channelDensity = profile.channelDensity {
+            combined = chain(combined, 1)
+            for row in channelDensity {
+                for sample in row {
+                    switch sample {
+                    case .some(let value):
+                        combined = chain(combined, 1)
+                        combined = chain(combined, UInt64(value.bitPattern))
+                    case .none:
+                        combined = chain(combined, 0)
+                    }
+                }
+            }
+        } else {
+            combined = chain(combined, 0)
+        }
+        if let viewing = profile.info.viewingIlluminant {
+            combined = chain(combined, 1)
+            for byte in viewing.utf8 {
+                combined = withUnsafeBytes(of: byte) {
+                    StableHash.combine(combined, $0)
+                }
+            }
+        } else {
+            combined = chain(combined, 0)
+        }
+        // The PRE-FOLD (registered separately): midscale_neutral_density
+        // — zero engine consumption today, folded so a future widening
+        // cannot share stale slots.
+        if let midscale = profile.midscaleNeutralDensity {
+            combined = chain(combined, 1)
+            for sample in midscale {
+                switch sample {
+                case .some(let value):
+                    combined = chain(combined, 1)
+                    combined = chain(combined, UInt64(value.bitPattern))
+                case .none:
+                    combined = chain(combined, 0)
+                }
+            }
+        } else {
+            combined = chain(combined, 0)
         }
         return combined
     }

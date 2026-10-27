@@ -34261,6 +34261,210 @@
         }
       }
     }
+  },
+  "film_section_bw" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "B&W"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "黑白"
+        }
+      }
+    }
+  },
+  "film_label_grade" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Grade"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "反差号"
+        }
+      }
+    }
+  },
+  "film_grade_none" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "None (auto)"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "无（自动）"
+        }
+      }
+    }
+  },
+  "history_film_grade" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Paper Grade"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "相纸反差号"
+        }
+      }
+    }
+  },
+  "film_shoot_section" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Shoot"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "拍摄"
+        }
+      }
+    }
+  },
+  "film_shoot_caption" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Lens filter at exposure — multiplies the film's spectral sensitivity; distinct from the enlarger's Y/M dichroic shifts below."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "曝光时镜头前置滤镜——作用于胶片光谱感度;与下方放大机 Y/M 二色性校正不同。"
+        }
+      }
+    }
+  },
+  "film_shoot_filter" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Filter"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "滤镜"
+        }
+      }
+    }
+  },
+  "film_shoot_none" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "None"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "无"
+        }
+      }
+    }
+  },
+  "film_shoot_note" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Data note: %@"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "数据注记:%@"
+        }
+      }
+    }
+  },
+  "history_film_filter" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Camera Filter"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "拍摄滤镜"
+        }
+      }
+    }
+  },
+  "film_grain_readout" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Published RMS %d \u00b5m \u00b7 recommended strength %.1f"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "发表 RMS %d \u00b5m \u00b7 推荐 strength %.1f"
+        }
+      }
+    }
+  },
+  "film_grain_apply" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Apply"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "应用"
+        }
+      }
+    }
   }
   },
   "version": "1.0"

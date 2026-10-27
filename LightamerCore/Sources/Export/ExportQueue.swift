@@ -115,6 +115,11 @@ public actor ExportQueue {
         /// the legacy path. Rides `$jobFilmTail` into the render leg (the
         /// E1 three-edit-point face); the engine never consults it.
         let filmTail: FilmTailParams?
+        /// M9-2 T2: the request-scoped film-leg tags (grade preset /
+        /// camera filter) riding the TaskLocal seam into the sealed
+        /// pipe's bake/solve consults — the $jobFilmTail precedent's
+        /// sibling; nil = the verbatim legacy path.
+        let legTags: SpectralPrintBake.FilmLegRequestTags?
         /// The per-image naming request (M2-9-03 KD-1, additive): the
         /// batch-wide template with the queue-stamped batch ordinal.
         /// nil = the legacy stem+tag face.
@@ -259,6 +264,7 @@ public actor ExportQueue {
         instancesOverrides: [[ModuleInstance]?]? = nil,
         drtTails: [DrtTailParams?]? = nil,
         filmTails: [FilmTailParams?]? = nil,
+        legTags: [SpectralPrintBake.FilmLegRequestTags?]? = nil,
         naming: ExportNamingRequest? = nil,
         collisionPolicy: ExportNamer.ExportCollisionPolicy = .increment,
         subfolder: String? = nil,
@@ -311,6 +317,7 @@ public actor ExportQueue {
                     editorSignature: editorSignature,
                     drtTail: drtTails?[imageIndex],
                     filmTail: filmTails?[imageIndex],
+                    legTags: legTags?[imageIndex],
                     naming: stampedNaming,
                     collisionPolicy: collisionPolicy,
                     subfolder: subfolder,
@@ -492,10 +499,12 @@ public actor ExportQueue {
                 subfolder: queued.subfolder)
             artifact = try await ExportRenderer.$jobNamingCarrier.withValue(namingCarrier) {
                 try await ExportRenderer.$jobDrtTail.withValue(queued.drtTail) {
+                    try await SpectralPrintBake.$requestTags.withValue(queued.legTags) {
                     try await ExportRenderer.$jobFilmTail.withValue(queued.filmTail) {
                         try await MetalContext.$routesToExportQueue.withValue(true) {
                             try await renderLeg(queued.snapshot(), context)
                         }
+                    }
                     }
                 }
             }

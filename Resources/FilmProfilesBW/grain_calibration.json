@@ -1,6 +1,6 @@
 {
  "schemaVersion": 1,
- "note": "Skeleton (M9-2 T1): per-film diffuse RMS granularity values verified against each publisher's own datasheet (48 um aperture, net diffuse density 1.0 unless noted). The recommended-strength column is filled by the T4 calibration layer.",
+ "note": "Per-film diffuse RMS granularity verified against each publisher's own datasheet (48 um aperture, net diffuse density 1.0 unless noted). The recommended-strength column was solved ONCE by the M9-2 T4 calibration probe (GrainCalibrationSemanticsTests, LIGHTAMER_PERF_PROBE-gated): a net-density-1.0 gray plane through the production GrainModule at the default scale, a 6x6-px box-filter density scan (the microdensitometer aperture's render-lattice equivalent — a SIMPLIFIED aperture, the relative ordering exact), a 21-point strength sweep, and the linear inverse onto each published RMS. Curve: boxRMS ~= 0.662 x strength + 0.62 (measured monotone, R^2 ~ 1.0); HP5 carries no published figure and answers null (no invented interpolation).",
  "convention": {
   "unit": "diffuse RMS granularity (Kodak/Ilford 1000x scale, dimensionless)",
   "aperture_um": 48,
@@ -10,15 +10,18 @@
  "films": {
   "kodak_tri_x_400": {
    "rms": 17,
-   "note": "SHEET: F-4017 p6 '17 (fine)' — HC-110 Dil B base"
+   "note": "SHEET: F-4017 p6 '17 (fine)' — HC-110 Dil B base",
+   "recommended_strength": 25.63844831487372
   },
   "kodak_tmax_100": {
    "rms": 8,
-   "note": "SHEET: F-4016 p8 image-structure table — D-76 base. Corrects third-party 7.4 (M9-2 DECISIONS R4)."
+   "note": "SHEET: F-4016 p8 image-structure table — D-76 base. Corrects third-party 7.4 (M9-2 DECISIONS R4).",
+   "recommended_strength": 12.205247217001457
   },
   "fujifilm_neopan_acros_100_ii": {
    "rms": 7,
-   "note": "SHEET: AF3-0258E 'DIFFUSE RMS GRANULARITY VALUE: 7' — Microfine dev"
+   "note": "SHEET: AF3-0258E 'DIFFUSE RMS GRANULARITY VALUE: 7' — Microfine dev",
+   "recommended_strength": 10.71321324373563
   },
   "ilford_hp5_plus_400": {
    "rms": null,

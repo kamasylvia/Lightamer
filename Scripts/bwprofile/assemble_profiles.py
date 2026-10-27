@@ -276,16 +276,42 @@ def main():
         b = env[i] if lam < 555 else PAPER_FLOOR
         g = green[i] if lam < 555 else PAPER_FLOOR
         vals.append([round(b, 4), round(g, 4), round(PAPER_FLOOR, 4)])
-    # grade characteristic curves (three members of the fan)
+    # Grade characteristic curves (three members of the fan). The paper's
+    # density_curves rows are PER-CHANNEL = [soft, mid, hard] member curves
+    # — the M9-2 T2 construction: the print light's channel weighting
+    # (printCC pin) then selects the emulsion blend IN THE EXISTING ENGINE
+    # (the scan leg averages the three channels through the neutral
+    # [1/3,1/3,1/3] silver split — real variable contrast, zero engine
+    # changes). Channel order follows the sensitivity split: c0 = the
+    # blue/soft emulsion, c1 = green/hard, c2 = the blind channel carries
+    # the MID member (constant-ish; its exposure is ~nil).
     fan = [raster["mg_char_a"]["curves"][i] for i in (0, 1, 3)]
-    curves = []
+    member_rows = []
     for member in fan:
         pts = [p for p in member if p[1] is not None]
         fog = min(p[1] for p in pts)
-        rows = [[resample_traces(pts, [x], fog, pts[-1][1])[0]] * 3 for x in GRID]
-        curves.append(rows)
-    # the profile's density_curves field carries the MIDDLE member; the
-    # full fan rides a side key for T2's grade fit
+        member_rows.append([resample_traces(pts, [x], fog, pts[-1][1])[0]
+                            for x in GRID])
+    # contrast sanity: order members by the logE span between the D=0.6
+    # crossings (soft = widest span). Monotone fan = a build assertion.
+    def span(rows):
+        fog = min(rows)
+        lo = next((i for i, v in enumerate(rows) if v >= fog + 0.3), None)
+        hi = next((i for i in range(len(rows) - 1, -1, -1)
+                   if rows[i] >= fog + 0.8), None)
+        return (hi - lo) if (lo is not None and hi is not None and hi > lo) else 0
+    spans = [span(r) for r in member_rows]
+    order = sorted(range(3), key=lambda i: spans[i])   # small span = hard
+    assert spans[order[0]] < spans[order[2]], f"fan spans not ordered: {spans}"
+    def renorm(rows, base):
+        # fog-normalization: the traced chart region bounds the toe, so
+        # the absolute floor is re-anchored to the paper base (shape and
+        # inter-member offsets preserved — ASSUMED, tags carry it).
+        fog = min(rows)
+        return [v - fog + base for v in rows]
+    soft = renorm(member_rows[order[2]], 0.06)
+    mid = renorm(member_rows[order[1]], 0.07)
+    hard = renorm(member_rows[order[0]], 0.08)
     profiles["ilford_multigrade_iv_rc"] = {
         "metadata": {
             "version": "1.0.0",
@@ -335,13 +361,21 @@ def main():
             "base_density": [0.06] * len(WL),
             "midscale_neutral_density": [None] * len(WL),
             "log_exposure": GRID,
-            "density_curves": curves[1],
+            # Channel pairing (Multigrade physics: the BLUE-sensitive
+            # emulsion is the HIGH-contrast one, the GREEN-sensitive is
+            # LOW-contrast — yellow filtration softens, magenta hardens):
+            # c0 (blue envelope) = hard member, c1 (green shifted) = soft
+            # member, c2 (blind) carries the mid member (~no exposure).
+            "density_curves": [[hard[i], soft[i], mid[i]]
+                               for i in range(len(GRID))],
             "bw_grade_curves": {
-                "note": "three traced grade members (soft/mid/hard by "
-                        "density order); T2's PaperGradeTable fits the "
-                "per-grade m/y/exposure from these",
+                "note": "the three traced grade members (soft/mid/hard by "
+                        "measured span); the main density_curves rows "
+                        "carry them per channel — T2's PaperGradeTable "
+                        "fits each grade's m/y/exposure against the "
+                        "datasheet ISO R table",
                 "log_exposure": GRID,
-                "curves": curves,
+                "curves": [member_rows[0], member_rows[1], member_rows[2]],
             },
         },
     }

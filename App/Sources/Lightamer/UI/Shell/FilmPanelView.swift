@@ -221,9 +221,20 @@ private struct SessionControlsView: View {
                         set: { model.setFilmStock($0) }
                     )
                 ) {
-                    ForEach(model.filmStocks, id: \.info.stock) { profile in
-                        Text(verbatim: profile.info.name ?? profile.info.stock ?? "")
-                            .tag(profile.info.stock ?? "")
+                    // M9-2 (D-M92-7): BW stocks group under their own
+                    // section header; the color set stays flat on top.
+                    ForEach(model.filmStockSections, id: \.title) { section in
+                        if let title = section.title {
+                            Text(String(localized: "film_section_bw",
+                                        defaultValue: "B&W"))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .tag("__section__\(title)")
+                        }
+                        ForEach(section.stocks, id: \.info.stock) { profile in
+                            Text(verbatim: profile.info.name ?? profile.info.stock ?? "")
+                                .tag(profile.info.stock ?? "")
+                        }
                     }
                 }
                 .labelsHidden()
@@ -237,13 +248,122 @@ private struct SessionControlsView: View {
                         set: { model.setPaperStock($0) }
                     )
                 ) {
-                    ForEach(model.paperStocks, id: \.info.stock) { profile in
-                        Text(verbatim: profile.info.name ?? profile.info.stock ?? "")
-                            .tag(profile.info.stock ?? "")
+                    ForEach(model.paperStockSections, id: \.title) { section in
+                        if let title = section.title {
+                            Text(String(localized: "film_section_bw",
+                                        defaultValue: "B&W"))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .tag("__section__\(title)")
+                        }
+                        ForEach(section.stocks, id: \.info.stock) { profile in
+                            Text(verbatim: profile.info.name ?? profile.info.stock ?? "")
+                                .tag(profile.info.stock ?? "")
+                        }
                     }
                 }
                 .labelsHidden()
                 .accessibilityIdentifier("film.paper.picker")
+            }
+            // M9-2 T2: the paper grade picker (visible when the bound
+            // paper is a graded BW stock; the "None" entry = the solver's
+            // own neutral pack — the zero-drift default).
+            if !model.availableGradeKeys.isEmpty {
+                row(String(localized: "film_label_grade",
+                           defaultValue: "Grade")) {
+                    Picker(
+                        String(localized: "film_label_grade",
+                               defaultValue: "Grade"),
+                        selection: Binding(
+                            get: { model.selectedGrade ?? "" },
+                            set: { model.setGrade($0.isEmpty ? nil : $0) }
+                        )
+                    ) {
+                        Text(String(localized: "film_grade_none",
+                                    defaultValue: "None (auto)"))
+                            .tag("")
+                        ForEach(model.availableGradeKeys, id: \.self) { key in
+                            Text(verbatim: key).tag(key)
+                        }
+                    }
+                    .labelsHidden()
+                    .accessibilityIdentifier("film.grade.picker")
+                }
+            }
+            // M9-2 T4: the BW stock's granularity readout (published RMS +
+            // the calibration layer's recommended strength; the one-click
+            // apply = a plain grain params edit, D-M92-2).
+            if let grain = model.bwGrainReadout {
+                HStack {
+                    Text(String(
+                        format: String(
+                            localized: "film_grain_readout",
+                            defaultValue:
+                                "Published RMS %d µm · recommended strength %.1f"),
+                        grain.publishedRms, grain.recommendedStrength))
+                        .font(.caption2)
+                        .foregroundStyle(ThemeTokens.textSecondary)
+                    Spacer(minLength: 0)
+                    Button(String(
+                        localized: "film_grain_apply",
+                        defaultValue: "Apply")) {
+                        model.applyRecommendedGrainStrength()
+                    }
+                    .font(.caption2)
+                    .accessibilityIdentifier("film.grain.apply")
+                }
+                .padding(.vertical, 2)
+            }
+            // M9-2 T3 (D-M92-6): the SHOOT section — the taking (camera)
+            // filter rides the film leg's INPUT side (spectral sensW
+            // multiply), distinct from the Y/M dichroic enlarger shifts
+            // below. The section hides when the store carries no table.
+            if !model.availableCameraFilters.isEmpty {
+                Divider().padding(.vertical, 6)
+                Text(String(localized: "film_shoot_section",
+                            defaultValue: "Shoot"))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(ThemeTokens.textSecondary)
+                Text(String(localized: "film_shoot_caption",
+                            defaultValue:
+                                "Lens filter at exposure — multiplies the film's spectral sensitivity; distinct from the enlarger's Y/M dichroic shifts below."))
+                    .font(.caption2)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+                row(String(localized: "film_shoot_filter",
+                           defaultValue: "Filter")) {
+                    Picker(
+                        String(localized: "film_shoot_filter",
+                               defaultValue: "Filter"),
+                        selection: Binding(
+                            get: { model.selectedCameraFilter ?? "" },
+                            set: { model.setCameraFilter(
+                                $0.isEmpty ? nil : $0) }
+                        )
+                    ) {
+                        Text(String(localized: "film_shoot_none",
+                                    defaultValue: "None"))
+                            .tag("")
+                        ForEach(model.availableCameraFilters, id: \.self) { name in
+                            Text(verbatim: name).tag(name)
+                        }
+                    }
+                    .labelsHidden()
+                    .accessibilityIdentifier("film.filter.picker")
+                }
+                // The dual-source divergence note (w58's B-3 vs W2 gap —
+                // the data face's own note, surfaced through an explicit
+                // static-key format).
+                if let selected = model.selectedCameraFilter,
+                    let note = model.cameraFilter(named: selected)?
+                        .crossCheckNote {
+                    Text(String(
+                        format: String(
+                            localized: "film_shoot_note",
+                            defaultValue: "Data note: %@"),
+                        note))
+                        .font(.caption2)
+                        .foregroundStyle(ThemeTokens.textSecondary)
+                }
             }
             shiftRow(
                 String(localized: "film_label_yellow", defaultValue: "Yellow"),

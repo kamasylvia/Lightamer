@@ -491,7 +491,8 @@ final class ExportState {
         namingPattern: String,
         collisionPolicy: ExportNamer.ExportCollisionPolicy = .increment,
         exifSoftware: String? = nil,
-        filmTails: [FilmTailParams?]? = nil
+        filmTails: [FilmTailParams?]? = nil,
+        legTags: [SpectralPrintBake.FilmLegRequestTags?]? = nil
     ) async throws {
         if let filmTails, filmTails.count != images.count {
             throw AppError.invalidParameter(
@@ -537,6 +538,7 @@ final class ExportState {
             instancesOverrides: instancesOverrides,
             drtTails: tails,
             filmTails: filmTails,
+            legTags: legTags,
             naming: naming,
             collisionPolicy: collisionPolicy,
             subfolder: subfolder,
