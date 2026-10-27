@@ -107,12 +107,25 @@ enum AdjustmentTransferError: Equatable {
 /// `records` = every checked instance (flat), `snapshot` = the checked
 /// layers' stack payload (each layer's chain = its checked records; nil
 /// when no layer is checked), `drtRecord` = the checked DRT row's record.
+///
+/// M9-1 T4 (D-M9A-8, the SEMANTIC REVERSAL — declared in DECISIONS): the
+/// payload EXCLUDES AI-baked raster masks (an AI mask describes THIS
+/// image's content — pasting it onto another image is exactly the
+/// behavior the upstream D18 refuses). `excludedAIMasks` carries the
+/// skip list (display names) for the toast/note face; hand-drawn masks
+/// (no AI prefix) ride the payload as before (the conservative arm —
+/// only RECOGNIZABLE AI files are excluded, degraded/renamed masks are
+/// NOT silently dropped).
 struct AdjustmentTransferPayload: Equatable {
     var records: [ModuleInstance]
     var snapshot: LayerStackSnapshot?
     var drtRecord: DrtRecord?
+    /// The AI mask names excluded from this payload (the skip list).
+    var excludedAIMasks: [String] = []
 
-    var isEmpty: Bool { records.isEmpty && drtRecord == nil }
+    var isEmpty: Bool {
+        records.isEmpty && drtRecord == nil && excludedAIMasks.isEmpty
+    }
 }
 
 // MARK: - The shared enumeration/payload face (M7-4-01 T3)
@@ -171,6 +184,13 @@ enum AdjustmentTransferCatalog {
     /// restarts from zero for the new identity (a stale in-flight writer
     /// on the SOURCE image must never validate against the PASTED mask;
     /// the paste is a new epoch by construction).
+    ///
+    /// M9-1 T4 (D-M9A-8): an AI-baked raster reference is EXCLUDED from
+    /// the pasted layer's mask (the raster dies; drawn/parametric
+    /// payloads survive — a mask left with no payload drops entirely).
+    /// The skip list lands in `excludedAIMasks` (the toast/note face).
+    /// THE ONE PREDICATE: `isAIMaskSpec` — no second copy of the
+    /// recognition logic anywhere.
     static func buildPayload(
         layerSnapshots: [LayerStackSnapshot.Layer],
         items: [UUID: [TransferItem]],
@@ -181,6 +201,7 @@ enum AdjustmentTransferCatalog {
         if layerSnapshots.isEmpty && drtRecord == nil { return nil }
         var records: [ModuleInstance] = []
         var layers: [LayerStackSnapshot.Layer] = []
+        var excludedAIMasks: [String] = []
         for snap in layerSnapshots {
             let checked = (items[snap.id] ?? []).filter { item in
                 let selected = item.checked
@@ -191,8 +212,24 @@ enum AdjustmentTransferCatalog {
             var layer = snap
             layer.chain = checked
             if var mask = layer.mask {
-                mask.contentRevision = nil
-                layer.mask = mask
+                // M9-1 T4 (D-M9A-8): an AI-baked raster reference is
+                // EXCLUDED (it describes THIS image's content); drawn/
+                // parametric payloads survive — a mask left with no
+                // payload drops entirely. Hand-drawn rasters (no AI
+                // prefix) ride on untouched (the conservative arm).
+                if let raster = mask.raster,
+                   AIMaskSource.source(ofFileName: raster.fileName) != nil {
+                    excludedAIMasks.append(raster.fileName)
+                    mask.raster = nil
+                }
+                if mask.hasAnyPayload {
+                    // KD-3's epoch reset: the new identity restarts the
+                    // optimistic-concurrency guard from zero.
+                    mask.contentRevision = nil
+                    layer.mask = mask
+                } else {
+                    layer.mask = nil
+                }
             }
             layers.append(layer)
             records.append(contentsOf: checked)
@@ -201,7 +238,8 @@ enum AdjustmentTransferCatalog {
         let payload = AdjustmentTransferPayload(
             records: records,
             snapshot: layers.isEmpty ? nil : LayerStackSnapshot(layers: layers),
-            drtRecord: drt)
+            drtRecord: drt,
+            excludedAIMasks: excludedAIMasks)
         return payload.isEmpty ? nil : payload
     }
 }

@@ -282,6 +282,15 @@ struct AdjustmentTransferView: View {
                 Button(String(
                     localized: "transfer_paste", defaultValue: "Paste")) {
                     guard let payload = model.pastePayload() else { return }
+                    // M9-1 T4 (D-M9A-8): the AI-mask skip list — the
+                    // excluded names surface as a toast (the transfer
+                    // face's note style; the payload itself already
+                    // dropped them).
+                    if !payload.excludedAIMasks.isEmpty {
+                        editorState.presentToast(String(
+                            format: String(localized: "transfer_ai_masks_excluded %lld"),
+                            payload.excludedAIMasks.count))
+                    }
                     versions.pasteChain(
                         records: payload.records,
                         layerSnapshot: payload.snapshot,
