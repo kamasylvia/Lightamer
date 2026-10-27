@@ -350,7 +350,7 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 ## Milestone 9（AI Mask 交互 + 光谱延展 + 几何 Upright——2026-10-27 夜间授权 charter：用户睡前令「M9 直接按推荐自动推进」〔晨审可推翻，D-07-3-T5-1 先例〕；调研正本 = `.work/gsd/research/M9-CHARTER-INPUT.md`〔310 行，五 NOTES 增量节同步〕；OQ-M9-1..9 全按推荐：①否模型引入〔Vision Layer B 原生 + bake-to-raster 合法偏离声明〕②砍 Sky 留槽 ③AI removal 挂起 ④landscape 不入 ⑤幅面不入〔ratio 预设并入 M9-4〕⑥自更新→UPSTREAM-QUEUE ⑦ColorWheels = process v3 双臂 ⑧grain 仅 granularity 标定 ⑨film edge 不入；**调研证伪修正**：dehaze/clarity 我方已有〔08-5-T1 + 04-05-T2〕不入））—— M9-0 ✅ 闭环（本批五正本落账）；下一步 = M9-1 research 起草
 
 - [x] **M9-0 charter（四站 B 案：M9-1 AI Mask 工具 parity〔M-L 20-28N〕/ M9-2 黑白族+滤色镜〔M 15-20N〕/ M9-3 Upright 系〔M 12-18N，含真缺口 rotate/straighten〕/ M9-4 小件池〔S-M 10-15N，ColorWheels LGG+Offset 修订主件〕；预期 ΔN +55..75）** —— ✅ 完成（2026-10-27 夜间授权批，doc-only 零源码）
-- [ ] **M9-1 AI Mask 工具 parity**（M9AIM-01..03：任务蒙版三件 + viewport 交互 + coverage 通道 + GPU Feather/Expand + 会话语义）
+- [x] **M9-1 AI Mask 工具 parity** —— ✅ 执行+三眼闭环（2026-10-27：五 commits refs #11，ΔN +33〔越带 4 T3 AI-06 断言面申报〕，全套 **4328/33/0** 精确；路 1 `d78a539d` PASS/0B+0M+1m+5obs〔双探针真红〕+ 路 2 `aeaff367` PASS/0B+0M+0m+5obs〔AI-06 候选零真相写入核验〕+ omp PASS〔两实机面降级源读+直驱 7.17s 冷解/refine 0.02s 门内；paste toast 逐字亲见〕；尾项路由 = o-omp3 孤儿 png 存储卫生 / 降级面补走查（probe bootstrap 后）/ m-1 注释谓词名顺手修）
 - [ ] **M9-2 光谱延展：黑白族 + 滤色镜**（M9BW-01..03：黑白 profile 自建 + 变反差相纸 + camera_filter + granularity 标定）
 - [ ] **M9-3 几何校正 Upright 系**（M9GEO-01..02：rotate/straighten 真缺口 + Guided Upright）
 - [ ] **M9-4 小件池**（M9SM-01..02：ColorWheels LGG+Offset 修订〔process v3〕+ LUT encodings +24 + Filmstrip 磁贴 + Show in Finder + ratio 预设）
