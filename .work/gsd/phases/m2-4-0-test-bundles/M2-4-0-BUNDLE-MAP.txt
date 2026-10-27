@@ -894,3 +894,4 @@ LAYERS	6	AIMaskPathSamplingTests.swift
 APP	5	AIMaskTaskPanelTests.swift
 APP	8	AIMaskIterativeSessionTests.swift
 APP	5	AIMaskSessionCommandsTests.swift
+LAYERS	6	BWProfileAssetsTests.swift
