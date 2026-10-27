@@ -670,12 +670,10 @@ final class LayerUIWiringTests: XCTestCase {
         XCTAssertTrue(session.budgetFull)
         XCTAssertThrowsError(try session.addIncluded(AIMaskPoint(x: 0.9, y: 0.9)))
 
-        // The scribble seam: the case is constructed NOWHERE in v1 — a
-        // fresh session refuses it at the record leg (typed at the service
-        // leg; D-07-CONTEXT-4).
-        let fresh = SegmentSession()
-        fresh.recordSeed(.scribble)
-        XCTAssertNil(fresh.seed, "the v1 scribble seam stays unwired")
+        // The retired scribble seam (M9-1 T3, m-5): the Path tool rides
+        // the refine-point vector, so the reserved seed case was REMOVED
+        // — the seed universe is point/box only (the compile-time face of
+        // this very test).
     }
 
     // MARK: - content-level: a layer with a mask + params renders

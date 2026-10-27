@@ -34264,6 +34264,38 @@
         }
       }
     }
+  },
+  "ai_candidate_solving" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Solving…"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "求解中…"
+        }
+      }
+    }
+  },
+  "ai_candidate_ready" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Candidate ready"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "候选蒙版就绪"
+        }
+      }
+    }
   }
   },
   "version": "1.0"

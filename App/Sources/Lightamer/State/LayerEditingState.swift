@@ -66,13 +66,45 @@ enum MaskTool: String, CaseIterable, Sendable {
 /// The mask overlay's display style (half-transparent yellow tint is the
 /// 06-3 legacy default; rubylith = the classic red scrim; on-black = the
 /// dt-style white-mask-on-black inspection view).
+///
+/// M9-1 T3 (D-M9A-3): the fourth case `candidate` is the AI session's
+/// CANDIDATE coverage tint — a display-leg value that rides the
+/// coordinator's candidate overlay request, NEVER the record/history/
+/// sidecar (AI-06). It is NOT user-selectable: the style picker consumes
+/// `userSelectableCases` (the `panelMenuCases` precedent) so the case
+/// cannot leak into the menu, and its label key has no xcstrings entry
+/// (a dead-key defense).
 enum MaskOverlayStyle: String, CaseIterable, Sendable {
     case translucent
     case rubylith
     case onBlack
+    case candidate
 
-    /// zh/en catalog key stem (`mask_overlay_style_<rawValue>`).
-    var labelKey: String { "mask_overlay_style_\(rawValue)" }
+    /// zh/en catalog key stem (`mask_overlay_style_<rawValue>`) — the
+    /// `.candidate` case is intentionally keyless (never rendered as a
+    /// picker row; see `userSelectableCases`).
+    var labelKey: String {
+        switch self {
+        case .translucent: return "mask_overlay_style_translucent"
+        case .rubylith: return "mask_overlay_style_rubylith"
+        case .onBlack: return "mask_overlay_style_onBlack"
+        case .candidate: return "mask_overlay_style_candidate"
+        }
+    }
+
+    /// The USER-FACING style menu whitelist (M9-1 T3, M-1 — the
+    /// `MaskCommand.panelMenuCases` precedent): every picker consumer
+    /// reads THIS list, never `allCases`, so a future style case cannot
+    /// silently leak into the menu. `.candidate` is a session-only
+    /// display arm, not a user choice.
+    static let userSelectableCases: [MaskOverlayStyle] = [
+        .translucent, .rubylith, .onBlack,
+    ]
+
+    /// The candidate coverage tint (the upstream maskCoverageTintColor
+    /// behavior alignment — a fixed pale-red RGB; a numeric parameter
+    /// fact, not copied code).
+    static let candidateTint: SIMD3<Float> = SIMD3<Float>(1.0, 0.32, 0.42)
 }
 
 /// The mask COMMAND face (Plan 13-3 T5, D-13-CONTEXT-9② — the 2026-09-26
@@ -680,10 +712,11 @@ final class LayerEditingState {
 // (top-left) space; the Vision Y-flip happens ONLY in `visionPoint` (the
 // single seam, 07-1 AIMaskTypes — the wiring test pins the flipped vector).
 //
-// UPGRADE SEAM (D-07-CONTEXT-4): the seed type is `AISubjectSeed` whose
-// `.scribble` case exists but throws `scribbleNotSupported` in v1 — the
-// exhaustive switch here is written from day one so scribble/lasso lands
-// without a state-machine refactor.
+// PATH TOOL (M9-1 T3, D-M9A-1/6): a plain drag collects the stroke; on
+// release `AIMaskPathSampling.sampleStroke` resamples it at equal 24px
+// arc-length intervals and feeds the samples as INCLUDED refine points
+// (the existing request vector — the v1 `.scribble` reserved seed case
+// and its typed refusal were retired with this seam's activation).
 // ─────────────────────────────────────────────────────────────────────────
 
 @Observable
@@ -759,6 +792,56 @@ final class SegmentSession {
     /// `AIMaskEditing.runPatchRefine`.
     var patchDebounceTask: Task<Void, Never>?
 
+    // MARK: M9-1 T3 — the iterative tap-to-segment face (D-M9A-1)
+
+    /// The session's CANDIDATE plane (the debounced full re-solve's
+    /// output at the quality-level resolution): the middle feedback
+    /// layer the Confirm button bakes. Session UI state — never baked,
+    /// never committed, never persisted (AI-06); Commit/Cancel clear it.
+    var candidatePlane: AIMaskPlane?
+
+    /// The candidate-resolve state face (the spinner/`ai_candidate_*`
+    /// copy source). solving keeps the OLD candidate displayed (the
+    /// upstream「推理期间保留旧 coverage」semantics).
+    enum CandidateState: Equatable {
+        case idle
+        case solving
+        case ready
+    }
+    var candidateState: CandidateState = .idle
+
+    /// The 300ms re-solve debounce handle (D-M9A-1: point-set changes
+    /// collapse into one solve — the last schedule wins; the constant
+    /// lives in AIMaskEditing.scheduleCandidateResolve's default).
+    var candidateDebounceTask: Task<Void, Never>?
+
+    /// The re-solve debounce interval in milliseconds (the single
+    /// source — the tests' injected clock reads it).
+    static let candidateDebounceMs: UInt64 = 300
+
+    /// Remove one INCLUDED refine point (the M9-1 point-level delete —
+    /// D-M9A-5's minimal face; the budget headroom returns with it).
+    func removeIncluded(at index: Int) {
+        guard included.indices.contains(index) else { return }
+        included.remove(at: index)
+    }
+
+    /// Remove one EXCLUDED refine point.
+    func removeExcluded(at index: Int) {
+        guard excluded.indices.contains(index) else { return }
+        excluded.remove(at: index)
+    }
+
+    /// Drop the candidate face (the Commit/Cancel clearance — the
+    /// candidate overlay request's data side dies with the session
+    /// state; the coordinator's request side is cleared by the caller).
+    func releaseCandidate() {
+        candidatePlane = nil
+        candidateState = .idle
+        candidateDebounceTask?.cancel()
+        candidateDebounceTask = nil
+    }
+
     /// The identity the CURRENT patch flow was armed against (M6-4-02
     /// N-1): the image session + the selected layer captured at every
     /// schedule. A mismatch at a consumption seam (the next schedule, or
@@ -781,6 +864,10 @@ final class SegmentSession {
         patchState = .idle
         patchDebounceTask?.cancel()
         patchDebounceTask = nil
+        // M9-1: the candidate face belongs to the same identity — it
+        // releases with the patch face (a stale candidate must never
+        // bake onto a switched-to image's layer).
+        releaseCandidate()
     }
 
     /// The N-1 identity guard: when the CURRENT image/layer differs from
@@ -810,7 +897,6 @@ final class SegmentSession {
         case .point: return 1 + included.count + excluded.count
         case .box: return included.count + excluded.count
         case nil: return included.count + excluded.count
-        case .scribble: return included.count + excluded.count
         }
     }
 
@@ -820,9 +906,10 @@ final class SegmentSession {
     /// and clears the accumulated refine points. The patch face resets
     /// with it: the patches and the held live plane belong to the OLD
     /// subject (M6's release point — a new seed releases the plane until
-    /// the next generation captures a fresh one).
+    /// the next generation captures a fresh one). The M9-1 candidate
+    /// face releases with it too (the old candidate belongs to the old
+    /// subject's point set).
     func recordSeed(_ newSeed: AISubjectSeed) {
-        guard newSeed != .scribble else { return } // the v1 typed seam
         seed = newSeed
         included = []
         excluded = []
@@ -831,6 +918,7 @@ final class SegmentSession {
         patchState = .idle
         patchDebounceTask?.cancel()
         patchDebounceTask = nil
+        releaseCandidate()
     }
 
     /// The budget-gated point adds (throwing keeps the UI honest — the

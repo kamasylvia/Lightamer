@@ -238,6 +238,30 @@ final class PipeCoordinator {
         }
     }
 
+    /// The AI session's CANDIDATE coverage channel (M9-1 T3, D-M9A-3 —
+    /// the DEDICATED composition arm, the selected form of the M-2
+    /// either/or): a session-held candidate plane has NO layer.mask spec,
+    /// so `applyMaskOverlayIfRequested`'s spec-assembly precondition
+    /// (and the caller's hasAnyPayload gate) are structurally inapplicable.
+    /// This arm carries the candidate TEXTURE directly — the render tail
+    /// tints it with the fixed `MaskOverlayStyle.candidateTint` and
+    /// never touches the mask-spec path. Newest-wins rides the same
+    /// generation gate as the legacy overlay; Commit/Cancel clear the
+    /// request (D-M9A-4: the candidate channel disappears; the committed
+    /// mask's ordinary edit tint is a DIFFERENT face and stays as-is).
+    var candidateOverlayRequest: (texture: any MTLTexture, strength: Float)?
+
+    func setCandidateOverlayRequest(
+        _ request: (texture: any MTLTexture, strength: Float)?
+    ) {
+        candidateOverlayRequest = request
+        Task { [weak self] in
+            guard let self, self.decoded != nil else { return }
+            await self.renderPreview(
+                bucket: self.currentBucket ?? PreviewBucket.cap, generation: self.generation)
+        }
+    }
+
     /// Unwrap-or-throw for the overlay helper's precondition ladders
     /// (every exit throws — `base` is never returned after a send).
     private func unwrap<T>(_ value: T?, _ message: String) throws -> T {
@@ -332,6 +356,14 @@ final class PipeCoordinator {
             return try await DrawnMaskRasterizer.overlay(
                 display: black.texture, mask: plane, strength: 1.0,
                 tint: SIMD3<Float>(1, 1, 1), metal: metal)
+        case .candidate:
+            // The M9-1 candidate style never routes through the legacy
+            // request (the dedicated composition arm carries its own
+            // tint); reaching here means a request was built with the
+            // session style — degrade to the same fixed candidate tint.
+            return try await DrawnMaskRasterizer.overlay(
+                display: base, mask: plane, strength: 0.6,
+                tint: MaskOverlayStyle.candidateTint, metal: metal)
         }
     }
 
@@ -2431,7 +2463,31 @@ final class PipeCoordinator {
                 return
             }
             #endif
-            if let request = maskOverlayRequest,
+            if let candidate = candidateOverlayRequest,
+               let editor = editorState {
+                // The M9-1 candidate arm (D-M9A-3): tint the freshly
+                // rendered display with the session candidate — SAME
+                // overlay kernel, fixed candidate tint, no mask-spec
+                // assembly, no stack lookup. Rides the newest-wins gate
+                // above (a superseded frame never pays this pass). The
+                // unchecked-Sendable boxes are the established ownership
+                // seam (the probe call-site pattern — both textures are
+                // render-current and read-only from here on).
+                let baseBox = SendableTextureBox(texture: texture)
+                let maskBox = SendableTextureBox(texture: candidate.texture)
+                let overlaid: any MTLTexture
+                do {
+                    overlaid = try await DrawnMaskRasterizer.overlay(
+                        display: baseBox.texture, mask: maskBox.texture,
+                        strength: candidate.strength,
+                        tint: MaskOverlayStyle.candidateTint, metal: metal)
+                } catch {
+                    Self.logger.error(
+                        "candidate overlay failed: \(error.localizedDescription, privacy: .public)")
+                    overlaid = texture
+                }
+                editor.displayTexture = overlaid
+            } else if let request = maskOverlayRequest,
                let stack = currentLayerStack,
                let layer = stack.compositeLayers.first(where: { $0.id == request.layerID }),
                // 07-3 T1: ANY payload tints (was drawn-only) — the AI

@@ -382,8 +382,6 @@ public enum AIMaskService {
             request = GenerateIterativeSegmentationRequest(seedBox: r.visionRect)
             seedPoints = 0
             limit = AIPointBudget.boxSeeded
-        case .scribble:
-            throw AIMaskError.scribbleNotSupported
         }
         request.qualityLevel = quality.visionLevel
         if let roi = regionOfInterest {
