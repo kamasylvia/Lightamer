@@ -358,23 +358,6 @@
         }
       }
     },
-    "ai_mask_subject": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Subject Mask"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "主体蒙版"
-          }
-        }
-      }
-    },
     "ai_mask_tap": {
       "extractionState": "manual",
       "localizations": {
@@ -26670,23 +26653,6 @@
         }
       }
     },
-    "ai_mask_subject_inverted": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "AI subject (inverted)"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "AI 主体（反转）"
-          }
-        }
-      }
-    },
     "versions_default_name": {
       "extractionState": "manual",
       "localizations": {
@@ -32210,23 +32176,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "精修中…"
-          }
-        }
-      }
-    },
-    "ai_mask_person_instance": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Person Instances"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "人物实例"
           }
         }
       }
