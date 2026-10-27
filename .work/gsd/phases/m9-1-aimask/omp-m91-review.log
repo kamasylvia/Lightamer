@@ -1,0 +1,33 @@
+Working...
+# M9-1 omp 实机终审：PASS / 0 error + 1 minor + 6 obs
+
+正本 `.work/gsd/phases/m9-1-aimask/M9-1-ACCEPTANCE-OMP.md` + `omp-evidence/omp-01..11`（11 帧）。构建自证过（12:49 > 97cb3fc2 10:29，BUILD_EXIT=0）。与双路零实质分歧。
+
+minor-omp1 = Layer B「点击选取」默认面不可达：`AIDownloadPrompt` bootstrap 挂载点在 `ContentView.swift:365` ∈ `legacyBody`，M2 默认面走 `WorkspaceHostView` 分支永不执行 → phase 恒 `.unknown` → gate 恒 `.needsDownload`。批外存量缺陷（M2-2 面分叉遗留，M9-1 零触该装配），不阻断；修复建议一处（bootstrap 提至 LightamerShell 装配点）。交互分割/会话命令因此降级为代码面 + 进程外 Vision 直驱判定。
+
+## 逐面终审
+
+| # | 面 | 结果 |
+|---|---|---|
+| 1 | 任务面板四件 | ✅ 选层后 AX：主体 Y / 背景 Y / **天空 N** / 人物 Y。天空双通道零动作 + 零落盘。Subject 实机 bake：spinner → 建筑选区 → `.lra` + `ai-subject-*.png` + 精细化翻 enabled。People 空 scene：「未检测到人物」toast + 零落盘 |
+| 2 | 交互分割 | ⚠️ 降级 PASS。候选臂源码全链亲读（行号锚与双路一致）+ 进程外直驱：同 fixture 首解 7.17s / refine 0.02s（P95 门内）。路 1 obs-4 tint 屏上像素待 bootstrap 修后补走查 |
+| 3 | 会话三命令 | ⚠️ 降级 PASS。open 三源/commit 恰一/cancel 收敛源码亲读；re-entry 半亲证（subject 层在位，会话拉起屏上未执行） |
+| 4 | paste 排除 | ✅ toast「已排除 1 个 AI 蒙版（其描述的是本图内容）」逐字亲见 + 落盘 mask 键清零。对照腿：手绘 drawn 零 toast 原样随行 |
+| 5 | 回归面 | ✅ 三态实机轮转三帧亲见；全树裸键扫描零命中 |
+| 6 | 双路对账 | ✅ 十条逐条复核（§3）：路 1 obs-2 本轮兑现；路 2 obs-3 实机复现定级设计取舍成立（版本树确现「粘贴的调色」活跃条目 + mask 已剥，可回退，零破坏） |
+
+## 观察（批外/记录，零动作）
+
+- o-omp1：40MP 首解 7.17s 超 D14 告警线 3.5×（冷模型 + 全幅直解口径差，不证伪 D14；refine 0.02s 门内）
+- o-omp2：Sky tooltip hover 零浮现（合成环境 hover 条件，键值 catalog 双语在册）
+- o-omp3：paste 剥除后 `ai-subject-*.png` 孤儿留存（引用已清，存储卫生面）
+- o-omp4：AX id 列级覆盖在 AI 工具条复现（全 `shell.workspace.host`，by-title 全通）
+- o-omp5：People toast 常驻状态条形态，4s auto-clear 语义一致
+- o-omp6：legacy 面 editor probe 不适用（停 session 空状态页）
+
+## 收工
+
+GUI 已 quit；monitor 伴跑零 kill（RSS 1.6-1.7GB）；defaults 清；/tmp 即弃；tracked 零 diff（仅本报告 + evidence 未跟踪）。建议：①后续批修默认面 bootstrap 后补走查 ②③④⑥；②顺手修路 1 m-1 注释谓词名。
+
+完整报告正文与双路对账逐条句见 `M9-1-ACCEPTANCE-OMP.md` §1..§4（本消息为其完整结论面；行号锚/证据帧号/根因链以正本为准）。
+
