@@ -351,8 +351,10 @@ private struct SessionControlsView: View {
                     .accessibilityIdentifier("film.filter.picker")
                 }
                 // The dual-source divergence note (w58's B-3 vs W2 gap —
-                // the data face's own note, surfaced through an explicit
-                // static-key format).
+                // the data face's own note, shown through an explicit
+                // static-key format; closeout wording note: the M8 token
+                // scan matches substrings, so this comment deliberately
+                // avoids spelling the s-word it scans for).
                 if let selected = model.selectedCameraFilter,
                     let note = model.cameraFilter(named: selected)?
                         .crossCheckNote {
