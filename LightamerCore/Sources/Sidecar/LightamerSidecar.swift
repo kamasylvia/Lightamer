@@ -249,10 +249,16 @@ public struct LightamerSidecar: Codable, Sendable, Equatable {
     /// encodeIfPresent, nil keys stay ABSENT (a nil face writes the v10
     /// byte shape with the version digit bumped — SidecarV11Tests pins
     /// the three byte faces + the hash isolation + the future tolerance).
+    /// v12 (M9-2 T2): the film record's `camera_filter`/`paper_grade`
+    /// ride INSIDE the existing `filmRecord` Codable payload — the sidecar
+    /// layer itself changes only the digit; the two keys appear only when
+    /// non-nil (nil stays absent, every pristine/grade-less document keeps
+    /// the v11 byte shape — SidecarV12Tests pins the three faces).
     /// The bump follows the persisted-face precedent chain: v8
-    /// aiProvenance / v9 filmRecord / v10 process — a persisted-face
-    /// addition bumps.
-    public static let schemaVersionCurrent = 11
+    /// aiProvenance / v9 filmRecord / v10 process / v11 note — a
+    /// persisted-face addition bumps (the M9-2 PLAN's declared exemption
+    /// of the M7-6 sealed-face list; registered in the SUMMARY).
+    public static let schemaVersionCurrent = 12
 
     /// On-disk schema version of this document.
     public var schemaVersion: Int

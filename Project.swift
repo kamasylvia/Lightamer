@@ -314,6 +314,15 @@ let project = Project(
                 "Tests/LightamerTests/AgXTests.swift",
                 "Tests/LightamerTests/AshiftParityTests.swift",
                 "Tests/LightamerTests/BilateralParityTests.swift",
+                // M9-2 T2: the BW family golden face (build/scan-neutrality/
+                // grade-seam keys/bake-pair hit).
+                "Tests/LightamerTests/BWSpectralGoldenTests.swift",
+                // M9-2 T3: the bake-key negative family (the plan's main
+                // gate — filter/grade slot folds, zero-drift, direction).
+                "Tests/LightamerTests/FilterBakeKeyTests.swift",
+                // M9-2 T4: the recommended-strength semantics (the box
+                // scan vs the published RMS; the PERF_PROBE-gated solver).
+                "Tests/LightamerTests/GrainCalibrationSemanticsTests.swift",
                 "Tests/LightamerTests/BlendOpParityTests.swift",
                 "Tests/LightamerTests/ChannelMixerColorContrastParityTests.swift",
                 "Tests/LightamerTests/ChannelMixerRGBParityTests.swift",
@@ -416,6 +425,15 @@ let project = Project(
                 "Tests/LightamerTests/BilateralGrid3DTests.swift",
                 "Tests/LightamerTests/BloomTests.swift",
                 "Tests/LightamerTests/ChannelMixerColorContrastTests.swift",
+                // M9-2 T2: the computed Multigrade grade table (fit
+                // convergence / tonality / persisted round-trip).
+                "Tests/LightamerTests/PaperGradeTableTests.swift",
+                // M9-2 T3: the taking-filter table face (load/align/
+                // factor math/typed rejection).
+                "Tests/LightamerTests/CameraFilterTests.swift",
+                // M9-2 T4: the grain calibration table (round-trip/
+                // deterministic mapping/monotone premise).
+                "Tests/LightamerTests/GrainCalibrationTests.swift",
                 "Tests/LightamerTests/ChannelMixerCommonTests.swift",
                 "Tests/LightamerTests/ChannelMixerRGBCommitTests.swift",
                 "Tests/LightamerTests/CIContextPoolMemoKeyTests.swift",
@@ -625,6 +643,9 @@ let project = Project(
                 "Tests/LightamerTests/Fixtures.swift",
                 "Tests/LightamerTests/ChainBuilderHelpers.swift",
                 "Tests/LightamerTests/AICredentialStoreTests.swift",
+                // M9-2 T2: the v12 bump's three byte faces (the
+                // SidecarV10/V11 chain's seat).
+                "Tests/LightamerTests/SidecarV12Tests.swift",
                 "Tests/LightamerTests/AutoStackClusteringTests.swift",
                 "Tests/LightamerTests/AIEndpointPolicyTests.swift",
                 "Tests/LightamerTests/AIProviderClientTests.swift",
@@ -957,6 +978,8 @@ let project = Project(
                 "Tests/LightamerTests/DrtPanelModelTests.swift",
                 "Tests/LightamerTests/FilmPanelTests.swift",
                 "Tests/LightamerTests/FilmPanelSpectralUITests.swift",
+                // M9-2 T2: the BW panel faces (sections/grade picker/pristine).
+                "Tests/LightamerTests/FilmPanelBWTests.swift",
                 "Tests/LightamerTests/FilmCardTests.swift",
                 "Tests/LightamerTests/FilmLatitudePanelTests.swift",
                 "Tests/LightamerTests/DrtViewportTests.swift",

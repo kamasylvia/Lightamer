@@ -592,8 +592,13 @@ final class FilmProfileTests: XCTestCase {
         // Independent re-derivation of the documented formula over a tiny
         // synthetic pair (the same independent-formula discipline as the
         // FilmRecord stableHash check): stock UTF-8 ‖ log_exposure bits ‖
-        // density_curves bits ‖ base_density tag+bits ‖ wavelengths bits,
-        // film then paper, FNV-1a over platform-order UInt64 folds.
+        // density_curves bits ‖ base_density tag+bits ‖ wavelengths bits ‖
+        // [M9-2 T3 (D-M92-5's alignment): log_sensitivity row bits ‖
+        // channel_density present-flag+row tag+bits ‖ viewing_illuminant
+        // present-flag+UTF-8 ‖ midscale_neutral_density present-flag+row
+        // tag+bits], film then paper, FNV-1a over platform-order UInt64
+        // folds. The four spectral keys are folded with nil-vs-value TAGS
+        // exactly like base_density (nil and 0.0 never collide).
         var objectA = syntheticValidObject()
         mutateData(&objectA, "wavelengths", [450.0, 550.0, 650.0])
         let a = try FilmProfile.load(try writeTemporaryProfile(objectA))
@@ -648,6 +653,100 @@ final class FilmProfileTests: XCTestCase {
             for value in profile.wavelengths {
                 var v = UInt64(value.bitPattern)
                 withUnsafeBytes(of: &v) {
+                    expected = StableHash.combine(expected, $0)
+                }
+            }
+            // M9-2 T3: the spectral consumption keys (D-M92-5).
+            if let logSensitivity = profile.logSensitivity {
+                var tag = UInt64(1)
+                withUnsafeBytes(of: &tag) {
+                    expected = StableHash.combine(expected, $0)
+                }
+                for row in logSensitivity {
+                    for value in row {
+                        var v = UInt64(value.bitPattern)
+                        withUnsafeBytes(of: &v) {
+                            expected = StableHash.combine(expected, $0)
+                        }
+                    }
+                }
+            } else {
+                var tag = UInt64(0)
+                withUnsafeBytes(of: &tag) {
+                    expected = StableHash.combine(expected, $0)
+                }
+            }
+            if let channelDensity = profile.channelDensity {
+                var tag = UInt64(1)
+                withUnsafeBytes(of: &tag) {
+                    expected = StableHash.combine(expected, $0)
+                }
+                for row in channelDensity {
+                    for sample in row {
+                        if let value = sample {
+                            var present = UInt64(1)
+                            withUnsafeBytes(of: &present) {
+                                expected = StableHash.combine(expected, $0)
+                            }
+                            var v = UInt64(value.bitPattern)
+                            withUnsafeBytes(of: &v) {
+                                expected = StableHash.combine(expected, $0)
+                            }
+                        } else {
+                            var present = UInt64(0)
+                            withUnsafeBytes(of: &present) {
+                                expected = StableHash.combine(expected, $0)
+                            }
+                        }
+                    }
+                }
+            } else {
+                var tag = UInt64(0)
+                withUnsafeBytes(of: &tag) {
+                    expected = StableHash.combine(expected, $0)
+                }
+            }
+            if let viewing = profile.info.viewingIlluminant {
+                var tag = UInt64(1)
+                withUnsafeBytes(of: &tag) {
+                    expected = StableHash.combine(expected, $0)
+                }
+                for byte in viewing.utf8 {
+                    withUnsafeBytes(of: byte) {
+                        expected = StableHash.combine(expected, $0)
+                    }
+                }
+            } else {
+                var tag = UInt64(0)
+                withUnsafeBytes(of: &tag) {
+                    expected = StableHash.combine(expected, $0)
+                }
+            }
+            if let midscale = profile.midscaleNeutralDensity {
+                var tag = UInt64(1)
+                withUnsafeBytes(of: &tag) {
+                    expected = StableHash.combine(expected, $0)
+                }
+                for sample in midscale {
+                    if let value = sample {
+                        var present = UInt64(1)
+                        withUnsafeBytes(of: &present) {
+                            expected = StableHash.combine(expected, $0)
+                        }
+                        var v = UInt64(value.bitPattern)
+                        withUnsafeBytes(of: &v) {
+                            expected = StableHash.combine(expected, $0)
+                        }
+                    } else {
+                        var present = UInt64(0)
+                        withUnsafeBytes(of: &present) {
+                            expected = StableHash.combine(expected, $0)
+                        }
+                    }
+                }
+            } else {
+                var tag = UInt64(0)
+                withUnsafeBytes(of: &tag) {
                     expected = StableHash.combine(expected, $0)
                 }
             }

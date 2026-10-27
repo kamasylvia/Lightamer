@@ -31,13 +31,15 @@ import XCTest
 //         its channels within the 2e-3 band (the M3-3-03 discipline's
 //         spectral form).
 //
-//   C. THE SIDECAR ZERO-BUMP GROUP (D-M8-1's machine face):
-//      C1 schemaVersionCurrent == 11 (zero bump), a full v11 document
-//         (filmRecord + process=2 + versions) decode→encode round-trips
+//   C. THE SIDECAR BUMP GROUP (D-M8-1's machine face, M9-2 T2 re-anchored
+//      at v12 — the declared single-bump exemption):
+//      C1 schemaVersionCurrent == 12 (M9-2 T2's single-bump exemption), a
+//         full v12 document (filmRecord + process=2 + versions) decode→encode
 //         BYTE-EXACT, the process key round-trips (2 identity; stored 0 ≡
 //         absent), and the process face is hash-isolated;
-//      C2 the FilmRecord KEY SET is frozen (zero new fields — the record's
-//         canonical JSON emits exactly the seven M3-3 keys).
+//      C2 the FilmRecord key set: the NIL face emits exactly the seven
+//         M3-3 keys; the two M9-2 optionals (camera_filter/paper_grade)
+//         emit only when set (the emit contract).
 //
 //   D. THE PRISTINE ZERO-BEHAVIOR GATE (red line 12): a document with NO
 //      film record renders byte-identical under v1 and v2 — the fork lives
@@ -413,12 +415,14 @@ final class SpectralDualArmGoldenTests: XCTestCase {
                 + "(re-pin ONLY through M8-2-DECISIONS)")
     }
 
-    // MARK: - C1: the sidecar zero-bump group
+    // MARK: - C1: the sidecar bump group (M9-2 T2: v12 — the film record's
+    // camera_filter/paper_grade riding INSIDE the filmRecord Codable
+    // payload; the bump follows the persisted-face precedent chain and is
+    // the M9-2 PLAN's declared exemption of the M7-6 sealed-face list)
 
-    func testSidecarStaysAtElevenAndRoundTripsByteExact() throws {
-        // The zero-bump face: the schema version did NOT move with the
-        // process generation.
-        XCTAssertEqual(LightamerSidecar.schemaVersionCurrent, 11)
+    func testSidecarRoundTripsByteExactAtV12() throws {
+        // M9-2 T2 bumped 11 -> 12 (the declared single-bump exemption).
+        XCTAssertEqual(LightamerSidecar.schemaVersionCurrent, 12)
 
         let canonicalEncoder: JSONEncoder = {
             let encoder = JSONEncoder()
@@ -427,7 +431,7 @@ final class SpectralDualArmGoldenTests: XCTestCase {
         }()
         let decoder = JSONDecoder()
 
-        // A FULL v11 document: filmRecord + process=2 + versions + AI
+        // A FULL v12 document: filmRecord + process=2 + versions + AI
         // provenance-free — every persisted face the bump touches rides it.
         var record = FilmRecord()
         record.filmStock = "kodak_portra_400"
@@ -451,12 +455,14 @@ final class SpectralDualArmGoldenTests: XCTestCase {
             process: RenderProcessVersion(rawValue: 2)!)
         let bytes = try canonicalEncoder.encode(document)
         let decoded = try decoder.decode(LightamerSidecar.self, from: bytes)
-        XCTAssertEqual(decoded.schemaVersion, 11)
+        XCTAssertEqual(decoded.schemaVersion, 12, "M9-2 T2: the v12 digit")
         XCTAssertEqual(decoded.process?.rawValue, 2, "the process key round-trips")
         XCTAssertEqual(decoded.filmRecord, record, "the film record round-trips")
         let reEncoded = try canonicalEncoder.encode(decoded)
         XCTAssertEqual(reEncoded, bytes,
-                       "the v11 document decode→encode is BYTE-EXACT (zero bump)")
+                       "the v12 document decode→encode is BYTE-EXACT (the bump "
+                           + "touches only the digit; the two new film-record "
+                           + "keys stay absent when nil — M9-2 T2)")
 
         // The stored-0 normalization: a stored 0 IS nil (0 ≡ absent ≡
         // legacy) — the bump cannot have touched the legacy face.
@@ -486,9 +492,11 @@ final class SpectralDualArmGoldenTests: XCTestCase {
                        "the process face is hash-isolated (M6-2's OQ-2, post-bump)")
     }
 
-    // MARK: - C2: the FilmRecord key set is frozen
+    // MARK: - C2: the FilmRecord key set (M9-2 T2: the two new optional
+    // legs — camera_filter/paper_grade — emit ONLY when non-nil; the nil
+    // face keeps the seven frozen M3-3 keys verbatim)
 
-    func testFilmRecordKeySetIsFrozen() throws {
+    func testFilmRecordKeySetEmitContract() throws {
         var record = FilmRecord()
         record.filmStock = "a"
         record.paperStock = "b"
@@ -500,14 +508,22 @@ final class SpectralDualArmGoldenTests: XCTestCase {
         let data = try JSONEncoder().encode(record)
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any])
-        let keys = Set(object.keys)
         XCTAssertEqual(
-            keys,
+            Set(object.keys),
             ["film_stock", "paper_stock", "y_filter_shift", "m_filter_shift",
              "content_adaptive_shift", "strength", "exposure_ev"],
-            "the FilmRecord field set is FROZEN — zero new fields (D-M8-1's "
-                + "single-source ruling; a new field would be a second "
-                + "truth for the core choice)")
+            "the NIL face keeps the seven M3-3 keys verbatim — the M9-2 "
+                + "optionals stay absent until set")
+        record.cameraFilter = "w25"
+        record.paperGrade = "3"
+        let setObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: try JSONEncoder().encode(record)) as? [String: Any])
+        let setKeys = Set(setObject.keys)
+        XCTAssertEqual(
+            setKeys.subtracting(Set(object.keys)),
+            ["camera_filter", "paper_grade"],
+            "the SET face adds exactly the two M9-2 legs")
     }
 
     // MARK: - D: the pristine zero-behavior gate

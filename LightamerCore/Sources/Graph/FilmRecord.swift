@@ -72,6 +72,17 @@ public struct FilmRecord: Codable, Hashable, Sendable {
     /// normalization arm (default 0 = no trim; the SpektraLab Post-Dev
     /// exposure's material-domain seat).
     public var exposureEv: Float
+    /// M9-2 T3: the camera (taking) filter — a `camera_filters.json` key
+    /// ("w8"..."w58"), nil/"" = none. The filter multiplies the build-time
+    /// sensW input (X-M92-1 — the film leg is the input-side seat). OPEN
+    /// STRING by the same KD-1 judgment as the stock ids: illegal keys
+    /// degrade typed at the CameraFilterTable layer, not here.
+    public var cameraFilter: String?
+    /// M9-2 T2: the paper CONTRAST GRADE — `"00"..."5"` verbatim (MAJ-1:
+    /// the seven upstream grades include BOTH "00" and "0", so Int
+    /// encodings are ambiguous; the key maps 1:1 onto paper_grades.json).
+    /// nil = the solver's own neutral pack (zero-drift default).
+    public var paperGrade: String?
 
     /// Preset-name placeholder constants (KD-1). Deliberately EMPTY for
     /// this plan: no named film-look presets exist yet — M3-3-03 owns the
@@ -88,6 +99,8 @@ public struct FilmRecord: Codable, Hashable, Sendable {
         contentAdaptiveShift = false
         strength = 1.0
         exposureEv = 0.0
+        cameraFilter = nil
+        paperGrade = nil
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -98,6 +111,11 @@ public struct FilmRecord: Codable, Hashable, Sendable {
         case contentAdaptiveShift = "content_adaptive_shift"
         case strength
         case exposureEv = "exposure_ev"
+        // M9-2 (MIN-6: the three faces moved in ONE batch — a key missing
+        // here compiles fine but decodes nil / encodes nothing / stays out
+        // of the hash: one omission, three silent failures).
+        case cameraFilter = "camera_filter"
+        case paperGrade = "paper_grade"
     }
 
     /// Tolerant decode: every field decodeIfPresent with the pristine
@@ -115,6 +133,8 @@ public struct FilmRecord: Codable, Hashable, Sendable {
             Bool.self, forKey: .contentAdaptiveShift) ?? d.contentAdaptiveShift
         strength = try c.decodeIfPresent(Float.self, forKey: .strength) ?? d.strength
         exposureEv = try c.decodeIfPresent(Float.self, forKey: .exposureEv) ?? d.exposureEv
+        cameraFilter = try c.decodeIfPresent(String.self, forKey: .cameraFilter) ?? d.cameraFilter
+        paperGrade = try c.decodeIfPresent(String.self, forKey: .paperGrade) ?? d.paperGrade
     }
 
     /// FNV-1a over the canonical JSON bytes (`.sortedKeys`, L013). The

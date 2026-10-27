@@ -236,6 +236,18 @@ public enum SpectralBuildEngine {
         /// the profile carries the coefficients but the reference runtime
         /// resolves the switch off).
         public var adaptationSurface: Bool
+        /// M9-2 T3 (X-M92-1): the taking (camera) filter's transmission
+        /// on the engine axis (0...1 per wavelength; count == the axis).
+        /// nil (the default) = the identity branch — zero multiplies, the
+        /// pre-M9-2 build byte face. Non-nil multiplies the sensW input
+        /// by `t[λ]/factor` where the factor is the GREEN-channel
+        /// full-roll normalization referenced to the film's own reference
+        /// SPD (Σ sensW_G·t·refSPD / Σ sensW_G·refSPD — the 18% gray
+        /// stays anchored; a BW film's channel-equal sensitivities make
+        /// the factor unique). The tc_lut, print and scan tables all move
+        /// with it — the consumers fold the filter tag into every slot
+        /// key (D-M92-5).
+        public var cameraFilter: [Double]?
 
         public init(
             enlargerIlluminant: String = "TH-KG3",
@@ -251,7 +263,8 @@ public enum SpectralBuildEngine {
             preflashExposure: Double = 0.0,
             scanBlackCorrection: Bool = false,
             scanWhiteCorrection: Bool = false,
-            adaptationSurface: Bool = false
+            adaptationSurface: Bool = false,
+            cameraFilter: [Double]? = nil
         ) {
             self.enlargerIlluminant = enlargerIlluminant
             self.printCC = printCC
@@ -267,6 +280,7 @@ public enum SpectralBuildEngine {
             self.scanBlackCorrection = scanBlackCorrection
             self.scanWhiteCorrection = scanWhiteCorrection
             self.adaptationSurface = adaptationSurface
+            self.cameraFilter = cameraFilter
         }
     }
 
@@ -447,6 +461,31 @@ public enum SpectralBuildEngine {
                 }
                 let norm = den > 0 ? num / den : 1.0
                 for l in 0..<axis.count { sensW[l][m] *= w[l] / norm }
+            }
+        }
+
+        // ---- M9-2 T3 (X-M92-1): the taking-filter multiply — the film
+        //      leg's ONLY input-side seat, between the sensitivity window
+        //      and the tc expansion. The green-channel full-roll factor
+        //      referenced to the film's own reference SPD anchors the
+        //      18% gray (a filtered exposure develops the same gray when
+        //      the meter read through the same filter); the tc_lut, print
+        //      and scan tables all move — the consumers fold the filter
+        //      tag into every slot key. nil = the identity branch (zero
+        //      multiplies — the pre-M9-2 byte face). ----
+        if let filterT = parameters.cameraFilter,
+            filterT.count == axis.count {
+            var num = 0.0, den = 0.0
+            for l in 0..<axis.count {
+                num += sensW[l][1] * filterT[l] * refSPD[l]
+                den += sensW[l][1] * refSPD[l]
+            }
+            let factor = den > 0 ? num / den : 1.0
+            for l in 0..<axis.count {
+                let scale = filterT[l] / factor
+                sensW[l][0] *= scale
+                sensW[l][1] *= scale
+                sensW[l][2] *= scale
             }
         }
 

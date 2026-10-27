@@ -866,6 +866,41 @@ final class PipeCoordinator {
             materialPairHash: FilmMaterialStore.materialPairHash(film: film, paper: paper))
     }
 
+    /// M9-2 T2/T3: the request-scoped film-leg tags (the TaskLocal seam
+    /// `SpectralPrintBake.$requestTags` consumes inside the sealed pipe).
+    /// nil = the verbatim legacy path (no grade, no filter). The grade
+    /// preset resolves through the memoized PaperGradeTable fit; an
+    /// unknown grade key degrades to no-tag (the solve's own neutral).
+    /// The camera filter (T3) resolves through the store's table (the
+    /// transmission aligned onto the engine axis); an unknown/empty name
+    /// degrades to no-tag (typed at THIS layer, never in the engine).
+    func filmLegRequestTags(for resolution: PipeResolution) -> SpectralPrintBake.FilmLegRequestTags? {
+        guard resolution != .thumbnail, let url = currentImageURL, let workspace,
+            workspace.hasFilmRecord(for: url), let filmStore
+        else { return nil }
+        let record = workspace.filmRecord(for: url)
+        var tags = SpectralPrintBake.FilmLegRequestTags()
+        var any = false
+        if let grade = record.paperGrade, !grade.isEmpty,
+            let paper = filmStore.profile(id: record.paperStock),
+            let preset = PaperGradeTable.cachedTable(paper: paper)[grade] {
+            tags.paperGrade = SpectralPrintBake.PaperGradeTag(
+                key: grade, magentaCC: preset.magentaCC,
+                yellowCC: preset.yellowCC, exposureEv: preset.exposureEv)
+            any = true
+        }
+        if let filterName = record.cameraFilter, !filterName.isEmpty,
+            let filter = filmStore.filters[filterName] {
+            tags.cameraFilter = SpectralPrintBake.CameraFilterTag(
+                name: filterName,
+                transmission: CameraFilterTable.alignedTransmission(
+                    filter, wavelengths: SpectralConstantsData.wavelengthsNm,
+                    tableWavelengths: SpectralConstantsData.wavelengthsNm))
+            any = true
+        }
+        return any ? tags : nil
+    }
+
     // ── M8-3 T3 (the migration UX + the D-M8-1 read path): the document's
     //    stored render generation. The M6-2-01 registered coordinator
     //    threading follow-up lands HERE — the render chain reads the
@@ -2543,7 +2578,21 @@ final class PipeCoordinator {
     /// composite (`RenderPipeline.processComposite`); the flat legacy
     /// path (`process`) is preserved BYTE-EXACTLY for stacks without
     /// adjustment layers (the Phase 2-5 key space + behavior).
+    /// M9-2 T2: the TaskLocal seam wrapper — the request tags (grade
+    /// preset / camera filter) ride the render's whole async scope so the
+    /// SEALED pipe's bake/solve consults see them ($requestTags, the
+    /// $jobFilmTail precedent). nil tags = no scope cost beyond the check.
     private func renderCurrentChain(
+        bucket: Int?, resolution: PipeResolution = .preview
+    ) async throws -> RenderChainOutput {
+        let tags = filmLegRequestTags(for: resolution)
+        return try await SpectralPrintBake.$requestTags.withValue(tags) {
+            try await renderCurrentChainInner(
+                bucket: bucket, resolution: resolution)
+        }
+    }
+
+    private func renderCurrentChainInner(
         bucket: Int?, resolution: PipeResolution = .preview
     ) async throws -> RenderChainOutput {
         guard let decoded, let metal else {

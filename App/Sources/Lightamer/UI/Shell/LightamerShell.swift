@@ -921,9 +921,16 @@ internal struct LightamerShellFace: View {
                     if let profilesURL = Bundle.main.resourceURL?
                         .appendingPathComponent("FilmProfiles/profiles")
                     {
+                        // M9-2 T2: the BW family rides a SECOND directory
+                        // (the licensing boundary its NOTICE documents) —
+                        // both index into ONE store; a missing BW set
+                        // degrades to the CC-only face (never fatal).
+                        let bwURL = Bundle.main.resourceURL?
+                            .appendingPathComponent("FilmProfilesBW/profiles")
                         do {
                             let store = try FilmMaterialStore(
-                                profilesDirectory: profilesURL)
+                                profilesDirectories: [profilesURL]
+                                    + (bwURL.map { [$0] } ?? []))
                             pipeCoordinator.attachFilmStore(store)
                         } catch {
                             AppError.logger.error(

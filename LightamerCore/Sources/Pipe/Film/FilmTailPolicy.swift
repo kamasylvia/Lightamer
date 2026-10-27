@@ -829,9 +829,22 @@ public enum FilmRuntimeSolve {
         materialPairHash: UInt64, histogram: FilmStatsSeam.PlaneHistogram?
     ) throws -> FilmSolveCache.Solution {
         let statsHash = histogram?.statsHash ?? 0
+        // M9-2 (D-M92-5's fold alignment at the SOLVE face): the AUTO core
+        // reads `tables.solvedPrintCC`, and a pinned grade/filter changes
+        // the tables — so the leg tags fold into the mode tag (ABSENT tags
+        // keep the bare modeTag: the key stays byte-identical to M8).
+        var mode = spectralModeTag(contentAdaptive: record.contentAdaptiveShift)
+        if let tags = SpectralPrintBake.requestTags {
+            if let grade = tags.paperGrade {
+                mode += "|grade:\(grade.key)"
+            }
+            if let filter = tags.cameraFilter {
+                mode += "|filter:\(filter.name)"
+            }
+        }
         let key = cacheKey(
             materialPairHash: materialPairHash, statsHash: statsHash,
-            modeTag: spectralModeTag(contentAdaptive: record.contentAdaptiveShift))
+            modeTag: mode)
         var auto: FilmSolveCache.AutoSolution
         if let cached = FilmSolveCache.shared.autoSolution(for: key) {
             auto = cached
@@ -856,10 +869,19 @@ public enum FilmRuntimeSolve {
             FilmSolveCache.shared.store(auto, for: key)
         }
         // The manual shifts ALWAYS on top (the density arm's consumption
-        // shape verbatim — CC point domain, unclamped here).
+        // shape verbatim — CC point domain, unclamped here). With a grade
+        // pinned the tables' solvedPrintCC IS the preset pair (the build
+        // pinned it), so the neutral face carries the grade verbatim and
+        // the manual shifts stay on top.
         let m = auto.neutralMagentaCC + auto.contentDeltaM + Double(record.mFilterShift)
         let y = auto.neutralYellowCC + auto.contentDeltaY + Double(record.yFilterShift)
-        let totalGain = auto.autoGain * Foundation.pow(2.0, Double(record.exposureEv))
+        // M9-2 T2 (X-M92-2): the grade's exposure trim rides the gain
+        // CONSUMPTION layer (never a cache key, never the build) — grade
+        // gain FIRST, the manual exposureEv AFTER (the declared stack
+        // order; both multiplicative, the order is documentation).
+        let gradeEv = SpectralPrintBake.requestTags?.paperGrade?.exposureEv ?? 0
+        let totalGain = auto.autoGain
+            * Foundation.pow(2.0, gradeEv + Double(record.exposureEv))
         return FilmSolveCache.Solution(magentaCC: m, yellowCC: y, exposureGain: totalGain)
     }
 }

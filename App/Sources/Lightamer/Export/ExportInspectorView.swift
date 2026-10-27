@@ -379,7 +379,8 @@ internal struct ExportInspectorView: View {
             instances: editorState.instances,
             effectiveDrtRecord: editorState.history.effectiveDrtRecord(),
             destination: displayDestination,
-            filmTailForLoaded: pipeCoordinator.filmTailPolicy(for: .export))
+            filmTailForLoaded: pipeCoordinator.filmTailPolicy(for: .export),
+            legTagsForLoaded: pipeCoordinator.filmLegRequestTags(for: .export))
         guard let assembly else { return }
         // M6-3-01 (KD-6/checker C-2): the run-face re-check reset the flag —
         // the toast names the blocking dimension (the gate moved on the DRT
@@ -404,7 +405,8 @@ internal struct ExportInspectorView: View {
                     namingPattern: assembly.pattern,
                     collisionPolicy: assembly.collisionPolicy,
                     exifSoftware: software,
-                    filmTails: assembly.filmTails)
+                    filmTails: assembly.filmTails,
+                    legTags: assembly.legTags)
                 // The lifecycle write-backs (OQ-3 导出发起写回 + OQ-10).
                 exportState.storeM2LastDirectory(assembly.destination)
                 writeBackQualityMemory()
@@ -1177,6 +1179,9 @@ final class ExportM2PanelModel {
         /// image's session carrier via the coordinator's policy; the batch
         /// siblings nil — the M2 page's carrier walk boundary, DECISIONS).
         var filmTails: [FilmTailParams?]?
+        /// M9-2 T2: the per-image film-leg tags (grade preset / camera
+        /// filter) — the loaded image's slot only (the filmTails twin).
+        var legTags: [SpectralPrintBake.FilmLegRequestTags?]?
         /// M6-3-01 (KD-6/checker C-2): the run-face re-check AUTO-RESET the
         /// gain map flag before this assembly was built — the value is the
         /// blocking dimension (the caller toasts its copy; the assembly's
@@ -1195,7 +1200,8 @@ final class ExportM2PanelModel {
         instances: [ModuleInstance],
         effectiveDrtRecord: DrtRecord?,
         destination: URL?,
-        filmTailForLoaded: FilmTailParams? = nil
+        filmTailForLoaded: FilmTailParams? = nil,
+        legTagsForLoaded: SpectralPrintBake.FilmLegRequestTags? = nil
     ) -> RunAssembly? {
         guard !targets.isEmpty, let destination else { return nil }
         let subfolder: String? = {
@@ -1211,6 +1217,10 @@ final class ExportM2PanelModel {
         // walk covers the session image this batch).
         let filmTails: [FilmTailParams?]? = targets.map { url in
             (url.path == loadedImageURL?.path) ? filmTailForLoaded : nil
+        }
+        // M9-2 T2: the loaded image's leg tags ride the same indexed shape.
+        let legTags: [SpectralPrintBake.FilmLegRequestTags?]? = targets.map { url in
+            (url.path == loadedImageURL?.path) ? legTagsForLoaded : nil
         }
         // M6-3-01 (KD-6/checker C-2): the run-face re-check — the peak/
         // encoding gate dimensions move on the DRT panel (no page-internal
@@ -1236,6 +1246,7 @@ final class ExportM2PanelModel {
             destination: destination,
             subfolder: subfolder,
             filmTails: filmTails,
+            legTags: legTags,
             gainMapAutoReset: autoResetDimension)
     }
 

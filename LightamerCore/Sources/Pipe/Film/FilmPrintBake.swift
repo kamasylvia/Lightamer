@@ -422,6 +422,19 @@ public enum SpectralPrintBake {
             defer { lock.unlock() }
             return fills
         }
+
+        /// Test face: drop every entry WITHOUT touching the fill counter
+        /// (M9-2: the golden suites' slot-count assertions assume an EMPTY
+        /// cache — the LRU capacity (tc 6 / print 8 / scan 8) silently
+        /// caps `countForTesting` once earlier tests in the same bundle
+        /// fill it, making `count+1` assertions order-dependent; the
+        /// suites clear the slots in setUp instead).
+        public func clearEntriesForTesting() {
+            lock.lock()
+            defer { lock.unlock() }
+            entries.removeAll()
+            order.removeAll()
+        }
     }
 
     /// The tc_lut slot (the full build bundle — X7's named face).
@@ -436,43 +449,146 @@ public enum SpectralPrintBake {
     /// bytes).
     private static let buildLock = NSLock()
 
+    // MARK: - The request-tags seam (M9-2 T2/T3)
+
+    /// The per-request leg tags riding a TaskLocal — the request-scoped
+    ///递缝 that reaches THIS cache from the render/export call sites
+    /// WITHOUT a PixelPipe signature change (the pipe is a sealed face;
+    /// the same shape as `$jobFilmTail`). Absent tags (the default) keep
+    /// the verbatim pre-M9-2 path: the bare pairHash keys and the
+    /// self-solving build — byte-identical behavior for every legacy
+    /// document (the T3 negative family pins the three slot keys).
+    public struct FilmLegRequestTags: Sendable, Equatable {
+        /// The pinned paper grade (M9-2 T2): the PaperGradeTable preset
+        /// resolved at the call site. Folds into the print/scan slot keys
+        /// and pins the build's `Parameters.printCC`.
+        public var paperGrade: PaperGradeTag?
+        /// The camera filter (M9-2 T3 — the spectral multiply seam's
+        /// sensW input tag). Folds into ALL THREE slot keys (D-M92-5:
+        /// the sensW input moves every built table — tc, print and scan
+        /// alike — a filter change must miss all three slots).
+        public var cameraFilter: CameraFilterTag?
+        public init(paperGrade: PaperGradeTag? = nil,
+                    cameraFilter: CameraFilterTag? = nil) {
+            self.paperGrade = paperGrade
+            self.cameraFilter = cameraFilter
+        }
+    }
+
+    /// One resolved taking-filter tag (M9-2 T3): the name folds the slot
+    /// keys; the transmission rides the build's sensW multiply
+    /// (X-M92-1 — the engine consumes the ALIGNED spectrum, never a file
+    /// name; the factor normalization anchors the 18% gray).
+    public struct CameraFilterTag: Sendable, Equatable {
+        public let name: String
+        /// The transmission on the engine axis (0...1 per wavelength).
+        public let transmission: [Double]
+        public init(name: String, transmission: [Double]) {
+            self.name = name
+            self.transmission = transmission
+        }
+    }
+
+    /// One resolved grade preset tag (the PaperGradeTable fit's value
+    /// triple — the EV rides the SOLVE's gain consumption layer, never
+    /// the build, per X-M92-2's "exposure → gain 消费层" ruling).
+    public struct PaperGradeTag: Sendable, Equatable {
+        public let key: String
+        public let magentaCC: Double
+        public let yellowCC: Double
+        public let exposureEv: Double
+        public init(key: String, magentaCC: Double, yellowCC: Double,
+                    exposureEv: Double) {
+            self.key = key
+            self.magentaCC = magentaCC
+            self.yellowCC = yellowCC
+            self.exposureEv = exposureEv
+        }
+    }
+
+    /// The request-scoped tags (nil = the verbatim legacy path).
+    @TaskLocal public static var requestTags: FilmLegRequestTags?
+
+    /// Fold a tag string into a key (FNV over UTF-8, L013's byte fold).
+    static func foldTag(_ seed: UInt64, _ tag: String) -> UInt64 {
+        var combined = seed
+        for byte in tag.utf8 {
+            combined = withUnsafeBytes(of: byte) { StableHash.combine(combined, $0) }
+        }
+        return combined
+    }
+
     /// The consult facade the spectral film arm's payload construction
     /// consumes (X7's "T1 光谱臂 payload 构造消费缓存命中面"): a tc-slot
     /// hit returns the SAME bundle instance (the build is deterministic —
-    /// hit-vs-miss is value-invisible) and touches the PCHIP slices; a
-    /// miss builds ONCE and fills all three slots.
+    /// hit-vs-miss is value-invisible); a miss builds ONCE and fills all
+    /// three slots.
+    ///
+    /// M9-2 (D-M92-5's folding order, T2): the FILTER tag folds into ALL
+    /// THREE slot keys (it multiplies the build's sensW input — every
+    /// built table moves: tc_lut, print and scan alike); the GRADE tag
+    /// folds into the print/scan keys ONLY (the tcLut lattice lives
+    /// UPSTREAM of the solved/pinned printCC — a grade move must HIT the
+    /// tc slot and MISS the print/scan slices, the T3 negative family's
+    /// split assertion). A tc hit whose print/scan keys MISS rebuilds (the
+    /// rebuild's tc_lut is bit-identical — the printCC never enters the
+    /// tcLut construction) and refills all three slots. ABSENT tags keep
+    /// the bare pairHash at all three slots — the legacy byte face.
     public static func tables(
         forPairHash pairHash: UInt64, film: FilmProfile, paper: FilmProfile
     ) throws -> SpectralFilmTables {
-        if let hit = tcLutSlot.consult(pairHash) {
-            touchPchipSlices(of: hit, for: pairHash)
+        let tags = Self.requestTags
+        // The grade tag — with the BW-paper default (DECISIONS-registered):
+        // a graded BW paper's third emulsion is BLIND (the safelight
+        // region, channel density floored), so the build's own neutral
+        // Newton diverges on it (the mid-gray raw's blind channel sits
+        // near 0 → log ratios unbounded → both dials clamp at 250 → the
+        // print lands in fog and the chain outputs a constant). The
+        // PHYSICAL neutral for a graded BW paper is the UNFILTERED pack
+        // (the datasheet's own row: unfiltered ≈ grade 2) — the table's
+        // 2-grade preset pins exactly that (m0/y0/e0). COLOR papers keep
+        // the verbatim solve (absent tags = the M8 byte face).
+        var gradeTag = tags?.paperGrade
+        if gradeTag == nil, paper.info.channelModel == "bw" {
+            if let preset = PaperGradeTable.cachedTable(paper: paper)["2"] {
+                gradeTag = PaperGradeTag(
+                    key: "2", magentaCC: preset.magentaCC,
+                    yellowCC: preset.yellowCC, exposureEv: preset.exposureEv)
+            }
+        }
+        // tcKey = fold(pairHash, filter?) — the sensW input tag.
+        var tcKey = pairHash
+        if let filter = tags?.cameraFilter {
+            tcKey = foldTag(tcKey, "filter:\(filter.name)")
+        }
+        // print/scan keys = fold(tcKey, grade?) — the print-side preset.
+        var psKey = tcKey
+        if let grade = gradeTag {
+            psKey = foldTag(psKey, "grade:\(grade.key)")
+        }
+        if let hit = tcLutSlot.consult(tcKey),
+           printSlot.consult(psKey) != nil, scanSlot.consult(psKey) != nil {
             return hit
         }
         buildLock.lock()
         defer { buildLock.unlock() }
         // Double-check under the build lock (a concurrent builder filled).
-        if let hit = tcLutSlot.consult(pairHash) {
-            touchPchipSlices(of: hit, for: pairHash)
+        if let hit = tcLutSlot.consult(tcKey),
+           printSlot.consult(psKey) != nil, scanSlot.consult(psKey) != nil {
             return hit
         }
-        let built = try SpectralBuildEngine.build(film: film, paper: paper)
-        tcLutSlot.store(built, for: pairHash)
-        printSlot.store(built.print, for: pairHash)
-        scanSlot.store(built.scan, for: pairHash)
+        var parameters = SpectralBuildEngine.Parameters()
+        if let grade = gradeTag {
+            parameters.printCC = SIMD3<Double>(0, grade.magentaCC, grade.yellowCC)
+        }
+        if let filter = tags?.cameraFilter {
+            parameters.cameraFilter = filter.transmission
+        }
+        let built = try SpectralBuildEngine.build(
+            film: film, paper: paper, parameters: parameters)
+        tcLutSlot.store(built, for: tcKey)
+        printSlot.store(built.print, for: psKey)
+        scanSlot.store(built.scan, for: psKey)
         return built
-    }
-
-    /// Fill-if-missing the PCHIP slices from a hit bundle (no rebuild —
-    /// the slices ARE the bundle's own values, bit-identical by
-    /// construction; the test pins the bit face).
-    private static func touchPchipSlices(
-        of bundle: SpectralFilmTables, for pairHash: UInt64
-    ) {
-        if printSlot.consult(pairHash) == nil {
-            printSlot.store(bundle.print, for: pairHash)
-        }
-        if scanSlot.consult(pairHash) == nil {
-            scanSlot.store(bundle.scan, for: pairHash)
-        }
     }
 }

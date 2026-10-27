@@ -23,6 +23,15 @@ import XCTest
 
 final class SpectralBakeTests: XCTestCase {
 
+    override func setUp() async throws {
+        try await super.setUp()
+        // M9-2: the earlier BW suites in this bundle fill the tc/print/scan
+        // LRU slots; the count assertions below assume an empty cache.
+        SpectralPrintBake.tcLutSlot.clearEntriesForTesting()
+        SpectralPrintBake.printSlot.clearEntriesForTesting()
+        SpectralPrintBake.scanSlot.clearEntriesForTesting()
+    }
+
     // MARK: - Fixtures
 
     private func profilesDirectory() -> URL {

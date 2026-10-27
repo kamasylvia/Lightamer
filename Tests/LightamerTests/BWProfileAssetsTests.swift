@@ -157,13 +157,21 @@ final class BWProfileAssetsTests: XCTestCase {
             }
         }
         XCTAssertTrue(sawSplit, "the ASSUMED blue/green split shows in 460-540 nm")
-        // The blindness: every channel ≤ −9 log sensitivity ≥ 560 nm
+        // The blindness: every channel ≤ −6 log sensitivity ≥ 560 nm
         // (paper is blind in the safelight region — the chart is empty).
+        // M9-2 T2 REANCHOR: the blind third channel sits at the −6 floor
+        // (1e-6 transmission — the physical safelight-blocking magnitude,
+        // not the absolute zero −10 the T1 digitization wrote): at −10
+        // the build's three-channel geometric-mean exposure normalization
+        // collapsed, inflating the print exposure ~1e4 and clamping the
+        // whole chain to a constant. −6 keeps the blindness physically
+        // honest (5+ decades below the visible pair) while the
+        // normalization stays in range — registered in M9-2-DECISIONS.
         for (i, row) in sens.enumerated() {
             let nm = 380 + 5 * i
             if nm >= 560 {
                 for c in 0..<3 {
-                    XCTAssertLessThanOrEqual(row[c], -9.0,
+                    XCTAssertLessThanOrEqual(row[c], -6.0,
                                              "channel \(c) at \(nm) nm must be blind")
                 }
             }

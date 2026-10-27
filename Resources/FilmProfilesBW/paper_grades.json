@@ -1,0 +1,54 @@
+{
+ "schemaVersion": 1,
+ "note": "COMPUTED table (M9-2 T2, X-M92-2): per-grade (magenta CC, yellow CC, exposure EV) fitted through the Lightamer spectral chain - the dichroic enlarger face + the paper's channel-split sensitivities + the per-channel fan curves - against the ISO Range figures printed in the MULTIGRADE RC datasheet (MG IV RC DELUXE: 00=180 0=160 1=130 2=110 3=90 4=60 5=40; unfiltered=110 = grade 2). Dial convention: grades 00-2 = yellow (yellow absorbs blue, the high-contrast blue emulsion loses exposure -> softer), 3-5 = magenta (harder). The modeled blend's contrast swing is narrower than the datasheet paper's (fan slope difference + blind-channel dilution + emulsion spectral overlap), so each family's dial targets are AFFINELY calibrated: neutral dial 0 anchors to the unfiltered R, the dial extreme anchors to the family endpoint. Regenerate/assert: PaperGradeTableTests round-trip.",
+ "dial_convention": {
+  "00-2": "yellow_cc (softens with dial)",
+  "3-5": "magenta_cc (hardens with dial)"
+ },
+ "iso_range_targets": {
+  "00": 180,
+  "0": 160,
+  "1": 130,
+  "2": 110,
+  "3": 90,
+  "4": 60,
+  "5": 40
+ },
+ "grades": {
+  "00": {
+   "magenta_cc": 0.0,
+   "yellow_cc": 199.9999999999872,
+   "exposure_ev": 0.5473782055312546
+  },
+  "0": {
+   "magenta_cc": 0.0,
+   "yellow_cc": 68.08501407095804,
+   "exposure_ev": 0.41631442692086634
+  },
+  "1": {
+   "magenta_cc": 0.0,
+   "yellow_cc": 21.46120810856047,
+   "exposure_ev": 0.18794160477597668
+  },
+  "2": {
+   "magenta_cc": 0.0,
+   "yellow_cc": 0.0,
+   "exposure_ev": 0.0
+  },
+  "3": {
+   "magenta_cc": 33.50493077708663,
+   "yellow_cc": 0.0,
+   "exposure_ev": 0.5055608599280363
+  },
+  "4": {
+   "magenta_cc": 89.82938169407646,
+   "yellow_cc": 0.0,
+   "exposure_ev": 0.9829355806247747
+  },
+  "5": {
+   "magenta_cc": 199.99999999999858,
+   "yellow_cc": 0.0,
+   "exposure_ev": 1.212021747557818
+  }
+ }
+}
