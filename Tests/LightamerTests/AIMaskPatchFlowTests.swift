@@ -242,21 +242,25 @@ final class AIMaskPatchFlowTests: XCTestCase {
     // MARK: ③ person menu-entry routing face
 
     /// The `.person` source family: the file round-trips through
-    /// `source(ofFileName:)`, and the segment re-entry discriminant is
-    /// UNTOUCHED — a person raster file must NOT seed a segment refine
-    /// session (only `.segment` files do), while a segment file still does.
+    /// `source(ofFileName:)`, and the M9-1 T4 re-entry route covers the
+    /// THREE sources (.segment/.subject/.person — the explicit user
+    /// re-open semantics); depth/skin and hand-drawn rasters stay OUT.
     func testPersonMenuRoutingSourceFace() throws {
         let personLayer = AdjustmentLayer(name: "P", opacity: 1)
         let personName = AIMaskSource.person.fileName(forLayerID: personLayer.id)
         XCTAssertTrue(personName.hasPrefix("ai-person-"))
         XCTAssertEqual(AIMaskSource.source(ofFileName: personName), .person)
 
-        // A person file never seeds a segment refine session.
+        // M9-1 T4 (the REVERSAL of the old "person never seeds" rule —
+        // the user's EXPLICIT re-entry routes; the forbidden thing stays
+        // the AUTOMATIC seeding from a re-bake): a person raster seeds
+        // the refine session pointing at the same file.
         editingState.armSegmentSession(for: AdjustmentLayer(
             id: personLayer.id, name: "P", opacity: 1,
             mask: MaskSpec(raster: RasterMaskRef(fileName: personName, maskHash: 7))))
-        XCTAssertNil(editingState.segmentSession.rebakeFileName,
-                     "the person family must not enter the segment re-entry path")
+        XCTAssertEqual(
+            editingState.segmentSession.rebakeFileName, personName,
+            "the M9-1 explicit re-entry routes the person family")
 
         // A segment file still does (the 07-3 semantics preserved).
         let segmentName = AIMaskSource.segment.fileName(forLayerID: personLayer.id)
@@ -264,6 +268,27 @@ final class AIMaskPatchFlowTests: XCTestCase {
             id: personLayer.id, name: "P", opacity: 1,
             mask: MaskSpec(raster: RasterMaskRef(fileName: segmentName, maskHash: 7))))
         XCTAssertEqual(editingState.segmentSession.rebakeFileName, segmentName)
+
+        // Subject joins the route too.
+        let subjectName = AIMaskSource.subject.fileName(forLayerID: personLayer.id)
+        editingState.armSegmentSession(for: AdjustmentLayer(
+            id: personLayer.id, name: "P", opacity: 1,
+            mask: MaskSpec(raster: RasterMaskRef(fileName: subjectName, maskHash: 7))))
+        XCTAssertEqual(editingState.segmentSession.rebakeFileName, subjectName)
+
+        // Depth/skin and hand-drawn rasters NEVER route.
+        for outside in [
+            AIMaskSource.depth.fileName(forLayerID: personLayer.id),
+            AIMaskSource.skin.fileName(forLayerID: personLayer.id),
+            "brush-\(personLayer.id.uuidString).png",
+        ] {
+            editingState.armSegmentSession(for: AdjustmentLayer(
+                id: personLayer.id, name: "P", opacity: 1,
+                mask: MaskSpec(raster: RasterMaskRef(fileName: outside, maskHash: 7))))
+            XCTAssertNil(
+                editingState.segmentSession.rebakeFileName,
+                "outside the three-source route: \(outside)")
+        }
     }
 
     // MARK: ④ same-maskID overwrite across rebakes

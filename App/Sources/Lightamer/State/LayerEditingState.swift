@@ -313,10 +313,17 @@ final class LayerEditingState {
     /// Seed/refresh the session against the selected layer's mask state
     /// (called on mode entry; the refine marker is the mask file's source
     /// prefix — D-07-CONTEXT-5).
+    ///
+    /// M9-1 T4 (the explicit re-entry extension): the USER re-opening the
+    /// tap mode on a layer carrying a `.segment`/`.subject`/`.person`
+    /// raster seeds a REFINE session pointing at the same mask file
+    /// (regenerate-and-overwrite, same maskID). Depth/skin stay OUT (the
+    /// narrow three-source route); non-AI (hand-drawn) masks never route.
     func armSegmentSession(for layer: AdjustmentLayer?) {
         segmentSession = SegmentSession()
         if let fileName = layer?.mask?.raster?.fileName,
-           AIMaskSource.source(ofFileName: fileName) == .segment {
+           [AIMaskSource.segment, .subject, .person]
+               .contains(AIMaskSource.source(ofFileName: fileName)) {
             segmentSession.rebakeFileName = fileName
         }
     }

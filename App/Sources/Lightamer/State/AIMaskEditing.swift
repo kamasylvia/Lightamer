@@ -27,20 +27,25 @@ import LightamerCore
 /// The generation-source prefix of a layer's AI mask file (the refine
 /// session re-entry marker + the T2「已有层 B 蒙版」detection).
 enum AIMaskSource: String, Sendable {
-    /// Layer A subject mask (MaskToolbar「主体蒙版」).
+    /// Layer A subject mask (MaskToolbar「Subject」task).
     case subject = "ai-subject"
     /// Layer B tap-to-segment mask (MaskToolbar「点击选取」).
     case segment = "ai-segment"
     /// SkinRegionLocator skin mask (SkinSmoothPanel「定位皮肤」).
     case skin = "ai-skin"
     /// DepthMaskService near mask (MaskToolbar「深度」— M4-3-01). The
-    /// `ai-depth` prefix stays disjoint from the segment marker, so the
-    /// LayerEditingState segment discriminant is untouched.
+    /// `ai-depth` prefix stays disjoint from the segment marker.
     case depth = "ai-depth"
-    /// Person instance mask (MaskToolbar「人物实例」— M6-4-02 KD-2/KD-5).
-    /// The `ai-person` prefix stays disjoint from the segment marker for
-    /// the same reason (a person re-bake must never seed a segment
-    /// session — `armSegmentSession` keys on `.segment` only).
+    /// Person instance mask (MaskToolbar「People」task — M6-4-02/M9-1).
+    ///
+    /// DESIGN-INTENT NOTE (M9-1 T4, m-4 — supersedes the old wording
+    /// that flatly forbade a person re-bake from seeding a segment
+    /// session): AUTOMATIC seeding from an AI re-bake remains FORBIDDEN —
+    /// an AI commit never pulls a segment session up on its own. The
+    /// EXPLICIT user re-entry is a different action:
+    /// `armSegmentSession` routes the .segment/.subject/.person THREE
+    /// sources when the USER re-opens the tap mode on a layer carrying
+    /// one (regenerate-and-overwrite, same maskID).
     case person = "ai-person"
 
     /// The stable per-layer mask file name (same name on every re-bake —

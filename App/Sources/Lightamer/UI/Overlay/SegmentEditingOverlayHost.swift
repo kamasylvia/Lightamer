@@ -392,6 +392,9 @@ internal struct SegmentEditingOverlayHost: View {
                 cancelSession()
             }
             .controlSize(.small)
+            // M9-1 T4: Escape converges on the Cancel semantics (the
+            // discard face — zero bake, zero history).
+            .keyboardShortcut(.cancelAction)
             .accessibilityIdentifier("segment.done")
         }
         .padding(.horizontal, 12)

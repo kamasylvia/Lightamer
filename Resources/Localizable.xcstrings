@@ -34296,6 +34296,22 @@
         }
       }
     }
+  },
+  "transfer_ai_masks_excluded %lld" : {
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "%lld AI masks were excluded (they describe this image's content)"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "已排除 %lld 个 AI 蒙版（其描述的是本图内容）"
+        }
+      }
+    }
   }
   },
   "version": "1.0"
