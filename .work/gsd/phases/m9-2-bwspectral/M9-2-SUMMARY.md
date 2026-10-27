@@ -126,3 +126,18 @@ Library 定向实跑核;--all 归 orchestrator 批准轮)。
 配方 = `.work/gui-acceptance/m9-2/MANIFEST.md`(BW 分节/grade 切换/
 SHOOT 节 w25 压暗方向/granularity readout 一键应用/w58 注记/色卷
 零漂移旁证);实机走查归验收批。
+
+
+## T5 收口节（2026-10-28 补录——orchestrator 代收口，两任中断后）
+
+**中断叙事**：接续 executor（T2-T4 全实现 + 账本）先后遭 5h 限额（15:59）与进程意外终止两次打断；全套轮 nohup 脱离幸存，retro-commit `b807b1dd`（T2+T3+T4 合一，DECISIONS §5）与全套由 orchestrator 接力完成。BWDbgTests 调试脚手架已由收口者删除（正式化完成）。
+
+**全套终值（2026-10-28 00:08-00:30 收尾）**：**4363/34/0**（七 bundle：IOP 798/1 · IOPParity 540/10 · Layers 528/5 · Library 785/4 · Sessions 285/4 · Export 385/4 · App 1042/6）——零失败零 crash 零 MEMFAIL；总时长 ~66 分钟（IOPParity 26 分钟含 28Profiles 双臂长测）。
+
+**ΔN 对账（越带申报）**：Δexecuted **+35**（基线 4328/33/0 → 4363/34/0；总法数 +36，其中 1 法 skip）vs plan 带 +15..20——**越带 +15**。构成 = planner 低估：BWSpectralGolden 5 + CameraFilter 4 + FilmPanelBW 5 + PaperGradeTable 4 + SidecarV12 3 + FilterBakeKey 4 + GrainCalibration 2 = 新文件 27 法 + FilmProfileTests/BWProfileAssetsTests/SpectralBakeTests 扩容 ~9 法。全部对应 M9BW-01..03 验收形态的 golden/负测组完整清单（PLAN T2-T3 分解时各法预算 1-2，实际一法多断言未压缩）。越带申报：验收形态一一对应、无凑数法；D-DECISIONS §越带 留晨审。
+
+**IOPParity skip 10** = M8 probe 族（probe4/probe5 等 LIGHTAMER_PERF_PROBE 门既知形态）+1 新 = 执行期新增 skip（探针门族），非失败。
+
+**zh-audit**：--check PASS（1744 source / 2060 catalog）+ --self-test PASS。
+
+**遗留移交**：m-1 类注释谓词名 / o-omp3 孤儿 png / bootstrap 补走查（沿 M9-1 尾项池）。
