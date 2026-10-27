@@ -884,3 +884,13 @@ IOPP	10	SpectralDualArmGoldenTests.swift
 #   （SpectralExposureSemanticsTests 4 法——*Semantics/*Golden 域模式）。
 APP	7	FilmPanelSpectralUITests.swift
 IOPP	4	SpectralExposureSemanticsTests.swift
+#   M9-1 T5（2026-10-27）：AI Mask 工具 parity 六文件入域——任务面板/迭代会话/
+#   会话命令三 APP（M9AIM-01/02/03 交互面），形态学/px 换算/路径采样三
+#   LAYERS（Core 纯函数域）；行内 method 数 = 终态对账（T1 5 + T3 8 + T4 5
+#   = APP +18；T2 5+4 + T3 6 = LAYERS +15）。
+LAYERS	5	AIMaskMorphologyTests.swift
+LAYERS	4	AIMaskFeatherPxTests.swift
+LAYERS	6	AIMaskPathSamplingTests.swift
+APP	5	AIMaskTaskPanelTests.swift
+APP	8	AIMaskIterativeSessionTests.swift
+APP	5	AIMaskSessionCommandsTests.swift
