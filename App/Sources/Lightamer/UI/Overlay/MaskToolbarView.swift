@@ -263,13 +263,16 @@ internal struct MaskToolbarView: View {
         return AIMaskSource.source(ofFileName: fileName) != nil
     }
 
-    // MARK: - Segment session feather + patch face (M6-4-02 KD-3)
+    // MARK: - Segment session feather + expand face (M6-4-02 KD-3; M9-1 T2)
 
-    /// The Edge feather slider (−100...100; negative = the CPU logit-gain
-    /// crisper leg, positive = the GPU bake radius, 0 = off) + the reset +
-    /// the hi-res patch refining indicator. EDITING-MODE state only: the
-    /// value rides the session and lands on the NEXT bake — nothing here
-    /// commits history.
+    /// The Edge feather + Expand sliders (M9-1 T2 / D-M9A-7 — the
+    /// ABSOLUTE-px panel domain, the SM8 alignment): feather px
+    /// [0,50] → σ through `AIMaskFeather.sigmaFromPx`; expand px
+    /// [−50,50] integer steps → the bake seam's morphology pre-pass
+    /// (`RasterMaskStore.bake(expandPx:)`, order expand → feather →
+    /// quantize). D-H1: the drag's live values ride the SESSION only —
+    /// nothing commits history mid-drag, and the next bake (patch pass
+    /// or re-generate) picks the settled value up (the AI-06 face).
     private var featherSection: some View {
         HStack(spacing: 8) {
             if editingState.segmentSession.patchState == .refining {
@@ -281,20 +284,26 @@ internal struct MaskToolbarView: View {
             Text("ai_mask_feather_label")
                 .font(.caption)
                 .accessibilityIdentifier("ai.mask.feather.label")
-            Slider(value: Binding(
-                get: { Double(editingState.segmentSession.featherPercent) },
-                set: { editingState.segmentSession.featherPercent = Float($0) }
-            ), in: -100...100)
+            Slider(
+                value: Binding(
+                    get: { Double(editingState.segmentSession.featherPx) },
+                    set: { editingState.segmentSession.featherPx = Float($0) }),
+                in: 0...50, step: 1,
+                onEditingChanged: { _ in
+                    // D-H1: begin/end bracket the drag; the session value
+                    // IS the live face (no history write ever happens
+                    // here — the bake consumes the settled value).
+                })
             .controlSize(.small)
-            .frame(width: 110)
+            .frame(width: 90)
             .accessibilityIdentifier("ai.mask.feather")
-            Text(verbatim: String(format: "%.0f", editingState.segmentSession.featherPercent))
+            Text(verbatim: "\(Int(editingState.segmentSession.featherPx))px")
                 .font(.caption2)
                 .monospacedDigit()
-                .frame(width: 28, alignment: .trailing)
+                .frame(width: 34, alignment: .trailing)
                 .accessibilityIdentifier("ai.mask.feather.value")
             Button {
-                editingState.segmentSession.featherPercent = 0
+                editingState.segmentSession.featherPx = 0
             } label: {
                 Image(systemName: "arrow.counterclockwise")
                     .font(.caption2)
@@ -302,6 +311,35 @@ internal struct MaskToolbarView: View {
             .buttonStyle(.borderless)
             .accessibilityLabel(Text("ai_mask_feather_reset"))
             .accessibilityIdentifier("ai.mask.feather.reset")
+
+            Text("ai_mask_expand_label")
+                .font(.caption)
+                .accessibilityIdentifier("ai.mask.expand.label")
+            Slider(
+                value: Binding(
+                    get: { Double(editingState.segmentSession.expandPx) },
+                    set: { editingState.segmentSession.expandPx = Int($0.rounded()) }),
+                in: -50...50, step: 1,
+                onEditingChanged: { _ in
+                    // D-H1: same discipline — session state only.
+                })
+            .controlSize(.small)
+            .frame(width: 90)
+            .accessibilityIdentifier("ai.mask.expand")
+            Text(verbatim: "\(editingState.segmentSession.expandPx)px")
+                .font(.caption2)
+                .monospacedDigit()
+                .frame(width: 34, alignment: .trailing)
+                .accessibilityIdentifier("ai.mask.expand.value")
+            Button {
+                editingState.segmentSession.expandPx = 0
+            } label: {
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.caption2)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("ai_mask_expand_reset"))
+            .accessibilityIdentifier("ai.mask.expand.reset")
         }
     }
 

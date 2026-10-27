@@ -740,6 +740,20 @@ final class SegmentSession {
     /// only, never persisted.
     var featherPercent: Float = 0
 
+    /// The Edge feather in ABSOLUTE px ([0,50], M9-1 T2 / D-M9A-7): the
+    /// px-domain panel face. Positive → σ = `AIMaskFeather.sigmaFromPx`
+    /// at the bake plane's long edge; 0 → the legacy `featherPercent`
+    /// leg above (the negative logit-gain superset stays reachable
+    /// through it — the field and both legs are KEPT). UI state only,
+    /// never persisted (AI-06).
+    var featherPx: Float = 0
+
+    /// The Expand radius in px ([−50,50]; >0 dilate / <0 erode, 0 =
+    /// off): the bake seam's morphology pre-pass
+    /// (`RasterMaskStore.bake(expandPx:)`, order expand → feather →
+    /// quantize — M9-1 T2). UI state only, never persisted (AI-06).
+    var expandPx: Int = 0
+
     /// The 1s debounce handle (KD-1: the last interaction's task wins —
     /// each schedule cancels the previous). The patch pass itself is
     /// `AIMaskEditing.runPatchRefine`.

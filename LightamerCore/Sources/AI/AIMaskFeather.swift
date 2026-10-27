@@ -57,6 +57,37 @@ public enum AIMaskFeather {
         return abs(p) / 100 * maxRadiusFraction * Float(longEdgePixels)
     }
 
+    // MARK: - The absolute-px face (M9-1 T2, D-M9A-7)
+
+    /// The feather pixel ceiling (the upstream panel domain — feather_px
+    /// ∈ [0,50], the ANALYSIS-image pixel domain; the bake plane is the
+    /// decode frame, the analysis-image equivalent).
+    public static let maxFeatherPx: Float = 50
+
+    /// Absolute px → σ (the M9AIM-03 panel face): px ∈ [0,50] clamped,
+    /// folded through the percent leg — the SINGLE conversion source (the
+    /// panel slider never re-derives the math). At the bake plane's
+    /// long edge ≥ 2500 px the fold is exact (σ == px); below that the
+    /// percent leg's own ±100 clamp caps σ at 2% of the long edge (the
+    /// pre-existing red-line behavior, kept — small synthetic planes are
+    /// the only residents there).
+    public static func sigmaFromPx(px: Float, longEdgePixels: Int) -> Float {
+        precondition(longEdgePixels > 0, "long edge must be positive")
+        let clamped = max(0, min(maxFeatherPx, px))
+        let percent = clamped * 100 / (maxRadiusFraction * Float(longEdgePixels))
+        return sigma(percent: percent, longEdgePixels: longEdgePixels)
+    }
+
+    /// The reverse fold (the M6-4-02 slider-face migration's read-back):
+    /// the stored percent → the panel's px value. Only the POSITIVE
+    /// domain maps (the negative leg is the logit-gain superset, which
+    /// has no absolute-px expression — the panel keeps 0 there).
+    public static func pxFromPercent(percent: Float, longEdgePixels: Int) -> Float {
+        precondition(longEdgePixels > 0, "long edge must be positive")
+        guard percent > 0 else { return 0 }
+        return sigma(percent: percent, longEdgePixels: longEdgePixels)
+    }
+
     /// The NEGATIVE leg (percent < 0): the plane-domain logit gain —
     /// `x' = x^g / (x^g + (1−x)^g)` with `g = 1 − 7·(percent/100)` ∈ (1, 8].
     /// Limits are exact (0 → 0, 1 → 1, 0.5 → 0.5): the 0.5 contour is
