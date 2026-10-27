@@ -1,0 +1,99 @@
+Resources/FilmProfilesBW — NOTICE
+==================================
+
+STANCE
+------
+Everything in this directory is SELF-DIGITIZED FACTUAL DATA, compiled for
+the Lightamer project (M9-2). Chart sample points, transmittance
+percentages, characteristic-curve readings and RMS granularity values are
+measurements — facts, which are not copyrightable. The underlying
+manufacturer documents remain the property of their publishers; the PDFs
+are NOT redistributed in this repository (hashes below only attest what
+was digitized). No array or table was copied from any third-party dataset
+(nothing from SpektraLab / spektrafilm resources was used as a data
+source; that corpus was at most read for FORMAT conventions, which are
+not protectable).
+
+TRADEMARKS
+----------
+KODAK, TRI-X, T-MAX and WRATTEN are trademarks of Eastman Kodak Company.
+FUJIFILM and NEOPAN are trademarks of FUJIFILM Corporation. ILFORD,
+HP5 PLUS and MULTIGRADE are trademarks of Harman technology Limited.
+The use of these names here is nominative fair use (identifying the
+products the data describes); no affiliation or endorsement is implied.
+
+SOURCES (what was digitized, from where)
+----------------------------------------
+1. Eastman Kodak Company, "KODAK PROFESSIONAL TRI-X 400 / 400TX Film",
+   publication F-4017. sha256 (f4017_trix.pdf):
+   51d738f4f996c98716d153bab75e41d0359637a18ea49f9be52062652b0b27d2
+   Downloaded 2026-10-27 from kodak.com (F-4017 datasheet download).
+   Used: spectral sensitivity p7 (vector), characteristic curves p8
+   (vector), diffuse rms granularity p6 (= 17).
+2. Eastman Kodak Company, "KODAK PROFESSIONAL T-MAX 100 Film",
+   publication F-4016. sha256 (f4016_tmax100.pdf):
+   a9899179ed86d4419bbb996ab2cbbece338c602975e16961cba5dd69ee96d3fe
+   Downloaded 2026-10-27 from kodak.com (F-4016 datasheet download).
+   Used: spectral sensitivity + characteristic curves p8 (vector),
+   image-structure table granularity (= 8; corrects a third-party 7.4).
+3. FUJIFILM Corporation, "FUJIFILM NEOPAN 100 ACROS II", publication
+   AF3-0258E. sha256 (acros2.pdf):
+   afb5e24db0d9b7a219b6682b640237a525b7927e8cf1b95ba2299c0be6385cdd
+   Downloaded 2026-10-27 from fujifilm.com (AF3-0258E datasheet).
+   Used: characteristic curve + spectral sensitivity p3 (raster, 300 dpi
+   pdfium render), diffuse RMS granularity value (= 7).
+4. Harman technology Limited, "ILFORD HP5 PLUS" datasheet.
+   sha256 (hp5.pdf):
+   f06f383d714bc9d13033f9e30a6aedf29d9b9f4d25c4a353d69e6526cb2f037f
+   Downloaded 2026-10-27 from ilfordphoto.com (HP5 PLUS datasheet PDF).
+   Used: spectral sensitivity p1 + characteristic curves p2 (raster).
+   NOTE: Harman publishes no RMS granularity figure for HP5 PLUS — the
+   granularity field is null by design (M9-2 DECISIONS).
+5. Harman technology Limited, "ILFORD MULTIGRADE IV RC" datasheet.
+   sha256 (multigrade4.pdf):
+   d0ed6e96ca035ee408be295beedad69cf87afb9d9687996b0addd65fbee9c292
+   Downloaded 2026-10-27 from ilfordphoto.com (MULTIGRADE IV RC
+   datasheet PDF). Used: spectral sensitivity p1 + grade characteristic
+   curves p3 (raster); the >=555 nm blindness is directly evidenced
+   (the chart carries no ink there).
+6. Kodak Wratten B-3 table scan (karmalimbo_wratten.pdf — an unofficial
+   scan of the Kodak "KODAK WRATTEN FILTERS" B-3 publication).
+   sha256:
+   bf74dc3ba0565c81576a1511f24fc138d2f59bfa414d1f34dcacc5753a40e95f
+   Role: independent CROSS-CHECK of camera_filters.json (and the sole
+   source for No. 11 — retired in the WRATTEN 2 line). Dash-audited
+   vision transcription, evidence/t1/b3_transcription.md.
+7. Eastman Kodak Company, WRATTEN 2 per-filter datasheet PDFs
+   (kodak_wratten2_brochure.pdf +
+   kodak_w2/*.pdf, downloaded 2026-10-27 from kodak.com).
+   sha256:
+   5f27d6a129b96781d1a67133de7a4990bcce54c6b5d1d6f621179ee2a878c615
+   5975c86498145713c0a864a9c3303f8f3522140856df3a14456fe43b2b00c4d0  w2-8
+   21b292544ff2d663d7671686750a4f4cb71b906733f4751a7c24a93b6a65e7f6  W2-12
+   acbffbc45ce201913229fec81f3bc516b0587fe2a4b42142be01a3fcfae70a1e  W2-15
+   94eff6eb305aaeac080640dfaea8799b3c24387b491122a0ed3d1ea583599dd5  W2-21
+   a7f209922fce39413a1632a53952c9c0c5dc10a4e22103812d4a272d661234bb  W2-25
+   168a816b10cf0b56ac4c0aaba50a39206c0c78e1c79f802adaa3f5bb21a02bba  W2-47
+   a2305795138fe68adac82b963b90a62b3272674bb4f5f208a6207e8b74e82beb  W2-58
+   Role: the OFFICIAL CURRENT-PRODUCTION curves — camera_filters.json's
+   asset base (plan T1: 分歧值取官方源). Divergence vs the B-3 vintage
+   table is systematic in the cutoff bands (logged in M9-2 DECISIONS and
+   evidence/t1/wratten_crosscheck.json).
+8. Paul Repacholi, "Wratten filter data" (Usenet rec.photo.tech, 1992;
+   text transcription of the same Kodak B-3 tables, mirrored at
+   mat.uc.pt — filter-data.html, retrieved 2026-10-27).
+   Role: text-grade anchor for the No. 25 column (verbatim) and the
+   dash-convention audit of the vision transcription.
+
+DIGITIZATION
+------------
+Tooling: Scripts/bwprofile/ (uv + pdfplumber + Pillow + numpy).
+Vector PDFs: axis tick-label affine fit (sub-pixel residuals logged) +
+polyline resampling at full coordinate precision. Raster charts: 300 dpi
+pdfium page renders, gridline/tick pixel anchors, ink-threshold run
+segmentation with sub-pixel weighted centroids and claim-based
+slope-aware curve walkers. Every modeled quantity carries an ASSUMED tag
+in the profile's metadata.tags; quantities read off the sheet carry
+SHEET tags. Rebuild: uv run python3 extract_kodak.py / extract_wratten.py
+/ build_wratten.py / trace_all.py / assemble_profiles.py (PDFs present in
+the evidence store).

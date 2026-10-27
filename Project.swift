@@ -185,6 +185,12 @@ let project = Project(
                 // string) because Tuist 4.208 silently ignores the latter
                 // (M2-5-3 precedent).
                 .folderReference(path: "Resources/FilmProfiles"),
+                // M9-2 T1: the SELF-DIGITIZED BW family (4 films + the
+                // Multigrade paper + Wratten filters) rides as a folder
+                // reference too — physically separate from the CC BY-SA
+                // FilmProfiles/ set (the licensing boundary the NOTICE
+                // documents), same Tuist bare-directory pitfall.
+                .folderReference(path: "Resources/FilmProfilesBW"),
                 // Plan M2-10-01 (E1): bundled AI models ride as a folder
                 // reference too — the repo-root Resources/AIModels directory
                 // (model bytes gitignored, .keep tracked) copies into the
@@ -524,6 +530,10 @@ let project = Project(
             sources: [
                 "Tests/LightamerTests/Fixtures.swift",
                 "Tests/LightamerTests/ChainBuilderHelpers.swift",
+                // M9-2 T1: the self-digitized BW asset family's acceptance
+                // suite (MANIFEST reconcile / decode / paper split / tags /
+                // filter table / granularity — pure Core asset tests).
+                "Tests/LightamerTests/BWProfileAssetsTests.swift",
                 "Tests/LightamerTests/ColorMatchOklabTests.swift",
                 "Tests/LightamerTests/ColorMatchSolverGoldenTests.swift",
                 "Tests/LightamerTests/ColorMatchStatsTests.swift",
