@@ -34822,7 +34822,6 @@
         }
       }
     }
-  }
   },
   "upright_guides_cap_toast" : {
     "extractionState" : "manual",
@@ -34840,6 +34839,7 @@
         }
       }
     }
+  }
   },
   "version": "1.0"
 }
