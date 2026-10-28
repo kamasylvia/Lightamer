@@ -235,6 +235,12 @@ struct UprightGuidesOverlayView: View {
                             var m = UprightGuidesModel(guides: guides)
                             m.selected = selected
                             let accepted = m.press(at: viewportToFrame(value.startLocation))
+                            // M-3: the drag path syncs the session face at
+                            // press too — a draw press clears (upstream
+                            // drawing_a_new_guide_clears_the_selection), an
+                            // endpoint grab selects the grabbed guide (the
+                            // moved-guide-ends-up-selected face).
+                            onSelect(m.selected)
                             if accepted {
                                 dragModel = m
                                 onBegin()
@@ -253,6 +259,9 @@ struct UprightGuidesOverlayView: View {
                         guard var m = dragModel else { return }
                         let changed = m.release()
                         dragModel = nil
+                        // M-3: release re-syncs (the moved guide stays
+                        // selected; a landed draw stays deselected).
+                        onSelect(m.selected)
                         if changed {
                             onCommit(m.guides)
                         }

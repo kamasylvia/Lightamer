@@ -284,6 +284,44 @@ final class UprightGuidesInteractionTests: XCTestCase {
         XCTAssertLessThan(worst, 1e-9, "the active-chain roundtrip stays exact")
     }
 
+    // MARK: - M-3: the drag-path session selection sync
+
+    /// The overlay's drag path now reports the model's selection through
+    /// `onSelect` at press AND release (the host writes the session face).
+    /// This pins the values the callback carries — the two upstream faces
+    /// the lane-2 acceptance found missing at the App level:
+    /// drawing_a_new_guide_clears_the_selection, and
+    /// dragging_a_guide_endpoint_moves_it's "the moved guide ends up
+    /// selected".
+    func testDragPathSelectionSyncContract() {
+        var m = UprightGuidesModel()
+        for (a, b) in [((0.1, 0.1), (0.9, 0.1)), ((0.1, 0.5), (0.9, 0.5))] {
+            XCTAssertTrue(m.press(at: SIMD2(a.0, a.1)))
+            m.dragTick(at: SIMD2(b.0, b.1))
+            m.release()
+        }
+        XCTAssertEqual(m.guides.count, 2)
+
+        // A draw press with a stale selection CLEARS it — the value the
+        // press-time onSelect carries; the release keeps it cleared.
+        m.selected = 0
+        XCTAssertTrue(m.press(at: SIMD2(0.2, 0.95)), "the draw press is accepted")
+        XCTAssertNil(m.selected, "a draw press clears the selection (press-time sync)")
+        m.dragTick(at: SIMD2(0.8, 0.95))
+        m.release()
+        XCTAssertNil(m.selected, "the landed draw stays deselected (release-time sync)")
+
+        // An endpoint-grab press SELECTS the grabbed guide and the
+        // selection survives the release (the moved guide ends up
+        // selected) — the value both sync points carry.
+        XCTAssertTrue(m.press(at: SIMD2(0.9, 0.1)), "the near-end press grabs the drag")
+        XCTAssertEqual(m.dragging?.index, 0)
+        XCTAssertEqual(m.selected, 0, "the grabbed guide is selected (press-time sync)")
+        m.dragTick(at: SIMD2(0.95, 0.12))
+        m.release()
+        XCTAssertEqual(m.selected, 0, "the moved guide ends up selected (release-time sync)")
+    }
+
     // MARK: - M-2: the cap-refusal toast face (the plan AC)
 
     /// The overlay reports the refused 5th draw through `onRefused` and
