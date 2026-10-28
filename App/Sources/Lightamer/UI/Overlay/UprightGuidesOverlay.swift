@@ -333,7 +333,8 @@ struct UprightGuidesToolHost: View {
             // The ONLY coordinate channel (CONTEXT red line 6): the guides
             // persist in the upright INPUT frame; the overlay draws in the
             // DISPLAY frame — every crossing goes through the mapper
-            // (truncated before the upright slot).
+            // (the post-upright display leg: forward draws stored guides
+            // where the user sees them, inverse stores what they drew).
             let mapper = pipeCoordinator.uprightGuideMapper()
             let guides = (try? uprightRecord.params(of: UprightModule.self))?.guides ?? []
             let displayGuides = guides.map { Self.mapGuide($0, mapper?.forward(normalized:)) }

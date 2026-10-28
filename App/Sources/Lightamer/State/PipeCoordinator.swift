@@ -2163,18 +2163,26 @@ final class PipeCoordinator {
     }
 
     /// M9-3-T4 (CONTEXT red line 6): the guides' ONLY coordinate channel —
-    /// the geometry mapper over the LIVE box set truncated BEFORE the
-    /// upright slot (lens 13 / ashift 15 included; upright 15.5 / flip 16 /
-    /// crop 24.5 excluded): its inverse maps a viewport-normalized point
-    /// into the upright op's INPUT frame (the guides' persistence domain),
-    /// its forward maps back for the redraw. nil = nothing loaded.
+    /// the geometry mapper over the boxes AFTER the upright slot (flip 16
+    /// / liquify 18 / crop 24.5), composed against the upright op's INPUT
+    /// frame (the guides' persistence domain, derived from the PRE-upright
+    /// geometry's output SIZE — M9-3 M-1 fix: the pre-upright boxes stay
+    /// OUT of the channel; guides ride neither the pre-upright warp nor
+    /// the solve they define):
+    ///   forward : upright-input-frame normalized → display normalized
+    ///             (the draw leg — stored guides land where the user sees
+    ///             them, crop/flip-active included)
+    ///   inverse : display normalized → upright-input-frame normalized
+    ///             (the store leg — a drawn pointer lands in the guides'
+    ///             persistence domain)
+    /// nil = nothing loaded / degenerate extent.
     func uprightGuideMapper() -> GeometryPointMapper? {
-        guard let decoded else { return nil }
-        let extent = decoded.ciImage.extent
-        guard extent.width >= 1, extent.height >= 1 else { return nil }
-        let frameSize = SIMD2(Double(extent.width), Double(extent.height))
-        let preUpright = instances.filter { $0.iopOrder < UprightModule.iopOrder }
-        return GeometryPointMapper.compose(boxes: preUpright, frameSize: frameSize)
+        guard let decodedSize = decodedFrameSize() else { return nil }
+        let pre = instances.filter { $0.iopOrder < UprightModule.iopOrder }
+        let uprightInput = GeometryPointMapper.compose(
+            boxes: pre, frameSize: decodedSize).outputSize
+        let post = instances.filter { $0.iopOrder > UprightModule.iopOrder }
+        return GeometryPointMapper.compose(boxes: post, frameSize: uprightInput)
     }
 
     /// M9-3-T3: an OPAQUE-content probe over the display plane (the
