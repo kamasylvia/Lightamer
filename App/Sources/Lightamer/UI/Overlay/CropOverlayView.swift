@@ -22,10 +22,17 @@ import SwiftUI
 // rects and forwards records; the coordinator + history own the rest.
 //
 // HANDLES (dt `_grab_region_t`, `crop.c:71-88`): 4 corners + 4 edges +
-// center-move map to the 16-state bit field; HitTest below mirrors
+// center map to the 16-state bit field; HitTest below mirrors
 // `_gui_get_grab` (inside-box → CENTER, border bands → edges/corners).
-// Rotation handles belong to 04-03 ashift (SC#1's rotation entry is the
-// ashift panel — this overlay leaves a linkage note, no stub control).
+//
+// ROTATION HANDLE (Plan M9-3-T3 — the 04-02 linkage note kept above until
+// this batch landed it): the angle handle floats above the box's top edge;
+// dragging orbits it around the box centre and streams the angle delta
+// through the D-H1 rotation trio (`onRotateBegin` / `onRotateLive` /
+// `onRotateCommit` — the HOST turns live ticks into ashift live
+// instances and the commit into the linked ashift+crop batch, NOT a crop
+// disable: the OQ-5 ruling renders the live rotation instead of scrimming
+// it). The angle math is the pure `CropRotationHandleMath` below.
 
 /// dt `_grab_region_t` (`crop.c:71-88`) — the hit-test bit field.
 /// OptionSet so corner combos (TOP|LEFT…) survive hit-testing
@@ -114,6 +121,52 @@ func cropHitTest(
     return CropGrabRegion(rawValue: raw)
 }
 
+/// The rotation-handle angle math (pure; unit-testable without SwiftUI —
+/// M9-3-T3). The handle orbits the box centre; the streamed angle is the
+/// VIEWPORT angle (y-down screen space, degrees, clockwise +): dragging
+/// the handle right of the box turns the image clockwise on screen. The
+/// sign hand-off to ashift.rotation is the TESTS' pin (the +screen-CW
+/// delta maps to a NEGATIVE ashift increment — the image turns clockwise
+/// while the content coordinate rotation is the inverse), verified by the
+/// forward-matrix golden in CropToolRotationTests.
+enum CropRotationHandleMath {
+
+    /// Handle rest position: the box top edge centre, lifted by `lift`.
+    static func handlePoint(for box: CGRect, lift: CGFloat = 28) -> CGPoint {
+        CGPoint(x: box.midX, y: box.minY - lift)
+    }
+
+    /// The handle's orbit position for a live angle (degrees, screen-CW+).
+    static func orbitPoint(for box: CGRect, angleDegrees: Double, lift: CGFloat = 28) -> CGPoint {
+        let a = angleDegrees * Double.pi / 180
+        // rotate the rest position about the box centre (y-down CW+)
+        let rest = handlePoint(for: box, lift: lift)
+        let dx = Double(rest.x - box.midX)
+        let dy = Double(rest.y - box.midY)
+        let s = sin(a), c = cos(a)
+        return CGPoint(
+            x: box.midX + CGFloat(c * dx - s * dy),
+            y: box.midY + CGFloat(s * dx + c * dy))
+    }
+
+    /// The streamed angle for a drag tick: the CURRENT box angle plus the
+    /// pointer's angular offset from the drag-start handle position,
+    /// folded to ±45° (the ashift slider range). Screen y-down: a pointer
+    /// moving clockwise around the centre increases the angle.
+    static func liveDegrees(
+        box: CGRect, dragStartAngle: Double, dragStartHandle: CGPoint, pointer: CGPoint
+    ) -> Double {
+        let start = atan2(
+            Double(dragStartHandle.y - box.midY), Double(dragStartHandle.x - box.midX))
+        let now = atan2(Double(pointer.y - box.midY), Double(pointer.x - box.midX))
+        var delta = (now - start) * 180 / Double.pi
+        // fold the atan2 wrap into (−180, 180]
+        while delta > 180 { delta -= 360 }
+        while delta <= -180 { delta += 360 }
+        return min(max(dragStartAngle + delta, -45), 45)
+    }
+}
+
 /// The overlay view. Pure function of (fittedRect, cropRect, dimmed):
 /// all pipe/history traffic exits through the three callbacks (D-H1).
 struct CropOverlayView: View {
@@ -132,11 +185,24 @@ struct CropOverlayView: View {
     var onLive: (CropOverlayRect) -> Void = { _ in }
     var onCommit: (CropOverlayRect) -> Void = { _ in }
 
+    /// The rotation-handle D-H1 trio (M9-3-T3; the HOST wires live ticks
+    /// to ashift live instances and the commit to the linked batch).
+    /// `degrees` = the SCREEN-CW+ angle; `baseDegrees` = the box angle at
+    /// drag start (the live stream carries absolute values).
+    var baseRotationDegrees: Double = 0
+    var onRotateBegin: () -> Void = {}
+    var onRotateLive: (Double) -> Void = { _ in }
+    var onRotateCommit: (Double) -> Void = { _ in }
+
     /// Active drag (viewport-points start + grab region + start rect).
     @State private var drag: (start: CGPoint, region: CropGrabRegion, rect: CropOverlayRect)?
     /// Last live rect this drag produced (commit forwards it — the
     /// parent record may not have re-rendered yet when the drag ends).
     @State private var lastLive: CropOverlayRect?
+
+    /// The active rotation drag (start handle point + live angle).
+    @State private var rotationDrag: (startHandle: CGPoint, live: Double)?
+    @State private var rotationLive: Double?
 
     var body: some View {
         GeometryReader { _ in
@@ -180,6 +246,41 @@ struct CropOverlayView: View {
                             .accessibilityIdentifier("crop.handle.\(handle.id)")
                             .allowsHitTesting(false)
                     }
+                    // The rotation handle (M9-3-T3): above the top edge,
+                    // orbits while dragging (the angle streams through the
+                    // D-H1 rotation trio; the handle itself is interactive).
+                    let liveAngle = rotationLive ?? baseRotationDegrees
+                    let handlePoint = rotationDrag != nil
+                        ? CropRotationHandleMath.orbitPoint(for: box, angleDegrees: liveAngle)
+                        : CropRotationHandleMath.handlePoint(for: box)
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 14, height: 14)
+                        .position(handlePoint)
+                        .accessibilityIdentifier("crop.handle.rotation")
+                        .gesture(
+                            DragGesture(minimumDistance: 2)
+                                .onChanged { value in
+                                    if rotationDrag == nil {
+                                        rotationDrag = (value.startLocation, baseRotationDegrees)
+                                        rotationLive = baseRotationDegrees
+                                        onRotateBegin()
+                                    }
+                                    let angle = CropRotationHandleMath.liveDegrees(
+                                        box: box,
+                                        dragStartAngle: rotationDrag!.live,
+                                        dragStartHandle: rotationDrag!.startHandle,
+                                        pointer: value.location)
+                                    rotationLive = angle
+                                    onRotateLive(angle)
+                                }
+                                .onEnded { _ in
+                                    let final = rotationLive ?? baseRotationDegrees
+                                    rotationDrag = nil
+                                    rotationLive = nil
+                                    onRotateCommit(final)
+                                }
+                        )
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -912,3 +912,5 @@ APP	5	FilmPanelBWTests.swift
 IOP	5	UprightMathTests.swift
 IOP	2	CropFitAngleTests.swift
 IOPP	4	UprightModuleParityTests.swift
+IOP	2	StraightenDetectTests.swift
+APP	5	CropToolRotationTests.swift
