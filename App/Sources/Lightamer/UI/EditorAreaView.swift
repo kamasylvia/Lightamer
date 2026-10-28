@@ -153,13 +153,20 @@ internal struct EditorAreaView: View {
                                         }
                                     },
                                     onRotateCommit: { degrees in
-                                        let snapshots = CropToolRotation.linkedSnapshots(
-                                            ashift: ashiftRecord, crop: cropRecord,
-                                            rotationDegrees: Float(degrees),
-                                            frameSize: SIMD2(
+                                        // E-1: the funnel consumes the DECODED
+                                        // reference plane (never the display
+                                        // AABB — that is the rotated output
+                                        // frame once the live rotation renders).
+                                        if let frameSize = CropToolRotation.commitFrameSize(
+                                            decoded: pipeCoordinator.decodedFrameSize(),
+                                            display: SIMD2(
                                                 Double(displayPixelSize.width),
-                                                Double(displayPixelSize.height)))
-                                        if let snapshots {
+                                                Double(displayPixelSize.height))),
+                                            let snapshots = CropToolRotation.linkedSnapshots(
+                                                ashift: ashiftRecord, crop: cropRecord,
+                                                rotationDegrees: Float(degrees),
+                                                frameSize: frameSize)
+                                        {
                                             pipeCoordinator.commitLinkedSnapshots(
                                                 snapshots, label: String(localized: "history_rotate"))
                                         }
@@ -175,13 +182,18 @@ internal struct EditorAreaView: View {
                                     autoStraightenAvailable: editorState.loadedImageURL != nil,
                                     onAutoStraighten: {
                                         if let degrees = pipeCoordinator.autoStraightenDegrees() {
-                                            let snapshots = CropToolRotation.linkedSnapshots(
-                                                ashift: ashiftRecord, crop: cropRecord,
-                                                rotationDegrees: Float(degrees),
-                                                frameSize: SIMD2(
+                                            // E-1: the decoded reference plane
+                                            // (see onRotateCommit).
+                                            if let frameSize = CropToolRotation.commitFrameSize(
+                                                decoded: pipeCoordinator.decodedFrameSize(),
+                                                display: SIMD2(
                                                     Double(displayPixelSize.width),
-                                                    Double(displayPixelSize.height)))
-                                            if let snapshots {
+                                                    Double(displayPixelSize.height))),
+                                                let snapshots = CropToolRotation.linkedSnapshots(
+                                                    ashift: ashiftRecord, crop: cropRecord,
+                                                    rotationDegrees: Float(degrees),
+                                                    frameSize: frameSize)
+                                            {
                                                 pipeCoordinator.commitLinkedSnapshots(
                                                     snapshots, label: String(localized: "history_auto_straighten"))
                                             }
@@ -192,10 +204,17 @@ internal struct EditorAreaView: View {
                                     },
                                     onConstrain: {
                                         if let crop = cropRecord {
-                                            let span = CropToolRotation.RotatedFrameBridge.span(
-                                                w0: Double(displayPixelSize.width),
-                                                h0: Double(displayPixelSize.height),
-                                                angleDegrees: ashiftRotationDegrees)
+                                            // E-1 family: the probe reads the
+                                            // DISPLAY plane — the span IS the
+                                            // display texture size. The old
+                                            // span(w0: display, ...) recomputed
+                                            // a larger phantom span under
+                                            // rotation ≠ 0, the probe's size
+                                            // guard rejected it, and Constrain
+                                            // silently died.
+                                            let span = SIMD2(
+                                                Double(displayPixelSize.width),
+                                                Double(displayPixelSize.height))
                                             // One fence + one readback (L014), then the
                                             // 4×48 edge sampler answers from bytes.
                                             if let probe = pipeCoordinator.contentOpaqueProbe(
@@ -576,13 +595,18 @@ internal struct EditorAreaView: View {
                                     },
                                     onRotateCommit: { degrees in
                                         isCropDragging = false
-                                        let snapshots = CropToolRotation.linkedSnapshots(
-                                            ashift: ashiftRecord, crop: cropRecord,
-                                            rotationDegrees: Float(degrees),
-                                            frameSize: SIMD2(
+                                        // E-1: the decoded reference plane
+                                        // (see the tool strip's onRotateCommit).
+                                        if let frameSize = CropToolRotation.commitFrameSize(
+                                            decoded: pipeCoordinator.decodedFrameSize(),
+                                            display: SIMD2(
                                                 Double(displayPixelSize.width),
-                                                Double(displayPixelSize.height)))
-                                        if let snapshots {
+                                                Double(displayPixelSize.height))),
+                                            let snapshots = CropToolRotation.linkedSnapshots(
+                                                ashift: ashiftRecord, crop: cropRecord,
+                                                rotationDegrees: Float(degrees),
+                                                frameSize: frameSize)
+                                        {
                                             pipeCoordinator.commitLinkedSnapshots(
                                                 snapshots, label: String(localized: "history_rotate"))
                                         }

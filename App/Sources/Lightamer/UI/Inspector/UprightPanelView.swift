@@ -162,13 +162,15 @@ struct UprightPanelHost: View {
             },
             onConstrain: {
                 // the T3 funnel's panel seat (the same path the tool strip
-                // wires; the display-plane probe + the crop commit)
+                // wires; the display-plane probe + the crop commit).
+                // E-1 family: the span IS the display texture size — the
+                // old span(w0: display, ...) recomputed a phantom span
+                // under rotation ≠ 0 and the probe's size guard silently
+                // killed the seat.
                 guard let cropRecord = editorState.instances.first(where: { $0.opName == CropModule.opName }),
                     let display = editorState.displayTexture
                 else { return }
-                let span = CropToolRotation.RotatedFrameBridge.span(
-                    w0: Double(display.width), h0: Double(display.height),
-                    angleDegrees: Double(rotation))
+                let span = SIMD2(Double(display.width), Double(display.height))
                 guard let probe = pipeCoordinator.contentOpaqueProbe(
                     span: SIMD2(Int(span.x), Int(span.y)))
                 else { return }

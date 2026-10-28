@@ -81,6 +81,29 @@ enum CropToolRotation {
         }
     }
 
+    // MARK: - the commit-time frame resolution (the wiring seam)
+
+    /// E-1 (M9-3 acceptance lane 2): what the funnel's `frameSize`
+    /// contract needs is the DECODED REFERENCE PLANE — the plane the
+    /// rotation acts on. The DISPLAY texture size is deliberately NOT
+    /// consumed: the display plane is the rotated output AABB once the
+    /// live rotation renders (the ashift `modify_roi_out` shape), and
+    /// feeding it here re-solved the refit against the wrong plane — a
+    /// −8.6% first-drag crop drift that compounded per generation.
+    ///
+    /// The `display` parameter exists because the view HOLDS both values
+    /// at commit time; keeping it in the signature makes the domain
+    /// choice an explicit, test-visible decision (the regression feeds a
+    /// diverging display span and asserts the decoded plane wins) instead
+    /// of a silent property read. nil decoded (nothing loaded / degenerate
+    /// extent) = nil — the caller lands no commit.
+    static func commitFrameSize(
+        decoded: SIMD2<Double>?, display: SIMD2<Double>
+    ) -> SIMD2<Double>? {
+        guard let decoded, decoded.x >= 1, decoded.y >= 1 else { return nil }
+        return decoded
+    }
+
     // MARK: - decode helpers (the record face)
 
     private static func ashiftParams(_ instance: ModuleInstance?) throws -> AshiftModule.Params {
