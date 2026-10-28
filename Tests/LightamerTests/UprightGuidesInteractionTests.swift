@@ -284,6 +284,21 @@ final class UprightGuidesInteractionTests: XCTestCase {
         XCTAssertLessThan(worst, 1e-9, "the active-chain roundtrip stays exact")
     }
 
+    // MARK: - M-2: the cap-refusal toast face (the plan AC)
+
+    /// The overlay reports the refused 5th draw through `onRefused` and
+    /// the host presents the cap toast (the plan AC's「第 5 条拒 +
+    /// toast」). The trigger condition is machine-pinned by ⑤ above; this
+    /// face pins the toast STRING resolving from the catalog (no bare-key
+    /// fallback — the F-2 LocalizationValue trap).
+    func testCapToastKeyResolvesFromTheCatalog() {
+        let message = String(localized: "upright_guides_cap_toast")
+        XCTAssertFalse(message.isEmpty, "the cap toast resolves to a real string")
+        XCTAssertNotEqual(
+            message, "upright_guides_cap_toast",
+            "the toast key must resolve (a bare-key fallback means the catalog entry is missing)")
+    }
+
     // MARK: - the guides assembly (the FilmCoordinatorTests shape)
 
     @MainActor
