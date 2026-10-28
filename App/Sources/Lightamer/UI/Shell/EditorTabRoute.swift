@@ -265,12 +265,15 @@ enum EditorTabRoutingTable {
             [.page(VignetteModule.opName, .displayTransform)]
         case .geometry:
             // OQ-4 Geometry row: crop/flip/lens = the Alcedo framing basics;
-            // the D6-only items (liquify/ashift/channelmixer family/haze)
-            // fold into the Advanced group.
+            // M9-3-T4 (D-M9G-2): upright joins the BASIC row (the Guided
+            // guide-drawing tool is an LR/Alcedo-level framing face), after
+            // lens; the D6-only items (liquify/ashift/channelmixer family/
+            // haze) fold into the Advanced group — ashift stays Advanced.
             [
                 .page(CropModule.opName, .geometry),
                 .page(FlipModule.opName, .geometry),
                 .page(LensModule.opName, .geometry),
+                .page(UprightModule.opName, .geometry),
                 .page(AshiftModule.opName, .geometry, advanced: true),
                 .page(LiquifyModule.opName, .geometry, advanced: true),
                 .page(ChannelMixerRGBModule.opName, .geometry, advanced: true),

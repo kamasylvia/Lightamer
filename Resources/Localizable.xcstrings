@@ -34635,6 +34635,193 @@
         }
       }
     }
+  },
+  "history_upright_mode" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Upright mode"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Upright 模式"
+        }
+      }
+    }
+  },
+  "history_upright_guides" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Upright guides"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Upright 导线"
+        }
+      }
+    }
+  },
+  "upright_mode_label" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Mode"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "模式"
+        }
+      }
+    }
+  },
+  "upright_mode_off" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Off"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "关闭"
+        }
+      }
+    }
+  },
+  "upright_mode_guided" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Guided"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "引导"
+        }
+      }
+    }
+  },
+  "upright_guides_clear" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Clear guides"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "清除导线"
+        }
+      }
+    }
+  },
+  "upright_tool_draw" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Draw guides"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "绘制导线"
+        }
+      }
+    }
+  },
+  "upright_tool_done" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Done"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "完成"
+        }
+      }
+    }
+  },
+  "upright_tool_help" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Draw 2–4 lines along verticals or horizontals to correct perspective."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "沿竖线或横线绘制 2–4 条导线以校正透视。"
+        }
+      }
+    }
+  },
+  "upright_double_warp_note" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Straighten is also active — two warps stack; folding the straighten into the guides is cleaner."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "拉直同时生效——两重形变叠加，并入导线解更干净。"
+        }
+      }
+    }
+  },
+  "upright_guides_count" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Guides: %d"
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "导线：%d"
+        }
+      }
+    }
   }
   },
   "version": "1.0"

@@ -107,107 +107,16 @@ internal struct EditorAreaView: View {
                         // three routes is active — the mutex invariant).
                         .overlay {
                             GeometryReader { overlayGeo in
-                                switch viewportRoute {
-                                case .maskEditing:
-                                    MaskOverlayHost(
+                                // M9-3-T4: the Guided Upright tool window —
+                                // the overlay OWNS the viewport while armed
+                                // (mutex by omission: the route switch
+                                // yields; the panel's Done face disarms).
+                                if inspectorState.uprightGuidesToolActive {
+                                    UprightGuidesToolHost(
                                         viewportSize: overlayGeo.size,
                                         displaySize: displayPixelSize)
-                                case .liquify:
-                                    LiquifyOverlayHost(
-                                        viewportSize: overlayGeo.size,
-                                        displaySize: displayPixelSize,
-                                        liquifyRecord: liquifyRecord,
-                                        onBegin: {
-                                            pipeCoordinator.beginContinuousEdit()
-                                        },
-                                        onLive: { snapshot in
-                                            Task { await pipeCoordinator.setLiveParams(snapshot) }
-                                        },
-                                        onCommit: { snapshot, label in
-                                            Task { await pipeCoordinator.setLiveParams(snapshot) }
-                                            Task { await pipeCoordinator.commitContinuousEdit(label: label) }
-                                        }
-                                    )
-                                case .retouch:
-                                    // 06-07: the retouch stroke editor owns the
-                                    // viewport while the selected layer is a
-                                    // retouch kind (its edits route through
-                                    // EditorState's structure commits, not the
-                                    // coordinator's param paths).
-                                    if let retouch = retouchLayer {
-                                        RetouchOverlayHost(
-                                            viewportSize: overlayGeo.size,
-                                            displaySize: displayPixelSize,
-                                            layer: retouch)
-                                    } else {
-                                        CropOverlayHost(
-                                            viewportSize: overlayGeo.size,
-                                            displaySize: displayPixelSize,
-                                            cropRecord: cropRecord,
-                                            isDragging: isCropDragging,
-                                            onBegin: { isCropDragging = true },
-                                            onLive: { _ in },
-                                            onCommit: { _, _ in })
-                                    }
-                                case .segment:
-                                    // 07-3 T2: the tap-to-segment editor
-                                    // (the 4th route — layer B refine
-                                    // points + confirm re-bake).
-                                    SegmentEditingOverlayHost(
-                                        viewportSize: overlayGeo.size,
-                                        displaySize: displayPixelSize,
-                                        metalContext: metalContext)
-                                case .crop:
-                                    CropOverlayHost(
-                                        viewportSize: overlayGeo.size,
-                                        displaySize: displayPixelSize,
-                                        cropRecord: cropRecord,
-                                        ashiftRecord: ashiftRecord,
-                                        isDragging: isCropDragging,
-                                        onBegin: {
-                                            isCropDragging = true
-                                            pipeCoordinator.beginContinuousEdit()
-                                        },
-                                        onLive: { snapshot in
-                                            Task { await pipeCoordinator.setLiveParams(snapshot) }
-                                        },
-                                        onCommit: { snapshot, label in
-                                            isCropDragging = false
-                                            Task { await pipeCoordinator.setLiveParams(snapshot) }
-                                            Task { await pipeCoordinator.commitContinuousEdit(label: label) }
-                                        },
-                                        // M9-3-T3: the rotation handle's D-H1
-                                        // trio — live ticks stream the ashift
-                                        // rotation (the OQ-5 ruling: the live
-                                        // rotation renders, no scrim), the
-                                        // commit lands the LINKED batch (angle
-                                        // + refit) through one notification.
-                                        onRotateBegin: {
-                                            pipeCoordinator.beginContinuousEdit()
-                                        },
-                                        onRotateLive: { degrees in
-                                            if var ashift = try? ashiftRecord?.params(of: AshiftModule.self),
-                                                let record = ashiftRecord {
-                                                ashift.rotation = Float(degrees)
-                                                var snapshot = record
-                                                try? snapshot.setParams(ashift, as: AshiftModule.self)
-                                                Task { await pipeCoordinator.setLiveParams(snapshot) }
-                                            }
-                                        },
-                                        onRotateCommit: { degrees in
-                                            isCropDragging = false
-                                            let snapshots = CropToolRotation.linkedSnapshots(
-                                                ashift: ashiftRecord, crop: cropRecord,
-                                                rotationDegrees: Float(degrees),
-                                                frameSize: SIMD2(
-                                                    Double(displayPixelSize.width),
-                                                    Double(displayPixelSize.height)))
-                                            if let snapshots {
-                                                pipeCoordinator.commitLinkedSnapshots(
-                                                    snapshots, label: String(localized: "history_rotate"))
-                                            }
-                                        }
-                                    )
+                                } else {
+                                    viewportRouteOverlay(geo: overlayGeo)
                                 }
                             }
                         }
@@ -572,6 +481,116 @@ internal struct EditorAreaView: View {
 
     /// The display texture's pixel size (upstream geometry for the fitted
     /// rect + the `original` preset). Nil-texture ⇒ zero size ⇒ no overlay.
+
+    /// M9-3-T4: the route-owned overlay switch (extracted verbatim from the
+    /// body so the Guided Upright tool window can preempt it — mutex by
+    /// omission, the inspectorState tool flag decides).
+    @ViewBuilder
+    private func viewportRouteOverlay(geo overlayGeo: GeometryProxy) -> some View {
+        switch viewportRoute {
+        case .maskEditing:
+            MaskOverlayHost(
+                viewportSize: overlayGeo.size,
+                displaySize: displayPixelSize)
+                            case .liquify:
+                                LiquifyOverlayHost(
+                                    viewportSize: overlayGeo.size,
+                                    displaySize: displayPixelSize,
+                                    liquifyRecord: liquifyRecord,
+                                    onBegin: {
+                                        pipeCoordinator.beginContinuousEdit()
+                                    },
+                                    onLive: { snapshot in
+                                        Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                    },
+                                    onCommit: { snapshot, label in
+                                        Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                        Task { await pipeCoordinator.commitContinuousEdit(label: label) }
+                                    }
+                                )
+                            case .retouch:
+                                // 06-07: the retouch stroke editor owns the
+                                // viewport while the selected layer is a
+                                // retouch kind (its edits route through
+                                // EditorState's structure commits, not the
+                                // coordinator's param paths).
+                                if let retouch = retouchLayer {
+                                    RetouchOverlayHost(
+                                        viewportSize: overlayGeo.size,
+                                        displaySize: displayPixelSize,
+                                        layer: retouch)
+                                } else {
+                                    CropOverlayHost(
+                                        viewportSize: overlayGeo.size,
+                                        displaySize: displayPixelSize,
+                                        cropRecord: cropRecord,
+                                        isDragging: isCropDragging,
+                                        onBegin: { isCropDragging = true },
+                                        onLive: { _ in },
+                                        onCommit: { _, _ in })
+                                }
+                            case .segment:
+                                // 07-3 T2: the tap-to-segment editor
+                                // (the 4th route — layer B refine
+                                // points + confirm re-bake).
+                                SegmentEditingOverlayHost(
+                                    viewportSize: overlayGeo.size,
+                                    displaySize: displayPixelSize,
+                                    metalContext: metalContext)
+                            case .crop:
+                                CropOverlayHost(
+                                    viewportSize: overlayGeo.size,
+                                    displaySize: displayPixelSize,
+                                    cropRecord: cropRecord,
+                                    ashiftRecord: ashiftRecord,
+                                    isDragging: isCropDragging,
+                                    onBegin: {
+                                        isCropDragging = true
+                                        pipeCoordinator.beginContinuousEdit()
+                                    },
+                                    onLive: { snapshot in
+                                        Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                    },
+                                    onCommit: { snapshot, label in
+                                        isCropDragging = false
+                                        Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                        Task { await pipeCoordinator.commitContinuousEdit(label: label) }
+                                    },
+                                    // M9-3-T3: the rotation handle's D-H1
+                                    // trio — live ticks stream the ashift
+                                    // rotation (the OQ-5 ruling: the live
+                                    // rotation renders, no scrim), the
+                                    // commit lands the LINKED batch (angle
+                                    // + refit) through one notification.
+                                    onRotateBegin: {
+                                        pipeCoordinator.beginContinuousEdit()
+                                    },
+                                    onRotateLive: { degrees in
+                                        if var ashift = try? ashiftRecord?.params(of: AshiftModule.self),
+                                            let record = ashiftRecord {
+                                            ashift.rotation = Float(degrees)
+                                            var snapshot = record
+                                            try? snapshot.setParams(ashift, as: AshiftModule.self)
+                                            Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                        }
+                                    },
+                                    onRotateCommit: { degrees in
+                                        isCropDragging = false
+                                        let snapshots = CropToolRotation.linkedSnapshots(
+                                            ashift: ashiftRecord, crop: cropRecord,
+                                            rotationDegrees: Float(degrees),
+                                            frameSize: SIMD2(
+                                                Double(displayPixelSize.width),
+                                                Double(displayPixelSize.height)))
+                                        if let snapshots {
+                                            pipeCoordinator.commitLinkedSnapshots(
+                                                snapshots, label: String(localized: "history_rotate"))
+                                        }
+                                    }
+                                )
+        }
+    }
+
     private var displayPixelSize: CGSize {
         guard let tex = editorState.displayTexture else { return .zero }
         return CGSize(width: tex.width, height: tex.height)

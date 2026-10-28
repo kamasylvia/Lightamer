@@ -914,6 +914,9 @@ let project = Project(
                 // (atomic batch + undo order + the refit predicate trio +
                 // the 90° probes + Constrain Crop).
                 "Tests/LightamerTests/CropToolRotationTests.swift",
+                // M9-3 T4: the guides interaction state machine + the
+                // persistence/undo/live faces + the mapper round-trip.
+                "Tests/LightamerTests/UprightGuidesInteractionTests.swift",
                 "Tests/LightamerTests/DefaultLookTests.swift",
                 "Tests/LightamerTests/LabelingDefaultsTests.swift",
                 "Tests/LightamerTests/EditorMetalLegRegressionTests.swift",
