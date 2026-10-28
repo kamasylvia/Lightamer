@@ -351,7 +351,7 @@ AI 追色 / AI 评分 / AI 天空分离 / AI 人像部位 / AI 通用语义分�
 
 - [x] **M9-0 charter（四站 B 案：M9-1 AI Mask 工具 parity〔M-L 20-28N〕/ M9-2 黑白族+滤色镜〔M 15-20N〕/ M9-3 Upright 系〔M 12-18N，含真缺口 rotate/straighten〕/ M9-4 小件池〔S-M 10-15N，ColorWheels LGG+Offset 修订主件〕；预期 ΔN +55..75）** —— ✅ 完成（2026-10-27 夜间授权批，doc-only 零源码）
 - [x] **M9-1 AI Mask 工具 parity** —— ✅ 执行+三眼闭环（2026-10-27：五 commits refs #11，ΔN +33〔越带 4 T3 AI-06 断言面申报〕，全套 **4328/33/0** 精确；路 1 `d78a539d` PASS/0B+0M+1m+5obs〔双探针真红〕+ 路 2 `aeaff367` PASS/0B+0M+0m+5obs〔AI-06 候选零真相写入核验〕+ omp PASS〔两实机面降级源读+直驱 7.17s 冷解/refine 0.02s 门内；paste toast 逐字亲见〕；尾项路由 = o-omp3 孤儿 png 存储卫生 / 降级面补走查（probe bootstrap 后）/ m-1 注释谓词名顺手修）
-- [ ] **M9-2 光谱延展：黑白族 + 滤色镜**（M9BW-01..03：黑白 profile 自建 + 变反差相纸 + camera_filter + granularity 标定）
+- [x] **M9-2 光谱延展：黑白族 + 滤色镜** —— ✅ 执行+三眼闭环（三任 executor 中断拼装〔限额/意外终止/模型切换〕零丢失；commits refs #12，ΔN +35 越带 +15 申报，全套 **4363/34/0**；路 1 `12cf6977` PASS/0B+0M+1m+6obs + 路 2 `a9c3d943` PASS/0B+**1M**+1m+3obs〔**w11 转录错**——独立复算抓出发表 factor 离群 0.89 stop，快修 `254a902f` 重转录三判据全中：亮度透射 40.3% vs 源页 40.2〕+ omp `PASS/0B+0M+0m`+4obs〔19 张证据；四 obs 路由尾项池：grade 切换视口地板/HP5 note/纸切残留键/旧档 hash 伪影〕）；正本 = `phases/m9-2-bwspectral/`
 - [ ] **M9-3 几何校正 Upright 系**（M9GEO-01..02：rotate/straighten 真缺口 + Guided Upright）
 - [ ] **M9-4 小件池**（M9SM-01..02：ColorWheels LGG+Offset 修订〔process v3〕+ LUT encodings +24 + Filmstrip 磁贴 + Show in Finder + ratio 预设）
 
