@@ -1,6 +1,7 @@
 @testable import LightamerCore
 @testable import LightamerIOP
 @testable import Lightamer
+import CoreImage
 import Metal
 import XCTest
 
@@ -195,5 +196,128 @@ final class UprightGuidesInteractionTests: XCTestCase {
         // the release commit lands exactly ONE item
         editorState.recordChange(live, label: "history_upright_guides")
         XCTAssertEqual(editorState.history.items.count, 1)
+    }
+
+    // MARK: - M-1: the channel rides the POST-upright display leg
+
+    /// The real-chain face (acceptance lane 2 M-1): with crop/flip ACTIVE,
+    /// `uprightGuideMapper` maps upright-input ⇄ DISPLAY — the stored
+    /// guide draws where the user sees it and the drawn pointer stores
+    /// into the upright-input frame. The OLD channel (pre-upright boxes,
+    /// decoded frame) drew stored guides at the wrong spot once crop/flip
+    /// activated and stored the drawn pointer in the DECODED frame.
+    /// Hand values: decoded 720×480, ashift rotation 8° (the pre-upright
+    /// warp — only its output SIZE enters: 779×575), flip rotCW90 (swap),
+    /// crop window 0.25..0.75².
+    func testGuideMapperRidesThePostUprightDisplayLeg() async throws {
+        let (editorState, coordinator, metal) = try await makeGuidesAssembly()
+        let chain = [
+            ModuleInstance(
+                module: AshiftModule.self, params: AshiftModule.Params(rotation: 8)),
+            ModuleInstance(
+                module: FlipModule.self, params: FlipModule.Params(orientation: .rotCW90)),
+            ModuleInstance(
+                module: CropModule.self,
+                params: CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75)),
+        ]
+        editorState.resetHistoryForNewImage(defaultInstances: chain)
+        // Boxes mirror the records (matched by instanceID — the load's
+        // rematerialize pass applies the records onto the adopted boxes).
+        let boxes: [any ModuleBoxing] = chain.map { record in
+            switch record.opName {
+            case AshiftModule.opName:
+                return ModuleBox(module: AshiftModule(), instanceID: record.id)
+            case FlipModule.opName:
+                return ModuleBox(module: FlipModule(), instanceID: record.id)
+            default:
+                return ModuleBox(module: CropModule(), instanceID: record.id)
+            }
+        }
+        try await coordinator.load(
+            url: URL(fileURLWithPath: "/tmp/m93-guides-\(UUID().uuidString).tif"),
+            decoded: Self.decodedWide(), instances: boxes, metal: metal)
+
+        let mapper = try XCTUnwrap(
+            coordinator.uprightGuideMapper(), "the loaded chain yields the mapper")
+
+        // 1. The persistence domain = the upright op's INPUT frame — the
+        //    pre-upright geometry's output span (NOT the decoded extent;
+        //    the OLD channel keyed on 720×480).
+        XCTAssertEqual(mapper.frameSize.x, 779, accuracy: 0.5,
+            "frameSize = the ashift output span x (floor(720·cos8+480·sin8))")
+        XCTAssertEqual(mapper.frameSize.y, 575, accuracy: 0.5,
+            "frameSize = the ashift output span y (floor(720·sin8+480·cos8))")
+
+        // 2. The center is a fixed point of the swap + the symmetric crop
+        //    window — the store leg lands the window center on the input
+        //    frame's center.
+        let storedCenter = mapper.inverse(normalized: SIMD2(0.5, 0.5))
+        XCTAssertEqual(storedCenter.x, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(storedCenter.y, 0.5, accuracy: 1e-9)
+
+        // 3. The M-1 domain shift is REAL (the regression's observable):
+        //    the old channel's answer for the same drawn point differs —
+        //    it composed the PRE-upright boxes against the DECODED frame
+        //    and stored into that frame instead of the input frame.
+        let drawn = SIMD2(0.3, 0.6)
+        let newStored = mapper.inverse(normalized: drawn)
+        let legacyMapper = GeometryPointMapper.compose(
+            boxes: [legacyAshiftBox()], frameSize: SIMD2(720.0, 480.0))
+        let oldStored = legacyMapper.inverse(normalized: drawn)
+        let drift = SIMD2(newStored.x - oldStored.x, newStored.y - oldStored.y)
+        XCTAssertGreaterThan(
+            (drift.x * drift.x + drift.y * drift.y).squareRoot(), 1e-3,
+            "the fixed channel stores a materially different point than the old one")
+
+        // 4. The channel stays exact across the ACTIVE crop + flip chain:
+        //    forward ∘ inverse identity over window space (<1e-9
+        //    normalized — far under the 1px gate at these frames).
+        var worst = 0.0
+        for wy in stride(from: 0.05, through: 0.95, by: 0.15) {
+            for wx in stride(from: 0.05, through: 0.95, by: 0.15) {
+                let w = SIMD2(wx, wy)
+                let back = mapper.forward(normalized: mapper.inverse(normalized: w))
+                worst = max(worst, ((back.x - wx).squareRoot()
+                    + (back.y - wy).squareRoot()).squareRoot() / 2)
+            }
+        }
+        XCTAssertLessThan(worst, 1e-9, "the active-chain roundtrip stays exact")
+    }
+
+    // MARK: - the guides assembly (the FilmCoordinatorTests shape)
+
+    @MainActor
+    private func makeGuidesAssembly() async throws -> (
+        editorState: EditorState, coordinator: PipeCoordinator, metal: MetalContext
+    ) {
+        let editorState = EditorState()
+        let coordinator = PipeCoordinator()
+        editorState.attach(pipeCoordinator: coordinator)
+        coordinator.attach(editorState: editorState)
+        let metal = try MetalContext()
+        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
+        coordinator.attach(metal: metal)
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry)
+        coordinator.attach(registry: registry, defaultFace: false)
+        return (editorState, coordinator, metal)
+    }
+
+    private nonisolated static func legacyAshiftBox() -> ModuleBox<AshiftModule> {
+        let box = ModuleBox(module: AshiftModule(), instanceID: UUID())
+        box.setParams(AshiftModule.Params(rotation: 8))
+        return box
+    }
+
+    private nonisolated static func decodedWide() -> DecodedImage {
+        let gradient = CIImage(color: CIColor(red: 0.55, green: 0.45, blue: 0.35))
+            .cropped(to: CGRect(x: 0, y: 0, width: 720, height: 480))
+        return DecodedImage(
+            ciImage: gradient,
+            rawTech: RAWTechnicalParams(),
+            capture: CaptureMetadata(),
+            segmentationSkyMatte: nil,
+            decoderVersionUsed: .v8,
+            contentDedupeID: 0)
     }
 }
