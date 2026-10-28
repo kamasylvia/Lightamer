@@ -102,3 +102,114 @@ testLiveWindowLandsOneItemPerCommit（并入 persistence 法）——合计 −2
   压力、单 bundle 峰 2.4-7.7GB vs 余量 ≥3×，防挤爆本意不成立）。
 - **McpCullingToolsetTests face 超时**（App 全量轮 20.8s timeout）：
   Vision face 检测环境型 flake，重跑 27/0/0 复绿，与本批零关联。
+
+## 修复轮（lane-2 E-1/M-1/M-2/M-3/m-1，2026-10-29）
+
+> 输入正本 = `M9-3-ACCEPTANCE-2ND.md`（lane 2：PASS / 1 error + 3 minor）。
+> 逐项独立 commit（fix(m93)… refs #13），封存面 17 件全批零触碰机检在案。
+
+### E-1（error）→ `5a7d9225`
+
+**接线域混淆修正**——`linkedSnapshots` 契约要求解码基准平面（旋转作用的
+平面），而三处 App 调用点（手柄/拉直滑杆/auto straighten）喂的是
+displayTexture 尺寸 = 旋转后输出 AABB。修法取 lane 2 建议方向 1
+（decoded extent 同源）：
+
+- `PipeCoordinator.decodedFrameSize()`：解码平面尺寸单源 accessor（导线
+  mapper 亦将共享，见 M-1）。
+- `CropToolRotation.commitFrameSize(decoded:display:)`：**测试可见接线缝**
+  ——display 形参留在签名里但按构造拒绝（decoded 恒胜出），把 lane 2
+  点名的「接线层错误域不可见」盲区翻成显式机检决策（回归法喂发散的
+  display AABB 并断言 decoded 胜出）。
+- Constrain span 同族修正（lane 2 未单列、重推导探针域时发现的两处同病）：
+  工具条 + 面板座位的 span 原来是 `span(w0: display, …)` 再算一次
+  phantom AABB——rotation ≠ 0 时 span ≠ displayTexture，`contentOpaqueProbe`
+  尺寸守卫拒 nil，Constrain 按钮静默失效。修正 = span 恒取 display 尺寸
+  （探针读的就是该平面）。
+- 回归两法：commitFrameSize 域胜出/退化 nil 面 + 「二次提交落闭式直解」
+  （0→10→20 经 decoded 平面逐代组合 == 一次性 0→20 withAngle 直解
+  1e-6；反事实腿证明 display 域接线至少漂移一边——防回归退化成恒真）。
+
+**live 窗时序注记（不修，登记）**：手柄/滑杆 commit 时刻 ashiftRecord 读到
+的是 penultimate tick 的 live 投影（末 tick 的 `setLiveParams` Task 在
+commit 之后落）——这正是 lane 2 E-1 数值推演「提交时刻 display =
+AABB@新角」成立的机理，也意味着 `angleChanged` 门在正常时序下靠该竞态
+保持可通。属 T3 交付时序，两个验收 lane 均未 flag，本轮不动；后续若
+live 窗改同步落地，此注记为 first responder。
+
+### M-1（minor）→ `51e83e48`
+
+**导线坐标通道换锚 display 腿**——旧 `uprightGuideMapper` =
+compose(upright 槽**前** boxes, decoded 帧)：forward 对已存输入帧导线**二次
+施加** pre-upright 形变、inverse 把画线点存进 decoded 帧而非 upright 输入
+帧（持久域声明 vs 实际存储域背离）；crop/flip 激活时画线错位（lane 2 的
+M-1 消费侧观察）。修法 = lane 2 建议的「15.5 拆半组合」：
+
+- 持久域 = upright 槽前 boxes 的 compose **outputSize**（pre-upright 几何
+  只贡献尺寸，boxes 本体退出通道——导线既不骑 pre-upright 形变也不骑
+  它定义的解，CONTEXT 红线 6 不变）。
+- 返回 mapper = compose(upright 槽**后** boxes〔flip 16/liquify 18/crop
+  24.5〕, 输入帧)：forward = 输入帧→display（画线腿落在用户所见处），
+  inverse = display→输入帧（存储腿）。
+- GeometryPointMapper 本体零 diff（M9-3 红线维持）。
+- 语义迁移注记：旧通道下（pre-upright 非中性时）已存导线是 decoded 帧
+  坐标，新通道按输入帧解读——旧值域的已存导线画线含义会变（旧解几何
+  本来就错，修正即行为变化）；pre-upright 中性时新旧数值恒等，无迁移面。
+- 回归一法（真链装配：ashift 8° + flip rotCW90 + crop 0.25..0.75² 窗）：
+  frameSize = 输入帧 span（779×575 ≠ 720×480 decoded）+ 窗心不动点 + 新旧
+  存储值实质分叉（>1e-3）+ 激活链往返 <1e-9 逐点。
+
+### M-2（minor）→ `2c358d9b` + `0143d178`
+
+**第 5 条拒 toast 恢复**（plan AC「≤4 上限 toast」静默蒸发的反面申报）：
+overlay 加 `onRefused` 回调（拒按不再武装死拖拽窗——尾随 tick/release 按构造
+无操作）→ host 走 ToastBar 通道 present；新键 `upright_guides_cap_toast`
+（en/zh）。**`0143d178` 勘误**：M-2 commit 把键插到了 `strings` 对象**外**
+（顶层）——JSON 可解析但 app 加载的目录没有该键（运行时裸键回落，F-2 同
+款），zh-audit 报 MISSING；勘误 commit 把键移回 strings 内（2082 键）。
+断言 = 触发条件由 ⑤ 拒门钉死 + toast 字串目录解析面（防裸键回落）。
+
+### M-3（minor）→ `5b313480`
+
+**拖拽路径 session 选中态回写**（upstream 两面的 App 级偏离）：overlay 拖拽
+路径 press/release 各回写一次 `onSelect(m.selected)`（tap 路径既有会话写点
+复用，不开第二写点）——画线清选中（drawing_a_new_guide_clears_the_selection）
+与端点拖动者选中（moved-guide-ends-up-selected）两面恢复；拒按也回写
+（模型在 cap 门先清选中）。断言 = 拖拽路径两个同步点携带值的契约法。
+
+### m-1（minor）→ `dab4ff8d`
+
+**minFraction 偏离头注披露**：CropFitAngle.minFraction 常量注记补 lightcraft
+`MIN_CROP_FRACTION = 0.02`（crop_drag.rs:12）vs 本产 0.01（dt MIN_CROP_SIZE /
+CropModule 拖拽下限）的偏离申报 + 承接理由（联动收缩不落到比工具自身拖拽
+更紧的下限）。docs-only，零行为字节。
+
+### 修复轮终值与纪律
+
+- 新增回归法数：**+5**（CropToolRotationTests +2 / UprightGuidesInteractionTests
+  +3），App bundle 1052 → **1057/6/0**（修复轮全量终值，624s，峰 1674MB）；
+  IOP **807/1/0**（958s，峰 5346MB）· IOPParity **544/10/0**（1583s，峰
+  3841MB）与 T5 基线逐值一致（修复不触 Core/IOP 面——E-1/M-1 修 App 接线层，
+  m-1 头注 docs-only）。
+- 封存面 17 件零 diff 机检（`git diff d7a7e1d0..HEAD --name-only` 对封存清单
+  交集 = 0）；UserDefaults 零新键；xcstrings 尾块纯插入（键迁移勘误含一进
+  一出一行级 diff）。
+- **跟随 commit 两笔**（测试自身缺陷，非产线面）：`81b44691`（静态 helper
+  调用形态 + load 非 throwing 的 try 摘除——首次全量轮编译错 3 处）；`7f6a08aa`
+  （**显式链 load 分支不跑 rematerialize**（在 pristine-seed 分支内）→ 裸 box
+  恒中性 → mapper 恒等——测试 box 改 setParams 自行 commit（load 契约 =
+  调用方自带已 commit 态，API 无改）；往返门改 px 域 <1px（parity 通道门
+  同形）——草稿公式 sqrt(|dx|+|dy|)/2 对 f64 抵消噪声开方放大（1e-8 量级
+  噪声读成 1e-4）。首次 App 全量轮 1057/6/3 红、两笔修复后过滤轮 8/0/0 +
+  全量 1057/6/0 绿）。
+- 环境事件：①陈旧 hash 容器陷阱（dgzsvdww vs glcjh——验收轮 tuist generate
+  改了 workspace 元数据致 hash 变迁；修复轮删陈旧容器过 G4 后以 scheme
+  Lightamer 全量 build 落当前 hash 容器，七 bundle 产物同批新鲜）；②本机
+  出口全断窗口（xray JMS 账号 5 节点 VLESS 层全拒〔TCP 通握手断〕+ 直连
+  github/pypi 超时）——build 走 `-disableAutomaticPackageResolution` 离线
+  解析（SourcePackages checkouts 在位 + Package.resolved 未变）零网络通过；
+  px 代理管理脚本自身因 pypi 拉不动以 `uv --offline` 缓存 wheel 直跑 xray.py
+  绕过（--update/--best/--start 全数可用，节点仍拒——账号级问题，留用户）；
+  ③G4 Data 卷三轮贴线（构建膨胀吃量，清陈旧容器 + /tmp 遗留 + Xcode 共享
+  模块缓存过门 ×3，非静默——本节登记）。
+
