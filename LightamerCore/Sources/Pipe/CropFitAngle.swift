@@ -226,10 +226,16 @@ public enum CropFitAngle {
         let largest = fitRect(w: w, h: h, angleDegrees: angleDegrees, aspect: aspect)
         let largestPx = PixelRect(
             x0: largest.x0 * w, y0: largest.y0 * h, x1: largest.x1 * w, y1: largest.y1 * h)
-        let isLargest = abs(r.x0 - largestPx.x0) < 1e-9
-            && abs(r.y0 - largestPx.y0) < 1e-9
-            && abs(r.x1 - largestPx.x1) < 1e-9
-            && abs(r.y1 - largestPx.y1) < 1e-9
+        // 1e-3 PIXELS (not upstream's f64 1e-9): Lightamer's crop record
+        // stores Float fractions, so the round trip through the record
+        // carries a ~1e-7 relative error — at a 600 px frame that is a few
+        // MICRO-PIXELS of coordinate noise, which an f64-normalized or a
+        // 1e-6-px gate would both miss the largest-frame identity on
+        // (#1388's regrow face). 1e-3 px = a thousandth of a pixel.
+        let isLargest = abs(r.x0 - largestPx.x0) < 1e-3
+            && abs(r.y0 - largestPx.y0) < 1e-3
+            && abs(r.x1 - largestPx.x1) < 1e-3
+            && abs(r.y1 - largestPx.y1) < 1e-3
 
         func normalized(_ p: PixelRect) -> Rect {
             Rect(x0: p.x0 / w, y0: p.y0 / h, x1: p.x1 / w, y1: p.y1 / h)
@@ -269,6 +275,9 @@ public enum CropFitAngle {
     public static func shouldAutoRefit(
         _ current: Rect, oldAngleDegrees: Double, newAngleDegrees: Double, w: Double, h: Double
     ) -> Bool {
-        withAngle(current, angleDegrees: oldAngleDegrees, newAngleDegrees: newAngleDegrees, w: w, h: h) != current
+        let refit = withAngle(current, angleDegrees: oldAngleDegrees, newAngleDegrees: newAngleDegrees, w: w, h: h)
+        // 1e-6: the Float-record tolerance (see withAngle's isLargest gate)
+        return abs(refit.x0 - current.x0) > 1e-6 || abs(refit.y0 - current.y0) > 1e-6
+            || abs(refit.x1 - current.x1) > 1e-6 || abs(refit.y1 - current.y1) > 1e-6
     }
 }

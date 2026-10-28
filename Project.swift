@@ -470,6 +470,9 @@ let project = Project(
                 "Tests/LightamerTests/LensPerCorrectionTests.swift",
                 "Tests/LightamerTests/LensAutoApplyTests.swift",
                 "Tests/LightamerTests/LensAutoCropTests.swift",
+                // M9-3 T3: the auto-straighten detector's golden faces
+                // (known-lines + the guard gates + the sign lock).
+                "Tests/LightamerTests/StraightenDetectTests.swift",
                 "Tests/LightamerTests/LensProjectionResolveTests.swift",
                 "Tests/LightamerTests/LensSnapshotTests.swift",
                 "Tests/LightamerTests/LensCacheIsolationTests.swift",
@@ -907,6 +910,10 @@ let project = Project(
                 "Tests/LightamerTests/BuiltInLutSetTests.swift",
                 "Tests/LightamerTests/CatalogAddFaceTests.swift",
                 "Tests/LightamerTests/CropOverlayTests.swift",
+                // M9-3 T3: the crop-tool rotate/straighten orchestration
+                // (atomic batch + undo order + the refit predicate trio +
+                // the 90° probes + Constrain Crop).
+                "Tests/LightamerTests/CropToolRotationTests.swift",
                 "Tests/LightamerTests/DefaultLookTests.swift",
                 "Tests/LightamerTests/LabelingDefaultsTests.swift",
                 "Tests/LightamerTests/EditorMetalLegRegressionTests.swift",

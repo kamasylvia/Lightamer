@@ -69,11 +69,22 @@ struct CropOverlayHost: View {
     var viewportSize: CGSize
     var displaySize: CGSize
     var cropRecord: ModuleInstance?
+    /// The ashift record (M9-3-T3): the rotation handle's base angle and
+    /// the live tick source; nil = no rotation handle stream (the handle
+    /// still draws, the host just forwards commits without the live face).
+    var ashiftRecord: ModuleInstance?
     var isDragging: Bool
 
     var onBegin: () -> Void = {}
     var onLive: (ModuleInstance) -> Void = { _ in }
     var onCommit: (ModuleInstance, String) -> Void = { _, _ in }
+
+    /// The rotation-handle D-H1 trio (the HOST turns live ticks into
+    /// ashift live instances and the commit into the linked batch —
+    /// the wiring lives in EditorAreaView, this is pure forwarding).
+    var onRotateBegin: () -> Void = {}
+    var onRotateLive: (Double) -> Void = { _ in }
+    var onRotateCommit: (Double) -> Void = { _ in }
 
     /// The overlay's aspect preset (owned by the panel in T5; the host
     /// exposes it as state so the overlay drag locks without panel help).
@@ -106,7 +117,11 @@ struct CropOverlayHost: View {
                         if let snapshot = liveSnapshot(from: record, rect: rect, enabled: true) {
                             onCommit(snapshot, String(localized: "history_crop"))
                         }
-                    }
+                    },
+                    baseRotationDegrees: ashiftRotationDegrees,
+                    onRotateBegin: onRotateBegin,
+                    onRotateLive: onRotateLive,
+                    onRotateCommit: onRotateCommit
                 )
             }
         }
@@ -130,5 +145,15 @@ struct CropOverlayHost: View {
         } catch {
             return nil
         }
+    }
+
+    /// The box angle the rotation handle draws at (the ashift record's
+    /// rotation; nil record / decode failure = 0 — the overlay never
+    /// crashes on a missing instance).
+    private var ashiftRotationDegrees: Double {
+        guard let ashiftRecord,
+            let params = try? ashiftRecord.params(of: AshiftModule.self)
+        else { return 0 }
+        return Double(params.rotation)
     }
 }

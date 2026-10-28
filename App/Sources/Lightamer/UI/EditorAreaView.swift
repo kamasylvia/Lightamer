@@ -162,6 +162,7 @@ internal struct EditorAreaView: View {
                                         viewportSize: overlayGeo.size,
                                         displaySize: displayPixelSize,
                                         cropRecord: cropRecord,
+                                        ashiftRecord: ashiftRecord,
                                         isDragging: isCropDragging,
                                         onBegin: {
                                             isCropDragging = true
@@ -174,6 +175,37 @@ internal struct EditorAreaView: View {
                                             isCropDragging = false
                                             Task { await pipeCoordinator.setLiveParams(snapshot) }
                                             Task { await pipeCoordinator.commitContinuousEdit(label: label) }
+                                        },
+                                        // M9-3-T3: the rotation handle's D-H1
+                                        // trio — live ticks stream the ashift
+                                        // rotation (the OQ-5 ruling: the live
+                                        // rotation renders, no scrim), the
+                                        // commit lands the LINKED batch (angle
+                                        // + refit) through one notification.
+                                        onRotateBegin: {
+                                            pipeCoordinator.beginContinuousEdit()
+                                        },
+                                        onRotateLive: { degrees in
+                                            if var ashift = try? ashiftRecord?.params(of: AshiftModule.self),
+                                                let record = ashiftRecord {
+                                                ashift.rotation = Float(degrees)
+                                                var snapshot = record
+                                                try? snapshot.setParams(ashift, as: AshiftModule.self)
+                                                Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                            }
+                                        },
+                                        onRotateCommit: { degrees in
+                                            isCropDragging = false
+                                            let snapshots = CropToolRotation.linkedSnapshots(
+                                                ashift: ashiftRecord, crop: cropRecord,
+                                                rotationDegrees: Float(degrees),
+                                                frameSize: SIMD2(
+                                                    Double(displayPixelSize.width),
+                                                    Double(displayPixelSize.height)))
+                                            if let snapshots {
+                                                pipeCoordinator.commitLinkedSnapshots(
+                                                    snapshots, label: String(localized: "history_rotate"))
+                                            }
                                         }
                                     )
                                 }
@@ -185,6 +217,97 @@ internal struct EditorAreaView: View {
                         .overlay(alignment: .bottom) {
                             if editorState.loadedImageURL != nil {
                                 MaskToolbarView(metalContext: metalContext)
+                            }
+                        }
+                        // M9-3-T3: the crop tool's rotate/straighten strip
+                        // (the LR-position toolbar, viewport TOP EDGE — the
+                        // bottom edge hosts the mask toolbar). Same funnel
+                        // as the orbit handle (#742): the slider's live
+                        // ticks stream ashift, the commit lands the LINKED
+                        // batch; the 90° pair steps the flip explicit bits;
+                        // auto-straighten solves the segment consensus.
+                        .overlay(alignment: .top) {
+                            if viewportRoute == .crop, editorState.loadedImageURL != nil {
+                                CropToolPanelView(
+                                    rotationDegrees: ashiftRotationDegrees,
+                                    isEditing: isCropDragging,
+                                    onRotateBegin: {
+                                        pipeCoordinator.beginContinuousEdit()
+                                    },
+                                    onRotateLive: { degrees in
+                                        if var ashift = try? ashiftRecord?.params(of: AshiftModule.self),
+                                            let record = ashiftRecord {
+                                            ashift.rotation = Float(degrees)
+                                            var snapshot = record
+                                            try? snapshot.setParams(ashift, as: AshiftModule.self)
+                                            Task { await pipeCoordinator.setLiveParams(snapshot) }
+                                        }
+                                    },
+                                    onRotateCommit: { degrees in
+                                        let snapshots = CropToolRotation.linkedSnapshots(
+                                            ashift: ashiftRecord, crop: cropRecord,
+                                            rotationDegrees: Float(degrees),
+                                            frameSize: SIMD2(
+                                                Double(displayPixelSize.width),
+                                                Double(displayPixelSize.height)))
+                                        if let snapshots {
+                                            pipeCoordinator.commitLinkedSnapshots(
+                                                snapshots, label: String(localized: "history_rotate"))
+                                        }
+                                    },
+                                    onNinety: { clockwise in
+                                        if let snapshot = CropToolRotation.ninetyDegreeSnapshot(
+                                            currentFlip: flipRecord, clockwise: clockwise)
+                                        {
+                                            pipeCoordinator.commitLinkedSnapshots(
+                                                [snapshot], label: String(localized: "history_rotate"))
+                                        }
+                                    },
+                                    autoStraightenAvailable: editorState.loadedImageURL != nil,
+                                    onAutoStraighten: {
+                                        if let degrees = pipeCoordinator.autoStraightenDegrees() {
+                                            let snapshots = CropToolRotation.linkedSnapshots(
+                                                ashift: ashiftRecord, crop: cropRecord,
+                                                rotationDegrees: Float(degrees),
+                                                frameSize: SIMD2(
+                                                    Double(displayPixelSize.width),
+                                                    Double(displayPixelSize.height)))
+                                            if let snapshots {
+                                                pipeCoordinator.commitLinkedSnapshots(
+                                                    snapshots, label: String(localized: "history_auto_straighten"))
+                                            }
+                                        } else {
+                                            editorState.presentToast(
+                                                String(localized: "crop_auto_none_toast"))
+                                        }
+                                    },
+                                    onConstrain: {
+                                        if let crop = cropRecord {
+                                            let span = CropToolRotation.RotatedFrameBridge.span(
+                                                w0: Double(displayPixelSize.width),
+                                                h0: Double(displayPixelSize.height),
+                                                angleDegrees: ashiftRotationDegrees)
+                                            // One fence + one readback (L014), then the
+                                            // 4×48 edge sampler answers from bytes.
+                                            if let probe = pipeCoordinator.contentOpaqueProbe(
+                                                span: SIMD2(
+                                                    Int(span.x), Int(span.y))) {
+                                                let snapshot = CropToolRotation.constrainCropSnapshot(
+                                                    crop: crop, span: span,
+                                                    contentAt: { point in
+                                                        probe(SIMD2(Int(point.x), Int(point.y)))
+                                                    })
+                                                if let snapshot {
+                                                    pipeCoordinator.commitLinkedSnapshots(
+                                                        [snapshot], label: String(localized: "history_constrain"))
+                                                } else {
+                                                    editorState.presentToast(
+                                                        String(localized: "crop_constrain_none_toast"))
+                                                }
+                                            }
+                                        }
+                                    }
+                                )
                             }
                         }
                         // 09-04 T7 (HIST-06): the compare HUD — a floating
@@ -410,6 +533,26 @@ internal struct EditorAreaView: View {
     /// set — the panel (T5) and overlay share this record (single source).
     private var cropRecord: ModuleInstance? {
         editorState.instances.first { $0.opName == CropModule.opName }
+    }
+
+    /// M9-3-T3: the ashift record (the rotate handle's base angle + the
+    /// live tick source; the seed always carries one — decode failure
+    /// degrades to rotation 0, never a crash).
+    private var ashiftRecord: ModuleInstance? {
+        editorState.instances.first { $0.opName == AshiftModule.opName }
+    }
+
+    private var ashiftRotationDegrees: Double {
+        guard let ashiftRecord,
+            let params = try? ashiftRecord.params(of: AshiftModule.self)
+        else { return 0 }
+        return Double(params.rotation)
+    }
+
+    /// M9-3-T3: the flip record (the 90° step pair's target — the seed
+    /// always carries one).
+    private var flipRecord: ModuleInstance? {
+        editorState.instances.first { $0.opName == FlipModule.opName }
     }
 
     // MARK: - 06-06-T4 liquify overlay (mutual exclusion with crop)

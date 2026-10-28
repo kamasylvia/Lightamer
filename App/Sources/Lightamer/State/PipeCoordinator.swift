@@ -1973,6 +1973,20 @@ final class PipeCoordinator {
         scheduleSidecarWrite() // D-S3: the committed move throttles a write
     }
 
+    /// M9-3-T3 (D-M9G-1): the LINKED-CHANGE commit — the caller supplies
+    /// the explicit snapshot batch (the linked-refit recomputation owns
+    /// the final values: angle first, crop last), any pending live window
+    /// is DISCARDED in favor of it, and EditorState.recordLinkedChanges
+    /// lands the items with ONE coordinator notification (zero intermediate
+    /// renders). The rotate handle / straighten slider / auto-straighten /
+    /// 90° steps all funnel here.
+    func commitLinkedSnapshots(_ snapshots: [ModuleInstance], label: String) {
+        isEditingContinuous = false
+        liveEdited.removeAll()
+        editorState?.recordLinkedChanges(snapshots, label: label)
+        scheduleSidecarWrite() // D-S3
+    }
+
     /// HIST-02 undo (UI-facing shape; Phase 3 attaches the first panel):
     /// step the stack back via EditorState, then re-materialize + render.
     /// The edited position's plane misses (params reverted); everything
@@ -2096,6 +2110,71 @@ final class PipeCoordinator {
     /// Additive seam (no existing caller touched).
     func detectionSourceImage() -> DecodedImage? {
         decoded
+    }
+
+    /// M9-3-T3 (D-M9G-4): the auto-straighten solve — `detectionSourceImage`
+    /// (the decoded probe, the plan's starting detection source) downsampled
+    /// to a luminance plane, through StraightenDetect's segment detector and
+    /// the calibrated guard gates (≥3-line consensus, ≤10°). nil = no loaded
+    /// image or no usable consensus (the caller toasts — the upstream
+    /// "finds nothing, says so" face). Pure read: never mutates pipe state.
+    func autoStraightenDegrees() -> Double? {
+        guard let decoded = detectionSourceImage() else { return nil }
+        let extent = decoded.ciImage.extent
+        guard extent.width >= 16, extent.height >= 16 else { return nil }
+        let long: CGFloat = 512
+        let scale = min(long / extent.width, long / extent.height, 1.0)
+        let w = max(Int(extent.width * scale), 16)
+        let h = max(Int(extent.height * scale), 16)
+        let transform = CGAffineTransform(
+            scaleX: CGFloat(w) / extent.width, y: CGFloat(h) / extent.height)
+        let scaled = decoded.ciImage.transformed(by: transform)
+        let context = CIContext(options: [.useSoftwareRenderer: true])
+        guard let cg = context.createCGImage(scaled, from: CGRect(x: 0, y: 0, width: w, height: h))
+        else { return nil }
+        guard let data = cg.dataProvider?.data, let bytes = CFDataGetBytePtr(data),
+            CFDataGetLength(data) >= w * h * 4
+        else { return nil }
+        var lum = [Float](repeating: 0, count: w * h)
+        let premul = cg.alphaInfo == .premultipliedLast || cg.alphaInfo == .premultipliedFirst
+        for i in 0..<(w * h) {
+            let r = Double(bytes[i * 4])
+            let g = Double(bytes[i * 4 + 1])
+            let b = Double(bytes[i * 4 + 2])
+            var a = 1.0
+            if premul { a = Double(bytes[i * 4 + 3]) / 255.0 }
+            let value = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0 * a
+            lum[i] = Float(min(max(value, 0), 1))
+        }
+        return StraightenDetect.levelDegrees(luminance: lum, width: w, height: h)
+    }
+
+    /// M9-3-T3: an OPAQUE-content probe over the display plane (the
+    /// Constrain-Crop edge sampler's source — the output-frame face the
+    /// crop fractions live in). ONE fence + ONE readback per call (L014),
+    /// then the returned closure answers from the byte array (the 4×48
+    /// edge sampler calls it ~384 times per constrain; per-pixel getBytes
+    /// would fence that many times). nil = no display plane / no GPU.
+    /// The display texture is BGRA8 (the viewport surface): alpha > 0 is
+    /// the content test (the warp writes transparent zeros outside).
+    func contentOpaqueProbe(span: SIMD2<Int>) -> ((SIMD2<Int>) -> Bool)? {
+        guard let metal, let texture = editorState?.displayTexture,
+            texture.width == span.x, texture.height == span.y
+        else { return nil }
+        let w = texture.width, h = texture.height
+        var bytes = [UInt8](repeating: 0, count: w * h * 4)
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+        texture.getBytes(
+            &bytes, bytesPerRow: w * 4,
+            from: MTLRegion(origin: MTLOrigin(x: 0, y: 0, z: 0),
+                size: MTLSize(width: w, height: h, depth: 1)),
+            mipmapLevel: 0)
+        return { point in
+            guard point.x >= 0, point.y >= 0, point.x < w, point.y < h else { return false }
+            return bytes[(point.y * w + point.x) * 4 + 3] > 0
+        }
     }
 
     // ── M2-7-2 T6 (checker E6): the Follow Edges READ face seam ─────────

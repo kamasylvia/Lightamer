@@ -17,10 +17,11 @@ final class V50OrderTests: XCTestCase {
     /// second; M2-5-1: 95 → 105 with the ten grade rows — the acesccIn/Out
     /// envelope pair + the eight catalog ops; M3-3-02: 105 → 106 with
     /// filmPlacement 20.8 — the placement curve row; M5-1-01: 106 → 107
-    /// with colormatch 36.5 — the TRACK color-transfer row; all flagged in
-    /// the table at the rows).
+    /// with colormatch 36.5 — the TRACK color-transfer row; M9-3-T2:
+    /// 107 → 108 with upright 15.5 — the Guided Upright row; all flagged
+    /// in the table at the rows).
     func testEntriesCountApproximately76() {
-        XCTAssertEqual(V50Order.entries.count, 107, "93 dt-verbatim + skinSmooth + textOverlay + 10 M2-5-1 grade rows + filmPlacement + colormatch")
+        XCTAssertEqual(V50Order.entries.count, 108, "93 dt-verbatim + skinSmooth + textOverlay + 10 M2-5-1 grade rows + filmPlacement + colormatch + upright")
         XCTAssertEqual(V50Order.entries.first?.opName, "rawprepare")
         XCTAssertEqual(V50Order.entries.first?.order, 1.0)
         XCTAssertEqual(V50Order.entries.last?.opName, "gamma")
@@ -285,6 +286,9 @@ final class V50OrderTests: XCTestCase {
             "acesccIn", "acesccOut", "colorWheels", "cat02WhiteBalance",
             "contrast", "white", "black", "saturation", "tint", "hls",
             "filmPlacement", "colormatch",
+            // M9-3-T2: upright 15.5 — the 15th native row (stripping it
+            // must yield the 93-row dt-verbatim table unchanged)
+            "upright",
         ]
         let stripped = V50Order.entries.filter { !nativeRows.contains($0.opName) }
         XCTAssertEqual(stripped.count, 93)

@@ -227,6 +227,29 @@ final class EditorState {
         Task { await pipeCoordinator.historyDidChange() }
     }
 
+    /// M9-3-T3 (D-M9G-1): the LINKED-CHANGE atomic batch — e.g. the
+    /// rotate/straighten tools write ashift.rotation AND the refitted crop
+    /// rect in ONE user action. Both items land as consecutive commits
+    /// (HistoryStack has no group mechanism and the sealed-face discipline
+    /// forbids adding one — the OQ-1② ruling), so undo steps back TWICE,
+    /// LIFO: the LAST snapshot reverts first (callers pass angle-first,
+    /// crop-last, so undo reverts the crop refit, then the angle — the
+    /// intermediate state is one instant, registered in DECISIONS). The
+    /// coordinator is notified ONCE after the whole batch: zero
+    /// intermediate renders between the two items. Callers must keep the
+    /// item count minimal (the linked-refit predicate omits the crop item
+    /// when the frame is untouched).
+    func recordLinkedChanges(_ snapshots: [ModuleInstance], label: String) {
+        if projectWriteSuppressed() { return }
+        for snapshot in snapshots {
+            previewDenoiseBypass.removeValue(forKey: snapshot.id)
+            history.commit(snapshot, label: label)
+            upsert(instance: snapshot)
+        }
+        guard let pipeCoordinator else { return }
+        Task { await pipeCoordinator.historyDidChange() }
+    }
+
     /// D-H1 live leg: drag-preview upsert WITHOUT a history commit (the
     /// coordinator calls this per `setLiveParams`; zero items accumulate —
     /// the commit lands once at drag end).
