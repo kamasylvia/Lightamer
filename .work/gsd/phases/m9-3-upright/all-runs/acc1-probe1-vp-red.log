@@ -1,0 +1,15 @@
+BUNDLE|IOP|5/0/2|peakRSS=230MB|3s|sampling=time
+  ↳ IOP FAILED（fail；host exit=1 仅参考）— 完整输出: /tmp/la-direct-tests-IOP.log
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/UprightMathTests.swift:201: error: -[LightamerTestsIOP.UprightMathTests testPathologicalGuidesDegradeWithoutCrashing] : XCTAssertEqual failed: ("Mat3D(m: (0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0))") is not equal to ("Mat3D(m: (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0))") - an in-frame VP is rejected; the spread-out consensus fails to identity
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/UprightMathTests.swift:233: error: -[LightamerTestsIOP.UprightMathTests testPathologicalGuidesDegradeWithoutCrashing] : XCTAssertEqual failed: ("Mat3D(m: (0.9975640502598242, -0.06975647374412673, 0.0, 0.06975647374412673, 0.9975640502598242, 0.0, 0.0, 0.0, 1.0))") is not equal to ("Mat3D(m: (9.360410498329043e-06, -0.011473360503458633, 0.0, 0.07741962300152123, -0.15383651983889557, 0.0, 0.29850372834028366, -0.59577296892445, 0.029794475129913883))") - out-of-range focal must fall back to DEFAULT_FOCAL=1.5 (bitwise)
+Test Case '-[LightamerTestsIOP.UprightMathTests testPathologicalGuidesDegradeWithoutCrashing]' failed (0.997 seconds).
+--
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/UprightMathTests.swift:86: error: -[LightamerTestsIOP.UprightMathTests testSyntheticKeystoneRecoveryMatchesShotHomography] : XCTAssertLessThan failed: ("382.33014090764686") is not less than ("1.5") - recovered vertical x-trace spread must stay under 1.5 px
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/UprightMathTests.swift:98: error: -[LightamerTestsIOP.UprightMathTests testSyntheticKeystoneRecoveryMatchesShotHomography] : XCTAssertLessThan failed: ("1.1930769671984247") is not less than ("0.01") - the solve must equal the shot homography within 0.01 centred units
+Test Case '-[LightamerTestsIOP.UprightMathTests testSyntheticKeystoneRecoveryMatchesShotHomography]' failed (0.001 seconds).
+Test Suite 'UprightMathTests' failed at 2026-10-29 01:50:07.003.
+	 Executed 5 tests, with 6 failures (0 unexpected) in 0.999 (1.000) seconds
+Test Suite 'LightamerTestsIOP.xctest' failed at 2026-10-29 01:50:07.003.
+	 Executed 5 tests, with 6 failures (0 unexpected) in 0.999 (1.000) seconds
+Test Suite 'Selected tests' failed at 2026-10-29 01:50:07.003.
+TOTAL|5/0/2|3s
