@@ -1,0 +1,165 @@
+Working...
+# M9-2 omp 终审完成：**PASS / 0 error + 0 minor**（+ 4 obs）
+
+正本：`.work/gsd/phases/m9-2-bwspectral/M9-2-ACCEPTANCE-OMP.md`，证据 19 张：`omp-evidence/`。收工：tracked 零 diff / GUI 零残留 / defaults 已清 / fixture `.lra` 已清 / monitor 零触发。以下为报告全文一次性完整输出：
+
+---
+
+# M9-2-ACCEPTANCE-OMP — omp 独立终审（实机 computer-use + 双路对账 + 快修复核）
+
+> 终审：2026-10-28 omp。对象 = `af446612`（T1 资产）+ `b807b1dd`（T2+T3+T4，refs #12）
+> + `254a902f`（M-1 快修）+ 双路 zcode 报告（路 1 `M9-2-ACCEPTANCE.md` / 路 2
+> `M9-2-ACCEPTANCE-2ND.md`）。方法：probe 缝（`-la_film_probe`）实机走查 +
+> cliclick 合成输入 + screencapture 截图识图 + 视口像素差分机检 + sidecar 落盘
+> 对账 + w11 三判据 Python 独立复算 + 读码亲核。零共享上下文，不轻信双路结论。
+
+## 结论头
+
+**PASS / 0 error + 0 minor**（+ 4 observation，见 §七；双路 minor/major 处置见 §五）
+
+| 终审面 | 判定 |
+|---|---|
+| 1. BW 族面板（stock picker 4 卷 + 相纸 BW 节 + grade 8 档 + grain readout） | PASS（§一） |
+| 2. 滤色镜（9 档 picker + w25/w11/w58 活面 + 卸载恒等 + w11 修正曲线） | PASS（§二） |
+| 3. 回归面（彩色对零漂移 + 旧档零迁移弹窗） | PASS（§三） |
+| 4. 双路对账（路 1 m-1 / 路 2 M-1 修后 + m-1 / obs 逐条） | PASS（§五） |
+| 5. undo/持久化（三元组 quit 重开存活 + sidecar v12） | PASS（§六） |
+| 6. 快修复核（w11 三判据独立复算 + rebuild 逐字节 + 回归定向） | PASS（§四） |
+
+---
+
+## 环境与卫生
+
+- guard：`Scripts/machine-guard.sh --wait` → **PASS**（G1-G4 全过，无需绕门）。
+- ps 清零：起跑前 `ps` 无 Lightamer GUI/测试宿主（同命令链验证）。
+- monitor：`machine-guard.sh --monitor 10800` 伴跑全程，**零触发、零 kill**。
+- 构建自证：Debug 产物重建成功（`BUILD SUCCEEDED`，26s）；bundle 内
+  `FilmProfilesBW/camera_filters.json` mtime 11:18:59 **晚于**快修 commit
+  `254a902f`（11:15:06）——走查的是含修正曲线的产物。注：`.app` 目录 mtime
+  不动是 macOS 目录语义，资源文件 mtime 为准。
+- 供件：`/tmp/m92-omp-walk/src/` = `DSC09981.ARW`（用户实拍街景，只读拷贝，
+  未动原片）+ `IMG_4276.CR3`（TestRAW 公开样张）。走查全程在 CR3 上进行。
+- 收工：两实例均已 quit；defaults 域已删；fixture `.lra` 已清；tracked
+  **零 diff**。
+
+## 走查驱动说明（诚实申报）
+
+- AX 路径（System Events）在 SwiftUI 壳下窗口枚举非确定性（`window 1`
+  时而 -1719）；本轮主驱动 = cliclick 坐标点击（截图识图定位，retina 2x
+  换算）+ 键盘。全部 19 张证据截图在 `omp-evidence/`。
+- 视口渲染差分 = PIL/numpy 整图比对（视口区 x 0.10-0.60 / y 0.08-0.80），
+  均值/最大/超阈像素三数机检，非纯目测。
+
+---
+
+## 一、BW 族面板（PASS）
+
+| 检查点 | 证据 | 判定 |
+|---|---|---|
+| Film picker BW 分节 4 卷 | `omp-02`：黑白节头（灰显）下 ACROS II / HP5 PLUS / T-MAX 100 / TRI-X 400 四卷全列 | ✅ |
+| 相纸 picker BW 节 | `omp-04`：黑白节头下 `ILFORD MULTIGRADE IV RC` 单卷；彩色 6 相纸在上 | ✅ |
+| 选 Tri-X → grain readout | `omp-03`：`发表 RMS 17 μm · 推荐 strength 25.6` + 应用按钮；solve 同步变 `M 3.9 · Y 0.0 · ×1.00` | ✅ |
+| 选 Multigrade → Grade 行出现 | `omp-05`：反差号行 `无（自动）`；solve `M 0.0 · Y 56.1 · ×1.00` | ✅ |
+| Grade picker 8 档 verbatim | `omp-06` + 放大复核：`无（自动）/ 00 / 0 / 1 / 2 / 3 / 4 / 5` 八档，**00 与 0 为两行** | ✅ |
+| 切 grade 5 → 落盘 + history | sidecar `paper_grade: "5"` + history `相纸反差号` 条目 | ✅ |
+| Grade 渲染活面 | 通常曝光下 5 档视口差分为零（obs-omp1）；语义由 BWSpectralGolden 阶调门机检承载 | ✅（机检承载） |
+| T-Max readout 交叉 | `omp-16`：`发表 RMS 8 μm · 推荐 strength 12.2`（12.205 取整一位） | ✅ |
+
+## 二、滤色镜（PASS）
+
+| 检查点 | 证据 | 判定 |
+|---|---|---|
+| SHOOT 节 + 9 档 picker | `omp-09`：`无 / w11 / w12 / w15 / w21 / w25 / w47 / w58 / w8` 九档；节 caption 在位 | ✅ |
+| w25 活面 | `omp-10`：picker `w25` + 注记 `diverges on 9 points >2pp`；视口差分 maxΔ90 / 均值 1.31 / 13219 超阈（**渲染真动**）；sidecar `camera_filter: w25` + history `拍摄滤镜` | ✅ |
+| w11 可选（修正后曲线） | `omp-11`：w25→w11 视口差分 maxΔ87 / 均值 1.26 / 12681 超阈（**修正曲线渲染可辨**）；注记行消失（单源无 cross_check，符合 `divergent > 0` 语义） | ✅ |
+| 卸载回 None 恒等 | `omp-12`：sidecar `camera_filter` **键缺席**（omit-if-nil）；w11→None 差分 maxΔ66 回摆 | ✅ |
+| w58 注记行 | `omp-18`：`diverges on 14 points >2pp`（与资产逐字一致） | ✅ |
+| 资产注记在位 | `factor_check_note`（6/7 + 0.61 + w11 重转录行）逐字在位；evidence 副本与 shipped 同字节 | ✅ |
+
+## 三、回归面（PASS）
+
+| 检查点 | 证据 | 判定 |
+|---|---|---|
+| 彩色对：Grade 行隐藏 | `omp-14`：Portra × Endura 档 Grade 行与 grain 行双缺席（`channelModel == "bw"` 门）；Filter picker 仍在 | ✅ |
+| 交叉对（色卷×BW 相纸） | `omp-13`：Grade 行在位（门控只看相纸——设计如此）；视口黑白观感 | ✅ |
+| 交叉→纯色对渲染翻面 | 视口差分 maxΔ365 / 均值 175.65 / 121 万超阈（黑白→彩色大翻面） | ✅ |
+| 旧档（v11 形）零迁移弹窗 | `omp-15`：手造 v11 形 sidecar 切图打开**零弹窗**，会话照常恢复；schema 未被动 bump（仍 11）；仅一条 hash MISMATCH log（手造档未重算 hash 的实验伪影，obs-omp4） | ✅ |
+| 残留 grade 键无渲染面 | 色卷档残留 `paper_grade: "4"`，但消费缝经 `filmLegRequestTags` 查表门——语义不变（读码亲核） | ✅ |
+
+## 四、快修复核（PASS——三判据独立复算全中）
+
+复算：Python 直读 repo 数据（修正后 w11 曲线 × Tri-X `log_sensitivity` ×
+`SpectralConstantsData` D55/CMF），公式镜像 `SpectralBuildEngine:476-490`。
+
+| 判据 | DECISIONS §10 申报 | 本轮独立复算 | 判定 |
+|---|---|---|---|
+| ① 曲线形态 | 峰 60.0@510-520，单调下行至 6.20@700；400/410 floor 0.001 | 510/520 = 60.0/60.2；520→700 单调降（唯一 +0.1 台阶在 690→700，源页本性）；400/410 = 0.001；`dash cells = [400, 410]` | ✅ |
+| ② 亮度透射 | 40.3% vs 源页 40.2 | **40.1%**（ȳ×D55；与 40.2 差 0.1pp 口径带内——弃用曲线 67.1% 矛盾已消除） | ✅ |
+| ③ 发表 factor | f11 = 0.2201（4.54x，+0.18 stop） | **f11 = 0.2201，4.54x，+0.18 stop**逐位一致；全表 w8 +0.12 / w12 −0.04 / w15 +0.16 / w25 −0.01 / w47 +0.04 / w58 **+0.61** = **6/7 within 0.21** | ✅ |
+| rebuild 逐字节 | 双份同步 | evidence/t1 与 Resources 同 sha（`158cfa4726633b5e`） | ✅ |
+| commit 范围 | 4 文件 | `git show 254a902f --stat` 恰 4 文件；回归三类在 message 在案 | ✅ |
+
+判定：**转录错定论成立**；快修分支正确（修数值非仅注记）；生产语义不受扰。
+
+## 五、双路对账
+
+### 路 1 M-1（grain note 文案）→ 快修轮未改，降级 obs-omp2
+`254a902f` 恰 4 文件不含 grain JSON；HEAD 实测 HP5 行 `T4 interpolates the
+family` 原文仍在。快修 scope 正确地未碰它；顶层 note 已有正确句对冲。降级
+下批顺手改，不阻断。
+
+### 路 2 M-1（w11 转录错）→ 快修闭环，PASS
+§四三判据全中 + 注记更新 + 实机 w11 档可选渲染可辨。**关闭**。
+
+### 路 2 m-1（登记曲线 vs shipped 推荐值）→ 维持登记，语义无忧，PASS
+路 2 算术成立（note 曲线反解 ≠ shipped）。本轮加验：实机 readout = shipped
+值取整（25.6/12.2），登记曲线零消费；runtime ±2.0 语义门为 operative
+guard。零用户可见面，下批二选一，不阻断。
+
+### obs 逐条一句话
+- 路 1 obs-1（乘法缝静默恒等）：成立但生产不可达，维持。
+- 路 1 obs-2（FilterBakeKey ③ 头注释 BW 语义不精确）：成立，注释卫生。
+- 路 1 obs-3（冗余缓存行）：DECISIONS 已登记，维持。
+- 路 1 obs-4（⑥ 不敏感、判别力在 ⑦+①）：实证揭示结构，维持。
+- 路 1 obs-5（降级 PLAN-DECLARED）：申报链完整，v2 挂账，维持。
+- 路 1 obs-6（ΔN +6 口径差）：已申报待 orchestrator 复核，不碰账。
+- 路 2 obs-1（27 法 vs 29 法小账不平）：成立，主账不受扰。
+- 路 2 obs-2（引擎缝无 typed 拒绝）：设计如此，维持。
+- 路 2 obs-3（span 台账 vs HEAD 实测漂移）：属实，v2 以 HEAD 为准。
+
+## 六、undo/持久化（PASS）
+
+- 三元组 quit→重开：quit 前（T-Max 100 × Multigrade × grade 4 × w58，
+  schema 12，history 17 项）→ 重启 → `omp-19` 逐项复现；sidecar 六键逐位
+  SAME。
+- history：`相纸反差号` / `拍摄滤镜` / `更改胶片材料` discrete 条目逐动作
+  落盘（未逐条 ⌘Z——三方一致已证 commit 面；undo 由既有通道承载）。
+- v12 落盘：`schemaVersion: 12` + verbatim 键在位；None 档键缺席。
+
+## 七、本轮新 obs（4 项，均不阻断）
+
+- **obs-omp1｜grade 切换通常曝光视口差分为零**：面板/sidecar/history 三面翻
+  转但视口逐像素差分 = 0。判观感地板面（filter 同链真动为链路活反证）；
+  语义由阶调门机检承载。维持观察。
+- **obs-omp2｜路 1 M-1 降级**：HP5 note 矛盾仍在，下批顺手改 + 同步 MANIFEST。
+- **obs-omp3｜纸切换不清 grade 残留键**：切 Endura 后残留 `paper_grade: "4"`，
+  渲染面无影响。建议下批清键或显式登记为记忆语义二选一。
+- **obs-omp4｜旧档走查 hash MISMATCH 系实验伪影**：手造档未重算 hash 所致；
+  真旧档不受影响；零弹窗结论不受扰。
+
+## 八、证据清单（`omp-evidence/`，19 张）
+
+omp-01 启用默认对 … omp-02 Film BW 节 … omp-03 Tri-X readout …
+omp-04 相纸 BW 节 … omp-05 Grade 行出现 … omp-06 Grade 8 档 …
+omp-07 grade5 … omp-08 BW 渲染活面 … omp-09 Filter 9 档 …
+omp-10 w25 … omp-11 w11 … omp-12 None … omp-13 交叉对 …
+omp-14 纯色对隐藏 … omp-15 旧档零弹窗 … omp-16 T-Max readout …
+omp-17 三元组 … omp-18 w58 注记 … omp-19 重开存活。
+
+## 九、建议（给 orchestrator）
+
+1. **M9-2 放行**：三 AC + 双路 + 终审三眼闭环，`254a902f` 后 HEAD 可签核。
+2. M9-3 账本行三条：obs-omp2 / obs-omp3 / 路 2 m-1（二选一）。
+3. 走查配方 MANIFEST §2「切 5 → 反差明显变硬」在本供件下未复现目视差
+   （obs-omp1）——建议加注「观感幅度与片/曝光有关，机检门为准」。
+
