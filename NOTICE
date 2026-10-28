@@ -223,3 +223,42 @@ R. darktable noiseprofiles (camera noise profile dataset — Plan 05-01)
    formatting; semantic values unchanged). Contributor credits in the
    "comment" fields are preserved verbatim. Modifications are marked per
    GPL-3.0. This file is GPL-3.0 as part of Lightamer.
+
+──────────────────────────────────────────────────────────────────────────────
+M9-3 batch additions (geometry-correct Upright family, 2026-10-27)
+──────────────────────────────────────────────────────────────────────────────
+
+S. lightcraft (Guided Upright + straighten geometry — Plan M9-3 T1)
+
+   Upstream: lightcraft (Tom Wright and contributors)
+   https://github.com/tom97/lightcraft
+   License: MIT OR Apache-2.0, Copyright (c) the lightcraft authors
+   (upstream anchors: fbc927f0 / 7635b38c / 693c3593 / 54c6c43b /
+   7d3cd8af).
+
+   Lightamer's Guided Upright mathematics is PORTED from lightcraft's
+   `crates/pipeline/src/upright.rs` and `transform.rs`, and its
+   rotated-frame crop geometry from `crates/geom/src/crop.rs`: the
+   vanishing-point refinement (Σ w·l·lᵀ smallest eigenvector via Jacobi
+   rotations), the orthogonal focal estimate (f² = −(vx·hx + vy·hy),
+   accepted range 0.5..6.0), the virtual-camera-rotation homography
+   K·R·K⁻¹, the recentring (origin pinned + Jacobian-determinant local
+   scale), the guided family split (≤45° tilt fold) with the
+   vertical/horizontal/level degradation chain and the 90°-conjugated
+   horizontal solve, the maximum-inscribed-rect closed form and the
+   with_angle frame-on-turn semantics (#742/#1388/#1794), and the
+   straighten consensus gate (length-weighted median + ±2° agreement,
+   STRAIGHTEN_MAX_DEGREES=10.0 / STRAIGHTEN_MIN_LINES=3). The upstream
+   copyright is preserved in the file headers and the modifications are
+   marked there (the independent Swift re-expression, the Double-only
+   math domain, the plan's pathological defenses folded into the guided
+   family-VP helper, and the RANSAC/`reliable`/`analyze_source`
+   auto-mode machinery deliberately NOT ported — D-M9G-3). The covered
+   files:
+
+     LightamerCore/Sources/Pipe/UprightMath.swift    (VP/focal/K·R·K⁻¹/guided)
+     LightamerCore/Sources/Pipe/CropFitAngle.swift   (crop_fit_angle/with_angle)
+     LightamerCore/Sources/Pipe/StraightenDetect.swift (segment detect + level_degrees)
+
+   MIT and Apache-2.0 both permit this use; this attribution preserves
+   the MIT notice. These files are GPL-3.0 as part of Lightamer.
