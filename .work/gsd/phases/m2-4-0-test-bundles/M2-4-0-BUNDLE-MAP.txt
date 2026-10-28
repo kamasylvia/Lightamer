@@ -913,5 +913,10 @@ IOP	5	UprightMathTests.swift
 IOP	2	CropFitAngleTests.swift
 IOPP	4	UprightModuleParityTests.swift
 IOP	2	StraightenDetectTests.swift
-APP	5	CropToolRotationTests.swift
-APP	6	UprightGuidesInteractionTests.swift
+APP	7	CropToolRotationTests.swift
+APP	8	UprightGuidesInteractionTests.swift
+# M9-3 修复轮增行（2026-10-29，lane-2 E-1/M-1/M-2/M-3 修复批）：法数 5→7 /
+#   6→8（CropToolRotationTests +2 = commitFrameSize 域胜出面 + 二次提交落闭式
+#   直解；UprightGuidesInteractionTests +3 = post-upright display 腿真链域法 +
+#   cap toast 目录解析法 + 拖拽路径选中同步契约法）。App bundle 运行期总数
+#   1052 → 1057 起算。

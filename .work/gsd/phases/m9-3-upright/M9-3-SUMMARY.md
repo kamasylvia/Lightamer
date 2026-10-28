@@ -66,3 +66,31 @@
 | T3 | `e6bbac45` | rotate/straighten 联动 + 守门 + 手柄/工具条（refs #13） |
 | T4 | `e5e14b60` | 导线 overlay + 面板 + 工具窗（refs #13） |
 | T5 | 本 commit | 账本 + 冻结面增补（EditorStackRoutingTests/TAB-MATRIX/V50OrderTests 计数） |
+
+## 修复轮增补（lane-2 E-1/M-1/M-2/M-3/m-1，2026-10-29）
+
+> 输入 = `M9-3-ACCEPTANCE-2ND.md`（lane 2：PASS / 1 error + 3 minor）；修法与
+> 逐项裁决正本 = 本目录 `M9-3-DECISIONS.md` §修复轮。全程封存面 17 件零
+> 触碰机检在案。
+
+| finding | commit | 修法一句 | 回归 |
+|---|---|---|---|
+| E-1（error） | `5a7d9225` | 旋转漏斗接线改传解码基准平面（decodedFrameSize 单源 + commitFrameSize 测试缝）+ Constrain span 同族两处修正 | +2（域胜出面 + 二次提交落闭式直解含反事实腿） |
+| M-1 | `51e83e48` | 导线通道换锚 post-upright display 腿（15.5 拆半：pre 只出尺寸、post compose 成 mapper） | +1（真链装配激活 crop/flip 域断言四组） |
+| M-2 | `2c358d9b`+`0143d178` | 第 5 条拒 onRefused → ToastBar（键 + 勘误键位入 strings） | +1（目录解析防裸键） |
+| M-3 | `5b313480` | 拖拽路径 press/release 回写 session 选中态（复用 tap 路径写点） | +1（两同步点契约法） |
+| m-1 | `dab4ff8d` | CropFitAngle minFraction 头注披露 upstream 0.02（docs-only） | — |
+| 跟随 | `81b44691` | M-1 真链测试编译修正（静态调用形态 + try 摘除） | — |
+| 跟随 | `7f6a08aa` | 真链测试确定性（box setParams 自 commit——显式链 load 不跑 rematerialize）+ 往返门改 px <1px | — |
+
+- **定向三 bundle 终值（修复轮全量）**：IOP **807/1/0**（958s，峰 5346MB）·
+  IOPParity **544/10/0**（1583s，峰 3841MB）· App **1057/6/0**（624s，峰
+  1674MB）——前两值与 T5 基线逐值一致；App = 1052 + 本轮 5 法。
+- **新法数 +5**（全部 App bundle）；全套预期 4386 → **4391/34/0**。
+- 封存面：`git diff d7a7e1d0..HEAD` 对封存清单交集 = **0**；UserDefaults 零
+  新键；zh-audit 双 PASS（--check 1766/2082/10 + --self-test V17）。
+- 环境事件：xray JMS 账号 5 节点 VLESS 握手层全拒（TCP 通、SSL 断，账号级
+  待用户）+ 直连 github/pypi 间歇超时窗口——构建以 `-disableAutomaticPackage
+  Resolution` 离线包解析通过（SourcePackages checkouts 在位）；G4 Data 卷
+  三轮贴线（清陈旧容器//tmp 遗留/Xcode 共享模块缓存过门）；详见 DECISIONS
+  §修复轮 §环境事件。
