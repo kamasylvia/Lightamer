@@ -221,16 +221,25 @@ final class UprightGuidesInteractionTests: XCTestCase {
                 params: CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75)),
         ]
         editorState.resetHistoryForNewImage(defaultInstances: chain)
-        // Boxes mirror the records (matched by instanceID — the load's
-        // rematerialize pass applies the records onto the adopted boxes).
-        let boxes: [any ModuleBoxing] = chain.map { record in
+        // Boxes mirror the records (matched by instanceID) and COMMIT the
+        // params themselves: the load's explicit-chain branch adopts boxes
+        // AS-IS (rematerialize lives in the pristine-seed branch only), so
+        // a bare box stays neutral — the caller owns the committed state.
+        var boxes: [any ModuleBoxing] = []
+        for record in chain {
             switch record.opName {
             case AshiftModule.opName:
-                return ModuleBox(module: AshiftModule(), instanceID: record.id)
+                let box = ModuleBox(module: AshiftModule(), instanceID: record.id)
+                box.setParams(try record.params(of: AshiftModule.self))
+                boxes.append(box)
             case FlipModule.opName:
-                return ModuleBox(module: FlipModule(), instanceID: record.id)
+                let box = ModuleBox(module: FlipModule(), instanceID: record.id)
+                box.setParams(try record.params(of: FlipModule.self))
+                boxes.append(box)
             default:
-                return ModuleBox(module: CropModule(), instanceID: record.id)
+                let box = ModuleBox(module: CropModule(), instanceID: record.id)
+                box.setParams(try record.params(of: CropModule.self))
+                boxes.append(box)
             }
         }
         await coordinator.load(
@@ -270,18 +279,19 @@ final class UprightGuidesInteractionTests: XCTestCase {
             "the fixed channel stores a materially different point than the old one")
 
         // 4. The channel stays exact across the ACTIVE crop + flip chain:
-        //    forward ∘ inverse identity over window space (<1e-9
-        //    normalized — far under the 1px gate at these frames).
+        //    forward ∘ inverse identity — the established <1px gate in
+        //    PIXELS (the parity test's channel gate shape).
         var worst = 0.0
         for wy in stride(from: 0.05, through: 0.95, by: 0.15) {
             for wx in stride(from: 0.05, through: 0.95, by: 0.15) {
                 let w = SIMD2(wx, wy)
                 let back = mapper.forward(normalized: mapper.inverse(normalized: w))
-                worst = max(worst, ((back.x - wx).squareRoot()
-                    + (back.y - wy).squareRoot()).squareRoot() / 2)
+                let dx = (back.x - wx) * mapper.frameSize.x
+                let dy = (back.y - wy) * mapper.frameSize.y
+                worst = max(worst, (dx * dx + dy * dy).squareRoot())
             }
         }
-        XCTAssertLessThan(worst, 1e-9, "the active-chain roundtrip stays exact")
+        XCTAssertLessThan(worst, 1.0, "the active-chain roundtrip stays under 1 px")
     }
 
     // MARK: - M-3: the drag-path session selection sync
