@@ -233,7 +233,7 @@ final class UprightGuidesInteractionTests: XCTestCase {
                 return ModuleBox(module: CropModule(), instanceID: record.id)
             }
         }
-        try await coordinator.load(
+        await coordinator.load(
             url: URL(fileURLWithPath: "/tmp/m93-guides-\(UUID().uuidString).tif"),
             decoded: Self.decodedWide(), instances: boxes, metal: metal)
 
@@ -262,7 +262,7 @@ final class UprightGuidesInteractionTests: XCTestCase {
         let drawn = SIMD2(0.3, 0.6)
         let newStored = mapper.inverse(normalized: drawn)
         let legacyMapper = GeometryPointMapper.compose(
-            boxes: [legacyAshiftBox()], frameSize: SIMD2(720.0, 480.0))
+            boxes: [Self.legacyAshiftBox()], frameSize: SIMD2(720.0, 480.0))
         let oldStored = legacyMapper.inverse(normalized: drawn)
         let drift = SIMD2(newStored.x - oldStored.x, newStored.y - oldStored.y)
         XCTAssertGreaterThan(
