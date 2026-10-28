@@ -903,3 +903,11 @@ IOPP	5	BWSpectralGoldenTests.swift
 IOPP	4	FilterBakeKeyTests.swift
 IOPP	2	GrainCalibrationSemanticsTests.swift
 APP	5	FilmPanelBWTests.swift
+# M9-3 增行记录（2026-10-27 执行期，checker E2 测试登记纪律）：新测试文件随任务
+#   commit 登记进对应 bundle（归属：UprightMath/CropFitAngle = IOP Core 纯函数
+#   域，HomographyTests 同位；T2 UprightModuleParityTests = IOPP——AshiftParity
+#   同位；T3 StraightenDetectTests = IOP + CropToolRotationTests = APP；T4
+#   UprightGuidesInteractionTests = APP——overlay 族同位）。行内 method 数以
+#   终态对账为准。运行期总数基线相应上移（4363 起算）。
+IOP	5	UprightMathTests.swift
+IOP	2	CropFitAngleTests.swift

@@ -424,6 +424,10 @@ let project = Project(
                 "Tests/LightamerTests/ChainBuilderHelpers.swift",
                 "Tests/LightamerTests/BilateralGrid3DTests.swift",
                 "Tests/LightamerTests/BloomTests.swift",
+                // M9-3 T1: the Guided Upright math gates (golden six gates)
+                // and the straighten-angle crop closed form (#742/#1388/#1794).
+                "Tests/LightamerTests/UprightMathTests.swift",
+                "Tests/LightamerTests/CropFitAngleTests.swift",
                 "Tests/LightamerTests/ChannelMixerColorContrastTests.swift",
                 // M9-2 T2: the computed Multigrade grade table (fit
                 // convergence / tonality / persisted round-trip).
