@@ -34824,5 +34824,22 @@
     }
   }
   },
+  "upright_guides_cap_toast" : {
+    "extractionState" : "manual",
+    "localizations" : {
+      "en" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "Guide limit reached — up to four guides."
+        }
+      },
+      "zh" : {
+        "stringUnit" : {
+          "state" : "translated",
+          "value" : "已达导线上限——最多四条。"
+        }
+      }
+    }
+  },
   "version": "1.0"
 }

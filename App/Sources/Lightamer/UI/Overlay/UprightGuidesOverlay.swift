@@ -17,7 +17,8 @@ import SwiftUI
 //   • a click on blank space (no endpoint, no line) CLEARS the selection;
 //   • Delete removes ONLY the selected guide (with no selection it is a
 //     no-op: no guide, no history item);
-//   • at most 4 guides (the 5th draw is refused).
+//   • at most 4 guides (the 5th draw is refused — the host toasts, the
+//     plan AC's cap face);
 // Guides persist in `upright.Params.guides` — ONE history item per edit
 // step (the upstream undo granularity); a draw/endpoint drag is the D-H1
 // trio (begin → live ticks stream the pending guides; the commit lands
@@ -212,6 +213,9 @@ struct UprightGuidesOverlayView: View {
     var onCommit: ([UprightModule.Guide]) -> Void = { _ in }
     /// The selection moved (the host writes the session face).
     var onSelect: (Int?) -> Void = { _ in }
+    /// A draw press was REFUSED (the ≤4 cap — the plan AC's toast face;
+    /// the host presents the cap toast).
+    var onRefused: () -> Void = {}
 
     /// The drag face's working copy (nil = no active drag).
     @State private var dragModel: UprightGuidesModel?
@@ -230,10 +234,14 @@ struct UprightGuidesOverlayView: View {
                         if dragModel == nil {
                             var m = UprightGuidesModel(guides: guides)
                             m.selected = selected
-                            m.press(at: viewportToFrame(value.startLocation))
-                            dragModel = m
-                            onBegin()
-                            onLive(m.guides + (m.pending.map { [$0] } ?? []))
+                            let accepted = m.press(at: viewportToFrame(value.startLocation))
+                            if accepted {
+                                dragModel = m
+                                onBegin()
+                                onLive(m.guides + (m.pending.map { [$0] } ?? []))
+                            } else {
+                                onRefused()
+                            }
                         } else {
                             dragModel?.dragTick(at: viewportToFrame(value.location))
                             if let m = dragModel {
@@ -364,6 +372,12 @@ struct UprightGuidesToolHost: View {
                 },
                 onSelect: { index in
                     inspectorState.uprightGuideSelected = index
+                },
+                onRefused: {
+                    // M-2 (the plan AC's「第 5 条拒 + toast」): the cap
+                    // refusal says so (the ToastBar channel).
+                    editorState.presentToast(
+                        String(localized: "upright_guides_cap_toast"))
                 }
             )
             .overlay(alignment: .topTrailing) {
