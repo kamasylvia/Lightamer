@@ -33,6 +33,16 @@ public enum CropFitAngle {
     /// Minimum crop fraction the shrink-in-place path must preserve
     /// (dt `MIN_CROP_SIZE` = 0.01, the IOP `CropLimits.minFraction` value;
     /// duplicated here because Core cannot import IOP).
+    ///
+    /// DELIBERATE DEVIATION from lightcraft (disclosure, M9-3 lane-2 m-1):
+    /// upstream's shrink gate is `MIN_CROP_FRACTION = 0.02`
+    /// (`crates/pipeline/src/crop_drag.rs:12`). This port follows the
+    /// HOSTING crop model's floor instead — dt `MIN_CROP_SIZE` = 0.01,
+    /// the same limit `CropModule.minFraction` enforces on hand drags —
+    /// so the linked-refit shrink never lands tighter than the crop tool
+    /// itself allows. Effect: the shrink floor is 0.01 vs upstream's
+    /// 0.02 (slightly more permissive) — the only numeric deviation of
+    /// the crop.rs port that upstream fidelity review turned up.
     static let minFraction: Double = 0.01
 
     /// A normalized axis-aligned rectangle (fractions of the frame), stored
