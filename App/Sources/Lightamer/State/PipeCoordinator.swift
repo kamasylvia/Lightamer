@@ -2149,6 +2149,19 @@ final class PipeCoordinator {
         return StraightenDetect.levelDegrees(luminance: lum, width: w, height: h)
     }
 
+    /// M9-3 E-1: the DECODED reference plane size (the upright-input
+    /// frame the crop-tool rotation acts on) — the SINGLE source the
+    /// rotation funnel and the guides mapper share. The DISPLAY texture
+    /// is the rotated output frame once rotation ≠ 0 (the ashift
+    /// `modify_roi_out` AABB) and must never feed rotation geometry.
+    /// nil = nothing loaded / degenerate extent.
+    func decodedFrameSize() -> SIMD2<Double>? {
+        guard let decoded else { return nil }
+        let extent = decoded.ciImage.extent
+        guard extent.width >= 1, extent.height >= 1 else { return nil }
+        return SIMD2(Double(extent.width), Double(extent.height))
+    }
+
     /// M9-3-T4 (CONTEXT red line 6): the guides' ONLY coordinate channel —
     /// the geometry mapper over the LIVE box set truncated BEFORE the
     /// upright slot (lens 13 / ashift 15 included; upright 15.5 / flip 16 /

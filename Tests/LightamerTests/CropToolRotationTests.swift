@@ -256,4 +256,91 @@ final class CropToolRotationTests: XCTestCase {
             current: fitted, span: span, contentAt: probe),
             "a fitting frame is untouched")
     }
+
+    // MARK: - E-1 regression: the decoded-plane wiring seam
+
+    func testCommitFrameSizeResolvesTheDecodedPlane() {
+        // The commit-time display AABB (the live render has already
+        // applied the drag's rotation) must NOT feed the funnel — the
+        // decoded reference plane wins even when the two planes differ.
+        // That divergence IS the E-1 drift family (−8.6% first drag,
+        // compounding per generation).
+        let decoded = SIMD2(600.0, 400.0)
+        let displayAt10 = CropToolRotation.RotatedFrameBridge.span(
+            w0: 600, h0: 400, angleDegrees: 10)
+        XCTAssertGreaterThan(displayAt10.x, 600, "precondition: the display plane differs under rotation")
+        let resolved = CropToolRotation.commitFrameSize(
+            decoded: decoded,
+            display: SIMD2(Double(displayAt10.x), Double(displayAt10.y)))
+        XCTAssertEqual(resolved?.x ?? 0, 600, accuracy: 1e-12, "the decoded plane wins")
+        XCTAssertEqual(resolved?.y ?? 0, 400, accuracy: 1e-12, "the decoded plane wins")
+        // nothing loaded / degenerate extent = no commit frame
+        XCTAssertNil(CropToolRotation.commitFrameSize(
+            decoded: nil, display: SIMD2(660, 498)), "nil decoded = nil")
+        XCTAssertNil(CropToolRotation.commitFrameSize(
+            decoded: SIMD2(0, 0), display: SIMD2(600, 400)), "degenerate decoded = nil")
+    }
+
+    func testTwoGenerationCommitsLandTheClosedForm() throws {
+        // E-1's drift was GENERATIONAL: each commit that fed the funnel
+        // the DISPLAY AABB re-solved the refit against the wrong plane
+        // and the error compounded. Two consecutive commits through the
+        // DECODED plane must land exactly the one-shot closed form (the
+        // lane-2 acceptance's「二次提交落闭式直解」face).
+        let decoded = SIMD2(600.0, 400.0)
+
+        // Gen 1: 0 → 10° with the full-frame crop (the commit-time
+        // display spans span@10° = 660×498 — NOT what the funnel gets).
+        let gen1 = try XCTUnwrap(CropToolRotation.linkedSnapshots(
+            ashift: ashift, crop: crop, rotationDegrees: 10, frameSize: decoded))
+        XCTAssertEqual(gen1.count, 2, "the largest frame refits at the first drag")
+        editorState.recordLinkedChanges(gen1, label: "history_rotate")
+        let gen1Ashift = try XCTUnwrap(
+            editorState.instances.first { $0.opName == AshiftModule.opName })
+        let gen1Crop = try XCTUnwrap(
+            editorState.instances.first { $0.opName == CropModule.opName })
+
+        // Gen 2: 10 → 20° (the display now spans span@20° = 700×581).
+        let gen2 = try XCTUnwrap(CropToolRotation.linkedSnapshots(
+            ashift: gen1Ashift, crop: gen1Crop, rotationDegrees: 20, frameSize: decoded))
+        XCTAssertEqual(gen2.count, 2, "the largest@10° frame regrows into the largest@20°")
+        editorState.recordLinkedChanges(gen2, label: "history_rotate")
+        let gen2Crop = try XCTUnwrap(
+            editorState.instances.first { $0.opName == CropModule.opName })
+        let generationCrop = try gen2Crop.params(of: CropModule.self)
+
+        // The one-shot closed form: 0 → 20° on the same decoded plane.
+        let direct = try XCTUnwrap(CropToolRotation.linkedSnapshots(
+            ashift: ashift, crop: crop, rotationDegrees: 20, frameSize: decoded))
+        XCTAssertEqual(direct.count, 2)
+        let directCrop = try direct[1].params(of: CropModule.self)
+
+        // Both live in the 20° AABB domain and coincide (1e-6: the Float
+        // params record — the generation path round-trips one more Float
+        // hop than the direct one; 8.9e-9 measured residue family).
+        XCTAssertEqual(generationCrop.left, directCrop.left, accuracy: 1e-6,
+            "generation 2 == the closed form (left)")
+        XCTAssertEqual(generationCrop.top, directCrop.top, accuracy: 1e-6,
+            "generation 2 == the closed form (top)")
+        XCTAssertEqual(generationCrop.right, directCrop.right, accuracy: 1e-6,
+            "generation 2 == the closed form (right)")
+        XCTAssertEqual(generationCrop.bottom, directCrop.bottom, accuracy: 1e-6,
+            "generation 2 == the closed form (bottom)")
+
+        // Sensitivity (the E-1 counterfactual — keeps this regression
+        // from degenerating into a tautology): feeding gen 2 the DISPLAY
+        // AABB instead of the decoded plane drifts at least one edge
+        // away from the closed form.
+        let displayAt20 = CropToolRotation.RotatedFrameBridge.span(
+            w0: 600, h0: 400, angleDegrees: 20)
+        let drifted = CropToolRotation.linkedSnapshots(
+            ashift: gen1Ashift, crop: gen1Crop, rotationDegrees: 20,
+            frameSize: SIMD2(displayAt20.x, displayAt20.y))
+        let driftedCrop = try XCTUnwrap(drifted?[1]).params(of: CropModule.self)
+        let edgesDiffer = abs(driftedCrop.left - directCrop.left) > 1e-6
+            || abs(driftedCrop.top - directCrop.top) > 1e-6
+            || abs(driftedCrop.right - directCrop.right) > 1e-6
+            || abs(driftedCrop.bottom - directCrop.bottom) > 1e-6
+        XCTAssertTrue(edgesDiffer, "the display-plane wiring provably drifts the refit")
+    }
 }
