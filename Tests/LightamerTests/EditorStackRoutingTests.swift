@@ -65,11 +65,12 @@ final class EditorStackRoutingTests: XCTestCase {
         XCTAssertEqual(
             rehomedOps.count, Set(rehomedOps).count,
             "every panel rehomes EXACTLY ONCE (no double-homing)")
-        // The executed cardinality (M5-1-02 T6): 43 populated − 1 = 42.
+        // The executed cardinality (M9-3-T4): 44 populated − 1 = 43.
         // (M2-5-2 base 42 — the EIGHT catalog providers complete; M5-1-02
-        // adds the colormatch provider + its LUT-page routing row.)
-        XCTAssertEqual(expected.count, 42)
-        XCTAssertEqual(rehomedOps.count, 42)
+        // adds the colormatch provider + its LUT-page routing row; M9-3-T4
+        // adds the upright provider + its Geometry-page row.)
+        XCTAssertEqual(expected.count, 43)
+        XCTAssertEqual(rehomedOps.count, 43)
     }
 
     // MARK: - M2-5-2 T3: the six scalar panels (AC#4)
@@ -278,7 +279,9 @@ final class EditorStackRoutingTests: XCTestCase {
             .map(\.opName)
         XCTAssertEqual(
             Set(main),
-            [CropModule.opName, FlipModule.opName, LensModule.opName])
+            [CropModule.opName, FlipModule.opName, LensModule.opName,
+             // M9-3-T4 (D-M9G-2): upright joins the BASIC row (after lens).
+             UprightModule.opName])
     }
 
     // MARK: - The TAB-MATRIX markdown reconciliation (the T2 acceptance)
