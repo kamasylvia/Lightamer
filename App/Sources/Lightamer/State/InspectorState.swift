@@ -86,6 +86,29 @@ final class InspectorState {
         filmPageActive = false
     }
 
+    // MARK: - M9-3-T4: the Guided Upright tool window (the overlay's arm)
+
+    /// True while the viewport hosts the guide-drawing overlay (the upright
+    /// panel's "draw guides" button arms it; the overlay's Done face
+    /// disarms). SESSION STATE (the exportPageActive precedent) — never
+    /// persisted. The tool OWNS the viewport while armed (mutex by
+    /// omission: the route switch yields).
+    private(set) var uprightGuidesToolActive = false
+
+    /// The guides overlay's selection — UI-ONLY (the upstream serde-skip
+    /// semantics: it never enters upright.Params or the sidecar).
+    var uprightGuideSelected: Int? = nil
+
+    func openUprightGuidesTool() {
+        uprightGuidesToolActive = true
+        uprightGuideSelected = nil
+    }
+
+    func closeUprightGuidesTool() {
+        uprightGuidesToolActive = false
+        uprightGuideSelected = nil
+    }
+
     // MARK: - Provider registry
 
     /// Register one panel provider (idempotent per opName — last wins).
@@ -135,6 +158,8 @@ final class InspectorState {
         register(FlipPanelProvider())
         // Plan 04-03-T5: ashift (rotate + perspective + Vision auto-detect).
         register(AshiftPanelProvider())
+        // Plan M9-3-T4: upright (Guided Upright — mode/guides/tool arm).
+        register(UprightPanelProvider())
         // Plan 04-04-T3: lens (embedded note + manual sliders + Lensfun).
         register(LensPanelProvider())
         // Plan 04-05-T5: detail five (sharpen + local contrast + highpass +

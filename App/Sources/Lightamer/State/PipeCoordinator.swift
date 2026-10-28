@@ -2149,6 +2149,21 @@ final class PipeCoordinator {
         return StraightenDetect.levelDegrees(luminance: lum, width: w, height: h)
     }
 
+    /// M9-3-T4 (CONTEXT red line 6): the guides' ONLY coordinate channel —
+    /// the geometry mapper over the LIVE box set truncated BEFORE the
+    /// upright slot (lens 13 / ashift 15 included; upright 15.5 / flip 16 /
+    /// crop 24.5 excluded): its inverse maps a viewport-normalized point
+    /// into the upright op's INPUT frame (the guides' persistence domain),
+    /// its forward maps back for the redraw. nil = nothing loaded.
+    func uprightGuideMapper() -> GeometryPointMapper? {
+        guard let decoded else { return nil }
+        let extent = decoded.ciImage.extent
+        guard extent.width >= 1, extent.height >= 1 else { return nil }
+        let frameSize = SIMD2(Double(extent.width), Double(extent.height))
+        let preUpright = instances.filter { $0.iopOrder < UprightModule.iopOrder }
+        return GeometryPointMapper.compose(boxes: preUpright, frameSize: frameSize)
+    }
+
     /// M9-3-T3: an OPAQUE-content probe over the display plane (the
     /// Constrain-Crop edge sampler's source — the output-frame face the
     /// crop fractions live in). ONE fence + ONE readback per call (L014),
