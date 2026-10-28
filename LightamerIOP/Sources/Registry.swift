@@ -243,6 +243,15 @@ public enum LightamerIOPRegistry {
         await registry.register(opName: AshiftModule.opName) { id in
             ModuleBox(module: AshiftModule(), instanceID: id)
         }
+        // Plan M9-3-T2: upright (Guided Upright perspective correction),
+        // v50 slot 15.5 — AFTER ashift (15.0), BEFORE flip (16.0): it
+        // consumes the manually-rotated frame and hands its output AABB to
+        // flip/crop. Rides the SHARED `ashift_warp` kernel (the "perspective
+        // share one kernel" shape — the prewarm list below needs no new
+        // entry; the PSO cache dedupes on the function name).
+        await registry.register(opName: UprightModule.opName) { id in
+            ModuleBox(module: UprightModule(), instanceID: id)
+        }
         // Plan 04-02-T2: flip (orientation index remap), v50 slot 16.0 —
         // AFTER ashift (15.0), BEFORE crop (24.5) per iop_order.c:810-812.
         await registry.register(opName: FlipModule.opName) { id in
@@ -514,7 +523,8 @@ public enum LightamerIOPRegistry {
             // Plan 04-02-T2: the flip remap (crop needs no kernel — blit).
             FlipKernel.functionName,
             // Plan 04-03-T2: the single-homography warp (rotation +
-            // perspective share one kernel).
+            // perspective share one kernel). M9-3-T2: upright rides the
+            // SAME function name — the PSO cache dedupes, no second entry.
             AshiftKernel.functionName,
             // Plan 04-04-T1: the lens manual warp (distortion + TCA +
             // devignette fusion).
@@ -651,6 +661,12 @@ public enum LightamerIOPRegistry {
             // (iopOrder, multiPriority) at return.
             ModuleInstance(module: LensModule.self, params: LensModule.Params()),
             ModuleInstance(module: AshiftModule.self, params: AshiftModule.Params()),
+            // Plan M9-3-T2: upright (mode off = the neutral identity) joins
+            // the seed after ashift — blit identity ⇒ cache-neutral
+            // (exposure-0EV style), so the Geometry-page upright panel has
+            // an instance to drive. Params persist legally from the seed
+            // (the instance-params face has no pristine omission branch).
+            ModuleInstance(module: UprightModule.self, params: UprightModule.Params()),
             // Plan 04-02: flip (NONE identity) + crop (full-frame neutral)
             // join the seed — both cache-neutral (flip NONE = identity
             // process; crop full-frame = whole-plane blit), so their

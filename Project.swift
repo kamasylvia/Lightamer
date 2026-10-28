@@ -390,6 +390,10 @@ let project = Project(
                 "Tests/LightamerTests/ToneEqualModuleTests.swift",
                 "Tests/LightamerTests/ToneEqualParityTests.swift",
                 "Tests/LightamerTests/ToneEqualPerfTests.swift",
+                // M9-3 T2: the upright op's pipe face (off byte-exact /
+                // real-kernel keystone straightening / params + V50Order /
+                // mapper segment round-trip).
+                "Tests/LightamerTests/UprightModuleParityTests.swift",
                 "Tests/LightamerTests/VibranceVelviaParityTests.swift",
             ],
             resources: ["Resources/TestFixtures/**"], // same fixtures ride in every bundle (D3; ~6.2 MB each)

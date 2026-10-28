@@ -46,6 +46,14 @@ public enum V50Order {
         ("cacorrectrgb", 13.5),
         ("hazeremoval", 14.0),
         ("ashift", 15.0),
+        // LIGHTAMER-NATIVE ROW (NOT a dt entry — Plan M9-3-T2, D-M9G-2):
+        // upright (the Guided Upright perspective correction) sits between
+        // ashift (15.0) and flip (16.0) — it consumes the manually-rotated
+        // frame (guides are drawn on what the user sees) and its output
+        // AABB is consumed by flip/crop downstream, the ashift slot-shape
+        // logic. The dt discipline (no reorder / unique / add-only) applies
+        // to this row exactly as to 20.8/66.5.
+        ("upright", 15.5),
         ("flip", 16.0),
         ("enlargecanvas", 16.5),
         ("overlay", 16.7),
