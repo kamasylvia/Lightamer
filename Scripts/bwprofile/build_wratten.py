@@ -46,7 +46,10 @@ FILTERS = {
 W58_FACTOR_NOTE = (
     "factor_check_note: the Tri-X F-4017 published filter factors "
     "(p1 table) verify to within 0.21 stop for 6/7 filters; No.58 reads "
-    "~0.67 stop off (D-M92-8) — kept with note, see M9-2 DECISIONS."
+    "~0.61 stop off (D-M92-8) — kept with note. No.11 was re-transcribed "
+    "from B-3 page2 (2026-10-28 M-1 fix: the first read fabricated values "
+    "in the 400/410 dash cells and misaligned the midsection) and verifies "
+    "at +0.18 stop. See M9-2 DECISIONS."
 )
 
 
