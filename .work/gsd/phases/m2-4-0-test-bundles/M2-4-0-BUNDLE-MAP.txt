@@ -911,3 +911,4 @@ APP	5	FilmPanelBWTests.swift
 #   终态对账为准。运行期总数基线相应上移（4363 起算）。
 IOP	5	UprightMathTests.swift
 IOP	2	CropFitAngleTests.swift
+IOPP	4	UprightModuleParityTests.swift
