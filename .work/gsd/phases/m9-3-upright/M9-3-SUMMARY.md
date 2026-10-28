@@ -86,7 +86,11 @@
 - **定向三 bundle 终值（修复轮全量）**：IOP **807/1/0**（958s，峰 5346MB）·
   IOPParity **544/10/0**（1583s，峰 3841MB）· App **1057/6/0**（624s，峰
   1674MB）——前两值与 T5 基线逐值一致；App = 1052 + 本轮 5 法。
-- **新法数 +5**（全部 App bundle）；全套预期 4386 → **4391/34/0**。
+- **新法数 +5**（全部 App bundle）；**全套 --all 修复轮终值 = 4391/34/0**
+  （4110s；IOP 807/1 · IOPParity 544/10 · Layers 528/5 · Library 785/4 ·
+  Sessions 285/4 · Export 385/4 逐值 = T5 基线，App 1057/6 = 1052+5；峰
+  RSS 全部 <8G 门〔最高 IOP 5695MB〕，monitor 零 RSS-KILL；日志 =
+  `all-runs/fix-all.log`）。
 - 封存面：`git diff d7a7e1d0..HEAD` 对封存清单交集 = **0**；UserDefaults 零
   新键；zh-audit 双 PASS（--check 1766/2082/10 + --self-test V17）。
 - 环境事件：xray JMS 账号 5 节点 VLESS 握手层全拒（TCP 通、SSL 断，账号级
