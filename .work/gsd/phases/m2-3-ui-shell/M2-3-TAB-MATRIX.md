@@ -63,6 +63,7 @@
 | Geometry | `crop` | main | crop/aspect | — |
 | Geometry | `flip` | main | rotate/flip | — |
 | Geometry | `lens` | main | 镜头校正 | **Alcedo 无独立面板**（自动 metadata 校正） |
+| Geometry | `upright` | main | Guided Upright 导线/模式 | M9-3-T4（upstream Guided Upright 对齐） |
 | Geometry | `ashift` | **Advanced** | 透视/旋转 | **Alcedo 无对应**（D6 独有项） |
 | Geometry | `liquify` | **Advanced** | 液化 | **Alcedo 无对应**（D6 独有项） |
 | Geometry | `channelmixerrgb` | **Advanced** | — | **Alcedo 无对应**（D6 独有项） |
