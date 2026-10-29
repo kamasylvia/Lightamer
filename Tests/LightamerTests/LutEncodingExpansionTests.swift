@@ -69,11 +69,15 @@ final class LutEncodingExpansionTests: XCTestCase {
             let mid = LutTransferMath.encodeChannel(curve, 0.18)
             XCTAssertEqual(Double(mid), Double(mid), "\(curve) 0.18 finite")
         }
-        // gamma26 (a display power curve): exact endpoints + the round trip.
+        // gamma26 (a display power curve): exact endpoints + the round
+        // trip (decode is NOT self-inverse — the 0.5 code decodes to
+        // 0.5^2.6 linear; the identity rides encode∘decode).
         XCTAssertEqual(LutTransferMath.encodeChannel(.gamma26, 0), 0, accuracy: 0)
         XCTAssertEqual(LutTransferMath.encodeChannel(.gamma26, 1), 1, accuracy: 0)
+        let g26code = LutTransferMath.encodeChannel(.gamma26, 0.5)
         XCTAssertEqual(
-            LutTransferMath.decodeChannel(.gamma26, 0.5), 0.5, accuracy: 1e-12)
+            LutTransferMath.decodeChannel(.gamma26, g26code), 0.5, accuracy: 1e-12)
+        XCTAssertEqual(g26code, Foundation.pow(0.5, 1 / 2.6), accuracy: 1e-12)
     }
 
     /// The legacy (pre-M9-4) curves still round-trip — the add-only

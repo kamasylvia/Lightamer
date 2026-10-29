@@ -23,13 +23,15 @@ final class Lut3dEncodingTests: XCTestCase {
     /// The explicit count contract: 17 total = scene 11 (camera log 10 +
     /// linear working 1) + display 6 (checker M1).
     func testCatalogRowCounts() {
-        XCTAssertEqual(LutEncodingCatalog.all.count, 17)
-        XCTAssertEqual(LutEncodingCatalog.sceneEncodings.count, 11)
-        XCTAssertEqual(LutEncodingCatalog.displayEncodings.count, 6)
+        // M9-4 T3: the catalog expanded 17 -> 27 (scene 11 -> 18, display
+        // 6 -> 9) — the add-only pin lives in LutEncodingExpansionTests.
+        XCTAssertEqual(LutEncodingCatalog.all.count, 27)
+        XCTAssertEqual(LutEncodingCatalog.sceneEncodings.count, 18)
+        XCTAssertEqual(LutEncodingCatalog.displayEncodings.count, 9)
         let sceneLogs = LutEncodingCatalog.sceneEncodings.filter {
             $0.transfer != .linear
         }
-        XCTAssertEqual(sceneLogs.count, 10, "10 camera log rows")
+        XCTAssertEqual(sceneLogs.count, 17, "17 camera log rows")
         let linearRows = LutEncodingCatalog.sceneEncodings.filter {
             $0.transfer == .linear
         }
@@ -62,7 +64,11 @@ final class Lut3dEncodingTests: XCTestCase {
             case .scene:
                 XCTAssertEqual(row.peakNits, 0, "\(row.id.rawValue) scene peak")
             case .display:
-                XCTAssertTrue(row.peakNits == 100 || row.peakNits == 1000,
+                // M9-4 T3 (勘误④): the P3 gamma-2.6 rows carry the DCI
+                // reference white 48 (the upstream literal — NOT our
+                // 100-nit display convention).
+                XCTAssertTrue(row.peakNits == 100 || row.peakNits == 1000
+                    || row.peakNits == 48,
                     "\(row.id.rawValue) display peak")
             }
         }
