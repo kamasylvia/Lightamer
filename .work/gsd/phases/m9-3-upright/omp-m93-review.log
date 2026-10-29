@@ -1,0 +1,38 @@
+Working...
+## M9-3 omp 终审 — PASS / 0 error + 2 minor（新发现）+ 6 obs
+
+正本已落 `.work/gsd/phases/m9-3-upright/M9-3-ACCEPTANCE-OMP.md`；原始观测与独立复算逐值在 `omp-evidence/omp-verification.txt`。
+
+### 构建自证
+`xcodebuild` Debug 离线重建 **BUILD SUCCEEDED**（147s），binary mtime **07:13:01 晚于** `4809f227`（07:04:42，docs）；`upright_guides_cap_toast` 在 bundle 的 en/zh `Localizable.strings` 各命中 1（含 `0143d178` 键位勘误）。
+
+### 修复验证（主职责）
+
+| finding | 判据构造 | 实测 | 判定 |
+|---|---|---|---|
+| **E-1**（error） | 大旧角 19.875° 已提交 + flip=5 + crop 非全幅，按「自动拉直」→ 新角 −0.45846948 联动重拟；与 decoded 域 / display 域两套闭式独立复算比对 | 观测 crop `[0.008500232, 0.011694611, 0.9914998, 0.9883054]` == **decoded 域闭式**（偏差 7.9e-10…1.1e-8）；display 域预言 `[0.0784,0.1618,0.9216,0.8382]` 差 7-16% | **PASS** |
+| **M-1** | crop+flip 激活态画导线，存值 vs 独立「display→crop⁻¹→flip⁻¹→upright 输入」复算 | a 端 (0.7365280,0.7669312) vs 预言 (0.736528,0.766930)（−0.01px）；b 端 x 精确、y 差 43px（合成 release 坐标伪影 2-4pt）。`ax≈0.736` 的换轴值只能来自 post-upright display 腿 | **PASS** |
+| **M-2** | guides=4 后再画 | 无第 5 条入册（仍 4）+ ToastBar 显示「已达导线上限——最多四条。」（zh 目录值，非裸键） | **PASS** |
+| **M-3** | 画新线 / 点线 / 拖端点 | 新线后无选中；点线粗白 2.5pt；拖端点后该线粗白（放大对照图在案） | **PASS** |
+| m-1 | 头注 | `CropFitAngle.swift:38-44` 已披露 upstream 0.02 vs 本产 0.01 | **PASS** |
+
+### 基础回归
+- **90°×2**：flip bits 5→3（rot180），视口倒置；**持久化**：quit→新实例重开同图，orientation=3 / rotation=−0.4585 / crop 四值 / guides(1)+mode off / items=9 逐项存活。
+- **undo×2**：undo#1 → crop 回 (0,0,1,1) 而 rotation 仍 −0.4585（先撤框）；undo#2 → rotation 回 0（后撤角）。
+- **off 恒等**：off→guided→off 三态视口差分 **mean 0.0 / max 0 / >8 像素 0**；off vs guided mean 18.40 / max 255（1,125,586 px）。
+
+### 新发现（建议修复批，均单点）
+- **N-1（minor）导线端点拖拽 release 不提交**：release 后 3/6/9s sidecar/items 均不变（7→7），位移只随下一次离散提交携带（实测 guide#1 by 0.2492→0.3045 被第 3 条导线的提交带入）；拖完即关图会丢。根因 `UprightGuidesOverlay.swift:136 release()` 端点分支恒 false，`:260/:265` 仅 changed 时提交。若「拖端点必须持久」为硬 AC，可升 error。
+- **N-2（minor）flip≠none 时 crop 重拟未换轴**：§一 观测 = 未换轴闭式，而 crop op 在 flip 之后（16→24.5，输入帧轴已交换）；近全幅差 0.3% 不可见，非全幅/非对称 crop+90°+角度变更时重拟窗在 flip 帧内转置（偏置，clamp 后可能贴边不严）。
+
+### 双路对账
+- 路 1 minor-1（BUNDLE-MAP 6 vs 5）：**已消**（现行 `APP 8`，文件实测 8 法）。
+- 路 1 minor-2（`vpError` 死代码）：成立，全仓零调用；下批清理或补保留注记。
+- 路 2 obs-1（量纲措辞）：已被括号「6e-6 px > 1e-6 px 门」消解，建议一词订正，零行为影响。
+- 路 2 E-1 / M-1 / M-2 / M-3 / m-1：修复全关闭。
+
+### 局限（透明）
+旋转手柄/拉直滑杆的**拖拽提交**本轮无法以合成输入驱动（crop overlay 手柄坐标拖拽全部未命中；AppKit-backed Slider 可改 live 值但 `onEditingChanged(false)` 未送达，live 值后被下一次离散提交携带落盘）。E-1 因此以同缝的 **auto straighten 入口** + 代码亲核 + undo 序三重承载。另：合成 8-bit TIFF 视口黑屏（decode 正常、`default look skipped (raster document)`），RAW 正常，与本批无关，建议以 stock TiffRaster 件另立小项复核。
+
+### 卫生
+GUI 已 quit；`defaults delete com.kamasylvia.lightamer` 已清（探针曾污染 recentProjects）；**tracked 零 diff**；证据 12 件 + sidecar 快照全在 `omp-evidence/`，样张仅 `/tmp` 副本未入库。

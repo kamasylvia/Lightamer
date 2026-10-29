@@ -1,0 +1,75 @@
+M9-3 omp 终审 — 独立复算与实测原始值（2026-10-29）
+
+== 构建自证 ==
+commit 4809f227 = 2026-10-29 07:04:42 +0800
+Debug binary mtime = 2026-10-29 07:13:01（xcodebuild incremental, BUILD SUCCEEDED, 147s, 见 build.log）
+decoded extent (CIRAWFilter, A_gate.ARW) = (0,0,9504,6336)（rawsize.swift 独立测量）
+
+== E-1：旋转漏斗 frameSize 域（auto straighten 路径实测） ==
+运行态：flip=5 (rotCW90) 已提交；ashift.rotation 旧值 = 19.875（由先行 live 值被下一次离散提交携带落盘）
+动作：自动拉直 → ashift.rotation = -0.45846948，crop 联动
+观测 crop（sidecar）：left 0.008500232 / top 0.011694611 / right 0.9914998 / bottom 0.9883054
+独立复算（Python，funnel 逐式镜像，w0=9504 h0=6336, old=19.875, new=-0.45846948）：
+  span(old) = (11091, 9189)；span(new) = (9554, 6411)
+  decoded-domain 预言 = [0.0085002, 0.0116946, 0.9914998, 0.9883054]
+  display(AABB@old)-domain 预言 = [0.0784044, 0.1617661, 0.9215956, 0.8382339]
+  |obs - decoded| = 7.9e-10 / 2.7e-10 / 3.3e-8 / 1.1e-8
+  |obs - display| = 6.99e-2 / 1.50e-1 / 6.99e-2 / 1.50e-1
+→ 观测与 decoded 基准平面闭式逐位吻合；display 域假设偏差 7-16%（判别充分）。
+
+== undo ×2（联动批 LIFO） ==
+undo#1：crop → (0,0,1,1)，rotation 仍 = -0.45846948（先撤 crop 重算的中间态）
+undo#2：rotation → 0，crop 全图（angle 后撤）
+
+== M-1：导线存储域（crop + flip 激活态实测） ==
+运行态：flip=5 (SWAP_XY|FLIP_Y)、crop=(0.008500232,0.011694611,0.9914998,0.9883054)、
+        ashift.rotation=-0.45846948 → upright 输入帧 span=(9554,6411)；flip 输出=(6411,9554)
+        display = crop 窗（6302 × 9330.5 px）；fitted rect = (459.9,65.5,508.2,752.5) pt
+点击（屏幕 pt）：(576,624) → (595,288)
+观测存储 guide：a=(0.7365279937707556, 0.7669312282953623) b=(0.30045992466760335, 0.7369447509003395)
+独立复算（display→crop⁻¹→flip⁻¹→upright 输入归一）预言：
+  a=(0.736528, 0.766930)（偏差 0.0 / -0.01 px）
+  b=(0.300460, 0.730179)（x 精确；y 偏差 43 px ≈ 2-4 pt，合成输入 release 坐标伪影）
+→ 无论旧通道（pre-upright compose vs decoded）还是无 flip 域，都不可能得出 ax≈0.736 的换轴值：
+   post-upright display 腿（flip）确在通道内。
+
+== 第 5 条导线拒 + toast ==
+guides=4 时再画：无第 5 条入册（guides 仍 4）；toast 文本 = 「已达导线上限——最多四条。」
+（xcstrings zh 值，截图 m2-cap-toast.png）
+
+== M-3 选中态 ==
+新增线后无选中（细线 1.5pt/0.7 alpha）；点线 → 粗白 2.5pt（m3-tap-selected.png 放大）；
+拖端点后 → 该线粗白选中（m3-drag-selected.png 放大）。
+
+== upright off = 恒等（视口机检差分） ==
+off → guided → off 三态截图，视口区 (x 240-1190, y 70-815 display) 差分：
+  off vs off(again)：mean 0.0 / max 0 / >8 像素 0（逐字节恒等）
+  off vs guided：mean 18.40 / max 255 / >8 像素 1,125,586（真活性）
+
+== 90° 与持久化 ==
+CW 步进两次：flip 5 → 3（rot180）；quit → relaunch → 重开同图：
+  sidecar 仍 orientation=3、rotation=-0.45846948、crop 四值、upright guides(1)+mode off、items=9；
+  截图 persist_reopen：倒置 + crop 生效（历史/参数全存活）。
+
+== 新发现 N-1（endpoint drag 不提交） ==
+动作：拖 guide#1 上端点（0.2492 → 0.3045 运动），release 后 3/6/9s 读 sidecar：
+  guide#1 by 仍 0.24916869205841333，history items 不变（7→7）。
+  随后绘制第 3 条导线的一次提交把该端点值带入（by=0.3045）——即端点拖拽值只随下一次离散提交落盘。
+根因：UprightGuidesOverlay.swift:136 release() 置 dragging=nil 后仅处理 pending，端点拖拽恒返回 false；
+      :260/:265 changed==false → 不提交。
+
+== 新发现 N-2（flip 态 crop 重拟未换轴） ==
+E-1 观测值 = 未换轴（decoded 域）闭式：left/top 边距 0.0085/0.0117。
+flip=5 时 crop op 的输入帧轴已交换（V50: flip 16 → crop 24.5，CropModule.iopOrder=24.5），
+flip 帧正确的 rect 边距应为 (0.0117, 0.0085)（转置）。实现（CropToolRotation.swift:208 桥）
+不读 flip → 写出的 rect 在 flip 帧转置。近全幅 crop 误差 0.3%（不可见）；非全幅/非对称 crop
++ 90° + 角度变更时窗口转置（偏置/可能触 clamp 后留空）。
+
+== 环境观察 ==
+- AppKit-backed Slider 合成拖拽：live 值可变（19.9° 显示），onEditingChanged(false) 未送达 →
+  无独立提交；该 live 值随后被下一次离散提交携带落盘（sidecar rotation=19.875 出现在 flip item）。
+  判为合成输入伪影，不作产品结论。
+- crop overlay 手柄坐标拖拽在本轮全部未命中（计算位 9-15pt 内无反应）；旋转手柄路径未能实机驱动，
+  该路径与 auto/slider 共用 commitFrameSize 单缝（代码核对），E-1 以 auto 路径数值门承载。
+- 合成 8-bit TIFF（1200×900，无 ICC 与嵌 sRGB ICC 两版）在视口渲染为黑（decode 日志正常，
+  「default look skipped (raster document)」）；RAW 正常。与本批无关，待以 stock TiffRaster 件复核。
