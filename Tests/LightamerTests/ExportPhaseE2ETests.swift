@@ -251,8 +251,13 @@ final class ExportPhaseE2ETests: XCTestCase {
             XCTAssertGreaterThan(
                 analysis.darkFraction, 0.04,
                 "\(url.lastPathComponent): the border band survived the full chain")
+            let textPixels = watermarkTextCount(values)
+            // Measured 34/35 (png/jpeg) on the drift state that exposed the
+            // old assertion; 15 keeps a 2.3x margin while a dropped or
+            // fully-dark watermark counts ~0 (the centered backdrop
+            // highlight stays outside the window).
             XCTAssertGreaterThan(
-                analysis.brightCount, 30,
+                textPixels, 15,
                 "\(url.lastPathComponent): the white watermark rows survived")
         }
         assertNoTmpResidue(in: outputDirectory)
@@ -349,6 +354,40 @@ final class ExportPhaseE2ETests: XCTestCase {
     private struct Analysis {
         var darkFraction: Double
         var brightCount: Int
+    }
+
+    /// The white-glyph pixel count inside the WATERMARK TEXT REGION (the
+    /// canvas-centered band where the two anchor=.center rows land) — the
+    /// survival face of the watermark (repair round 2026-10-29).
+    ///
+    /// History: this rode a whole-canvas `r > 0.8` count (>30) which the
+    /// M9-4 final-value round passed; the same code, same machine, same
+    /// day-evening rebuild dropped to 4 (acceptance round + repair-round
+    /// pre-repair baseline BOTH red, identical values — the repair commits
+    /// exonerated by construction). Pixel forensics: the rows RENDER fully
+    /// (both literal lines legible, correct anchor/layout, maxR 236-251)
+    /// but the 8px CoreText GRAY-antialiased glyphs (the renderer is
+    /// declared "deterministic per system" — YiyinTextRenderer.draw)
+    /// produce sub-1px stroke coverage whose >0.8 core count drifts with
+    /// the system text rasterization state. The region-scoped count keeps
+    /// the survival teeth (a dropped/dark watermark has zero bright pixels
+    /// there; the backdrop's own highlight tops out ~0.7 OUTSIDE the
+    /// region) while being robust to the AA coverage drift.
+    private func watermarkTextCount(
+        _ values: (width: Int, height: Int, bytes: [UInt8], profile: String, dpi: Int,
+                   depth: Int, xmpPresent: Bool)
+    ) -> Int {
+        // The anchor=.center two rows occupy the middle of the canvas;
+        // scope to the central 70% × 22% window.
+        let x0 = values.width * 15 / 100, x1 = values.width * 85 / 100
+        let y0 = values.height * 39 / 100, y1 = values.height * 61 / 100
+        var count = 0
+        for y in y0..<y1 {
+            for x in x0..<x1 {
+                if values.bytes[(y * values.width + x) * 4] > 184 { count += 1 }  // r > 0.72
+            }
+        }
+        return count
     }
 
     /// Band/row presence: the fraction of near-black pixels (the #101010
