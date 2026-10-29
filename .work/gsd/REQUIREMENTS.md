@@ -732,6 +732,8 @@ Which phases cover which requirements. Updated during roadmap creation (2026-08-
 
 ### M9 AI Mask 交互 + 光谱延展 + 几何 Upright（2026-10-27 夜间授权 charter——调研批推荐 B 案四站；正本 = `research/M9-CHARTER-INPUT.md`；OQ-M9-1..9 全按推荐，晨审可推翻）
 
+> **M9 站交付（2026-10-29 三眼全闭环）**：M9AIM/BW/GEO/SM 十条目全 Delivered——四站执行链 ΔN +23/+35/+23+5/+35（越带 M9-1 +4 / M9-2 +15 / M9-3 +4 / M9-4 +20 全部申报），终态全套 **4428/34/0**；双路 + omp 五场全 PASS（M9-2 **w11 转录错**、M9-3 **E-1 基准平面域错**、M9-4 **B-1 gamma 倒数语义错配** 三个深度缺陷均被独立眼抓出并闭环修复——双路制度价值三连实证）；sidecar v12（首例封存面豁免）+ process v3（双臂 + offset 判别子）两大结构演进在册。VALIDATION 编制呈用户过目中。正本 = 各站 SUMMARY/ACCEPTANCE 族 + `research/M9-CHARTER-INPUT.md`。
+
 - **M9AIM-01**: AI Mask 任务蒙版三件——Subject / Background（= 1−Subject 纯逻辑） / People（Vision person 路线；**Sky 砍留槽** OQ-2A：面板第四槽 disabled 占位）。**验收形态**：三件经 M6-4 分割基建落位 + Background 恒等负测 + Sky 槽 disabled 断言 ✓ —— **→ M9-1**
 - **M9AIM-02**: viewport 交互工具——tap-to-segment（Layer B `GenerateIterativeSegmentationRequest` 迭代点：include/exclude 点增删再解）+ coverage 显示专属视口通道（淡红 tint，Alcedo 同款语义）+ Commit 后隐藏。**验收形态**：探针脚本（合成事件→AX）驱动真视口 tap→蒙版更新→coverage 消长 + 交互不改参数真相（bake-to-raster，AI-06）✓ —— **→ M9-1**
 - **M9AIM-03**: GPU Feather/Expand + 编辑会话语义——蒙版边缘羽化/扩展 GPU 算子（MaskRefine fine() 家族邻接）+ open/commit/cancel 会话流（commit = raster bake 入 layer；cancel = 丢弃；paste 跳过 AI mask 面）。**验收形态**：会话三命令端到端 + paste 排除负测 + Feather/Expand golden（对称半径/边界行为）✓ —— **→ M9-1**
