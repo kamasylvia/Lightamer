@@ -40,6 +40,19 @@ public enum LutEncodingId: String, Codable, Sendable, CaseIterable {
     case panasonicVLog = "panasonic_vlog"
     case nikonNLog = "nikon_nlog"
     case appleLog = "apple_log"
+    // M9-4 T3 (X5/D-M9SP-3): the 10-row expansion — id spellings照上游
+    // color_encoding_catalog.cpp at c740f7b (X5 case list is the
+    // master).
+    case sonySLog3SGamut3Cine = "sony_slog3_sgamut3cine"
+    case fujiFLog2FGamut = "fujifilm_flog2_fgamut"
+    case canonCLog2CinemaGamut = "canon_clog2_cinemagamut"
+    case redLog3G10RWG = "red_log3g10_rwg"
+    case blackmagicFilmGen5BMDWG = "blackmagic_film_gen5_bmdwg"
+    case davinciIntermediateDWG = "davinci_intermediate_dwg"
+    case djiDLogDGamut = "dji_dlog_dgamut"
+    case p3D65Gamma26 = "p3d65_gamma26"
+    case p3DCIGamma26 = "p3dci_gamma26"
+    case rec2020BT1886 = "rec2020_bt1886"
     case linearRec2020 = "linear_rec2020"
     case rec709BT1886 = "rec709_bt1886"
     case rec709SRGB = "rec709_srgb"
@@ -185,6 +198,34 @@ public enum LutEncodingCatalog {
             id: "display_p3", name: "Display P3",
             r: SIMD2(0.680, 0.320), g: SIMD2(0.265, 0.690), b: SIMD2(0.150, 0.060),
             white: d65XY),
+        // M9-4 T3 (X5/D-M9SP-3): the 6-gamut expansion — primaries/white
+        // 逐值照上游 kGamuts at c740f7b.
+        "sgamut3cine": makeGamut(
+            id: "sgamut3cine", name: "Sony S-Gamut3.Cine",
+            r: SIMD2(0.766, 0.275), g: SIMD2(0.225, 0.800), b: SIMD2(0.089, -0.087),
+            white: d65XY),
+        "redwidegamutrgb": makeGamut(
+            id: "redwidegamutrgb", name: "REDWideGamutRGB",
+            r: SIMD2(0.780308, 0.304253), g: SIMD2(0.121595, 1.493994),
+            b: SIMD2(0.095612, -0.084589),
+            white: d65XY),
+        "bmdwg_gen5": makeGamut(
+            id: "bmdwg_gen5", name: "Blackmagic Wide Gamut Gen 5",
+            r: SIMD2(0.7177215, 0.3171181), g: SIMD2(0.2280410, 0.8615690),
+            b: SIMD2(0.1005841, -0.0820452),
+            white: SIMD2(0.3127170, 0.3290312)),
+        "davinci_wide_gamut": makeGamut(
+            id: "davinci_wide_gamut", name: "DaVinci Wide Gamut",
+            r: SIMD2(0.8000, 0.3130), g: SIMD2(0.1682, 0.9877), b: SIMD2(0.0790, -0.1155),
+            white: d65XY),
+        "dgamut": makeGamut(
+            id: "dgamut", name: "DJI D-Gamut",
+            r: SIMD2(0.71, 0.31), g: SIMD2(0.21, 0.88), b: SIMD2(0.09, -0.08),
+            white: d65XY),
+        "p3dci": makeGamut(
+            id: "p3dci", name: "P3-DCI",
+            r: SIMD2(0.680, 0.320), g: SIMD2(0.265, 0.690), b: SIMD2(0.150, 0.060),
+            white: SIMD2(0.314, 0.351)),
     ]
 
     /// Typed gamut lookup (nil on an unknown id — catalog-internal ids only).
@@ -224,7 +265,40 @@ public enum LutEncodingCatalog {
         LutEncoding(
             id: .appleLog, referral: .scene, transfer: .appleLog, gamutId: "rec2020",
             peakNits: 0, displayName: "Apple Log"),
-        // Scene — the working space row (the default pair both ends).
+        // M9-4 T3 (X5): the 7 scene rows — peakNits 0 逐行照上游(the
+        // scene family), 行序按上游 scene 分组尾插.
+        LutEncoding(
+            id: .sonySLog3SGamut3Cine, referral: .scene, transfer: .slog3,
+            gamutId: "sgamut3cine",
+            peakNits: 0, displayName: "Sony S-Log3 / S-Gamut3.Cine"),
+        LutEncoding(
+            id: .fujiFLog2FGamut, referral: .scene, transfer: .flog2,
+            gamutId: "rec2020",
+            peakNits: 0, displayName: "Fujifilm F-Log2 / F-Gamut"),
+        LutEncoding(
+            id: .canonCLog2CinemaGamut, referral: .scene, transfer: .clog2,
+            gamutId: "cinema_gamut",
+            peakNits: 0, displayName: "Canon Log 2 / Cinema Gamut"),
+        LutEncoding(
+            id: .redLog3G10RWG, referral: .scene, transfer: .log3g10,
+            gamutId: "redwidegamutrgb",
+            peakNits: 0, displayName: "RED Log3G10 / REDWideGamutRGB"),
+        LutEncoding(
+            id: .blackmagicFilmGen5BMDWG, referral: .scene, transfer: .bmdFilmGen5,
+            gamutId: "bmdwg_gen5",
+            peakNits: 0,
+            displayName: "Blackmagic Film Gen 5 / BMD Wide Gamut Gen 5"),
+        LutEncoding(
+            id: .davinciIntermediateDWG, referral: .scene,
+            transfer: .davinciIntermediate, gamutId: "davinci_wide_gamut",
+            peakNits: 0,
+            displayName: "DaVinci Intermediate / DaVinci Wide Gamut"),
+        LutEncoding(
+            id: .djiDLogDGamut, referral: .scene, transfer: .dlog,
+            gamutId: "dgamut",
+            peakNits: 0, displayName: "DJI D-Log / D-Gamut"),
+        // Scene — the working space row (the default pair both ends;
+        // POSITION UNCHANGED — X5).
         LutEncoding(
             id: .linearRec2020, referral: .scene, transfer: .linear, gamutId: "rec2020",
             peakNits: 0, displayName: "Linear Rec2020 (working)"),
@@ -247,6 +321,21 @@ public enum LutEncodingCatalog {
         LutEncoding(
             id: .rec2100HLG1000, referral: .display, transfer: .hlg, gamutId: "rec2020",
             peakNits: 1000, displayName: "Rec.2100 HLG (1000 nits)"),
+        // M9-4 T3 (X5): the 3 display rows — peakNits 逐行照上游
+        // (勘误④: the P3 gamma-2.6 rows carry DCI reference white 48,
+        // NOT our display family's 100 convention).
+        LutEncoding(
+            id: .p3D65Gamma26, referral: .display, transfer: .gamma26,
+            gamutId: "display_p3",
+            peakNits: 48, displayName: "P3-D65 Gamma 2.6"),
+        LutEncoding(
+            id: .p3DCIGamma26, referral: .display, transfer: .gamma26,
+            gamutId: "p3dci",
+            peakNits: 48, displayName: "P3-DCI Gamma 2.6"),
+        LutEncoding(
+            id: .rec2020BT1886, referral: .display, transfer: .bt1886,
+            gamutId: "rec2020",
+            peakNits: 100, displayName: "Rec.2020 BT.1886"),
     ]
 
     /// Typed lookup: nil for an unknown id (the typed-rejection posture —

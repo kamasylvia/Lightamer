@@ -299,3 +299,23 @@ T. Alcedo Studio (ColorWheels tone-wheel math — Plan M9-4 T1)
        (converter + fit)
 
    These files are GPL-3.0 as part of Lightamer.
+
+U. OpenColorIO 2.5.1 (the camera-log curve parameters — Plan M9-4 T3)
+
+   Upstream: OpenColorIO (Contributors to the OpenColorIO Project)
+   https://opencolorio.org
+   License: BSD-3-Clause, via the Alcedo Studio transcription
+   (color_encoding_math.h at commit c740f7b, whose matrix/curve-parameter
+   construction is itself a port of OpenColorIO 2.5.1's
+   ColorMatrixHelpers.cpp / MatrixOpData.cpp — the upstream THIRD_PARTY
+   notice chain is preserved through that transcription).
+
+   Lightamer's seven new transfer curves (flog2 / log3g10 / bmdFilmGen5 /
+   davinciIntermediate / dlog / clog2 / gamma26 in
+   LightamerIOP/Sources/Lut3d/LutTransferMath.swift) take the OCIO 2.5.1
+   LogCameraTransform segment parameters VERBATIM (the k / log-offset /
+   lin-slope / lin-offset / lin-break / linear-slope / linear-offset
+   tuples, Double domain) through the shared logCamera helper — numeric
+   facts of the published curves, transcribed with this attribution per
+   the BSD-3-Clause boundary. BSD-3-Clause permits this use; this
+   attribution preserves the notice.
