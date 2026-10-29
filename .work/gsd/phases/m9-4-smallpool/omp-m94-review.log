@@ -1,0 +1,27 @@
+Working...
+**M9-4 终审结论：PASS / 0 blocking · 1 major（M-1′）· 0 minor · 3 obs**。正本已落 `.work/gsd/phases/m9-4-smallpool/M9-4-ACCEPTANCE-OMP.md`，证据 17 件在 `omp-evidence/`。
+
+## B-1 修复验证（三重独立证据 → 成立）
+
+1. **源码**：`fitLegacyGammaGain` target = `copysign(pow(|input|, 1.0/legacyGamma), c) * legacyGain`（`ColorWheelsLegacyConvert.swift:137-141`），三处注记如实。
+2. **数值（omp 自写 Float64 探针，非产线 import）**：复算出 — γ1.2 pre-fix **−2.3390 stops**（中灰 0.4792→0.3468 反转）/ committed **−0.0253**（0.4792→0.4788 保持）；γ0.9 **1.3521→0.0285**；γ1.1+.95 **1.1660→0.0196**；common 锚 0.0313、extreme 0.1093 —— 与 DECISIONS §13 逐位同值，且证明探针有判别力。
+3. **实机（真跑迁移全流程）**：process 2→3、history 尾项 `迁移至当前渲染代`、params 字节零改（cw marker verbatim 形）；迁移前后同帧画布 254.6 万像素：**均值 −0.0003 编码（−0.0011 stops）**、p50/p90/p99 差 **0.0000**、仅 0.39% 像素 >5%（边缘 AA）。缺陷态本应 −2.3 stops → 零翻转，实机成立。Sheet 文案已是中性新句式。
+
+## 逐面
+
+v3 四轮面板（0.40/0.59/0.64/0.00 stops，强度 1.00）/ 迁移前 v2 三臂 / 冻结 kernel `grade_color_wheels` md5 **8943b9a4…** 与 `7f089c9d` 逐字节同、v3 kernel 仅 HEAD 存在 / stars（DB rating=3 → `filmstrip.row.1 = ★★★`）/ XPan 三档（65:24、2.75:1、6:17 在册 + 65:24 生效态）/ LUT 编码下拉 33 项（D-Log、Log3G10、DaVinci Intermediate、P3 G2.6 等新行全在）— 全 PASS。
+
+## 新发现 M-1′（major，非阻断）
+
+Show in Finder 三门 UI/AX/guard 全在，但三门消费 `images.image_path` **原始列**（未过 `ImageLinker.resolve`）：
+- kind 2 绝对 → **真定位**（Finder 2→3 窗，RAW 选中）；
+- kind 1 卷相对 / kind 0 项目相对 → **静默 no-op**（窗口数不变）。
+机制独立复现：非绝对串 `fileExists`/`URL(fileURLWithPath:)` 按进程 CWD 解析 → guard 判 false 或 URL 拼错。修法极小（三挂点传解析后 URL），建议独立 repair 单；不影响 ColorWheels 主件收口。双路只打到断言力层，未穿透行为层。
+
+## 对账
+
+路 1：m-acc1 成立（trackball 无 `onDragBegin`，只有滑杆进 D-H1 窗，与 v1 对称）、m-acc2 措辞成立（实为分组前缀）、m-acc3 已被 M-1 修复接管。路 2：B-1 关闭、M-1 关闭（转 M-1′）、m-1 随重测消解、obs-1/2/3/4 全部「记录备查」成立。
+
+## 机器与界限
+
+guard G4 越门（20986→23804MB，三批 §9 先例）+ monitor 10800（ceiling 9GB，零 kill）；HEAD 增量构建 BUILD SUCCEEDED（二进制 23:36:59 > 提交 23:27:55，离线 SPM、零代理）；收工 App quit、monitor 停、fixture 删、defaults 零写、**tracked 零 diff**。测试套件未复跑（双路已 4426/4427）；film 侧迁移入口以 M8-3 先例 + 源码亲核替代实机；obs O-1～O-3（pristine 画布截断观感 = 批次前既有面、`film.migrate.*` 命名沿用、walk fixture 配方缺失）已登记路由。

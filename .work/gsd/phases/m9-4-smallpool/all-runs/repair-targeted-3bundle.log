@@ -1,0 +1,12 @@
+=== IOPParity 19:35:41 ===
+BUNDLE|IOPParity|565/10/0|peakRSS=6258MB|1656s|sampling=time
+TOTAL|565/10/0|1656s
+OK (direct launch, no testmanagerd)
+=== IOP 20:03:17 ===
+BUNDLE|IOP|814/1/0|peakRSS=7865MB|950s|sampling=time
+TOTAL|814/1/0|950s
+OK (direct launch, no testmanagerd)
+=== App 20:19:07 ===
+BUNDLE|App|1065/6/0|peakRSS=2832MB|602s|sampling=time
+TOTAL|1065/6/0|602s
+OK (direct launch, no testmanagerd)
