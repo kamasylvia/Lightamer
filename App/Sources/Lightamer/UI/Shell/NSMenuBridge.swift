@@ -567,6 +567,19 @@ final class NSMenuBridgeController: NSObject, NSMenuDelegate, NSMenuItemValidati
         }
         denoise.setAccessibilityIdentifier(AIEntryPointCoordinator.Marker.menuDenoise)
         _ = laEnabled(denoise, self, aiEnabled)
+        separator(m)
+        // M9-4 T4 (X6): the Show in Finder door (the third mount — grid
+        // row + filmstrip row + this menu; the reveal precedent call,
+        // existence-checked).
+        let finder = item(m, title: localized("menu_image_finder")) {
+            [weak self] in
+            guard let row = self?.workspace?.currentRow else { return }
+            let url = URL(fileURLWithPath: row.imagePath)
+            guard FileManager.default.fileExists(atPath: url.path) else { return }
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
+        finder.setAccessibilityIdentifier("menu.image.finder")
+        _ = laEnabled(finder, self, aiEnabled)
     }
 
     // ── Window ──────────────────────────────────────────────────────────
