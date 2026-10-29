@@ -382,6 +382,17 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 - **键族登记**：`history_film_enable/material/param/shift` + `film_*` 面板族 15 键 + `editor_node_film/_hint/_inactive` 卡族 3 键（共 22 静态键；xcstrings 尾块纯插入；UserDefaults 零新增）；FilmRecord.PresetNames 悬置。
 - **封存面清单（03 收口登记）**：`DrtPanelModel/DrtPanelView/DrtRecord/TerminalTailPolicy/DrtTailAssembly/PixelPipe/Lut3dKernels.metal/DrtEotf/ExportQueueContract/六格式导出矩阵（ExportFormatSpec·ImageIOEncoders·WebPEncoder）/NodeGraphCommand/sidecar schema（LightamerSidecar）/HistoryStack/HistoryHash/PipelineDocument（Core）/V50Order/GradeCatalog（NodeOwnershipCatalog）/Registry/ModuleInstance`——`2fee806..c5f5dce` 全批零 diff（03 验收真路径亲证）。film 面两个恒态：**thumbnail 恒 legacy**（`filmTailPolicy(for:)` 对 thumbnail 恒 nil，同 DRT 先例）；**导出恒装配** = `ExportQueue.filmTail` per-job 载体 + `$jobFilmTail` TaskLocal（02 E1 三编辑点，drd 外 film 内嵌套序；M2 页未暴露 film 开关 = 跟随文档 record）。
 
+### M9-4 约定正本（2026-10-29，M9-4 T1..T5 批——小件池约定正本）
+
+- **ColorWheels v3 双臂**：`.v1/.v2` 冻结 dispatch（`grade_color_wheels` 体逐字节 + frozen 16-float 打包不动）；`.v3` = `grade_color_wheels_v3` 标量分支 kernel（**vector select/bool3 谓词在实机不自洽——数学 kernel 中性早退一律 scalar branch**，DECISIONS §4）+ ToneWheelUniforms 14-float + params 镜像（NSLock）memo 键 = paramsHash。判别子 = params `offset` 键在场与否（缺席 = v1 语义渲染预解层现算转换；在场含全零 = v2 直读）；**首编辑物化**（v3 面板 effective 投影，commit 写全 quad offset 在场）；frozen 打包逐字节不动。
+- **折键**：`ModuleBoxing.processForkHash`（协议 default nil 全模块零改）+ ColorWheels 折 `lightamer.colorwheels.v3` tag（**resolved-arm discriminator——v1/v2/legacy 零折键字节恒等**）经 `PixelPipe.prepareChain` 折一处；负测三件 = ProcessForkCacheKeyTests（键不撞/旧臂恒等/参数维不吞）。
+- **迁移 UX 泛化**：gate 二源（film ∥ colorWheels 非中性 = `!isIdentityV3`，v1 形缺席走 v1 判定）+ marker 二形（film item VERBATIM 优先 / cw params verbatim 普通 commit 兜底）+ `panel_process_migrate_*` 中性 5 键（film 族 5 键留册入 zh-audit allowlist）+ ProcessMigrationRow 参数化（`ProcessMigrationInputs`）双面板挂点；editing 守卫 = film ∥ 通用 continuous D-H1 窗。
+- **穿线**：一切渲染腿（含 THUMBNAIL——**M8-3 guard 修订**）thread doc stored process；豁免面 = SessionThumbnailRenderer（Phase 8 契约）/ CullingView（pristine 默认链）。
+- **LUT 扩**：曲线常数 = 上游 OCIO 2.5.1 LogCamera 参 verbatim（`logCamera` helper，Double 域）；peakNits 逐行照上游（P3 G2.6 = 48 非我方 100 惯例）；表 add-only（旧 17 行 + 9 gamut 前缀恒等断言在册）。
+- **键族登记（M9-4）**：`panel_wheels_{shadows,midtones,highlights,offset}` + 同名 `_tooltip` 4 + `panel_process_migrate_{title,body,button,cancel,confirm}` + `action_show_in_finder` + `menu_image_finder` + `panel_crop_aspect_{65x24,2_75x1,6x17}`（18 键 xcstrings 尾块纯插入；UserDefaults 零新增）；`history_process_migrate` 复用（M8-3 键族）。
+- **XPan 三行**：65:24 / 2.75:1（dn=11,4）/ 6:17（dn=17,6）——自主增强非 parity；CaseIterable 7→10。
+- 封存面例外终态 + 拟合残差实测带 + T1 落域偏差：正本 = `M9-4-DECISIONS.md` §3/§5/§6。
+
 ### L057 面板呈现约定（2026-10-08，fix(l057) 批——面板/文件对话框呈现约定正本）
 - **`runModal` 族禁入产线**：一切 `NSOpenPanel/NSSavePanel` 呈现走唯一缝 `PanelPresentation.present(_:) async -> URL?`（`begin(withCompletionHandler:)` 非阻塞形态，AppKit 在安全点自行调度面板 modal loop，**从不嵌套进 SwiftUI 动作 callout 栈**）；机检 gate = `grep -rn "\.runModal(" App/Sources` 零命中。调用点纪律 = 菜单命令/按钮/contextMenu 项一律 `Task { await … }` hop。
 - **判别式（Task hop 何时不够）**：main queue drain 挂 CFRunLoop common modes（含 event-tracking mode）——`Task {}`/`DispatchQueue.main.async` 只拆动作帧、不保证脱离菜单追踪/AX simulated-open 态，modal 嵌套可幸存（.ips 085205 = Task 包裹菜单路实证）。充分模式 = begin 缝（结构性消除嵌套）。正本 = `.work/gsd/phases/l057-panel-family/L057-DECISIONS.md` D1R/D2。
@@ -446,6 +457,7 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 | R12 | 修复批（M-1 CullingView pair 切换 pane 装载/.task id 身份；标记链 write face；F2-4 Settings repoint；R2 卫生 43 处）（正本 `.work/gsd/phases/r12-repairs/`） |
 | lumen-culling | 图库选片增强（schema v6 分析六列/BurstAnnotator/EyeClosureAnalyzer/LibraryAnalysisService/SmartPreviewStore float16 LRU/CullFace 选片视图/MaskRefine 采样式抠图/MCP refine_masks）（正本 `.work/gsd/phases/lumen-culling/`） |
 | M8 | FSIM 光谱升维（process v2 bump 五件套：case doc/AGENTS 账本行/双臂 golden/mint 升号/分叉点登记；tc_lut 缓存槽 X7；coupler 降采样臂 1/4 数据未至默认 off；光谱臂 strength mix kernel；**UserDefaults 零新键**——adaptation 恒 build 期常量无 UI 面，迁移动作不落偏好；**M8-3 增量**：生产面 renderProcess 接线（renderCurrentChain 两入口 + ExportRenderer 磁盘档 process——M6-2 注册的 coordinator threading 欠账补齐，thumbnail 恒 legacy）+ 迁移 UX（`setProcessVersion` runtime 写面 + `history_process_migrate` marker + 面板行/确认 sheet——D-M8-7 唯一 UI 例外）+ 措辞/NOTICE 升格「光谱重建材质模拟（逐波长）」+ probe ③⑤ 终态复测零漂移）（正本 `.work/gsd/phases/m8-fsim-spectral/`） |
+| M9-4 | 小件池（process **v3 bump**：ColorWheels LGG+Offset 代际——fork = ColorWheelsModule.process exhaustive switch，折键 per-box `processForkHash` resolved-arm 收窄形 prepareChain 折一处 + 负测三件；params `offset` 判别子 + 首编辑物化 + 镜像 memo；v3 kernel **scalar branch**〔vector select 实机不可靠教训〕；穿线 9 点 + **thumbnail guard 修订**〔M8-3 设计决定〕+ 豁免两件；迁移泛化 gate 二源/marker 二形/中性 5 键双面板；LUT 10+7+6 add-only〔OCIO 参 verbatim，P3 peak 48〕；stars/Finder 三门/XPan 三行；**UserDefaults 零新键**）（正本 `.work/gsd/phases/m9-4-smallpool/`） |
 
 <!-- GSD:architecture-end -->
 

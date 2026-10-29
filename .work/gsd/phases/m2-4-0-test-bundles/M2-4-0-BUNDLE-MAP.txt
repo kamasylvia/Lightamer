@@ -920,3 +920,18 @@ APP	8	UprightGuidesInteractionTests.swift
 #   直解；UprightGuidesInteractionTests +3 = post-upright display 腿真链域法 +
 #   cap toast 目录解析法 + 拖拽路径选中同步契约法）。App bundle 运行期总数
 #   1052 → 1057 起算。
+# M9-4 增行记录（2026-10-29 执行期，checker E2 测试登记纪律）：六新测试文件随
+#   任务 commit 登记进对应 bundle。归属：T1 ColorWheelsToneWheelGoldenTests =
+#   IOPP（Golden* 域模式——GradeKernelGoldenTests 同 bundle 便于同域对拍；plan
+#   字面「IOP」的家族口径偏差，DECISIONS 申报）；T1 ColorWheelsLegacyConvertTests
+#   = IOP（纯函数）；T2 ProcessForkCacheKeyTests = IOPP（PipeHash 纯函数域 +
+#   账本表，与 ProcessVersionCarrierTests 同族位）；T3 LutEncodingExpansionTests
+#   = IOP（Lut3d 表数据）；T2 ProcessMigrationGateTests / T4 SmallPoolUITests =
+#   APP（EditorState/视图面）。行内 method 数以终态对账为准。运行期总数基线
+#   相应上移（4391 起算）。
+IOP	6	ColorWheelsLegacyConvertTests.swift
+IOPP	11	ColorWheelsToneWheelGoldenTests.swift
+IOPP	4	ProcessForkCacheKeyTests.swift
+IOP	6	LutEncodingExpansionTests.swift
+APP	4	ProcessMigrationGateTests.swift
+APP	4	SmallPoolUITests.swift
