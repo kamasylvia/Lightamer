@@ -127,3 +127,53 @@ append(纪律面登记)**——plan「恰两处」字面外的两处 switch 补�
 ## C 档停
 
 T5 闭环 = M9-4 全批闭环(M9 末站);phase VALIDATION 与 M9 站收口另批。
+
+## 修复轮(2026-10-29,验收第二路 B-1 blocking + M-1 + m-1 回注)
+
+> 输入正本 = `M9-4-ACCEPTANCE-2ND.md`;裁定与对照表 = DECISIONS §13
+> (B-1 机制/两案裁决/重钉对照表/负向探针)+ §5 修订注记(m-1)+
+> §11 补申报(M-1)。HEAD 起点 = `b6ba12fc`(第二路验收)。
+
+- **B-1(gamma 倒数语义错配,blocking)**:拟合 target 换 `1/legacy
+Gamma`(对齐我方冻结 v1 渲染语义——采验收案 (a),保「迁移 ≈ 保观
+  感」;案 (b) 接受翻转否决,理由 §13);转换锚 goldens 重钉(带数值
+  经产线路径重测维持:common 0.0313 ≤ 0.035 / extreme 0.1317 ≤
+  0.145);语义判别回归新法(γ_s=1.2/0.9/1.1+0.95 三场景方向保持 +
+  幅值带,负向探针 15 failures 真红证实设防);迁移文案 en/zh 如实
+  改写。commit `861af688`。
+- **M-1(Finder 两法断言力虚置)**:`FinderReveal` 产线缝(三 AX id
+  常量单源 + 存在性 guard/reveal 决策路径注入 seam)+ 三挂点消费 +
+  两测试改真耦合;「三门 AX 可达」归走查配方(§11 合并申报)。方法
+  数不变。commit `b649de7f`。
+- **m-1(残差带域限定)**:随 B-1 重测消解——新 target 下 γ_s 偏离
+  1 达 0.2 实测 0.0253(原 0.081 测于旧 target 上游自洽域),0.035 带
+  在语义域成立;§5 修订注记接管叙事。
+- **封存面**:17 件零 diff 维持(修复轮触碰面 = ColorWheelsLegacy
+Convert/ConvertTests/FilmPanelView/xcstrings/FinderReveal(新)/三挂
+  点视图/SmallPoolUITests——无一在封存清单);v3 kernel/折键负测面
+  零回归(定向轮亲证)。
+- **全套终值 = 4427/34/0**(4426 ⊕ +1 语义回归法,预批精确闭合;skip
+  34 持平、fail 0)。对账轮:第一遍全套(20:29)六 bundle 逐绿后在
+  App 起跑点被**外部 SIGKILL**(exit 137,monitor 零 kill 非 guard、
+  非执行者——事件注记待晨审);六 bundle 值取该轮,App 取补跑轮
+  (23:1x,1065/6/0 与定向轮逐位同)。
+
+### 七 bundle 分值(修复轮终值;六 bundle = 22:16 轮,App = 补跑轮)
+
+| bundle | executed/skip/fail | peakRSS | 时长 |
+|---|---|---|---|
+| IOP | 814/1/0 | 5781MB | 945s |
+| IOPParity | 565/10/0 | 5126MB | 1569s |
+| Layers | 528/5/0 | 914MB | 437s |
+| Library | 785/4/0 | 664MB | 174s |
+| Sessions | 285/4/0 | 1090MB | 70s |
+| Export | 385/4/0 | 4085MB | 203s |
+| App | 1065/6/0 | 2832MB | 627s |
+| **TOTAL** | **4427/34/0** | — | — |
+- executed Δ = +1(语义回归法,ColorWheelsLegacyConvertTests 7 法 =
+  6 ⊕ 1);skip 34 持平零新增族;IOP 814 = 813 ⊕ 1 精确。
+- 修复轮三 commits:`861af688`(B-1)+ `b649de7f`(M-1)+
+  `ac7b633a`(Export 环境型脆断言区域化,范围外收口最小修复——取证
+  链见 DECISIONS §13 Export 段)。
+- monitor 伴跑(21600s × 2 窗)零 RSS-KILL;G4 透明越门(Data 卷
+  23114MB<25GB,§9 先例,追记如仪)。
