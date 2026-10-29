@@ -46,7 +46,9 @@ internal struct FilmPanelView: View {
                     enableEntry
                 } else {
                     SessionControlsView(model: model)
-                    ProcessMigrationRow(model: model)
+                    ProcessMigrationRow(inputs: ProcessMigrationInputs(
+                        action: model.migrationAction,
+                        onMigrate: { model.runMigration() }))
                 }
                     LatitudeSectionView(model: model)
                     PlacementSectionView(model: model)
@@ -127,20 +129,32 @@ internal struct FilmPanelView: View {
 // is structurally absent.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// The migration row's DECISION inputs (M9-4 T2, D-M9SP-7③/④): the row
+/// is now PANEL-AGNOSTIC — the Film and ColorWheels panels mount the SAME
+/// row with their own action leg (single row, single action; a
+/// both-records document never shows two rows because the gate is shared
+/// through the coordinator faces). The copy keys are the NEUTRAL
+/// `panel_process_migrate_*` family (the film-era `panel_film_migrate_*`
+/// keys stay in the catalog unreferenced — bytes untouched).
+struct ProcessMigrationInputs {
+    let action: FilmMigrationAction
+    let onMigrate: () -> Void
+}
+
 struct ProcessMigrationRow: View {
 
-    let model: FilmPanelModel
+    let inputs: ProcessMigrationInputs
 
     @State private var confirmPresented = false
 
     var body: some View {
         Group {
-            if model.migrationAction.migratable {
+            if inputs.action.migratable {
                 Button {
                     confirmPresented = true
                 } label: {
                     Text(String(
-                            localized: "panel_film_migrate_button",
+                            localized: "panel_process_migrate_button",
                             defaultValue: "Update to Current Process"))
                         .frame(maxWidth: .infinity)
                 }
@@ -149,7 +163,7 @@ struct ProcessMigrationRow: View {
                 .padding(.top, 4)
                 .accessibilityIdentifier("film.migrate.button")
                 .sheet(isPresented: $confirmPresented) {
-                    MigrationConfirmSheet(model: model, presented: $confirmPresented)
+                    MigrationConfirmSheet(inputs: inputs, presented: $confirmPresented)
                 }
             }
         }
@@ -162,34 +176,34 @@ struct ProcessMigrationRow: View {
 /// hierarchy's environment snapshot cannot miss an injection).
 struct MigrationConfirmSheet: View {
 
-    let model: FilmPanelModel
+    let inputs: ProcessMigrationInputs
     @Binding var presented: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(String(
-                    localized: "panel_film_migrate_title",
+                    localized: "panel_process_migrate_title",
                     defaultValue: "Update to Current Process?"))
                 .font(.callout.weight(.medium))
             Text(String(
-                    localized: "panel_film_migrate_body",
-                    defaultValue: "This document still renders with the frozen previous film generation. Updating re-renders it with the current spectral film core. Your edits and history stay untouched."))
+                    localized: "panel_process_migrate_body",
+                    defaultValue: "This document still renders with the frozen previous process generation. Updating re-renders it with the current semantics. For older color-wheel documents the new wheels approximate the previous look (a small tonal shift is possible at the range ends). Your edits and history stay untouched."))
                 .font(.caption)
                 .foregroundStyle(ThemeTokens.textSecondary)
             HStack {
                 Spacer(minLength: 0)
                 Button(String(
-                        localized: "panel_film_migrate_cancel",
+                        localized: "panel_process_migrate_cancel",
                         defaultValue: "Cancel")) {
                     presented = false
                 }
                 .keyboardShortcut(.cancelAction)
                 .accessibilityIdentifier("film.migrate.cancel")
                 Button(String(
-                        localized: "panel_film_migrate_confirm",
+                        localized: "panel_process_migrate_confirm",
                         defaultValue: "Update")) {
                     presented = false
-                    model.runMigration()
+                    inputs.onMigrate()
                 }
                 .keyboardShortcut(.defaultAction)
                 .accessibilityIdentifier("film.migrate.confirm")

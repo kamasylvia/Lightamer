@@ -370,6 +370,20 @@ final class EditorState {
         history.commitFilm(record: record, placeholder: placeholder, label: label)
     }
 
+    /// The colorWheels marker form (Plan M9-4 T2, D-M9SP-7②): ONE
+    /// global-scope item whose colorWheels snapshot carries the CURRENT
+    /// params VERBATIM (zero params diff — the same "record VERBATIM as
+    /// marker" semantics as the film form; the `history_process_migrate`
+    /// label carries the meaning). `commitProcessMigration` is the only
+    /// production caller; HistoryStack is untouched (the plain commit
+    /// face).
+    func commitProcessMigrationMarker(
+        colorWheels record: ModuleInstance, label: String
+    ) {
+        if projectWriteSuppressed() { return }
+        history.commit(record, label: label)
+    }
+
     /// 04-08-F2 (GUI-9 闭环): menu enablement source — true while the
     /// stack has an entry at/below the pointer to step back into.
     /// The Edit → Undo menu binds `.disabled(!canUndo)` to this, so ⌘Z

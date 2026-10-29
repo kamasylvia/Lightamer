@@ -87,7 +87,9 @@ public struct RenderProcessVersion: Hashable, Sendable {
     /// number's frozen branch, and ships old+new goldens (the file header's
     /// discipline). M8-2 (2026-10-25): bumped 1 → 2 — the FSIM spectral
     /// film core's production generation (the film leg's `.v2` arm).
-    public static let current = RenderProcessVersion(rawValue: 2)!
+    /// M9-4 (2026-10-27): bumped 2 → 3 — the ColorWheels LGG+Offset
+    /// tone-wheel generation (the colorWheels module's `.v3` arm).
+    public static let current = RenderProcessVersion(rawValue: 3)!
 }
 
 /// The build's IMPLEMENTED render-process generations (LightCraft `Process`
@@ -134,9 +136,22 @@ public enum RenderProcess: Sendable {
     /// 的渲染面（主链/显示尾/导出递缝）v1/v2 零分叉。
     case v2
 
+    /// M9-4 ColorWheels LGG+Offset 代际（Plan M9-4 T2 bump，2026-10-27）。
+    /// FORK 点 = `ColorWheelsModule.process` 的 exhaustive switch（编译器
+    /// 逐点指向）：`.v3` 文档的 colorWheels op 走 `grade_color_wheels_v3`
+    /// 调度（ApplyToneWheel 四轮影调域语义——Offset/Lift/Gamma/Gain 分离，
+    /// 旧 lift→offset 精确 + gamma/gain 最小二乘拟合的读入转换在渲染预解
+    /// 层现算，D-M9SP-2 判别子：params `offset` 键在场 = v2 语义）。冻结
+    /// 臂 = `.v1/.v2` 现行 dispatch（`grade_color_wheels` 逐字节）。缓存
+    /// 折键「非 legacy 才折（resolved-arm 收窄形）」= per-box
+    /// `processForkHash`（仅 `.v3` 臂折 `lightamer.colorwheels.v3` tag，
+    /// `PixelPipe.prepareChain` 折一处——v1/v2/legacy 键字节恒等是冻结
+    /// 主门，D-M9SP-8）。其余渲染面（film 腿/DRT 尾/导出递缝）零分叉。
+    case v3
+
     /// The implemented generations, OLDEST FIRST (the `resolving` clamp
     /// table's backbone; a case's number = its 1-based index here).
-    public static let all: [RenderProcess] = [.v1, .v2]
+    public static let all: [RenderProcess] = [.v1, .v2, .v3]
 
     /// The newest implemented generation (the mint target + the
     /// forward-number clamp).
@@ -168,6 +183,7 @@ public enum RenderProcess: Sendable {
         switch self {
         case .v1: return RenderProcessVersion(rawValue: 1)!
         case .v2: return RenderProcessVersion(rawValue: 2)!
+        case .v3: return RenderProcessVersion(rawValue: 3)!
         }
     }
 }

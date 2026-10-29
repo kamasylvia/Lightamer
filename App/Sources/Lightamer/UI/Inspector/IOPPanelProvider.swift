@@ -100,6 +100,35 @@ final class InspectorEditSession {
         coordinator?.setPreviewDenoiseBypass(instanceID, on: on)
     }
 
+    /// M9-4 T2 (X4): the panel fork's read channel — the document's
+    /// stored process generation (nil = no image). Panels read it ONCE
+    /// at init (body-evaluation discipline) and fork their view shape.
+    var documentProcessVersion: RenderProcessVersion? {
+        coordinator?.documentProcessVersion
+    }
+
+    /// M9-4 T2 (D-M9SP-7④): the migration row's action leg — the
+    /// ColorWheels panel's mount shares the coordinator face with the
+    /// film row (ONE row, ONE action).
+    func runProcessMigration() {
+        Task { [coordinator] in
+            await coordinator?.runProcessMigration()
+        }
+    }
+
+    /// M9-4 T2 (D-M9SP-7④): the migration row's decision for the
+    /// ColorWheels mount — the SAME pure gate the film row consumes
+    /// (read at panel-build time, not in body).
+    var migrationAction: FilmMigrationAction? {
+        guard let coordinator, let url = coordinator.liveImageURL else { return nil }
+        return FilmMigrationAction.evaluate(
+            processRawValue: coordinator.documentProcessVersion?.rawValue,
+            hasFilmRecord: coordinator.hasFilmRecord(for: url),
+            hasColorWheelsEdits: coordinator.hasColorWheelsEdits(),
+            editingInFlight: coordinator.filmEditInFlight
+                || coordinator.colorWheelsEditInFlight)
+    }
+
     /// Discrete control semantics (double-click reset, preset pick,
     /// eyedropper apply): ONE commit per click, compressed trio.
     /// `autoEnable = false` preserves an explicit enabled=false (the

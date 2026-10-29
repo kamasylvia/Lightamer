@@ -355,6 +355,11 @@ let project = Project(
                 // Golden* domain pattern (the frozen-arm GradeKernelGoldenTests
                 // rides the same bundle for the same-domain pair).
                 "Tests/LightamerTests/ColorWheelsToneWheelGoldenTests.swift",
+                // M9-4 T2: the cache-fold negative trio (PipeHash pure
+                // domain + the ledger table).
+                "Tests/LightamerTests/ProcessForkCacheKeyTests.swift",
+                // M9-4 T3: the LUT expansion golden (curves/gamuts/rows).
+                "Tests/LightamerTests/LutEncodingExpansionTests.swift",
                 "Tests/LightamerTests/DrtKernelGoldenTests.swift",
                 "Tests/LightamerTests/Aces2KernelGoldenTests.swift",
                 "Tests/LightamerTests/Aces2InverseTests.swift",
@@ -896,6 +901,9 @@ let project = Project(
             deploymentTargets: .macOS("27.0"),
             infoPlist: .default,
             sources: [
+                // M9-4 T2: the migration gate five-state table + the
+                // marker dual forms + the panel fork read projection.
+                "Tests/LightamerTests/ProcessMigrationGateTests.swift",
                 "Tests/LightamerTests/Fixtures.swift",
                 "Tests/LightamerTests/ChainBuilderHelpers.swift",
                 "Tests/LightamerTests/AIWorkerClientTests.swift",

@@ -146,14 +146,19 @@ final class SpectralLegForkTests: XCTestCase {
 
     func testResolvingDomainsAfterTheBump() {
         // The bump split the domain: the frozen arm owns 0/1, the spectral
-        // arm owns 2, forward numbers clamp to current (the ledger suite's
-        // four-domain table is the value face; this pins the fork-side
-        // resolution the factory consumes).
-        XCTAssertEqual(RenderProcess.all, [.v1, .v2])
+        // arm owns 2, the M9-4 colorWheels arm owns 3, forward numbers
+        // clamp to current (the ledger suite's domain table is the value
+        // face; this pins the fork-side resolution the factory consumes).
+        // M9-4 T2: retargeted to the v3 bump — the film leg factory keeps
+        // serving the spectral arm for v3 documents (the film semantics
+        // did not move), so the resolved-arm table grows without a new
+        // film shape.
+        XCTAssertEqual(RenderProcess.all, [.v1, .v2, .v3])
         XCTAssertEqual(RenderProcess.resolving(.legacy), .v1)
         XCTAssertEqual(RenderProcess.resolving(RenderProcessVersion(rawValue: 1)!), .v1)
         XCTAssertEqual(RenderProcess.resolving(RenderProcessVersion(rawValue: 2)!), .v2)
-        XCTAssertEqual(RenderProcess.resolving(.current), .v2)
+        XCTAssertEqual(RenderProcess.resolving(RenderProcessVersion(rawValue: 3)!), .v3)
+        XCTAssertEqual(RenderProcess.resolving(.current), .v3)
     }
 
     // MARK: - 2: the fork's density shape for every domain

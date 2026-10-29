@@ -104,7 +104,12 @@ public enum FilmTailAssembly {
     static func policyTag(for arm: RenderProcess) -> String {
         switch arm {
         case .v1: return policyTag
-        case .v2: return spectralPolicyTag
+        case .v2, .v3:
+            // M9-4: the v3 fork is colorWheels-CHAIN-only — the film
+            // sub-run's semantics did not move, so a v3 document rides
+            // the same spectral tag a v2 document does (the film seed's
+            // key bytes stay identical across v2/v3 documents).
+            return spectralPolicyTag
         }
     }
 

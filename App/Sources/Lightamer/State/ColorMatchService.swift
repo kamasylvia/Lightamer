@@ -49,6 +49,11 @@ struct ColorMatchDocument: Sendable {
     /// callers mint a throwaway one — the extraction render uses a
     /// throwaway cache, the ID only namespaces it).
     let imageID: UUID
+    /// M9-4 T2 (the threading face): the document's stored process —
+    /// nil = headless/pristine callers (`.legacy` at the render entry,
+    /// the correct value: a throwaway extraction has no stored carrier).
+    /// Defaulted so the pre-M9-4 construction sites compile untouched.
+    var renderProcess: RenderProcessVersion? = nil
 }
 
 /// The extraction bucket policy (E6): the source plane renders at the
@@ -209,12 +214,14 @@ final class ColorMatchService {
                 longEdge: bucket, roiHint: nil,
                 policy: resolution == .full ? .fullColdLayer : .preview,
                 hotLayerID: nil, maskDirectory: nil,
-                terminalTail: .sdrGamma, filmTail: nil)
+                terminalTail: .sdrGamma, filmTail: nil,
+                renderProcess: document.renderProcess ?? .legacy)
         } else {
             _ = try await RenderPipeline.process(
                 image: document.image, instances: boxes, imageID: document.imageID,
                 resolution: resolution, cache: cache, metal: metal,
-                longEdge: bucket, terminalTail: .sdrGamma, filmTail: nil)
+                longEdge: bucket, terminalTail: .sdrGamma, filmTail: nil,
+                renderProcess: document.renderProcess ?? .legacy)
         }
         guard let stats = box.module.consumeCapturedStats() else {
             throw AppError.decodeFailed("colormatch extraction: the armed tap never fired")
@@ -237,7 +244,8 @@ final class ColorMatchService {
         return ColorMatchDocument(
             image: image, instances: editorState.instances,
             layerStack: editorState.layerStack,
-            imageID: coordinator.currentImageID ?? UUID())
+            imageID: coordinator.currentImageID ?? UUID(),
+            renderProcess: coordinator.documentProcessVersion)
     }
 
     /// The SOURCE statistics of the live document (the pinned 512 preview
@@ -262,7 +270,8 @@ final class ColorMatchService {
         if let cached = referenceStatsCache[imageURL] { return cached }
         let decoded = try await decoder.decode(imageURL, technicalOverrides: .init())
         let document = ColorMatchDocument(
-            image: decoded, instances: [], layerStack: nil, imageID: UUID())
+            image: decoded, instances: [], layerStack: nil, imageID: UUID(),
+            renderProcess: nil)
         let stats = try await extractStats(document: document, bucket: nil)
         referenceStatsCache[imageURL] = stats
         return stats
