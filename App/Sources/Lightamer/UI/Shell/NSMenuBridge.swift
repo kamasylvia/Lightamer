@@ -569,16 +569,15 @@ final class NSMenuBridgeController: NSObject, NSMenuDelegate, NSMenuItemValidati
         _ = laEnabled(denoise, self, aiEnabled)
         separator(m)
         // M9-4 T4 (X6): the Show in Finder door (the third mount — grid
-        // row + filmstrip row + this menu; the reveal precedent call,
-        // existence-checked).
+        // row + filmstrip row + this menu; the FinderReveal seam,
+        // acceptance-2ND M-1: existence-checked, AX id = the production
+        // constant the tests pin).
         let finder = item(m, title: localized("menu_image_finder")) {
             [weak self] in
             guard let row = self?.workspace?.currentRow else { return }
-            let url = URL(fileURLWithPath: row.imagePath)
-            guard FileManager.default.fileExists(atPath: url.path) else { return }
-            NSWorkspace.shared.activateFileViewerSelecting([url])
+            FinderReveal.revealIfPresent(row.imagePath)
         }
-        finder.setAccessibilityIdentifier("menu.image.finder")
+        finder.setAccessibilityIdentifier(FinderReveal.menuActionID)
         _ = laEnabled(finder, self, aiEnabled)
     }
 

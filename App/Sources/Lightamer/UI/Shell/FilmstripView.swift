@@ -347,19 +347,18 @@ private struct FilmstripRowView: View {
                 .frame(width: 2)
         }
         .contextMenu {
-            // M9-4 T4 (X6): the Show in Finder door (the reveal-in-Finder
-            // precedent shape — a non-modal NSWorkspace call, L057-clear;
-            // the existence check degrades typed before the reveal).
+            // M9-4 T4 (X6): the Show in Finder door — the FinderReveal
+            // seam (acceptance-2ND M-1: a non-modal reveal, L057-clear;
+            // the existence check degrades typed before the reveal; the
+            // AX id is the production constant the tests pin).
             Button {
-                let url = URL(fileURLWithPath: row.imagePath)
-                guard FileManager.default.fileExists(atPath: url.path) else { return }
-                NSWorkspace.shared.activateFileViewerSelecting([url])
+                FinderReveal.revealIfPresent(row.imagePath)
             } label: {
                 Label(
                     String(localized: "action_show_in_finder"),
                     systemImage: "folder")
             }
-            .accessibilityIdentifier("filmstrip.action.finder")
+            .accessibilityIdentifier(FinderReveal.filmstripActionID)
         }
         .task(id: row.id) {
             guard let bridge else { return }
