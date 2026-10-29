@@ -351,8 +351,13 @@ private struct FilmstripRowView: View {
             // seam (acceptance-2ND M-1: a non-modal reveal, L057-clear;
             // the existence check degrades typed before the reveal; the
             // AX id is the production constant the tests pin).
+            // M-1′ (omp acceptance): the row door resolves through the
+            // bridge's ImageLinker face — the raw column's kind0/1
+            // spellings resolve against the process CWD.
             Button {
-                FinderReveal.revealIfPresent(row.imagePath)
+                FinderReveal.revealIfPresent(
+                    row: row,
+                    resolve: { bridge?.sourceResolver($0) })
             } label: {
                 Label(
                     String(localized: "action_show_in_finder"),

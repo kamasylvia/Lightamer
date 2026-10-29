@@ -1,4 +1,5 @@
 @testable import Lightamer
+@testable import LightamerCore
 import LightamerCore
 import XCTest
 
@@ -19,8 +20,18 @@ import XCTest
 //       constants (spelled and pinned here — a mount can no longer drift
 //       from these symbols). The AX-tree REACHABILITY walk itself is not
 //       unit-reachable (SwiftUI context menus / NSMenu items) and stays
-//       the gui-acceptance walkthrough face (m9-4 MANIFEST — DECISIONS
-//       §11 declaration, merged with the stars ride).
+//       the gui-acceptance walkthrough recipe (m9-4 MANIFEST — DECISIONS
+//       §11 declaration, merged with the stars ride);
+//   (4) the doors' RESOLVE leg (omp M-1′): the mounts pass the row's
+//       three-form carrier through the ImageLinker face BEFORE the reveal
+//       — the raw `images.image_path` column's kind0/1 spellings resolve
+//       against the process CWD (the omp-reproduced silent no-op). The
+//       test drives the EXACT production composition —
+//       `LibraryThumbnailBridge.sourceURLResolver` (the host-built
+//       closure) + `FinderReveal.revealIfPresent(row:)` (the shared
+//       guard/reveal path) — over real fixture files, asserting the
+//       RESOLVED file URL reaches the injected reveal seam for all three
+//       kinds and that a stale row reveals nothing.
 //
 // The CROP BITS round trip: the picker's N/D bits mapping lives in the
 // panel's private aspectBinding; its WRITE face is exercised by the
@@ -122,5 +133,112 @@ final class SmallPoolUITests: XCTestCase {
         XCTAssertFalse(miss, "a missing file must degrade typed — no reveal")
         XCTAssertEqual(revealCalls, 0, "the guard must ride BEFORE the reveal")
         XCTAssertTrue(revealed.isEmpty)
+    }
+
+    /// The doors' resolve leg (omp M-1′): all three path kinds resolve
+    /// through the PRODUCTION resolver before the reveal. kind0/1 were
+    /// the silent no-op (the raw column resolved against the process
+    /// CWD); now the doors hand the ImageLinker-resolved file URL to the
+    /// reveal seam. Real fixture files under the temp volume — the kind1
+    /// leg stats real candidates and matches the recorded volume UUID
+    /// against the project's volume.
+    func testFinderDoorsResolveAllThreePathKindsBeforeReveal() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "m94-finder-resolve-\(UUID().uuidString)", isDirectory: true)
+        let media = root.appendingPathComponent("Media", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: media, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let kind2File = root.appendingPathComponent("abs-DSC00012.ARW")
+        let kind0File = media.appendingPathComponent("DSC00013.ARW")
+        let kind1File = root.appendingPathComponent("vol-DSC00014.ARW")
+        for file in [kind2File, kind0File, kind1File] {
+            try Data("probe".utf8).write(to: file)
+        }
+
+        // kind1 — the linker's OWN record face over a same-volume file
+        // (the firmlink reality: the /-rooted spelling for temp roots).
+        let kind1 = ImageLinker.record(for: kind1File, projectDirectory: root)
+        XCTAssertEqual(
+            kind1.pathKind, .volumeRelative,
+            "the fixture must mint the same-volume carrier")
+        // kind2 — the cross-volume link import, forced through the record
+        // probe seam (no second physical disk needed): the probe answers
+        // the source's volume only, so the project volume reads absent →
+        // the absolute branch mints (absolute path + the source UUID).
+        let kind2 = ImageLinker.record(
+            for: kind2File, projectDirectory: root,
+            uuidProbe: { $0 == kind2File ? "cross-volume-uuid" : nil })
+        XCTAssertEqual(kind2.pathKind, .absolute)
+
+        let rows: [(row: LibraryImageRow, expected: URL)] = [
+            // kind0 — the project import's Media/ form (record never
+            // mints it; LibrarySchema stores it exactly this way).
+            (makeFinderRow(
+                imagePath: "Media/DSC00013.ARW", pathKind: 0,
+                volumeUUID: nil), kind0File),
+            (makeFinderRow(
+                imagePath: kind1.imagePath,
+                pathKind: kind1.pathKind.rawValue,
+                volumeUUID: kind1.volumeUUID), kind1File),
+            (makeFinderRow(
+                imagePath: kind2.imagePath,
+                pathKind: kind2.pathKind.rawValue,
+                volumeUUID: kind2.volumeUUID), kind2File),
+        ]
+
+        // The EXACT production composition: the host-built resolver + the
+        // row door. The injected reveal seam captures what Finder receives.
+        let resolver = LibraryThumbnailBridge.sourceURLResolver(
+            projectDirectory: root)
+        let exists: (String) -> Bool = {
+            FileManager.default.fileExists(atPath: $0)
+        }
+        var revealed: [URL] = []
+        for (row, expected) in rows {
+            revealed = []
+            let hit = FinderReveal.revealIfPresent(
+                row: row,
+                resolve: resolver,
+                exists: exists,
+                reveal: { revealed.append($0) })
+            XCTAssertTrue(
+                hit,
+                "kind \(row.pathKind) (\(row.imagePath)) must resolve and reveal")
+            XCTAssertEqual(
+                revealed, [expected],
+                "kind \(row.pathKind) must hand the RESOLVED file URL to Finder")
+        }
+
+        // The stale face extends through the resolve: a row whose file is
+        // gone resolves nil — the door reveals nothing.
+        revealed = []
+        let stale = makeFinderRow(
+            imagePath: "Media/gone.ARW", pathKind: 0, volumeUUID: nil)
+        let miss = FinderReveal.revealIfPresent(
+            row: stale,
+            resolve: resolver,
+            exists: exists,
+            reveal: { revealed.append($0) })
+        XCTAssertFalse(miss, "a stale row must degrade typed — no reveal")
+        XCTAssertTrue(revealed.isEmpty)
+    }
+
+    /// A row for the resolve-leg test (the internal memberwise init is
+    /// @testable-visible — Core stays zero-diff).
+    private func makeFinderRow(
+        imagePath: String, pathKind: Int64, volumeUUID: String?
+    ) -> LibraryImageRow {
+        LibraryImageRow(
+            id: 1, imagePath: imagePath, pathKind: pathKind,
+            volumeUUID: volumeUUID,
+            cameraMake: nil, cameraModel: nil, lensModel: nil, iso: nil,
+            focalLength: nil, aperture: nil, exposure: nil, captureDate: nil,
+            fileStem: nil, fileExt: nil, exifSearchText: nil,
+            exifSearchWords: nil, rating: nil, colorLabel: nil, keywords: nil,
+            filename: nil, dir: nil, flag: nil, note: nil, hasEdits: 0,
+            paramsHash: nil, refCount: 0, addedTime: nil, modifiedTime: nil)
     }
 }

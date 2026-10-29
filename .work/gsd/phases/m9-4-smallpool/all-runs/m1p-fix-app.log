@@ -1,0 +1,16 @@
+BUNDLE|App|1066/6/1|peakRSS=1792MB|658s|sampling=time
+  ↳ App FAILED（fail；host exit=1 仅参考）— 完整输出: /tmp/la-direct-tests-App.log
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/SmallPoolUITests.swift:205: error: -[LightamerTestsApp.SmallPoolUITests testFinderDoorsResolveAllThreePathKindsBeforeReveal] : XCTAssertTrue failed - kind 1 (var/folders/l9/q57wlq2n7x3d_t0xb8g2jtyr0000gn/T/m94-finder-resolve-522F7239-8316-4EF4-9BC3-68A3BA6AEDA1/abs-DSC00012.ARW) must resolve and reveal
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/SmallPoolUITests.swift:208: error: -[LightamerTestsApp.SmallPoolUITests testFinderDoorsResolveAllThreePathKindsBeforeReveal] : XCTAssertEqual failed: ("[]") is not equal to ("[file:///var/folders/l9/q57wlq2n7x3d_t0xb8g2jtyr0000gn/T/m94-finder-resolve-522F7239-8316-4EF4-9BC3-68A3BA6AEDA1/abs-DSC00012.ARW]") - kind 1 must hand the RESOLVED file URL to Finder
+Test Case '-[LightamerTestsApp.SmallPoolUITests testFinderDoorsResolveAllThreePathKindsBeforeReveal]' failed (10.604 seconds).
+--
+Test Case '-[LightamerTestsApp.SmallPoolUITests testXPanTrioDnArmsAndSurface]' started.
+Test Case '-[LightamerTestsApp.SmallPoolUITests testXPanTrioDnArmsAndSurface]' passed (0.000 seconds).
+Test Suite 'SmallPoolUITests' failed at 2026-10-30 00:48:44.789.
+--
+Test Suite 'YiyinSheetSizingTests' passed at 2026-10-30 00:48:54.929.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 2.809 (2.815) seconds
+Test Suite 'LightamerTestsApp.xctest' failed at 2026-10-30 00:48:54.929.
+	 Executed 1066 tests, with 6 tests skipped and 3 failures (0 unexpected) in 653.380 (654.149) seconds
+Test Suite 'All tests' failed at 2026-10-30 00:48:54.937.
+TOTAL|1066/6/1|658s

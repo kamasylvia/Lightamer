@@ -1,0 +1,4 @@
+  ↳ 宿主异常退出签名（terminated abnormally / Restarting after unexpected exit）——bundle 计数不可信置零（L055）；日志 /tmp/la-direct-tests-App.log
+BUNDLE|App|0/0/0|peakRSS=2217MB|3030s|sampling=time
+  ↳ App FAILED（crash；host exit=143 仅参考）— 完整输出: /tmp/la-direct-tests-App.log
+TOTAL|0/0/0|3030s

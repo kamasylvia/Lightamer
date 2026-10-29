@@ -283,3 +283,84 @@ Export 单 bundle 两连红**逐值同**(5/4)。
 - 定性:**环境敏感脆弱断言**,非渲染缺陷、非本轮回归、非 M9-4 任一
   批产物缺陷(断言形态系 11-05 批遗留)。晨审可复核取证(本节 +
   commit body)。
+
+## §14 M-1′ 修复轮:Show in Finder 三门相对路径静默失效(omp 终审 major,2026-10-30)
+
+> 输入正本 = `M9-4-ACCEPTANCE-OMP.md` §四(实机三档路径矩阵 + 机制独立
+> 复现);任务书 = 修复轮 M-1′ 单项。HEAD 起点 = `46a01e07`。
+
+### 缺陷机制(omp 亲证,采纳)
+
+- 三门(grid contextMenu / filmstrip contextMenu / Image 菜单)消费
+  `row.imagePath` = `images.image_path` **原始列**(`LibraryQueries`
+  投影,`ImageLinker.resolve` 未参与),`FinderReveal.revealIfPresent
+  (String)` 内 `fileExists(atPath:)` 按**进程 CWD** 解析相对串 →
+  kind2(绝对+UUID)真定位、kind0(项目相对)/ kind1(卷相对+UUID)
+  静默 no-op——默认导入(link 外部文件夹 = kind1、项目内 Media =
+  kind0)全是相对档,用户观感 =「点了没反应」。
+
+### 修法(三挂点改走 resolve;守卫语义不变)
+
+- **`FinderReveal` 增两门,组合单源**:URL 门(`revealIfPresent(_ url:)`,
+  共享 guard/reveal 决策路径逐字节不变)+ **row 门**
+  (`revealIfPresent(row:resolve:)` = 三挂点唯一组合面——先经注入
+  resolver 拿 ImageLinker 解析 URL,再走共享路径;resolve 失败
+  (stale link/文件缺失)= nil → 静默 no-op 维持)。String 门原样
+  保留(既有测试 + 守卫语义锚)。
+- **解析器单源**:`LibraryThumbnailBridge.sourceURLResolver(
+  projectDirectory:)` static factory = host `rebuildLibrarySurface`
+  内联闭包**逐句上提**(PathKind decode + `ImageLinker.resolve`,
+  行为零变化),bridge / AI entry / editor resolver 三绑定面同源;
+  `nonisolated var sourceResolver` 读出面(actor `let` 免 hop)供
+  grid/filmstrip 挂点消费。
+- **三挂点**:LibraryGridView cell 与 FilmstripRowView contextMenu 改
+  `FinderReveal.revealIfPresent(row: row, resolve: { bridge?.
+  sourceResolver($0) })`;NSMenuBridge Image 菜单改走既有
+  `workspace.editorURLResolver`(host 同一 factory 产物)。AX id /
+  文案 / UserDefaults / xcstrings 零新增;存在性 guard 语义不变
+  (resolve `.resolved` 本身已 stat,门内默认 exists 复核保留)。
+
+### 回归(新法三 kind 直测;透过 FinderReveal 缝断言)
+
+- 新法 `SmallPoolUITests.testFinderDoorsResolveAllThreePathKinds
+BeforeReveal`:真 fixture 文件树 + **真产线组合**(factory resolver +
+row 门 + 注入 reveal/exists seam),三 kind 各断言「resolve 后 URL 恰
+  达缝」——kind0 手造 Media/ 形(record 从不铸造)、kind1 = `ImageLinker
+  .record` 真实同卷面(firmlink 现实 /-rooted 拼写)、kind2 = record
+  probe **按 URL 区分**强制异卷;外加 stale 行(文件已失)零 reveal
+  断言。
+- **首跑 3 fail 教训**:probe 首版对 source/project 返同一串 → record
+  判同卷铸出 kind1 行 + 假 UUID → resolve `volumeAbsent`(产线行为
+  正确,测试造行错);probe 改 `{ $0 == kind2File ? "cross-volume-uuid"
+  : nil }` 后绿。修后 SmallPoolUITests **5/0/0**(类过滤定向 2s)+
+  全 App bundle **1066/6/0**(= 1065 ⊕ 1,skip 6 持平;全套账面
+  4428/34/0 对账态,六 bundle 未跑——本批触面全在 App target,其余
+  域测试文件零触碰,LIB 域 LibraryThumbnailBridgeTests 走 additive
+  API 零扰)。
+
+### 封存与范围
+
+- 封存面 17 件**零 diff**(触面 = FinderReveal / LibraryThumbnail
+Bridge / WorkspaceHostView(rebuild 单源化,行为同构)/ LibraryGridView /
+  FilmstripView / NSMenuBridge / SmallPoolUITests——无一在封存清单)。
+- 无 GUI 走查(omp 已终审三门 UI/AX 面,本批只补行为缺口,回归机检
+  承载);guard G4 贴线透明越门(Data 卷 23775MB<25GB,§9 先例,
+  monitor 伴跑 ceiling 9GB 零 kill)。
+
+### M-1′ 修复轮运行事故注记（诚实账）
+
+- **App 全量第一遍（00:38）**：1066/6/**3**——红全数落新法 kind2 腿
+  （probe 造行错，上文已记）；其余 1060 法全绿 = 产线改动零连带。
+- **App 全量第二遍（00:51）**：卡死 50 分钟——
+  `AIWorkerClientTests.testTimeoutKillFoldsToWorkerCrashedAndRespawns`
+  起跑后不返（/tmp/la-direct-tests-App.log 101 test-case 行后停滞；
+  宿主栈 = 主事件环 idle）。与本批改动零关联（AI worker 子进程
+  kill/respawn 时序 flake；同二进制第一遍 + 复测均通过）。处置 =
+  杀本人会话进程树（host exit 143 → script crash 终态记账
+  `m1p-fix-app2.log`），单类复测 AIWorkerClientTests **9/0/0**（3s）
+  后全量第三遍。
+- **App 全量第三遍（01:42）终值**：**1066/6/0**（601s，peakRSS
+  1797MB）——SmallPoolUITests 5/5（新法 0.009s）+ 既有两 Finder 法
+  绿；LIB bundle 顺跑 **785/4/0**（= 修复轮基线逐位同，bridge
+  additive 零扰实证）。日志 = all-runs/m1p-fix-{build,build2,app,
+  app2,app3}.log。

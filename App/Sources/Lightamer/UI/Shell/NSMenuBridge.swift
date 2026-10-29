@@ -571,11 +571,17 @@ final class NSMenuBridgeController: NSObject, NSMenuDelegate, NSMenuItemValidati
         // M9-4 T4 (X6): the Show in Finder door (the third mount — grid
         // row + filmstrip row + this menu; the FinderReveal seam,
         // acceptance-2ND M-1: existence-checked, AX id = the production
-        // constant the tests pin).
+        // constant the tests pin). M-1′ (omp acceptance): the row door
+        // resolves through the editor resolver (the host-built ImageLinker
+        // face) — the raw column's kind0/1 spellings resolve against the
+        // process CWD (the silent no-op).
         let finder = item(m, title: localized("menu_image_finder")) {
             [weak self] in
-            guard let row = self?.workspace?.currentRow else { return }
-            FinderReveal.revealIfPresent(row.imagePath)
+            guard let workspace = self?.workspace,
+                let row = workspace.currentRow else { return }
+            FinderReveal.revealIfPresent(
+                row: row,
+                resolve: { workspace.editorURLResolver?($0) })
         }
         finder.setAccessibilityIdentifier(FinderReveal.menuActionID)
         _ = laEnabled(finder, self, aiEnabled)

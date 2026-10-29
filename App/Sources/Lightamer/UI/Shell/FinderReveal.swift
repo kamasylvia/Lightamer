@@ -4,6 +4,7 @@
 
 import AppKit
 import Foundation
+import LightamerCore
 
 /// The Show-in-Finder seam (acceptance-2ND M-1 repair): the reveal
 /// precedent (PostExportActions shape) — existence-checked, non-modal,
@@ -41,5 +42,36 @@ enum FinderReveal {
         guard exists(path) else { return false }
         reveal(URL(fileURLWithPath: path))
         return true
+    }
+
+    /// M-1′ (omp acceptance): the URL door — a RESOLVED file URL handed
+    /// straight to the shared decision path (the guard still rides BEFORE
+    /// every reveal; the default `exists` re-stats, the URL is untouched).
+    @discardableResult
+    static func revealIfPresent(
+        _ url: URL,
+        exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
+        reveal: (URL) -> Void = { NSWorkspace.shared.activateFileViewerSelecting([$0]) }
+    ) -> Bool {
+        revealIfPresent(url.path, exists: exists, reveal: reveal)
+    }
+
+    /// M-1′ (omp acceptance): the ROW door — the three doors' composition
+    /// in ONE production face: resolve the row through its surface
+    /// resolver (the ImageLinker face over the row's three-form carrier —
+    /// NEVER the raw `images.image_path` column, whose kind0/1 spellings
+    /// resolve against the process CWD: the omp M-1′ silent no-op), then
+    /// the shared guard/reveal path. A nil resolution (stale link /
+    /// missing file) reveals nothing — the typed degrade extends through
+    /// the resolve leg.
+    @discardableResult
+    static func revealIfPresent(
+        row: LibraryImageRow,
+        resolve: (LibraryImageRow) -> URL?,
+        exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
+        reveal: (URL) -> Void = { NSWorkspace.shared.activateFileViewerSelecting([$0]) }
+    ) -> Bool {
+        guard let url = resolve(row) else { return false }
+        return revealIfPresent(url, exists: exists, reveal: reveal)
     }
 }
