@@ -13,7 +13,15 @@
 //  `Params.offset` optional (D-M9SP-2) instead of the upstream
 //  `version_one_json` persistence round-trip (our conversion exists only in
 //  the render pre-resolve and the panel edit projection — nothing is written
-//  to history/sidecar until the user edits on the v3 arm).
+//  to history/sidecar until the user edits on the v3 arm); AND the fit
+//  target rides the RECIPROCAL gamma exponent `1/γ` (acceptance-2ND B-1
+//  repair): the upstream transliteration fit `|c+lift|^γ` — the upstream v1
+//  stores the DIRECT exponent — but OUR frozen v1 arm (M2-5 port,
+//  D-M9SP-1) renders `|c+lift|^(1/γ_store)` (the stored wheel value IS the
+//  reciprocal form), so fitting the direct exponent INVERTED the look of
+//  every gamma-non-neutral legacy document at upgrade (1.2–2.3 stops at
+//  mid grey). The fit now targets our frozen semantics — "migrate ≈ keep
+//  the look" — and the upstream test anchor is adapted accordingly.
 
 import Foundation
 import LightamerCore
@@ -88,10 +96,20 @@ public enum ColorWheelsLegacyConvert {
 
     // MARK: - Fit (upstream FitLegacyGammaGain, Float64)
 
-    /// Lift, Gamma, and Gain stops that best match the version 1 operation
-    /// `c' = sign(c) · |c + lift|^gamma · gain` on one channel, in stops,
-    /// for inputs c from kToneBlackEv to kToneWhiteEv. The version 1 lift
-    /// is the Offset, which the tone wheels apply first.
+    /// Lift, Gamma, and Gain stops that best match OUR version 1 operation
+    /// `c' = sign(c) · |c + lift|^(1/γ_store) · gain` on one channel, in
+    /// stops, for inputs c from kToneBlackEv to kToneWhiteEv. The version 1
+    /// lift is the Offset, which the tone wheels apply first.
+    ///
+    /// The RECIPROCAL exponent (acceptance-2ND B-1 repair) — the upstream
+    /// transliteration fit `|c+lift|^γ` because the UPSTREAM v1 stores the
+    /// direct exponent, but our M2-5 port renders the stored wheel value as
+    /// `1/γ` (ColorWheelsModule.reference / the frozen kernel), so the
+    /// stored value's rendering semantics here is the reciprocal form.
+    /// Fitting the direct exponent preserved "upstream-semantics
+    /// self-consistency" while INVERTING the look of every gamma-non-neutral
+    /// legacy document at upgrade (measured 1.2–2.3 stops at mid grey);
+    /// see M9-4-DECISIONS §13.
     static func fitLegacyGammaGain(
         legacyLift: Double, legacyGamma: Double, legacyGain: Double
     ) -> (lift: Double, gamma: Double, gain: Double) {
@@ -108,8 +126,12 @@ public enum ColorWheelsLegacyConvert {
             let c = grey + ev / b
             input[i] = c + legacyLift
             // copysign rides the ORIGINAL c sign (upstream detail — not the
-            // shifted input's sign).
-            target[i] = copysign(pow(abs(input[i]), legacyGamma), c) * legacyGain
+            // shifted input's sign). The exponent is the RECIPROCAL of the
+            // stored wheel value (B-1 repair — see the header/fit docs):
+            // our frozen v1 renders |c|^(1/γ_store), so that form IS the
+            // pre-migration look the fit must reproduce.
+            target[i] =
+                copysign(pow(abs(input[i]), 1.0 / legacyGamma), c) * legacyGain
         }
 
         // Residuals in stops of the Lift / Gamma / Gain stops k.
