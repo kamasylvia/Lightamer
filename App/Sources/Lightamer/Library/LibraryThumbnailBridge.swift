@@ -95,6 +95,31 @@ actor LibraryThumbnailBridge {
     /// absolute; nil = unresolvable row, the bridge misses it).
     typealias URLResolver = @Sendable (LibraryImageRow) -> URL?
 
+    /// The PRODUCTION resolver shape (M-1′): the host's rebuild face, the
+    /// AI entry and the editor resolver all bind THIS one closure —
+    /// PathKind decode + the Core three-form resolve over the project
+    /// directory, zero path guessing. The Show-in-Finder doors resolve
+    /// through the same face, and the SmallPoolUITests three-kind test
+    /// drives it directly (the single source stays unit-reachable).
+    static func sourceURLResolver(projectDirectory: URL) -> URLResolver {
+        { row in
+            guard let kind = LibrarySchema.PathKind(rawValue: row.pathKind),
+                  case .resolved(let url) = ImageLinker.resolve(
+                      imagePath: row.imagePath,
+                      pathKind: kind,
+                      volumeUUID: row.volumeUUID,
+                      projectDirectory: projectDirectory)
+            else { return nil }
+            return url
+        }
+    }
+
+    /// M-1′: the read face over the injected resolver — the library-grid
+    /// and filmstrip Show-in-Finder doors resolve through the SAME
+    /// surface the thumbnails ride (nonisolated: an immutable `let`, no
+    /// actor hop on the menu-action path).
+    nonisolated var sourceResolver: URLResolver { resolveURL }
+
     private let disk: ThumbnailDiskStore
     private let renderLeg: RenderLeg?
     private let resolveURL: URLResolver

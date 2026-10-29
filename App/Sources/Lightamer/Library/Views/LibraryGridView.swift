@@ -209,8 +209,14 @@ struct LibraryGridView: View {
                 // M9-4 T4 (X6): the Show in Finder door — the FinderReveal
                 // seam (acceptance-2ND M-1: existence-checked, non-modal;
                 // the AX id is the production constant the tests pin).
+                // M-1′ (omp acceptance): the row door resolves the row's
+                // three-form carrier through the bridge's ImageLinker face
+                // FIRST — the raw column's kind0/1 spellings resolve
+                // against the process CWD (the silent no-op).
                 Button {
-                    FinderReveal.revealIfPresent(row.imagePath)
+                    FinderReveal.revealIfPresent(
+                        row: row,
+                        resolve: { bridge?.sourceResolver($0) })
                 } label: {
                     Label(
                         String(localized: "action_show_in_finder"),

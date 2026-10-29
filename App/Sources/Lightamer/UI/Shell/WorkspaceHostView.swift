@@ -720,20 +720,12 @@ struct WorkspaceHostView: View {
         let thumbsDirectory = directory.appendingPathComponent(
             LibrarySchema.thumbsDirectoryName(stem: stem))
         // The source-URL resolver: the row's three-form path carrier through
-        // the Core ImageLinker (zero path guessing in the shell).
-        let resolve: LibraryThumbnailBridge.URLResolver = { row in
-            guard let kind = LibrarySchema.PathKind(rawValue: row.pathKind) else {
-                return nil
-            }
-            if case .resolved(let url) = ImageLinker.resolve(
-                imagePath: row.imagePath,
-                pathKind: kind,
-                volumeUUID: row.volumeUUID,
-                projectDirectory: directory) {
-                return url
-            }
-            return nil
-        }
+        // the Core ImageLinker (zero path guessing in the shell). M-1′: the
+        // Show-in-Finder doors resolve through this SAME closure — the
+        // factory is the single source (the SmallPoolUITests three-kind
+        // test drives it directly).
+        let resolve = LibraryThumbnailBridge.sourceURLResolver(
+            projectDirectory: directory)
         // LUMEN-B T3 (X6 gate ②): the tier-B render leg goes live over the
         // SmartPreviewStore — decode through the cache (hit = the cached
         // plane, miss = the shared decode leg + quantize + backfill), one

@@ -177,3 +177,31 @@ Convert/ConvertTests/FilmPanelView/xcstrings/FinderReveal(新)/三挂
   链见 DECISIONS §13 Export 段)。
 - monitor 伴跑(21600s × 2 窗)零 RSS-KILL;G4 透明越门(Data 卷
   23114MB<25GB,§9 先例,追记如仪)。
+
+## M-1′ 修复轮(2026-10-30,omp 终审 major 回注)
+
+> 输入正本 = `M9-4-ACCEPTANCE-OMP.md` §四;裁定与教训 = DECISIONS §14。
+> HEAD 起点 = `46a01e07`(修复轮收口)。
+
+- **M-1′(Show in Finder 三门相对路径静默失效)**:三门消费
+  `images.image_path` 原始列未过 resolve——kind2 真定位、kind0/1
+  按 CWD 解析静默 no-op(omp 实机三档矩阵亲证)。修法 = `FinderReveal`
+  增 URL 门 + row 门(组合单源,resolve 失败 = 静默 no-op 维持)+
+  `LibraryThumbnailBridge.sourceURLResolver(projectDirectory:)`
+  factory(host 内联闭包逐句上提,行为同构)+ 三挂点改走 resolve
+  (grid/filmstrip 走 `bridge?.sourceResolver`,menu 走既有
+  `workspace.editorURLResolver`)。AX id/文案/UserDefaults/xcstrings
+  零新增,存在性 guard 语义不变。
+- **回归**:新法三 kind 直测(真 fixture + 真产线组合 + 注入缝断言
+  resolve 后 URL 恰达 Finder)+ stale 零 reveal;SmallPoolUITests
+  **5/0/0**,全 App bundle **1066/6/0**(= 1065 ⊕ 1,全套对账态
+  4428/34/0,六 bundle 未跑——触面全在 App target;LIB 顺跑
+  **785/4/0** = 修复轮基线逐位同,bridge additive 零扰实证)。
+  教训:record probe 须按 URL 区分(同串 = 判同卷,首跑 3 fail);
+  第二遍全量遇 AIWorkerClientTests timeout-kill 测试一次性挂起
+  (与本批零关联,单类复测 9/0/0 后第三遍干净终值)——事故注记
+  DECISIONS §14。
+- **封存面**:17 件零 diff 维持;guard G4 贴线透明越门(23775MB,
+  §9 先例,monitor 零 kill);无 GUI 走查(omp 已终审 UI/AX 面)。
+- commit:`fix(m94): resolve image paths before revealing in Finder
+  (refs #14)`。
