@@ -44,12 +44,22 @@ public enum LutTransferCurve: String, Codable, Sendable, CaseIterable {
     case vlog
     case nlog
     case appleLog
+    // M9-4 T3 (X5/D-M9SP-3): the camera-log expansion — the upstream
+    // OCIO 2.5.1 LogCamera parameters (color_encoding_math.h at c740f7b)
+    // taken verbatim; the segment form is the shared `logCamera` helper.
+    case flog2
+    case log3g10
+    case bmdFilmGen5
+    case davinciIntermediate
+    case dlog
+    case clog2
     // Scene (working space identity).
     case linear
     // Display family.
     case srgb
     case bt1886
     case gamma22
+    case gamma26
     case pq
     case hlg
 }
@@ -315,6 +325,150 @@ public enum LutTransferMath {
         return Foundation.pow(2, (p - appleLogDelta) / appleLogGamma) - appleLogBeta
     }
 
+    // MARK: - M9-4 T3 expansion (X5 — upstream color_encoding_math.h at
+    // c740f7b, the OCIO 2.5.1 LogCameraTransform form:
+    //   encode: x >= lin_break ? k·log2(lin_slope·x + lin_offset) + log_offset
+    //                          : linear_slope·x + linear_offset
+    //   decode: y >= log_break ? (exp2((y − log_offset)/k) − lin_offset)/lin_slope
+    //                          : (y − linear_offset)/linear_slope
+    // k is the log-side slope divided by log2(base); where the vendor
+    // gives no linear segment the segment is the tangent at lin_break.)
+
+    static func logCameraEncode(
+        _ x: Double, k: Double, logOffset: Double, linSlope: Double,
+        linOffset: Double, linBreak: Double, linearSlope: Double,
+        linearOffset: Double
+    ) -> Double {
+        if x >= linBreak {
+            return k * Foundation.log2(linSlope * x + linOffset) + logOffset
+        }
+        return linearSlope * x + linearOffset
+    }
+
+    static func logCameraDecode(
+        _ y: Double, k: Double, logOffset: Double, linSlope: Double,
+        linOffset: Double, logBreak: Double, linearSlope: Double,
+        linearOffset: Double
+    ) -> Double {
+        // The upstream decode takes reciprocal MULTIPLIES (division is
+        // not single-precision exact; we are Double — keep the multiply
+        // form anyway, it is the transcription of record).
+        if y >= logBreak {
+            return (Foundation.pow(2, (y - logOffset) / k) - linOffset) / linSlope
+        }
+        return (y - linearOffset) / linearSlope
+    }
+
+    // Fujifilm F-Log2 ("F-Log2 Data Sheet" Ver.1.1), OCIO 2.5.1 parameters.
+    static func flog2Encode(_ x: Double) -> Double {
+        logCameraEncode(
+            x, k: 0.073836938366457, logOffset: 0.384316, linSlope: 5.555556,
+            linOffset: 0.064829, linBreak: 0.000889, linearSlope: 8.799461,
+            linearOffset: 0.092864)
+    }
+
+    static func flog2Decode(_ c: Double) -> Double {
+        logCameraDecode(
+            c, k: 0.073836938366457, logOffset: 0.384316, linSlope: 5.555556,
+            linOffset: 0.064829, logBreak: 0.100686685370811,
+            linearSlope: 8.799461, linearOffset: 0.092864)
+    }
+
+    // RED Log3G10 version 2 ("White Paper on REDWideGamutRGB and Log3G10",
+    // RED 2017), OCIO 2.5.1 parameters.
+    static func log3g10Encode(_ x: Double) -> Double {
+        logCameraEncode(
+            x, k: 0.067515609487509, logOffset: 0.0, linSlope: 155.975327,
+            linOffset: 2.55975327, linBreak: -0.01,
+            linearSlope: 15.1926885988506, linearOffset: 0.151926885988506)
+    }
+
+    static func log3g10Decode(_ c: Double) -> Double {
+        logCameraDecode(
+            c, k: 0.067515609487509, logOffset: 0.0, linSlope: 155.975327,
+            linOffset: 2.55975327, logBreak: 0.0,
+            linearSlope: 15.1926885988506, linearOffset: 0.151926885988506)
+    }
+
+    // Blackmagic Film Generation 5 ("Blackmagic Generation 5 Color
+    // Science" 2021), OCIO 2.5.1 parameters.
+    static func bmdFilmGen5Encode(_ x: Double) -> Double {
+        logCameraEncode(
+            x, k: 0.0602544253575227, logOffset: 0.530013339229194,
+            linSlope: 1.0, linOffset: 0.00549407243225781, linBreak: 0.005,
+            linearSlope: 8.28360593240249, linearOffset: 0.0924657534246581)
+    }
+
+    static func bmdFilmGen5Decode(_ c: Double) -> Double {
+        logCameraDecode(
+            c, k: 0.0602544253575227, logOffset: 0.530013339229194,
+            linSlope: 1.0, linOffset: 0.00549407243225781, logBreak: 0.133883783086671,
+            linearSlope: 8.28360593240249, linearOffset: 0.0924657534246581)
+    }
+
+    // DaVinci Intermediate ("DaVinci Resolve 17 Wide Gamut Intermediate"
+    // 2020), OCIO 2.5.1 parameters.
+    static func davinciIntermediateEncode(_ x: Double) -> Double {
+        logCameraEncode(
+            x, k: 0.07329248, logOffset: 0.51304736, linSlope: 1.0,
+            linOffset: 0.0075, linBreak: 0.00262409, linearSlope: 10.44426855,
+            linearOffset: -3.43560336e-10)
+    }
+
+    static func davinciIntermediateDecode(_ c: Double) -> Double {
+        logCameraDecode(
+            c, k: 0.07329248, logOffset: 0.51304736, linSlope: 1.0,
+            linOffset: 0.0075, logBreak: 0.0274067003158092,
+            linearSlope: 10.44426855, linearOffset: -3.43560336e-10)
+    }
+
+    // DJI D-Log ("White Paper on D-Log and D-Gamut" 2017), OCIO 2.5.1
+    // parameters.
+    static func dlogEncode(_ x: Double) -> Double {
+        logCameraEncode(
+            x, k: 0.0772632529629124, logOffset: 0.58455504907396,
+            linSlope: 0.9892, linOffset: 0.0108, linBreak: 0.00758078675,
+            linearSlope: 6.02568345853766, linearOffset: 0.0929045490709614)
+    }
+
+    static func dlogDecode(_ c: Double) -> Double {
+        logCameraDecode(
+            c, k: 0.0772632529629124, logOffset: 0.58455504907396,
+            linSlope: 0.9892, linOffset: 0.0108, logBreak: 0.138583970393138,
+            linearSlope: 6.02568345853766, linearOffset: 0.0929045490709614)
+    }
+
+    // Canon Log 2 ("Canon Log Gamma Curves" / the Academy CSC form — the
+    // 0.9 factor maps Canon's 90% reflectance white to 0.9 linear), the
+    // upstream constants verbatim.
+    static let clog2Slope: Double = 0.24136077
+    static let clog2Offset: Double = 0.092864125
+    static let clog2Gain: Double = 87.09937546
+
+    static func clog2Encode(_ reflection: Double) -> Double {
+        let v = reflection / 0.9
+        if v < 0 {
+            return -clog2Slope
+                * (Foundation.log2(1.0 - clog2Gain * v) / Foundation.log2(10.0))
+                + clog2Offset
+        }
+        return clog2Slope
+            * (Foundation.log2(clog2Gain * v + 1.0) / Foundation.log2(10.0))
+            + clog2Offset
+    }
+
+    static func clog2Decode(_ c: Double) -> Double {
+        let v: Double
+        if c < clog2Offset {
+            v = -(Foundation.pow(10, (clog2Offset - c) / clog2Slope) - 1.0)
+                / clog2Gain
+        } else {
+            v = (Foundation.pow(10, (c - clog2Offset) / clog2Slope) - 1.0)
+                / clog2Gain
+        }
+        return v * 0.9
+    }
+
     // MARK: - sRGB (IEC 61966-2-1, sign-symmetric)
 
     public static func srgbEncodeChannel(_ v: Double) -> Double {
@@ -356,10 +510,17 @@ public enum LutTransferMath {
         case .vlog: return vlogEncode(v)
         case .nlog: return nlogEncode(v)
         case .appleLog: return appleLogEncode(v)
+        case .flog2: return flog2Encode(v)
+        case .log3g10: return log3g10Encode(v)
+        case .bmdFilmGen5: return bmdFilmGen5Encode(v)
+        case .davinciIntermediate: return davinciIntermediateEncode(v)
+        case .dlog: return dlogEncode(v)
+        case .clog2: return clog2Encode(v)
         case .linear: return v
         case .srgb: return srgbEncodeChannel(v)
         case .bt1886: return DrtEotfMath.powerEncode(v, gamma: 2.4)
         case .gamma22: return DrtEotfMath.powerEncode(v, gamma: 2.2)
+        case .gamma26: return DrtEotfMath.powerEncode(v, gamma: 2.6)
         case .pq: return DrtEotfMath.st2084EncodeY(v, peak: DrtEotfMath.st2084PeakNits)
         case .hlg: return DrtEotfMath.hlgEncode(SIMD3(v, v, v), peak: DrtEotfMath.hlgReferencePeakNits).x
         }
@@ -377,10 +538,17 @@ public enum LutTransferMath {
         case .vlog: return vlogDecode(c)
         case .nlog: return nlogDecode(c)
         case .appleLog: return appleLogDecode(c)
+        case .flog2: return flog2Decode(c)
+        case .log3g10: return log3g10Decode(c)
+        case .bmdFilmGen5: return bmdFilmGen5Decode(c)
+        case .davinciIntermediate: return davinciIntermediateDecode(c)
+        case .dlog: return dlogDecode(c)
+        case .clog2: return clog2Decode(c)
         case .linear: return c
         case .srgb: return srgbDecodeChannel(c)
         case .bt1886: return DrtEotfMath.powerDecode(c, gamma: 2.4)
         case .gamma22: return DrtEotfMath.powerDecode(c, gamma: 2.2)
+        case .gamma26: return DrtEotfMath.powerDecode(c, gamma: 2.6)
         case .pq: return DrtEotfMath.st2084DecodeY(c, peak: DrtEotfMath.st2084PeakNits)
         case .hlg: return DrtEotfMath.hlgDecode(SIMD3(c, c, c), peak: DrtEotfMath.hlgReferencePeakNits).x
         }
@@ -408,6 +576,8 @@ public enum LutTransferMath {
             return DrtEotfMath.decode(.bt1886, rgb: code, peak: peakNits) * scale
         case .gamma22:
             return DrtEotfMath.decode(.gamma22, rgb: code, peak: peakNits) * scale
+        case .gamma26:
+            return DrtEotfMath.decode(.gamma26, rgb: code, peak: peakNits) * scale
         case .srgb:
             return SIMD3(
                 srgbDecodeChannel(code.x), srgbDecodeChannel(code.y),
@@ -438,6 +608,8 @@ public enum LutTransferMath {
             return DrtEotfMath.encode(.bt1886, rgb: clamp3(normalized), peak: peakNits)
         case .gamma22:
             return DrtEotfMath.encode(.gamma22, rgb: clamp3(normalized), peak: peakNits)
+        case .gamma26:
+            return DrtEotfMath.encode(.gamma26, rgb: clamp3(normalized), peak: peakNits)
         case .srgb:
             return SIMD3(
                 srgbEncodeChannel(clamp01(normalized.x)),

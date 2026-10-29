@@ -904,6 +904,9 @@ let project = Project(
                 // M9-4 T2: the migration gate five-state table + the
                 // marker dual forms + the panel fork read projection.
                 "Tests/LightamerTests/ProcessMigrationGateTests.swift",
+                // M9-4 T4: the tail items' UI gates (XPan dn arms /
+                // stars table / Finder door registration).
+                "Tests/LightamerTests/SmallPoolUITests.swift",
                 "Tests/LightamerTests/Fixtures.swift",
                 "Tests/LightamerTests/ChainBuilderHelpers.swift",
                 "Tests/LightamerTests/AIWorkerClientTests.swift",
