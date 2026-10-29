@@ -101,9 +101,11 @@ final class LutEncodingPanelTests: XCTestCase {
     /// The picker renders the catalog halves — scene 11 / display 6 /
     /// total 17, exactly (an add-a-row change must update this test).
     func testEncodingGroupCounts() {
-        XCTAssertEqual(LutEncodingCatalog.all.count, 17)
-        XCTAssertEqual(LutEncodingCatalog.sceneEncodings.count, 11)
-        XCTAssertEqual(LutEncodingCatalog.displayEncodings.count, 6)
+        // M9-4 T3: the catalog expanded (27 = scene 18 + display 9) —
+        // the add-only pin lives in LutEncodingExpansionTests.
+        XCTAssertEqual(LutEncodingCatalog.all.count, 27)
+        XCTAssertEqual(LutEncodingCatalog.sceneEncodings.count, 18)
+        XCTAssertEqual(LutEncodingCatalog.displayEncodings.count, 9)
         // The picker groups mirror the catalog halves (LutEncodingPickerGroups
         // iterates exactly these two arrays).
         XCTAssertEqual(
