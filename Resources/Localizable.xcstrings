@@ -8433,6 +8433,23 @@
         }
       }
     },
+    "menu_image_finder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show in Finder"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Finder 中显示"
+          }
+        }
+      }
+    },
     "menu_import_xmp": {
       "extractionState": "manual",
       "localizations": {
@@ -12237,6 +12254,23 @@
         }
       }
     },
+    "panel_crop_aspect_2_75x1": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2.75:1"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2.75:1"
+          }
+        }
+      }
+    },
     "panel_crop_aspect_3x2": {
       "extractionState": "manual",
       "localizations": {
@@ -12267,6 +12301,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "4:3"
+          }
+        }
+      }
+    },
+    "panel_crop_aspect_65x24": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "65:24 (XPan)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "65:24（XPan）"
+          }
+        }
+      }
+    },
+    "panel_crop_aspect_6x17": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "6:17"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "6:17"
           }
         }
       }
@@ -25153,6 +25221,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "选择性颜色"
+          }
+        }
+      }
+    },
+    "action_show_in_finder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show in Finder"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Finder 中显示"
           }
         }
       }

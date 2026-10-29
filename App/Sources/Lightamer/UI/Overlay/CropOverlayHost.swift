@@ -30,6 +30,12 @@ enum CropAspectPreset: String, CaseIterable, Sendable {
     case ratio3x2 = "3:2"
     case ratio16x9 = "16:9"
     case ratio16x10 = "16:10"
+    // M9-4 T4 (X6/D-M9SP-6, the autonomous enhancement — NOT parity):
+    // the XPan-class ultra-wide trio (65:24 full-frame panoramic /
+    // Ultra Panavision 70 / the G617 medium-format wide).
+    case ratio65x24 = "65:24"
+    case ratio2_75x1 = "2.75:1"
+    case ratio6x17 = "6:17"
 
     /// (d, n) with d ≥ n; nil = freehand/original-resolved-at-drag.
     var dn: (d: Int, n: Int)? {
@@ -41,6 +47,9 @@ enum CropAspectPreset: String, CaseIterable, Sendable {
         case .ratio3x2: return (3, 2)
         case .ratio16x9: return (16, 9)
         case .ratio16x10: return (16, 10)
+        case .ratio65x24: return (65, 24)
+        case .ratio2_75x1: return (11, 4)
+        case .ratio6x17: return (17, 6)
         }
     }
 

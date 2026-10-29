@@ -40,6 +40,9 @@ internal struct CropPanelView: View {
                     Text("panel_crop_aspect_3x2").tag(CropAspectPreset.ratio3x2)
                     Text("panel_crop_aspect_16x9").tag(CropAspectPreset.ratio16x9)
                     Text("panel_crop_aspect_16x10").tag(CropAspectPreset.ratio16x10)
+                    Text("panel_crop_aspect_65x24").tag(CropAspectPreset.ratio65x24)
+                    Text("panel_crop_aspect_2_75x1").tag(CropAspectPreset.ratio2_75x1)
+                    Text("panel_crop_aspect_6x17").tag(CropAspectPreset.ratio6x17)
                 }
                 .accessibilityIdentifier("inspector.crop.aspect")
                 Text("panel_crop_aspect_hint")
@@ -135,6 +138,11 @@ internal struct CropPanelView: View {
                 if p.ratioN == 3, p.ratioD == 2 { return .ratio3x2 }
                 if p.ratioN == 16, p.ratioD == 9 { return .ratio16x9 }
                 if p.ratioN == 16, p.ratioD == 10 { return .ratio16x10 }
+                // M9-4 T4 (D-M9SP-6): the XPan trio maps through the SAME
+                // integer N/D bits (zero schema impact).
+                if p.ratioN == 65, p.ratioD == 24 { return .ratio65x24 }
+                if p.ratioN == 11, p.ratioD == 4 { return .ratio2_75x1 }
+                if p.ratioN == 17, p.ratioD == 6 { return .ratio6x17 }
                 return .free
             },
             set: { preset in
@@ -147,6 +155,9 @@ internal struct CropPanelView: View {
                 case .ratio3x2: p.ratioN = 3; p.ratioD = 2
                 case .ratio16x9: p.ratioN = 16; p.ratioD = 9
                 case .ratio16x10: p.ratioN = 16; p.ratioD = 10
+                case .ratio65x24: p.ratioN = 65; p.ratioD = 24
+                case .ratio2_75x1: p.ratioN = 11; p.ratioD = 4
+                case .ratio6x17: p.ratioN = 17; p.ratioD = 6
                 }
                 applyDiscrete(p)
             }

@@ -35,6 +35,16 @@ final class FilmstripModel {
     /// The fixed row height (virtualization math constant).
     static let rowHeight: CGFloat = 64
 
+    /// M9-4 T4 (X6): the strip's rating stars (the grid's ratingBadge
+    /// twin): ★ repeated for 1..5, an en-dash placeholder for the 0-star
+    /// tier. The AC-machine-checkable seam (the pure function the row
+    /// view consumes; the table-driven test drives this).
+    static func ratingStars(_ rating: Int64) -> String {
+        rating > 0
+            ? String(repeating: "★", count: Int(min(rating, 5)))
+            : String(localized: "library_grid_rating_none", defaultValue: "–")
+    }
+
     /// Rows requested beyond the visible window on EACH side.
     static let prefetchSpan = 4
 
@@ -290,12 +300,27 @@ private struct FilmstripRowView: View {
             .frame(width: FilmstripModel.rowHeight - 12, height: FilmstripModel.rowHeight - 12)
             .clipShape(RoundedRectangle(cornerRadius: 4))
 
-            Text(row.filename ?? row.imagePath)
-                .font(.caption2)
-                .foregroundStyle(
-                    isSelected ? ThemeTokens.textPrimary : ThemeTokens.textSecondary)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.filename ?? row.imagePath)
+                    .font(.caption2)
+                    .foregroundStyle(
+                        isSelected ? ThemeTokens.textPrimary : ThemeTokens.textSecondary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                // M9-4 T4 (X6/D-M9SP-5): the rating stars row — the
+                // ratingBadge precedent shape (LibraryGridView :562):
+                // ★ repeated for 1..5, an en-dash placeholder for the
+                // 0-star tier, nil = nothing. The row already carries
+                // `rating: Int64?` (LibraryQueries — 勘误①: pure View
+                // change, zero Core).
+                if let rating = row.rating {
+                    Text(verbatim: Self.ratingStars(rating))
+                        .font(.caption2)
+                        .foregroundStyle(ThemeTokens.textSecondary)
+                        .accessibilityIdentifier("filmstrip.row.rating.\(row.id)")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             if isCurrent {
                 Circle()
@@ -321,9 +346,29 @@ private struct FilmstripRowView: View {
                 .fill(isCurrent ? ThemeTokens.accent : Color.clear)
                 .frame(width: 2)
         }
+        .contextMenu {
+            // M9-4 T4 (X6): the Show in Finder door (the reveal-in-Finder
+            // precedent shape — a non-modal NSWorkspace call, L057-clear;
+            // the existence check degrades typed before the reveal).
+            Button {
+                let url = URL(fileURLWithPath: row.imagePath)
+                guard FileManager.default.fileExists(atPath: url.path) else { return }
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            } label: {
+                Label(
+                    String(localized: "action_show_in_finder"),
+                    systemImage: "folder")
+            }
+            .accessibilityIdentifier("filmstrip.action.finder")
+        }
         .task(id: row.id) {
             guard let bridge else { return }
             thumbnail = await bridge.thumbnail(for: row)
         }
+    }
+
+    /// The stars text rides the model's seam (see FilmstripModel.ratingStars).
+    private static func ratingStars(_ rating: Int64) -> String {
+        FilmstripModel.ratingStars(rating)
     }
 }
