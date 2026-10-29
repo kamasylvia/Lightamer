@@ -350,6 +350,11 @@ let project = Project(
                 "Tests/LightamerTests/FlipParityTests.swift",
                 "Tests/LightamerTests/GeometryGoldenTests.swift",
                 "Tests/LightamerTests/GradeKernelGoldenTests.swift",
+                // M9-4 T1: the v3 tone-wheel golden (identity bit-exact +
+                // kernel-vs-reference + upstream analytical anchors) — the
+                // Golden* domain pattern (the frozen-arm GradeKernelGoldenTests
+                // rides the same bundle for the same-domain pair).
+                "Tests/LightamerTests/ColorWheelsToneWheelGoldenTests.swift",
                 "Tests/LightamerTests/DrtKernelGoldenTests.swift",
                 "Tests/LightamerTests/Aces2KernelGoldenTests.swift",
                 "Tests/LightamerTests/Aces2InverseTests.swift",
@@ -447,6 +452,10 @@ let project = Project(
                 "Tests/LightamerTests/CIContextPoolMemoKeyTests.swift",
                 "Tests/LightamerTests/ColorZonesCommitTests.swift",
                 "Tests/LightamerTests/CPUDerivationTests.swift",
+                // M9-4 T1: the legacy-conversion anchor (exact lift→offset
+                // leg / fit parity bands / no-truncation / v3 shape round
+                // trip) — pure functions, IOP domain.
+                "Tests/LightamerTests/ColorWheelsLegacyConvertTests.swift",
                 "Tests/LightamerTests/CubeLutParserTests.swift",
                 "Tests/LightamerTests/GradeParamsCodingTests.swift",
                 "Tests/LightamerTests/DefaultFaceTests.swift",
