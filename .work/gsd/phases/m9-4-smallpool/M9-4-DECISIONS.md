@@ -77,15 +77,22 @@
   c.a)`);教训候选:vector bool3 谓词 + select 组合的 GPU 行为不可从
   文档推断,数学面 kernel 一律 scalar branch 起步。
 
-## §5 拟合残差实测值(H-SP3 锚带)
+## §5 拟合残差实测值(H-SP3 锚带;修复轮 B-1/m-1 修订见 §13)
+
+> **修复轮修订(2026-10-29)**:本节原值(0.0308/0.143)测于上游直指数
+> target——B-1 修复后 target 换倒数形,双带经产线路径重测:**common
+> 0.0313(带 0.035 维持)/ extreme 0.1317(带 0.145 维持)**,重测对照
+> 全表 = §13。m-1 的域限定诉求在新 target 下收窄:γ_s 偏离 1 达 0.2
+> (原 0.081 实测域端)现实测 0.0253(γ_s=1.2)/0.0285(γ_s=0.9),
+> 见 §13 语义回归行——0.035 带的「近中性域限定」叙事由 §13 接管。
 
 - 常见域(上游锚点集 0.02/−0.01/0 · 0.92/1.0/1.06 · 1.06/1.0/0.95):
-  实测 max 残差 **0.0308 stops**——plan 转写的「≤0.03」是 research 粗化;
-  断言带定 **0.035**(上游锚 0.05 容差过,双带并存)。
+  实测 max 残差 **0.0308 stops**(原 target 轮)——plan 转写的「≤0.03」
+  是 research 粗化;断言带定 **0.035**(上游锚 0.05 容差过,双带并存)。
 - 极端域(lift ≈1.4 档 + gamma 0.9/0.95/1.0 + gain 1.08/1.03/1.0 同调):
-  实测 **0.143 stops**——CONTEXT「≈0.12」带的量级确认;断言带定
-  **0.145**(hard cap 0.15)。构造点经两轮收敛(首版 gain 1.45 得
-  0.585 = 域外构造;次版 0.235;终版落带)。
+  实测 **0.143 stops**(原 target 轮)——CONTEXT「≈0.12」带的量级确认;
+  断言带定 **0.145**(hard cap 0.15)。构造点经两轮收敛(首版 gain 1.45
+  得 0.585 = 域外构造;次版 0.235;终版落带)。
 
 ## §6 T1 落域偏差(ColorWheelsToneWheelGoldenTests → IOPParity)
 
@@ -153,6 +160,14 @@
   id(`filmstrip.row.rating.<id>`)可达断言归走查配方(MANIFEST §stars)
   ——单测面 = `FilmstripModel.ratingStars` 纯函数表(rating 0..5 + 超
   域 clamp + 负值 0 档);model seam 提取(AC 可机检缝范式)。
+- **Show in Finder 三门的 AX 可达断言**(修复轮 M-1 补申报,与 stars 同
+  款合并叙述):SwiftUI contextMenu 项与 NSMenu 项的**活树可达性**单测
+  不可达,归走查配方(m9-4 MANIFEST 三门 AXPress 走查);单测面经修复
+  轮改造为**真产线耦合**——三挂点消费 `FinderReveal.revealIfPresent`
+  产线缝(存在性 guard + reveal 决策路径,注入 seam 实测:缺文件不
+  reveal、在文件恰一 reveal)+ 三挂点 AX id 换 `FinderReveal` 产线常量
+  单源(测试钉拼写——挂点改名再不能静默漂出走查登记树)。修复前两法
+  为自构造字面量/Foundation 库行为断言(零产线耦合,验收第二路 M-1)。
 - **ColorWheelsPanelView 的 v1/v2 面板零 diff 断言**:面板 struct 加
   fork 分支(processArm 判定 + legacyBody 包裹),legacyBody 内部语句
   与 pre-M9-4 body 逐字节同(含迁移行挂点追加——挂点是 M9-4 新增,
@@ -164,3 +179,107 @@
 - vector select/bool3 谓词在 M 系列 GPU 的行为与文档语义面不自洽
   (§4)——数学 kernel 的 neutral 早退一律 scalar branch(教训正式
   化随 T5 LESSONS 批)。
+
+## §13 修复轮:gamma 倒数语义错配(B-1,验收第二路 blocking)+ M-1/m-1(2026-10-29)
+
+### 错配机制(验收第二路 §3.2 亲证链,修复轮复核成立)
+
+- 我方 v1 **冻结渲染** = `pow(|c+lift|, 1/γ_store)·gain`(M2-5 移植期
+  `1/γ_leg` 指数换算形态,D-M9SP-1;ColorWheelsModule.reference +
+  冻结 kernel 体 md5 8943b9a4 三重互证)——存储的 gamma 轮值 = 渲染
+  指数的**倒数形**。
+- 上游 e1effd8 v1 存储直指数(`out = ((c+lift)^γ)·gain`),T1 的
+  convert 拟合 target 直译为 `pow(|input|, γ)`——对**同一存储值**的
+  解释与我方冻结渲染互为倒数;测试锚 `legacyApply` 同病(锚验证的是
+  上游语义自洽,非我方迁移保真)。
+- 后果:γ_s 非中性旧档升号观感**反转**(中灰即翻转,1.17–2.34 stops,
+  探针实锤);迁移文案只称「small tonal shift at the range ends」;
+  DECISIONS §1..§12 零申报——blocking 定级成立。
+
+### 两案裁决
+
+- **(a) 拟合 target 改 `1/legacyGamma`(采行)**——保「迁移 ≈ 保观
+  感」承诺,一处公式改 + 转换锚 goldens 重钉;上游测试锚**适配**而非
+  照抄(真值模型换我方冻结形,GPL 头 Modifications 段已注记偏差)。
+- (b) 设计裁决接受上游语义翻转(把 M2-5 `1/γ` 视为待修正移植缺陷)
+  ——否决:M2-5 冻结臂是 **2.x 时代起的历史用户观感**(冻结 = 契约),
+  升号顺带改观感违反「迁移保观感」,且 D-M9SP-1 已把 `1/γ` 形登记为
+  有意换算而非笔误。
+
+### 修复内容与重钉前后对照
+
+- `ColorWheelsLegacyConvert.fitLegacyGammaGain` target 换倒数形 +
+  文档三处(文件头 Modifications / fit doc / target 行注记);测试锚
+  `legacyApply` 同步换 `1/γ` 形(独立 Float64 真值模型——路 2 探针
+  形态转正,inline 写死不 import 产线路径)。
+- **重钉对照表**(真值 = 我方冻结 v1 观感;Float64 探针与产线路径
+  Float32 实测逐位一致;「前」= 直指数 target,即验收第二路实锤):
+
+| 场景 | 前:max 偏差(stops) | 前:中灰 | 后:max 偏差(stops) | 后:中灰方向 |
+|---|---|---|---|---|
+| γ_s=1.2, gain=1.0 | **2.3390** | 0.479→0.347(反转) | **0.0253** | 保持(0.4792→0.4788) |
+| γ_s=0.9, gain=1.0 | **1.3521** | 0.375→0.452(反转) | **0.0285** | 保持(0.3749→0.3751) |
+| γ_s=1.1, gain=0.95 | **1.1660** | 0.426→0.360(反转) | **0.0196** | 保持(0.4257→0.4255) |
+| common 锚(lift+γ0.92+gain1.06) | 0.0308(上游真值域) | — | **0.0313** | — |
+| extreme 锚(lift≈1.4+γ0.9+gain1.08) | 0.143(上游真值域) | — | **0.1317** | — |
+
+- 断言带重测后**数值维持**(common ≤0.035 / extreme ≤0.145——新实测
+  均在原带内),带注释改写为 re-pinned;转换锚 6 法 + 新增语义判别
+  回归 1 法 = 7/0/0(定向)。
+- **语义判别回归**(新法 `testGammaNonNeutralLegacyKeepsLookAnd
+DirectionAtUpgrade`):三场景(1.2/0.9/1.1+0.95)× 25 点 ±6 EV 全
+  网格,断言①中灰方向保持(migrated 与 truth 同侧于中性——**B-1 反
+  转哨兵**)②幅值 ≤0.035;负向探针证实设防有效(target 临时改回直
+  指数 → 15 failures 真红,方向断言 + 幅值断言齐红,实测 2.339 与
+  上表逐位一致;还原回绿)。
+- **m-1 随修消解**:原域端担忧(γ_s 偏离 0.2 → 0.081)测于旧 target
+  的上游自洽域;新 target 下同域重测 = 0.0253(§13 上表)——0.035
+  带在语义域(γ_s∈[0.9,1.2])成立;「近中性域限定」叙事由上表语义
+  行接管,§5 修订注记在案。
+- **迁移文案修正**(三处同批):`panel_process_migrate_body`
+  defaultValue + xcstrings en/zh——「the new wheels approximate the
+  previous look (a small tonal shift is possible at the range ends)」
+  →「the new wheels **re-express the previous look (the previous
+  rendering behavior is kept;** a small approximation can remain at
+  the range ends)」/ zh「重新表达原观感(沿用原渲染行为;两端可能残
+  留轻微近似偏差)」——语义对齐如实声明,残留近似(极端域 0.13 量级)
+  如实保留。
+
+### M-1 处置(同轮)
+
+- 产线缝 `FinderReveal`(App/Sources/Lightamer/UI/Shell/FinderReveal
+  .swift):三 AX id 常量单源 + `revealIfPresent`(存在性 guard + 注
+  入式 reveal/exists seam);三挂点(grid/filmstrip/menu)改消费缝;
+  SmallPoolUITests 两法改真耦合(缝决策路径实测 + 常量拼写钉)。
+  「三门 AX 可达」归走查配方——§11 合并申报。方法数不变(2)。
+- tuist generate 重跑(pbxproj 收录新文件,L041 恒为构建批末动作)。
+
+### 修复轮负向探针记录
+
+- 探针 = target 临时回退直指数 → 重建后 `ColorWheelsLegacyConvert
+Tests` 3/7 法红(15 failures:方向 9 + 幅值 3 + 派生)→ 还原回绿
+  7/0/0。日志 `/tmp/m94-redprobe-run.log`(临时,结论在本节)。
+
+### 修复轮全套的 Export 环境型红(范围外收口修复,取证链完整)
+
+- **现象**:第一遍全套(20:29)Export 385/4/1——`ExportPhaseE2ETests
+testBorderedVariantsFullChainRoundTripThroughQueue` 的「white water
+mark rows survived」断言红(实测 5/4 vs >30),fail 停使 App 未跑;
+Export 单 bundle 两连红**逐值同**(5/4)。
+- **基线实锤排除本轮**:`git checkout b6ba12fc`(修复前,占位
+  FinderReveal 编译垫片)**同红同值 5/4**——修复 commits 构造性豁免。
+- **像素取证**(临时直方图 + PNG dump 探针,已还原):两行水印文字
+  **渲染完整**(anchor/布局/内容全对,maxR 236-251),但 ~8px CoreText
+  **灰度 AA** 字形的笔画覆盖 <1px → r>0.8 核心像素仅 4 个;渲染器
+  注释自证「deterministic **per system**」(YiyinTextRenderer.draw)
+  ——全图核心像素计数随**系统文本光栅化状态**漂移(M9-4 终值轮
+  14:43 绿 → 同日夜间重建红,代码零变、机器 5 天未重启、无系统更
+  新)。降阈值不可行:主图渐变自身高光(全图 3.4k 像素 @ r 0.6-0.7)
+  会吞掉任何低阈值。
+- **处置(收口门必需的范围外最小修复,commit `ac7b633a`)**:计数
+  改**水印文字区域局部窗**(canvas 中央 70%×22%,r>0.72——背景高光
+  在窗外);实测 34/35,下限钉 15(2.3× 余量;水印消失/全黑 ≈0,量
+  级分离,设防力完整)。Export 单 bundle 回绿 385/4/0。
+- 定性:**环境敏感脆弱断言**,非渲染缺陷、非本轮回归、非 M9-4 任一
+  批产物缺陷(断言形态系 11-05 批遗留)。晨审可复核取证(本节 +
+  commit body)。
