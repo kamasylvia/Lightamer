@@ -958,10 +958,18 @@ internal final class PixelPipe: @unchecked Sendable {
         // §1.3: decodeParamsHash — the shared D-H4 atom.
         decodeParamsHash = decodeHash
         // Per-level chain: levelHash[i] = decode ⊕ (enabled hashes ≤ i).
+        // M9-4 T2 (D-M9SP-8, the sealed-face exception declared per-hunk):
+        // the per-box process fork folds AFTER the params term — only a
+        // box that reports a fork tag (ColorWheelsModule on the `.v3` arm)
+        // contributes an extra term; every `.v1/.v2/.legacy` box folds
+        // NOTHING (the chain bytes stay identical to the pre-M9-4 shape).
         var running = decodeParamsHash
         levelHash = pieces.map { piece in
             if piece.box.enabled {
                 running = Self.chain(running, piece.box.paramsHash)
+                if let fork = piece.box.processForkHash(renderProcess) {
+                    running = Self.chain(running, fork)
+                }
             }
             return running
         }
@@ -1287,7 +1295,11 @@ internal final class PixelPipe: @unchecked Sendable {
                 record: record, film: film, paper: paper,
                 materialPairHash: materialPairHash, histogram: histogram,
                 plane: plane, metal: metal)
-        case .v2:
+        case .v2, .v3:
+            // M9-4: the v3 fork is colorWheels-CHAIN-only (the film leg's
+            // own semantics did not move — a v3 document rides the same
+            // spectral film arm a v2 document does; the fold tag for the
+            // film leg stays `lightamer.film.subrun.v2-spectral`).
             return assembleSpectralFilmLeg(
                 record: record, film: film, paper: paper,
                 materialPairHash: materialPairHash, histogram: histogram,

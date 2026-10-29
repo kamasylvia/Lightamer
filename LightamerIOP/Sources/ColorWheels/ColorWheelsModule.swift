@@ -309,13 +309,33 @@ public final class ColorWheelsModule: IOPModule {
         piece: inout IOPiece,
         metal: MetalContext
     ) async throws {
-        guard let buffer = piece.data else { return }
-        try await metal.dispatch2DTexture(
-            functionName: Self.colorWheelsKernel,
-            input: input,
-            output: output
-        ) { encoder in
-            encoder.setBuffer(buffer, offset: 0, index: 0)
+        // The M9-4 fork point (D-M9SP-8/X3): the piece's stamped run
+        // process resolves through the exhaustive ledger switch — the
+        // compiler walks every arm when a new case lands. `.v1/.v2` stay
+        // BYTE-IDENTICAL to the pre-M9-4 dispatch (the frozen arm,
+        // D-M9SP-1); `.v3` dispatches the tone-wheel kernel from the
+        // params mirror's memoized 14-float buffer.
+        switch RenderProcess.resolving(piece.renderProcess) {
+        case .v1, .v2:
+            guard let buffer = piece.data else { return }
+            try await metal.dispatch2DTexture(
+                functionName: Self.colorWheelsKernel,
+                input: input,
+                output: output
+            ) { encoder in
+                encoder.setBuffer(buffer, offset: 0, index: 0)
+            }
+        case .v3:
+            guard
+                let buffer = toneWheelUniformsBuffer(paramsHash: piece.paramsHash)
+            else { return }
+            try await metal.dispatch2DTexture(
+                functionName: Self.colorWheelsV3Kernel,
+                input: input,
+                output: output
+            ) { encoder in
+                encoder.setBuffer(buffer, offset: 0, index: 0)
+            }
         }
     }
 
@@ -646,5 +666,19 @@ extension ColorWheelsModule {
         else { return nil }
         toneWheelMemo = (hash: paramsHash, buffer: buffer)
         return buffer
+    }
+
+    // MARK: - The cache fold (D-M9SP-8 — the「非 legacy 才折」production face)
+
+    /// The v3 fold tag, WHEN AND ONLY WHEN the resolved arm is `.v3`.
+    /// `.v1/.v2/.legacy` → nil = ZERO fold (the chain bytes stay identical
+    /// to the pre-M9-4 shape — the frozen-arm key guarantee; the film
+    /// v2 review-m1 narrow form: the fold discriminator is the RESOLVED
+    /// arm, not the stored raw value).
+    public func processForkHash(
+        _ renderProcess: RenderProcessVersion
+    ) -> UInt64? {
+        guard RenderProcess.resolving(renderProcess) == .v3 else { return nil }
+        return StableHash.hash(Self.v3ForkTag)
     }
 }

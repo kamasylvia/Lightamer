@@ -97,6 +97,25 @@ public protocol ModuleBoxing: AnyObject, Sendable {
         inputSize: SIMD2<Double>
     ) -> (segment: GeometrySegment, outputSize: SIMD2<Double>)?
 
+    /// The per-box process fork tag (Plan M9-4 T2, D-M9SP-8 — the KD-6
+    /// 「非 legacy 才折」 contract's production face): nil = ZERO fold
+    /// (the box's cache-key contribution is `paramsHash` alone, the
+    /// byte-identical pre-M9-4 chain). A non-nil value folds into the
+    /// chain at `PixelPipe.prepareChain` (the ONE fold site) — flipping
+    /// this box's position and every downstream position's key. The fold
+    /// discriminator is the RESOLVED arm (narrower than the header's
+    /// `rawValue > 0` literal form): a `.v1/.v2/.legacy` document keeps
+    /// today's key bytes forever.
+    func processForkHash(_ renderProcess: RenderProcessVersion) -> UInt64?
+
+}
+
+// The DEFAULT (zero-fold) for every box — `ModuleBox` forwards to the
+// wrapped module, whose own default (via the `IOPModule` extension in
+// IOPModule.swift) is also nil, so only a fork-point module overrides
+// (ColorWheelsModule).
+public extension ModuleBoxing {
+    func processForkHash(_ renderProcess: RenderProcessVersion) -> UInt64? { nil }
 }
 
 /// The generic box: wraps one concrete `IOPModule` instance + its committed
@@ -254,6 +273,10 @@ public final class ModuleBox<M: IOPModule>: ModuleBoxing, @unchecked Sendable {
 
     public func modifyROIInErased(output roi: ROI, input: inout ROI, piece: IOPiece) {
         module.modifyROIIn(output: roi, input: &input, piece: piece)
+    }
+
+    public func processForkHash(_ renderProcess: RenderProcessVersion) -> UInt64? {
+        module.processForkHash(renderProcess)
     }
 
     public func pointMapSegmentErased(

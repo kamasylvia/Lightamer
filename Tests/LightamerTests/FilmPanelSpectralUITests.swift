@@ -333,9 +333,10 @@ final class FilmPanelSpectralUITests: XCTestCase {
 
     /// The migration action model's table (the pure gate over the stored
     /// process / the film-record presence / the in-flight-edit flag):
-    /// v1 and legacy are migratable, v2 and forward numbers are already
-    /// current (the row hides), an open film drag window refuses, and a
-    /// film-less document is not applicable.
+    /// v1/v2 and legacy are migratable, the current and forward numbers
+    /// are already current (the row hides), an open film drag window
+    /// refuses, and a film-less document is not applicable. (M9-4 T2:
+    /// retargeted to the v3 bump — current = 3.
     func testMigrationActionModelTable() {
         // The film-record audience gate first.
         XCTAssertEqual(
@@ -357,24 +358,28 @@ final class FilmPanelSpectralUITests: XCTestCase {
         XCTAssertEqual(
             FilmMigrationAction.evaluate(
                 processRawValue: 1, hasFilmRecord: true, editingInFlight: false),
-            .migrate(targetRawValue: 2), "a v1 document migrates")
+            .migrate(targetRawValue: 3), "a v1 document migrates")
         XCTAssertEqual(
             FilmMigrationAction.evaluate(
                 processRawValue: 0, hasFilmRecord: true, editingInFlight: false),
-            .migrate(targetRawValue: 2),
+            .migrate(targetRawValue: 3),
             "a legacy document (the absent key) migrates")
         // The repeat-migration refusal: current and forward numbers.
         XCTAssertEqual(
             FilmMigrationAction.evaluate(
                 processRawValue: 2, hasFilmRecord: true, editingInFlight: false),
-            .alreadyCurrent, "a v2 document never re-migrates")
+            .migrate(targetRawValue: 3), "a v2 document migrates (M9-4 bump)")
+        XCTAssertEqual(
+            FilmMigrationAction.evaluate(
+                processRawValue: 3, hasFilmRecord: true, editingInFlight: false),
+            .alreadyCurrent, "a v3 document never re-migrates")
         XCTAssertEqual(
             FilmMigrationAction.evaluate(
                 processRawValue: 7, hasFilmRecord: true, editingInFlight: false),
             .alreadyCurrent,
             "a forward number (clamped rendering) is already current")
         // The row's visibility face rides the migratable arm only.
-        XCTAssertTrue(FilmMigrationAction.migrate(targetRawValue: 2).migratable)
+        XCTAssertTrue(FilmMigrationAction.migrate(targetRawValue: 3).migratable)
         XCTAssertFalse(FilmMigrationAction.alreadyCurrent.migratable)
         XCTAssertFalse(FilmMigrationAction.editingInFlight.migratable)
         XCTAssertFalse(FilmMigrationAction.notApplicable.migratable)
@@ -405,7 +410,7 @@ final class FilmPanelSpectralUITests: XCTestCase {
         // (a v1 document -- the migration audience).
         workspace.setProcessVersion(RenderProcessVersion(rawValue: 1)!, for: url)
         XCTAssertEqual(workspace.processVersion(for: url).rawValue, 1)
-        XCTAssertEqual(model.migrationAction, .migrate(targetRawValue: 2))
+        XCTAssertEqual(model.migrationAction, .migrate(targetRawValue: 3))
 
         let itemsBefore = editorState.history.items.count
         let instancesBefore = editorState.instances.count
@@ -422,8 +427,9 @@ final class FilmPanelSpectralUITests: XCTestCase {
             try await Task.sleep(for: .milliseconds(50))
         }
 
-        XCTAssertEqual(workspace.processVersion(for: url).rawValue, 2,
-                       "the carrier flipped to the current generation")
+        XCTAssertEqual(workspace.processVersion(for: url).rawValue,
+                       RenderProcessVersion.current.rawValue,
+                       "the carrier flipped to the current generation (M9-4: 3)")
         XCTAssertEqual(model.migrationAction, .alreadyCurrent,
                        "the row hides after the migration (no re-migration)")
         XCTAssertEqual(
@@ -456,8 +462,8 @@ final class FilmPanelSpectralUITests: XCTestCase {
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual(
-            object["process"] as? Int, 2,
-            "the sidecar persists the migrated generation")
+            object["process"] as? Int, RenderProcessVersion.current.rawValue,
+            "the sidecar persists the migrated generation (M9-4: 3)")
 
         // The undo boundary (the DECISIONS-registered face): one ⌘Z steps
         // over the MARKER item; the process carrier stays at the current
@@ -465,7 +471,8 @@ final class FilmPanelSpectralUITests: XCTestCase {
         // undoable, the marker is).
         await coordinator.undo()
         XCTAssertEqual(
-            workspace.processVersion(for: url).rawValue, 2,
+            workspace.processVersion(for: url).rawValue,
+            RenderProcessVersion.current.rawValue,
             "undoing the marker does not flip the process back (registered)")
     }
 
@@ -530,7 +537,11 @@ private struct MigrationSheetHost: View {
         Color.clear
             .frame(width: 300, height: 200)
             .sheet(isPresented: $presented) {
-                MigrationConfirmSheet(model: model, presented: .constant(true))
+                MigrationConfirmSheet(
+                    inputs: ProcessMigrationInputs(
+                        action: .migrate(targetRawValue: RenderProcessVersion.current.rawValue),
+                        onMigrate: {}),
+                    presented: .constant(true))
                     .onAppear { onAppear() }
             }
     }

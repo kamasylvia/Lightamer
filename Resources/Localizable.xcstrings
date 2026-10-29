@@ -15535,6 +15535,91 @@
         }
       }
     },
+    "panel_process_migrate_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This document still renders with the frozen previous process generation. Updating re-renders it with the current semantics. For older color-wheel documents the new wheels approximate the previous look (a small tonal shift is possible at the range ends). Your edits and history stay untouched."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此文档仍以冻结的旧处理代际渲染。更新后将用当前语义重新渲染。旧色彩轮文档的新轮会用近似拟合复现原观感（两端可能有轻微影调偏移）。编辑与历史保持不变。"
+          }
+        }
+      }
+    },
+    "panel_process_migrate_button": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update to Current Process"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新到当前处理代际"
+          }
+        }
+      }
+    },
+    "panel_process_migrate_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        }
+      }
+    },
+    "panel_process_migrate_confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新"
+          }
+        }
+      }
+    },
+    "panel_process_migrate_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update to Current Process?"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新到当前处理代际？"
+          }
+        }
+      }
+    },
     "panel_retouch_algorithm": {
       "localizations": {
         "en": {
@@ -24647,6 +24732,40 @@
         }
       }
     },
+    "panel_wheels_highlights": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Highlights"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高光"
+          }
+        }
+      }
+    },
+    "panel_wheels_highlights_tooltip": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pushes or pulls the highlights (t = 1), in stops."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "推升或拉低高光（t = 1），单位档。"
+          }
+        }
+      }
+    },
     "panel_wheels_lift": {
       "extractionState": "manual",
       "localizations": {
@@ -24698,6 +24817,40 @@
         }
       }
     },
+    "panel_wheels_shadows": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shadows"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阴影"
+          }
+        }
+      }
+    },
+    "panel_wheels_shadows_tooltip": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lifts or crushes the shadows (t = 0), in stops."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提亮或压暗阴影（t = 0），单位档。"
+          }
+        }
+      }
+    },
     "panel_wheels_strength": {
       "extractionState": "manual",
       "localizations": {
@@ -24728,6 +24881,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "亮度"
+          }
+        }
+      }
+    },
+    "panel_wheels_midtones": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Midtones"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中间调"
+          }
+        }
+      }
+    },
+    "panel_wheels_midtones_tooltip": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pivots the midtones around middle grey (t = 0.5), in stops."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "围绕中灰转动中间调（t = 0.5），单位档。"
+          }
+        }
+      }
+    },
+    "panel_wheels_offset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offset"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "偏移"
+          }
+        }
+      }
+    },
+    "panel_wheels_offset_tooltip": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adds a constant offset to every tone, in stops."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对所有影调加常数偏移，单位档。"
           }
         }
       }

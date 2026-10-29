@@ -90,7 +90,8 @@ final class ColorMatchServiceTests: XCTestCase {
         await LightamerIOPRegistry.populate(registry)
         let service = ColorMatchService(metal: metal, registry: registry)
         let document = ColorMatchDocument(
-            image: Self.decodedGradient(), instances: [], layerStack: nil, imageID: UUID())
+            image: Self.decodedGradient(), instances: [], layerStack: nil,
+            imageID: UUID(), renderProcess: nil)
         let stats = try await service.extractStats(document: document, bucket: 256)
         XCTAssertGreaterThan(stats.sampleCount, 0)
         // Determinism: the same document face extracts to the same bytes.

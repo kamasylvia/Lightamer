@@ -588,7 +588,7 @@ final class ProcessVersionCarrierTests: XCTestCase {
         // the close-retention must not blanket-hide the migration audience.
         workspace?.setProcessVersion(RenderProcessVersion(rawValue: 1)!, for: url)
         XCTAssertEqual(
-            model.migrationAction, .migrate(targetRawValue: 2),
+            model.migrationAction, .migrate(targetRawValue: 3),
             "a v1 document still migrates (the row's discrimination survives)")
     }
 }

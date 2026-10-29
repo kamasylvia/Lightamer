@@ -181,3 +181,13 @@ public extension IOPModule {
         nil
     }
 }
+
+// MARK: - Process fork default (Plan M9-4 T2, D-M9SP-8)
+
+public extension IOPModule {
+    /// The zero-fold default: every non-fork module contributes NO process
+    /// term to its cache chain (the byte-identical pre-M9-4 key bytes).
+    /// Fork-point modules override (ColorWheelsModule — the `.v3` tag when
+    /// and only when the resolved arm is `.v3`).
+    func processForkHash(_ renderProcess: RenderProcessVersion) -> UInt64? { nil }
+}

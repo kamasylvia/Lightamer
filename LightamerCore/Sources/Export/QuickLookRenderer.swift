@@ -288,7 +288,8 @@ public enum QuickLookRenderer {
                     image: decoded, instances: boxes, layerStack: layerStack,
                     registry: registry, imageID: imageID, resolution: .export,
                     cache: cache, metal: metal, longEdge: targetLongEdge,
-                    roiHint: nil, policy: .export)
+                    roiHint: nil, policy: .export,
+                    renderProcess: document?.process ?? .legacy)
             }
             outputTexture = texture
         } else {
@@ -296,7 +297,8 @@ public enum QuickLookRenderer {
                 try await RenderPipeline.process(
                     image: decoded, instances: boxes, imageID: imageID,
                     resolution: .export, cache: cache, metal: metal,
-                    longEdge: targetLongEdge)
+                    longEdge: targetLongEdge,
+                    renderProcess: document?.process ?? .legacy)
             }
             outputTexture = texture
         }

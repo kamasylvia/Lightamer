@@ -400,10 +400,15 @@ final class FilmPanelModel {
     var migrationAction: FilmMigrationAction {
         guard let coordinator = pipeCoordinator, let url = coordinator.liveImageURL
         else { return .notApplicable }
+        // M9-4 T2 (D-M9SP-7①): the TWO-SOURCE gate — a film record OR
+        // non-neutral colorWheels params earns the row (the film record
+        // keeps priority for the marker form).
         return FilmMigrationAction.evaluate(
             processRawValue: coordinator.documentProcessVersion?.rawValue,
             hasFilmRecord: coordinator.hasFilmRecord(for: url),
-            editingInFlight: coordinator.filmEditInFlight)
+            hasColorWheelsEdits: coordinator.hasColorWheelsEdits(),
+            editingInFlight: coordinator.filmEditInFlight
+                || coordinator.colorWheelsEditInFlight)
     }
 
     /// The confirm sheet's confirm leg (the ONE production caller of the

@@ -343,7 +343,7 @@ enum MatchColorToolset {
         let referenceStats = try await service.extractStats(
             document: ColorMatchDocument(
                 image: referenceDecoded, instances: [], layerStack: nil,
-                imageID: UUID()),
+                imageID: UUID(), renderProcess: nil),
             bucket: nil)
 
         // ③ The fan-out: N targets = N independent (source stats, shared
@@ -426,7 +426,8 @@ enum MatchColorToolset {
             document: ColorMatchDocument(
                 image: decoded, instances: sidecar?.instances ?? [],
                 layerStack: Self.layerStack(from: sidecar?.layerStack),
-                imageID: UUID()),
+                imageID: UUID(),
+                renderProcess: sidecar?.process ?? nil),
             bucket: ColorMatchExtractBucket.sourcePreviewCap)
 
         // The solve (the Core pure functions verbatim) + the params record.

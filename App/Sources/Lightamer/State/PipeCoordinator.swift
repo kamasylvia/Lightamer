@@ -919,6 +919,38 @@ final class PipeCoordinator {
     /// guard face).
     var filmEditInFlight: Bool { isEditingFilm }
 
+    /// M9-4 T2 (D-M9SP-7① generalization): the migration guard covers the
+    /// colorWheels D-H1 window too — the generic continuous-edit window
+    /// the wheel drags and the stops sliders open.
+    var colorWheelsEditInFlight: Bool { isEditingContinuous }
+
+    /// M9-4 T2 (D-M9SP-7①): the colorWheels non-neutral read face — the
+    /// migration gate's SECOND source. Any colorWheels instance whose
+    /// committed params are not identity-v3 (the v1 judgment for legacy
+    /// shapes / the four-wheel zero base for v2 shapes) counts as an
+    /// edit: such a document renders DIFFERENTLY on the v3 arm (the
+    /// conversion approximation), so it earns the migration row. A
+    /// film-only document answers false — the gate stays the OR.
+    func hasColorWheelsEdits() -> Bool {
+        let records = editorState?.instances ?? []
+        for record in records
+        where record.opName == ColorWheelsModule.opName {
+            guard let params = try? JSONDecoder().decode(
+                ColorWheelsModule.Params.self, from: record.paramsData)
+            else { continue }
+            if !ColorWheelsModule.isIdentityV3(params) { return true }
+        }
+        return false
+    }
+
+    /// The first colorWheels instance's committed params (the marker's
+    /// verbatim payload — D-M9SP-7②; nil = no colorWheels instance).
+    var colorWheelsVerbatimInstance: ModuleInstance? {
+        (editorState?.instances ?? []).first {
+            $0.opName == ColorWheelsModule.opName
+        }
+    }
+
     /// The explicit "Update to Current Process" action (M6-2 §6 挂账正主):
     /// ONE discrete document-level step — the carrier flips to
     /// `.current`, ONE document-scope film item carries the CURRENT film
@@ -934,11 +966,28 @@ final class PipeCoordinator {
         guard decoded != nil, let url = currentImageURL, let workspace,
             let editorState
         else { return }
-        guard workspace.hasFilmRecord(for: url) else { return }
+        // M9-4 T2 (D-M9SP-7 generalization, 勘误③): the gate is now the
+        // TWO-SOURCE OR — a film record OR non-neutral colorWheels params
+        // (a both-absent document renders the two arms bit-identically,
+        // so there is nothing to migrate).
+        let hasFilm = workspace.hasFilmRecord(for: url)
+        let hasCW = hasColorWheelsEdits()
+        guard hasFilm || hasCW else { return }
         workspace.setProcessVersion(.current, for: url)
-        editorState.commitProcessMigrationMarker(
-            record: workspace.filmRecord(for: url),
-            label: String(localized: "history_process_migrate"))
+        // The marker's TWO forms (D-M9SP-7②): a film record in place =
+        // the M8-3 film item VERBATIM (zero diff — the M8-3 semantics
+        // unchanged); otherwise = the colorWheels params committed
+        // VERBATIM (zero params diff — the same marker semantics for the
+        // colorWheels-only documents).
+        if hasFilm {
+            editorState.commitProcessMigrationMarker(
+                record: workspace.filmRecord(for: url),
+                label: String(localized: "history_process_migrate"))
+        } else if let cw = colorWheelsVerbatimInstance {
+            editorState.commitProcessMigrationMarker(
+                colorWheels: cw,
+                label: String(localized: "history_process_migrate"))
+        }
         await historyDidChange()
         scheduleSidecarWrite()
     }
@@ -2086,7 +2135,8 @@ final class PipeCoordinator {
                 resolution: .preview,
                 cache: cache,
                 metal: metal,
-                longEdge: currentBucket ?? PreviewBucket.cap
+                longEdge: currentBucket ?? PreviewBucket.cap,
+                renderProcess: documentProcessVersion ?? .legacy
             )
             // L014: getBytes does not wait for in-flight encoders — fence
             // the queue before the CPU readback (async-safe completion await;
@@ -2260,7 +2310,8 @@ final class PipeCoordinator {
                 policy: .preview, hotLayerID: nil,
                 maskDirectory: currentImageURL.map {
                     RasterMaskStore.masksDirectory(forImageURL: $0)
-                })
+                },
+                renderProcess: documentProcessVersion ?? .legacy)
             var hasher = Hasher()
             hasher.combine(currentImageID)
             hasher.combine(stack.baseLayer.id)
@@ -2347,7 +2398,8 @@ final class PipeCoordinator {
                 resolution: .preview,
                 cache: cache,
                 metal: metal,
-                longEdge: currentBucket ?? PreviewBucket.cap
+                longEdge: currentBucket ?? PreviewBucket.cap,
+                renderProcess: documentProcessVersion ?? .legacy
             )
             let fence = metal.commandQueue.makeCommandBuffer()
             fence?.commit()
@@ -2722,13 +2774,19 @@ final class PipeCoordinator {
         // 08-3 T3: the yiyin per-run context rides the run's entry scale
         // (joint layout / EXIF / logo faces — per-run DATA, never params).
         injectYiyinRunContext(longEdge: longEdge, resolution: resolution)
-        // M8-3 T3 (the M6-2-01 registered coordinator threading — the
-        // first fork batch's production face): the document's stored
-        // process arms the film leg factory. THUMBNAIL stays legacy (the
-        // M3-3 thumbnail gate twin — the grid consumes display-ready SDR
-        // planes and the thumbnail cache-key space never moves).
+        // The document's stored process — EVERY resolution threads it.
+        // M9-4 T2 (the M8-3 T3 design-decision REVISION, M-1①): the
+        // thumbnail leg now rides the stored process too — a v3 document's
+        // thumbnails MUST arm the same fork points as the main view (the
+        // M8-3 posture — "the thumbnail cache-key space never moves" —
+        // held while the only fork was the film tail, which the grid
+        // never consumed; the v3 tone wheels render INSIDE the chain, so
+        // the old split is a user-visible tear between grid and editor).
+        // The cache-key space moves WITH the resolved-arm-scoped fold:
+        // legacy/v1/v2 thumbnails keep their key bytes (zero fold), only
+        // v3 documents pay the new key space.
         let migratedProcess: RenderProcessVersion = {
-            guard resolution != .thumbnail, let url = currentImageURL else {
+            guard let url = currentImageURL else {
                 return .legacy
             }
             return workspace?.processVersion(for: url) ?? .legacy
@@ -2840,7 +2898,8 @@ final class PipeCoordinator {
                 maskDirectory: currentImageURL.map {
                     RasterMaskStore.masksDirectory(forImageURL: $0)
                 },
-                terminalTail: edrDisplayEnabled ? .edrLinear : .sdrGamma)
+                terminalTail: edrDisplayEnabled ? .edrLinear : .sdrGamma,
+                renderProcess: documentProcessVersion ?? .legacy)
             return RenderChainOutput(texture: texture, stats: stats)
         }
         let (texture, stats) = try await RenderPipeline.process(
@@ -2851,7 +2910,8 @@ final class PipeCoordinator {
             cache: cache,
             metal: metal,
             longEdge: longEdge,
-            terminalTail: edrDisplayEnabled ? .edrLinear : .sdrGamma
+            terminalTail: edrDisplayEnabled ? .edrLinear : .sdrGamma,
+            renderProcess: documentProcessVersion ?? .legacy
         )
         return RenderChainOutput(texture: texture, stats: stats)
     }
