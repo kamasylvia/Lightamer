@@ -1,0 +1,16 @@
+BUNDLE|Export|385/4/1|peakRSS=5388MB|202s|sampling=time
+  ↳ Export FAILED（fail；host exit=1 仅参考）— 完整输出: /tmp/la-direct-tests-Export.log
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ExportPhaseE2ETests.swift:254: error: -[LightamerTestsExport.ExportPhaseE2ETests testBorderedVariantsFullChainRoundTripThroughQueue] : XCTAssertGreaterThan failed: ("5") is not greater than ("30") - YIYB_0001.png: the white watermark rows survived
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/ExportPhaseE2ETests.swift:254: error: -[LightamerTestsExport.ExportPhaseE2ETests testBorderedVariantsFullChainRoundTripThroughQueue] : XCTAssertGreaterThan failed: ("4") is not greater than ("30") - YIYB_0001.jpg: the white watermark rows survived
+Test Case '-[LightamerTestsExport.ExportPhaseE2ETests testBorderedVariantsFullChainRoundTripThroughQueue]' failed (1.320 seconds).
+--
+Test Case '-[LightamerTestsExport.ExportPhaseE2ETests testReExportIntoTheSameOutputIncrementsWithoutOverwrite]' started.
+Test Case '-[LightamerTestsExport.ExportPhaseE2ETests testReExportIntoTheSameOutputIncrementsWithoutOverwrite]' passed (0.838 seconds).
+Test Suite 'ExportPhaseE2ETests' failed at 2026-10-29 21:29:02.576.
+--
+Test Suite 'YiyinWatermarkTests' passed at 2026-10-29 21:30:31.831.
+	 Executed 36 tests, with 0 failures (0 unexpected) in 2.114 (2.116) seconds
+Test Suite 'LightamerTestsExport.xctest' failed at 2026-10-29 21:30:31.831.
+	 Executed 385 tests, with 4 tests skipped and 2 failures (0 unexpected) in 199.195 (199.225) seconds
+Test Suite 'All tests' failed at 2026-10-29 21:30:31.834.
+TOTAL|385/4/1|202s

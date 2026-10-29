@@ -1,0 +1,6 @@
+BUNDLE|IOP|814/1/0|peakRSS=5781MB|945s|sampling=time
+BUNDLE|IOPParity|565/10/0|peakRSS=5126MB|1569s|sampling=time
+BUNDLE|Layers|528/5/0|peakRSS=914MB|437s|sampling=time
+BUNDLE|Library|785/4/0|peakRSS=664MB|174s|sampling=time
+BUNDLE|Sessions|285/4/0|peakRSS=1090MB|70s|sampling=time
+BUNDLE|Export|385/4/0|peakRSS=4085MB|203s|sampling=time
