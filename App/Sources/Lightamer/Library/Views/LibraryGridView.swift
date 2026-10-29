@@ -206,18 +206,17 @@ struct LibraryGridView: View {
             // stack face joins the menu (成栈 needs a ≥2 selection; the
             // per-row stack routes need a membership).
             .contextMenu {
-                // M9-4 T4 (X6): the Show in Finder door (the reveal
-                // precedent — existence-checked, non-modal).
+                // M9-4 T4 (X6): the Show in Finder door — the FinderReveal
+                // seam (acceptance-2ND M-1: existence-checked, non-modal;
+                // the AX id is the production constant the tests pin).
                 Button {
-                    let url = URL(fileURLWithPath: row.imagePath)
-                    guard FileManager.default.fileExists(atPath: url.path) else { return }
-                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                    FinderReveal.revealIfPresent(row.imagePath)
                 } label: {
                     Label(
                         String(localized: "action_show_in_finder"),
                         systemImage: "folder")
                 }
-                .accessibilityIdentifier("library.grid.action.finder")
+                .accessibilityIdentifier(FinderReveal.gridActionID)
                 // LUMEN-B T4: the cull entry (the clicked row anchors the
                 // cull table's current position).
                 if let onCull {

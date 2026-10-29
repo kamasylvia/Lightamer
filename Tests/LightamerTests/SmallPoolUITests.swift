@@ -3,7 +3,8 @@ import LightamerCore
 import XCTest
 
 // ─────────────────────────────────────────────────────────────────────────
-// SmallPoolUITests (Plan M9-4 T4, X6) — the tail items' APP-domain gates:
+// SmallPoolUITests (Plan M9-4 T4, X6; acceptance-2ND M-1 repair) — the tail
+// items' APP-domain gates:
 //
 //   (1) the XPan trio's dn arms + the CaseIterable surface + the rawValue
 //       spellings (D-M9SP-6 — the autonomous enhancement's data face);
@@ -11,13 +12,15 @@ import XCTest
 //       the model seam the row view consumes; the AX identifier ride is
 //       asserted in the gui-acceptance walkthrough recipe, m9-4
 //       MANIFEST);
-//   (3) the Show-in-Finder doors' reachability registration: the three
-//       mounts' accessibility identifiers are compile-time constants in
-//       the view sources (the grep face), the reveal call is the
-//       PostExportActions precedent shape, and the missing-file degrade
-//       (the existence check before the reveal) rides the same guard on
-//       all three — the GUI walkthrough drives the AX tree face
-//       (the AXPress discipline in the m9-4 MANIFEST).
+//   (3) the Show-in-Finder doors — REAL production coupling (M-1 repair):
+//       the three mounts consume `FinderReveal.revealIfPresent` (the
+//       existence-guard + reveal decision path, exercised here through the
+//       injected seam) and register the `FinderReveal` AX-id production
+//       constants (spelled and pinned here — a mount can no longer drift
+//       from these symbols). The AX-tree REACHABILITY walk itself is not
+//       unit-reachable (SwiftUI context menus / NSMenu items) and stays
+//       the gui-acceptance walkthrough face (m9-4 MANIFEST — DECISIONS
+//       §11 declaration, merged with the stars ride).
 //
 // The CROP BITS round trip: the picker's N/D bits mapping lives in the
 // panel's private aspectBinding; its WRITE face is exercised by the
@@ -70,30 +73,54 @@ final class SmallPoolUITests: XCTestCase {
         XCTAssertEqual(FilmstripModel.ratingStars(-1), "–")
     }
 
-    // MARK: - The Show in Finder doors (the registration face)
+    // MARK: - The Show in Finder doors (acceptance-2ND M-1 repair)
 
+    /// The three doors' AX identifiers ARE the production constants: the
+    /// mounts register `FinderReveal.gridActionID` /
+    /// `.filmstripActionID` / `.menuActionID` (single source), and this
+    /// pins the spellings against those symbols — a rename in a view can
+    /// no longer silently drift from the walkthrough-registered AX tree.
+    /// (Reachability in the live AX tree stays the walkthrough recipe —
+    /// DECISIONS §11.)
     func testFinderDoorsAccessibilityRegistration() {
-        // The three mounts' AX identifiers (the compile-time constants the
-        // views register; the AX-tree walk is the walkthrough face).
-        let registeredIDs = [
-            "library.grid.action.finder",
-            "filmstrip.action.finder",
-            "menu.image.finder",
-        ]
-        XCTAssertEqual(Set(registeredIDs).count, 3)
-        // The reveal precedent is the production call (the same
-        // NSWorkspace.activateFileViewerSelecting shape PostExportActions
-        // uses — the source-level identity is grep-checked in T5).
+        XCTAssertEqual(FinderReveal.gridActionID, "library.grid.action.finder")
+        XCTAssertEqual(FinderReveal.filmstripActionID, "filmstrip.action.finder")
+        XCTAssertEqual(FinderReveal.menuActionID, "menu.image.finder")
+        // The three doors are distinct mounts (no cross-door collision).
+        XCTAssertEqual(
+            Set([FinderReveal.gridActionID, FinderReveal.filmstripActionID,
+                 FinderReveal.menuActionID]).count, 3)
     }
 
-    /// The missing-file typed degrade: the existence check rides BEFORE
-    /// every reveal (the precedent guard) — the guard's semantics are
-    /// FileManager-based and shared; this pins the FileManager behavior
-    /// the guards rely on.
+    /// The typed degrade through the PRODUCTION seam: a missing file
+    /// reveals nothing (the guard rides BEFORE the reveal — the shared
+    /// decision path all three doors consume); an existing file reveals
+    /// exactly once with its URL. This exercises the real
+    /// `FinderReveal.revealIfPresent` guard/reveal logic with the injected
+    /// seam — not a Foundation-behavior mirror.
     func testFinderExistenceGuardSemantics() throws {
-        let real = try XCTUnwrap(URL(string: "file:///tmp"))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: real.path))
-        let missing = URL(fileURLWithPath: "/nonexistent/m9-4-probe/definitely-missing.arw")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: missing.path))
+        let existing = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("m94-finder-seam-probe.arw")
+        try Data("probe".utf8).write(to: existing)
+        defer { try? FileManager.default.removeItem(at: existing) }
+
+        var revealed: [URL] = []
+        let hit = FinderReveal.revealIfPresent(
+            existing.path,
+            exists: { FileManager.default.fileExists(atPath: $0) },
+            reveal: { revealed.append($0) })
+        XCTAssertTrue(hit, "an existing file must reveal")
+        XCTAssertEqual(revealed, [existing])
+
+        revealed = []
+        let missing = "/nonexistent/m9-4-probe/definitely-missing.arw"
+        var revealCalls = 0
+        let miss = FinderReveal.revealIfPresent(
+            missing,
+            exists: { _ in false },
+            reveal: { _ in revealCalls += 1 })
+        XCTAssertFalse(miss, "a missing file must degrade typed — no reveal")
+        XCTAssertEqual(revealCalls, 0, "the guard must ride BEFORE the reveal")
+        XCTAssertTrue(revealed.isEmpty)
     }
 }
