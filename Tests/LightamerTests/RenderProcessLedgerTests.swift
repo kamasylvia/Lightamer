@@ -34,11 +34,13 @@ final class RenderProcessLedgerTests: XCTestCase {
     // MARK: - 1: the ledger table
 
     func testLedgerTableOldestFirstWithCurrentLast() {
-        XCTAssertEqual(RenderProcess.all, [.v1, .v2])
+        // M9-4 T2: retargeted to the v3 bump (the ledger table grows;
+        // the inverse map stays the 1-based position face).
+        XCTAssertEqual(RenderProcess.all, [.v1, .v2, .v3])
         XCTAssertEqual(RenderProcess.all.last, RenderProcess.current)
-        XCTAssertEqual(RenderProcess.current, .v2)
+        XCTAssertEqual(RenderProcess.current, .v3)
         let inverse: [RenderProcess: Int] = [
-            .v1: 1, .v2: 2,
+            .v1: 1, .v2: 2, .v3: 3,
         ]
         for (generation, number) in inverse {
             XCTAssertEqual(generation.processVersion.rawValue, number,
@@ -54,18 +56,20 @@ final class RenderProcessLedgerTests: XCTestCase {
         // In-domain → its own case.
         XCTAssertEqual(RenderProcess.resolving(RenderProcessVersion(rawValue: 1)!), .v1)
         XCTAssertEqual(RenderProcess.resolving(RenderProcessVersion(rawValue: 2)!), .v2)
-        // Forward → clamp to current (the stored value never rewritten).
-        XCTAssertEqual(RenderProcess.resolving(RenderProcessVersion(rawValue: 3)!), .v2)
-        XCTAssertEqual(RenderProcess.resolving(RenderProcessVersion(rawValue: 7)!), .v2)
+        // M9-4 T2: v3 is an in-domain generation now; forward clamps to
+        // current (the stored value never rewritten).
+        XCTAssertEqual(RenderProcess.resolving(RenderProcessVersion(rawValue: 3)!), .v3)
+        XCTAssertEqual(RenderProcess.resolving(RenderProcessVersion(rawValue: 7)!), .v3)
         XCTAssertEqual(
-            RenderProcess.resolving(RenderProcessVersion(rawValue: 0xFFFF_FFFF)!), .v2)
+            RenderProcess.resolving(RenderProcessVersion(rawValue: 0xFFFF_FFFF)!), .v3)
     }
 
     // MARK: - 3: the mint (the current generation = 2, the write face)
 
     func testMintWritesProcessTwoIntoTheSidecar() throws {
-        XCTAssertEqual(RenderProcessVersion.current.rawValue, 2,
-                       "the M8-2 bump: the spectral core's generation mints")
+        // M9-4 T2: current = 3 (the name keeps the M8-2-era spelling).
+        XCTAssertEqual(RenderProcessVersion.current.rawValue, 3,
+                       "the M9-4 bump: the colorWheels generation mints")
         let history = HistoryStack()
         let document = LightamerSidecar(
             imageID: UUID(uuidString: "B7B7B7B7-0000-4000-8000-00000000B7B7")!,
@@ -76,8 +80,8 @@ final class RenderProcessLedgerTests: XCTestCase {
         let bytes = try JSONEncoder().encode(document)
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: bytes) as? [String: Any])
-        XCTAssertEqual(object["process"] as? Int, 2,
-                       "a new document mints process=2 (the write face)")
+        XCTAssertEqual(object["process"] as? Int, 3,
+                       "a new document mints process=3 (the write face)")
         // The legacy nil face keeps the key ABSENT (the never-passively-
         // upgraded promise untouched by the bump).
         let legacy = LightamerSidecar(
