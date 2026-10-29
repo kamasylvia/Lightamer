@@ -935,3 +935,9 @@ include nlmeans` 族）——测试进程无该 env → 生产代码路径在测
 - **/models 空 Bearer 200 = 弱证据**：zen/go models 列表端点对空 Bearer 也 200——用列表端点验 key 是假阴性源；**验 key 必走真补全或带鉴权端点**。
 - **ImageChops 单通道 bbox 不可靠**：GUI 帧对比用单通道 bbox 一次误报（md5 复核纠正）——**GUI 对比判据 = md5/多通道，单通道 bbox 禁作为唯一定论**。
 - **guard 三版实战校准**（1→4→7G→撤门）：静态 swapused 阈值三校三败（惰性冷页地板棘轮 2.1→7.5G 只增不减，健康/病态不可分）——v1.3 撤独立交换门，病理判据归 G2/G4/MEMFAIL；守门脚本自身也要过实战校准验收。
+
+## L0xx-k M9-4 执行期三笔（2026-10-29，小件池批）
+
+- **vector select/bool3 谓词在 Apple GPU 上行为与文档语义面不自洽**（v3 tone-wheel kernel identity 位漂,五轮 alpha 探针定位:neutral 谓词为真但结果面仍走 full 分支,且「翻转参数序」与「原序」各自只对部分 texel 正确——跨 lane 语义不可从 spec 推断）。**数学 kernel 的中性早退/分支选择一律 scalar branch 起步**（上游直译形;vector 化属后续优化面,须带逐位 golden 闸）。零成本教训:scalar if 与 CPU 参考逐句同构,行为确定。
+- **Swift tuple labeled 不 conform Equatable（本仓 Swift 6.4 模式）**——`(d: Int, n: Int)?` 不能直接 XCTAssertEqual;测试断言写分量比较或换 struct。同批:synthesized Codable 对 Optional 属性 encodeIfPresent 的**字节零漂成立**（Params.offset additive 实证,hash 钉死护栏）。
+- **bump 的测试连带面 = 编译器指向不到的地方**:process 升号后,钉死 `targetRawValue: 2` / `process == 2` 的既有断言(M8-2/M8-3 时代的表/E2E)全数翻红——「case 追加编译器逐点指向」只覆盖 switch,字面值钉死面须 grep `targetRawValue: 2`/`rawValue, 2` 逐一对齐(本批 3 文件 6 处);bump 任务清单应带这条 grep 机检。

@@ -137,6 +137,15 @@ DEFAULT_ALLOWLIST: tuple[str, ...] = (
     "smart_album_no_chips_hint",     # retired M1 smart-album hint
     "toast_session_index_failed",    # retired M1 session-index toast
     "panel_lens_apply_match",        # retired LENS-02 T4 (Apply absorbed by the profile browser selection)
+    # Retired-in-place keys (M9-4 T2, D-M9SP-7③): the film-era migration
+    # copy superseded by the neutral panel_process_migrate_* family — the
+    # catalog entries STAY (bytes untouched), the sources reference only
+    # the neutral family.
+    "panel_film_migrate_title",
+    "panel_film_migrate_body",
+    "panel_film_migrate_button",
+    "panel_film_migrate_cancel",
+    "panel_film_migrate_confirm",
 )
 
 KEY_SHAPE = re.compile(r"^[a-z][a-z0-9_]+$")
