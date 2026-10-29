@@ -15609,13 +15609,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This document still renders with the frozen previous process generation. Updating re-renders it with the current semantics. For older color-wheel documents the new wheels approximate the previous look (a small tonal shift is possible at the range ends). Your edits and history stay untouched."
+            "value": "This document still renders with the frozen previous process generation. Updating re-renders it with the current semantics. For older color-wheel documents the new wheels re-express the previous look (the previous rendering behavior is kept; a small approximation can remain at the range ends). Your edits and history stay untouched."
           }
         },
         "zh": {
           "stringUnit": {
             "state": "translated",
-            "value": "此文档仍以冻结的旧处理代际渲染。更新后将用当前语义重新渲染。旧色彩轮文档的新轮会用近似拟合复现原观感（两端可能有轻微影调偏移）。编辑与历史保持不变。"
+            "value": "此文档仍以冻结的旧处理代际渲染。更新后将用当前语义重新渲染。旧色彩轮文档的新轮会重新表达原观感（沿用原渲染行为；两端可能残留轻微近似偏差）。编辑与历史保持不变。"
           }
         }
       }

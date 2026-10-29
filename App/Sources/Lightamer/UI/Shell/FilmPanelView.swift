@@ -187,7 +187,7 @@ struct MigrationConfirmSheet: View {
                 .font(.callout.weight(.medium))
             Text(String(
                     localized: "panel_process_migrate_body",
-                    defaultValue: "This document still renders with the frozen previous process generation. Updating re-renders it with the current semantics. For older color-wheel documents the new wheels approximate the previous look (a small tonal shift is possible at the range ends). Your edits and history stay untouched."))
+                    defaultValue: "This document still renders with the frozen previous process generation. Updating re-renders it with the current semantics. For older color-wheel documents the new wheels re-express the previous look (the previous rendering behavior is kept; a small approximation can remain at the range ends). Your edits and history stay untouched."))
                 .font(.caption)
                 .foregroundStyle(ThemeTokens.textSecondary)
             HStack {
