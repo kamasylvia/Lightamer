@@ -90,7 +90,7 @@ R5 随 F0'-prod 顺路 14 项中 2 项（N-D7/N-L30）将随 P3 退役自然消�
 |---|---|---|---|---|
 | UQ-S1 | SpektraLab RFC-026 `AgentTools.get_schema` | **schema 自描述工具**——「每个可编辑字段：路径/类型/范围/含义，编辑前必读」入 MCP 协议内，agent 零外部文档自足（我方对应物 = skill 文档仓〔仓外〕+ list_iops〔仅 op 名〕）；我方可由 op 注册表 + 参数元数据合成 | 小而实的 agent ergonomics 增量 | 下一 MCP 波顺手（additive 一工具） |
 | UQ-S2 | SpektraLab RFC-026 Agents 设置页 | **onboarding 形态**——设置页「安装 CLI 命令 + 展示 Claude Code/Desktop 粘贴即用配置」；我方有 Launcher + discovery 文件 + skill 仓（强但摩擦高） | 低成本高价值 UX | MCP 设置页增补节（下一 MCP 波顺手） |
-| —（不立项） | RFC-026 CLI/MCP 同表双门 | AgentTools 单表 CLI/MCP 双 spelling（架构漂亮） | 仅独立 CLI 立项时有意义 | 维持 M7 既有挂账触发条件，不重复登记 |
+| UQ-S3（两级） | RFC-026 CLI/MCP 同表双门 | **一级（低成本，下一 MCP 波顺手）**：一次性 CLI 门 `Lightamer mcp call <tool> '<json>'`——走既有 stdio/HTTP 协议（discovery → 握手 → tools/call → 打印），协议级天然全量 parity 零维护；用途 = 走查配方省握手 / 调试 / cron 巡检（多轮 omp 走查的 MCP 搭手痛点实证）。**二级（维持挂账）**：native CLI 逐工具 arg 解析〔AgentTools 表 + 每工具 CLI spelling，独立 CLI 立项时照此设计〕 | 一级 = 走查/调试 ergonomics 实需；二级 = 触发条件后照 RFC-026 设计 | 一级随下一 MCP 波；二级维持 M7 挂账触发条件（注记升级引用 RFC-026 设计） |
 | —（不借鉴） | RFC-026 mutating 默认回图 | 每编辑工具带 wantPreview 默认回 1024px JPEG | agent 友好但 token 重 | 我方 render_preview 独立工具为刻意取舍，维持 |
 
 上游 MCP 面 2026-09-26 RFC-026 一次成型后休眠（仅 Tone Mask 只读一条维护）——无持续演进可跟随。
