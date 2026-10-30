@@ -83,3 +83,14 @@ R5 随 F0'-prod 顺路 14 项中 2 项（N-D7/N-L30）将随 P3 退役自然消�
 | OBS-M7-4-3 | D-M7-4-1 | 库域批量写（`.lalb` claim 面 + sidecar 直写 + 投影刷新缺口设计） | 万级库域批量需求实测出现才立项 |
 | OBS-M7-4-4 | D-M7-4-8 | withTimeout v2 abandon 形语义族专项（~20 工具共用，per-call-site 纪律） | M7-5+ 评估；B 线独立专项 |
 | OBS-M7-4-5 | M7-4-01-ACCEPTANCE-2ND minor-3（VALIDATION §挂账②） | paste 段3 drain 写失败不进应答——`appliedRelPaths` ENQUEUE 后即全量填充〔语义 = composed+claimed〕，`flushForTeardown` drain 失败仅 log；MCP paste 应答在 drain 失败路径仍报 `applied`，「写达后方返」契约对 agent 单步视角失真（heal leg 最终一致但单步不可见；非本批引入——apply_params M7-3 同姿势 + 段3 语义 M6-09-04 writer 既有设计） | MCP 后续波 touching paste/apply_params 写应答面时诚实化（applied 语义诚实化〔改名/注记 composed+claimed〕或 drain 失败回传 failedRelPaths），勿顺手修 |
+
+## SpektraLab RFC-026 MCP 增量（2026-10-31 入队；源 = SpektraLab `85c9c16` +518 增量深读）
+
+| # | 来源 | 内容 | 借鉴价值 | 建议 |
+|---|---|---|---|---|
+| UQ-S1 | SpektraLab RFC-026 `AgentTools.get_schema` | **schema 自描述工具**——「每个可编辑字段：路径/类型/范围/含义，编辑前必读」入 MCP 协议内，agent 零外部文档自足（我方对应物 = skill 文档仓〔仓外〕+ list_iops〔仅 op 名〕）；我方可由 op 注册表 + 参数元数据合成 | 小而实的 agent ergonomics 增量 | 下一 MCP 波顺手（additive 一工具） |
+| UQ-S2 | SpektraLab RFC-026 Agents 设置页 | **onboarding 形态**——设置页「安装 CLI 命令 + 展示 Claude Code/Desktop 粘贴即用配置」；我方有 Launcher + discovery 文件 + skill 仓（强但摩擦高） | 低成本高价值 UX | MCP 设置页增补节（下一 MCP 波顺手） |
+| —（不立项） | RFC-026 CLI/MCP 同表双门 | AgentTools 单表 CLI/MCP 双 spelling（架构漂亮） | 仅独立 CLI 立项时有意义 | 维持 M7 既有挂账触发条件，不重复登记 |
+| —（不借鉴） | RFC-026 mutating 默认回图 | 每编辑工具带 wantPreview 默认回 1024px JPEG | agent 友好但 token 重 | 我方 render_preview 独立工具为刻意取舍，维持 |
+
+上游 MCP 面 2026-09-26 RFC-026 一次成型后休眠（仅 Tone Mask 只读一条维护）——无持续演进可跟随。
