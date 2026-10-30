@@ -1,0 +1,96 @@
+Working...
+# R7 修复批 omp 终审报告（实机 computer-use）——完整输出
+
+## 结论头
+
+**CONDITIONAL PASS / 1 error（E-1：几何编辑即崩，R7 外既有缺陷）+ 0 major + 1 minor（m-1 对账确认）+ 4 obs**
+
+| 终审面 | 判定 |
+|---|---|
+| 1. T1 端点拖拽提交（含 quit 加严腿） | **PASS** |
+| 2. T2 flip+crop+角度联动 | **BLOCKED by E-1**（回归逻辑未被证伪，转源码级条件通过） |
+| 3. T3 DRT 两裁决 | **PASS**（peak 100 + 方法联动 + HDR seed 1000 三重实证） |
+| 4. T4 抽验（cap toast / paste 活引用 / paper 清键） | **PASS（1 实机 + 2 源码复核）** |
+| 5. 对账（m-1 + observer 三件） | 逐条评（见 §五） |
+
+**签核意见**：R7 修复批本身验收通过——T1 实机闭环；T2 转置语义经数学复核 + 可证伪回归双承载，实机阻塞是基线既有的几何链崩溃（E-1），非 R7 回归；T3/T4 裁决复核成立。E-1 建议单独立项（error 级，阻塞一切几何编辑实机面），不与 R7 签核挂钩。
+
+正本：`.work/gsd/phases/r7-repairs/R7-ACCEPTANCE-OMP.md`；证据：`.work/gsd/phases/r7-repairs/omp-evidence/`（20 文件）。
+
+---
+
+## 环境与卫生
+
+- **构建自证**：`xcodebuild build`（Debug，`-disableAutomaticPackageResolution` 离线）**BUILD SUCCEEDED**；binary mtime **05:11:25 晚于** `236cd50b`（03:27:08）与 `53dfac7e`（05:02:43）。基线对照 worktree `f783f1c3` + `tuist generate` + 同参数 → **BUILD SUCCEEDED**（容器 `Lightamer-r7baseline`；worktree 已拆除）。
+- **机器纪律**：guard 首判 **BLOCK G4**（Data 15233MB<25GB，无大项可再生面可清）→ 按 §9 先例**透明越门**（G1 heavy=0 / G2 free 78%）；`--monitor 10800` 全程伴跑，**零 RSS-KILL**；GUI 单实例串行。
+- **收工**：GUI quit（`pgrep` 零残留）；defaults 已清（探针污染 `recentProjects` 9 条 temp 路径已删）；tracked **零 diff**；走查文件全在 `/tmp/r7walk/` 不入库。
+
+## 一、T1 端点拖拽提交 — PASS
+
+| 步 | 实测 |
+|---|---|
+| 画线 | 多 tick 拖拽 → 面板「导线：1」+ guides=`[{ax:0.2953, ay:0.3116, bx:0.2953, by:0.6306}]` |
+| 拖端点 | b 端位移 +0.2126 → **items 3→4**，新 item `bx=0.5080`，其余三值逐值不动 |
+| 加严 quit | 拖完零后续操作直接 quit → items 4/position 3 原样在盘 |
+| 重开 | 面板「导线：1」，末 item 与拖后逐值相同 |
+
+M9-3 N-1 关闭。
+
+## 二、T2 — BLOCKED（E-1 既有崩溃）
+
+### E-1（error）：几何编辑即崩 — `negotiated ROI violated at pos 0`
+
+| # | 二进制 | 动作 | 结果 |
+|---|---|---|---|
+| 1 | HEAD | pristine RAW 上 CW90 | **崩**：upstream=1227x1840（转置整面） |
+| 2 | HEAD | CCW90 | **崩**：同签名 |
+| 3 | 基线 `f783f1c3` | rotCW90 | **崩**：同签名 → **R7 外既有缺陷** |
+| 4 | HEAD | rot180 存活 + crop.left=0.1 | **崩**：upstream=1656x1227=1840×0.9 |
+| 5 | HEAD | crop-only left=0.1 | **崩**：同 #4 |
+| 6 | HEAD | crop-only left=0.05 | **崩**：upstream=1748x1227=1840×0.95 |
+| 对照 | HEAD | tint 点值提交 | 存活 |
+| 对照 | HEAD/基线 | flipV/rot180 | 存活（orientation=3 落盘） |
+
+根因（源码亲核）：pos 0 恒等链在几何收缩/转置下的协商传递断裂——SWAP 腿 forward/backward 对 flip 输出帧 dims 理解不一致（角点反算越界 (1839,0)→(0,−613)）；crop 腿协商 roiIn 回到整面而 base case 渲染了收缩子域。R7 T2 只动参数面（`CropToolRotation` + 三处 `flip:` 传参），与 pipe ROI 协商零交集；基线同崩是决定性证据。
+
+对 T2 验收：转置语义经数学复核 + 反自取消探针真红双承载，逻辑面不被 E-1 触及——**条件通过**，实机联动待 E-1 修复后补走查。
+
+## 三、T3 DRT 两裁决 — PASS
+
+- **obs-4**：pristine RAW 首显 **100 nits**；SDR raster 100（= sdrPeakNits）；**HDR raster（pq-cicp-16）首显 1000 nits** + aces_2_0 + 限色空间（= PQ ladder 默认档）——400/100/1000 都是 seed 说话，按设计。
+- **m-1b**：OpenDRT→ACES 2.0 真 press 下 sections Look/Tonescale/Creative White → **限色空间**，切回复原；sidecar 落 2×「切换显示变换方法」（method aces_2_0→open_drt）。AX 合成伪影定性成立。
+
+## 四、T4 抽验 — PASS（1 实机 + 2 源码复核）
+
+- **第 5 条导线**：导线：4 后再画 → 仍 4 + toast「已达导线上限——最多四条。」（实机）。
+- **paste 活引用**：transfer dialog 实机开启；AI bake 三次零落盘（选择门 + picker 未现）→ 源码复核成立：`pasteChain` 先 `captureActiveChain` 值拷贝进 slot，`removeAssetIfUnreferenced` 同图恒 no-op。
+- **paper 清键**：两次 nodes 导航期 NSGenericException 崩（obs-4）→ 源码复核成立：同 commit 内 `gradedBW` 不成立 → `paperGrade = nil`；回归（保留/清除/items+1/landed nil）全套绿。
+
+## 五、对账
+
+| 项 | 复核 | 路由 |
+|---|---|---|
+| m-1 | **成立**：MAP:238=11 vs 文件 13 法；MAP:327=9 vs 文件 10 法；基线 9/8；R7 增行注记在旧账上 +Δ 继承滞后 | 下批勘正为 13/10 + 行尾勘误注记 |
+| obs-1/2/3 | 成立，零动作 | 无 |
+| observer 三件 | 维持纯观察 | 无 |
+
+## 六、局限与透明度
+
+1. 单 tick 合成拖拽在导线 overlay 不可靠——一切拖拽结论以多 tick 慢拖 + sidecar 落盘为准。
+2. E-1 精确断裂点需立项后断点确认；本报告只断言基线同崩 + 零交集 + 数值判别。
+3. AI bake 零落盘（hasSelection 门/合成事件/picker 未现），paste 走源码复核。
+4. 两次 NSGenericException 布局崩（`NSSplitViewItem _setCollapsed`，reason redacted）判 obs-4 既有观察项。
+5. 探针 `displayTexture=nil` 既有行为；`recentProjects` 污染已清。
+
+## 七、证据清单（`omp-evidence/`，20 文件）
+
+`build.log`/`monitor.log`/`omp-verification.txt`（逐值）/ `t1-*`（3）/ `t2-crash-*`（6 ips）/ `t3-*`（3 png）/ `t4-*`（5）。
+
+## 八、建议
+
+1. **R7 可签核**（CONDITIONAL PASS）。
+2. **E-1 单独立项**（error 级）：几何编辑即崩；修后补 T2 实机联动与 T4 paper 面板点击。
+3. obs-4 可并入 E-1 同批排查。
+4. 走查配方增补：导线多 tick 慢拖；AI bake 先点选图层行，人像样张。
+
+—— 终审：omp（独立于 zcode 验收；实机未达面已如实标注源码复核）。
