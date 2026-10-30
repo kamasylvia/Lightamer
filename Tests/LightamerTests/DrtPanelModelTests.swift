@@ -225,6 +225,71 @@ final class DrtPanelModelTests: XCTestCase {
             "an idempotent click must not fabricate a history item")
     }
 
+    // MARK: - 4b (R7 T3, issue #15): the read-chain depth faces
+
+    /// R6-R1 obs-4 (the peak「400 ≠ 100」observation): the panel's initial
+    /// value is the RECORD's semantic value through the full pristine read
+    /// order (live → history → carrier → `DrtRecord()`) — no panel-local
+    /// default exists. A pristine document reads 100; a carrier seeded by
+    /// the M4-1-02 T3 raster derive leg (peak = the file's mastering
+    /// luminance, e.g. 400 nits) reads THAT — the「400」was the seed
+    /// speaking, not a panel bug.
+    func testPeakInitialValueEqualsTheRecordSemanticValue() async throws {
+        try await loadGradient()
+        guard let url = coordinator.liveImageURL else {
+            return XCTFail("the gradient loaded")
+        }
+        // Pristine: every source nil/absent → the Core default.
+        XCTAssertEqual(model.record, DrtRecord())
+        XCTAssertEqual(
+            model.record.peakLuminance, 100.0, accuracy: 1e-6,
+            "the pristine read order lands the Core default peak")
+        // The seeded carrier: the panel initial = the seed's own value
+        // (an HDR raster's derived record rides its mastering peak).
+        var seeded = DrtRecord()
+        seeded.peakLuminance = 400
+        workspace.setSessionDrtRecord(seeded, for: url)
+        XCTAssertEqual(
+            model.record.peakLuminance, 400.0, accuracy: 1e-6,
+            "the initial value equals the record's semantic value (the seed)")
+        // Back to pristine: the key drops, the default returns.
+        workspace.setSessionDrtRecord(nil, for: url)
+        XCTAssertEqual(model.record, DrtRecord())
+    }
+
+    /// R6-R1 m-1b (the method-switch「sections 不联动」observation): the
+    /// INSTANCE face — `model.sections` through the full read chain
+    /// (history → record) — reflows with a `setMethod` commit. The
+    /// static `sections(method:)` table was already pinned (test 1); this
+    /// pins the live projection the view's ForEach consumes. (The
+    /// walkthrough's own phenotype — the radio flipping while sections
+    /// stayed — is the AX synthesized-event channel decoupling from the
+    /// SwiftUI binding, the m-1a family; the commit seam itself is sound
+    /// and lands the reflow here.)
+    func testMethodSwitchReflowsSectionsThroughTheReadChain() async throws {
+        try await loadGradient()
+        // Pristine = OpenDRT: the preset trio is the method-specific tail.
+        XCTAssertEqual(model.record.method, .opendrt)
+        XCTAssertEqual(model.sections.last?.kind, .opendrtPresets)
+        XCTAssertEqual(model.sections.count, 3)
+
+        // Switch to ACES 2.0: ONE commit and the limiting group replaces
+        // the preset trio in the LIVE projection.
+        model.setMethod(.aces20)
+        try await waitForItemCount(1)
+        XCTAssertEqual(model.record.method, .aces20)
+        XCTAssertEqual(
+            model.sections.last?.kind, .acesLimiting,
+            "the live sections reflow with the committed method")
+        XCTAssertEqual(model.sections.count, 3)
+        XCTAssertFalse(model.sections.contains { $0.kind == .opendrtPresets })
+
+        // Back to OpenDRT: the preset trio returns.
+        model.setMethod(.opendrt)
+        try await waitForItemCount(2)
+        XCTAssertEqual(model.sections.last?.kind, .opendrtPresets)
+    }
+
     // MARK: - 5: the derived custom judgment
 
     func testCustomLookDerivedFromSnapshotMatch() async throws {
