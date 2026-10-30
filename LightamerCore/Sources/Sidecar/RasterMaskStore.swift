@@ -136,6 +136,45 @@ public enum RasterMaskStore {
         return RasterMaskRef(fileName: fileName, maskHash: hash, invert: invert)
     }
 
+    // MARK: - The unreferenced-asset sweep (R7 hygiene, M9-1 o-omp3)
+
+    /// Storage hygiene (issue #15): delete a baked mask asset ONLY when
+    /// NO HistoryStack in `chains` still carries a raster-mask reference
+    /// to `fileName` (every history item's stack snapshot, every layer's
+    /// mask spec). The paste-exclusion consumer sweeps the excluded names
+    /// after the paste lands — a same-image paste KEEPS the file (the
+    /// captured source version still references it, so the sweep no-ops;
+    /// the M9-1 acceptance's「孤儿留存」observation is that live
+    /// reference, not a true orphan), while an asset whose last reference
+    /// is genuinely gone (mask removed, version dropped) is reclaimed.
+    /// Missing file / remove failure = silent `false` (hygiene never
+    /// errors the editing flow).
+    @discardableResult
+    public static func removeAssetIfUnreferenced(
+        fileName: String, forImageURL imageURL: URL, chains: [HistoryStack]
+    ) -> Bool {
+        func references(_ chain: HistoryStack) -> Bool {
+            chain.items.contains { item in
+                guard let snapshot = item.stackSnapshot else { return false }
+                return snapshot.layers.contains { layer in
+                    layer.mask?.raster?.fileName == fileName
+                }
+            }
+        }
+        guard !chains.contains(where: references) else { return false }
+        let url = masksDirectory(forImageURL: imageURL)
+            .appendingPathComponent(fileName)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return false
+        }
+        do {
+            try FileManager.default.removeItem(at: url)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     // MARK: - Load
 
     /// Load + verify: hash check over the file bytes FIRST (integrity of

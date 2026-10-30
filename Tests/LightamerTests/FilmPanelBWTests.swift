@@ -138,6 +138,37 @@ final class FilmPanelBWTests: XCTestCase {
         XCTAssertEqual(editorState.history.items.count, itemsBefore + 2)
     }
 
+    // MARK: - 3b (R7 T4, issue #15): the paper-switch grade clear
+
+    /// M9-2 obs-omp3: the grade key is a graded-BW-paper parameter — a
+    /// switch onto a COLOR paper clears it in the SAME commit (the
+    /// sidecar never carries a `paper_grade` the bound paper cannot
+    /// consume), while a switch between graded BW papers keeps it.
+    func testPaperSwitchClearsGradeOnlyOnNonGradedPaper() {
+        model.setFilmStock("kodak_tri_x_400")
+        model.setPaperStock("ilford_multigrade_iv_rc")
+        model.setGrade("4")
+        XCTAssertEqual(model.selectedGrade, "4")
+
+        // BW → graded BW: the grade survives (the shared ladder memory).
+        model.setPaperStock("ilford_multigrade_iv_rc")
+        XCTAssertEqual(model.selectedGrade, "4", "the graded-BW switch keeps the grade")
+
+        // BW → color paper: the stale key clears in the SAME commit (ONE
+        // history item for the switch — no second grade-clearing item).
+        let itemsBefore = editorState.history.items.count
+        model.setPaperStock("kodak_endura_premier")
+        XCTAssertNil(
+            model.selectedGrade,
+            "the color paper cannot consume a grade — the key clears")
+        XCTAssertEqual(
+            editorState.history.items.count, itemsBefore + 1,
+            "the clear rides the SAME commit as the switch")
+        XCTAssertNil(
+            editorState.history.items.last?.filmRecord?.paperGrade,
+            "the landed record carries no paper_grade")
+    }
+
     // MARK: - 3: the pristine gate's hand extension
 
     func testGradeOnlyRecordIsNotPristine() {

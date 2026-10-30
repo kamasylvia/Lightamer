@@ -25,7 +25,7 @@
   },
   "ilford_hp5_plus_400": {
    "rms": null,
-   "note": "ASSUMED: null — Harman publishes no RMS figure for HP5 PLUS; T4 interpolates the family (M9-2 DECISIONS)."
+   "note": "ASSUMED: null — Harman publishes no RMS figure for HP5 PLUS; no invented interpolation — the readout hides (M9-2 DECISIONS null verdict)."
   }
  }
 }
