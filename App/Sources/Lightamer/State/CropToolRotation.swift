@@ -144,14 +144,36 @@ enum CropToolRotation {
     ///
     /// `frameSize` is the upright-input frame size in pixels (the plane
     /// the rotation acts on — the decoded/derived plane, not the AABB).
+    ///
+    /// `flip` is the flip record the crop op reads THROUGH (V50: flip 16
+    /// → crop 24.5 — the crop's input frame is the flip's OUTPUT). R7 N-2
+    /// (M9-3 acceptance, issue #15): a SWAP_XY orientation exchanges the
+    /// crop input frame's axes, so the record must be transposed on the
+    /// way into the bridge and back out of it — the funnel used to read
+    /// the record in the pre-flip AABB domain and land the refit window
+    /// transposed inside the flip frame (invisible at near-full-frame
+    /// margins, a real offset for asymmetric crops). The flip's MIRROR
+    /// half needs no handling: `withAngle` is equivariant under the
+    /// frame-centred mirror (the largest fit is centred, fit/shrink gates
+    /// mirror-symmetric), so mirror∘transpose ∘ refit ∘ mirror∘transpose
+    /// collapses to the plain transpose round-trip — the landed record is
+    /// byte-identical either way.
     static func linkedSnapshots(
         ashift: ModuleInstance?, crop: ModuleInstance?,
-        rotationDegrees: Float, frameSize: SIMD2<Double>
+        rotationDegrees: Float, frameSize: SIMD2<Double>,
+        flip: ModuleInstance? = nil
     ) -> [ModuleInstance]? {
         guard frameSize.x > 0, frameSize.y > 0 else { return nil }
         guard let oldAshift = try? ashiftParams(ashift) else { return nil }
         guard let cropParams = try? cropParams(crop) else { return nil }
         guard abs(rotationDegrees) <= 45 else { return nil }
+        // The commit-time orientation (the FlipModule.commitParams
+        // semantics: a persisted `.auto` rides the pipe as identity).
+        let flipRecord = try? flipParams(flip)
+        let orientation = flipRecord.map { params in
+            params.orientation == .auto ? FlipOrientation.none : params.orientation
+        } ?? .none
+        let swapsXY = orientation.swapsXY
 
         var newAshiftParams = oldAshift
         newAshiftParams.rotation = rotationDegrees
@@ -173,11 +195,19 @@ enum CropToolRotation {
         // rect clamps into the rotated-frame's 0..1 (this also restores the
         // largest-frame alignment: the full-frame crop maps to exactly the
         // rotated frame's unit, whose largest-fit identity #1388 relies on).
+        // N-2: under SWAP_XY the record's x rides the AABB's y — transpose
+        // first (an in-0..1 rect stays in 0..1) so the fractions below read
+        // the AABB axes they name.
+        var recordRect = CropFitAngle.Rect(
+            x0: Double(cropParams.left), y0: Double(cropParams.top),
+            x1: Double(cropParams.right), y1: Double(cropParams.bottom))
+        if swapsXY {
+            recordRect = CropFitAngle.Rect(
+                x0: recordRect.y0, y0: recordRect.x0,
+                x1: recordRect.y1, y1: recordRect.x1)
+        }
         let mapped = RotatedFrameBridge.cropToRotated(
-            CropFitAngle.Rect(
-                x0: Double(cropParams.left), y0: Double(cropParams.top),
-                x1: Double(cropParams.right), y1: Double(cropParams.bottom)),
-            span: oldSpan, w0: frameSize.x, h0: frameSize.y)
+            recordRect, span: oldSpan, w0: frameSize.x, h0: frameSize.y)
         let rotatedRect = CropFitAngle.Rect(
             x0: min(max(mapped.x0, 0), 1),
             y0: min(max(mapped.y0, 0), 1),
@@ -204,9 +234,16 @@ enum CropToolRotation {
             || abs(refitted.x1 - rotatedRect.x1) > 1e-6
             || abs(refitted.y1 - rotatedRect.y1) > 1e-6
         if frameMoved {
-            // Back through the bridge into the NEW angle's AABB fractions.
-            let newCrop = RotatedFrameBridge.rotatedToCrop(
+            // Back through the bridge into the NEW angle's AABB fractions,
+            // then back into the crop record's own frame (N-2: transpose
+            // under SWAP_XY — the mirror-symmetric twin of the input leg).
+            let aabbCrop = RotatedFrameBridge.rotatedToCrop(
                 refitted, span: span, w0: frameSize.x, h0: frameSize.y)
+            let newCrop = swapsXY
+                ? CropFitAngle.Rect(
+                    x0: aabbCrop.y0, y0: aabbCrop.x0,
+                    x1: aabbCrop.y1, y1: aabbCrop.x1)
+                : aabbCrop
             var newCropParams = cropParams
             newCropParams.left = Float(newCrop.x0)
             newCropParams.top = Float(newCrop.y0)

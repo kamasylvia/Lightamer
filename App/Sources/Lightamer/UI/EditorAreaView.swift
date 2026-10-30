@@ -165,7 +165,8 @@ internal struct EditorAreaView: View {
                                             let snapshots = CropToolRotation.linkedSnapshots(
                                                 ashift: ashiftRecord, crop: cropRecord,
                                                 rotationDegrees: Float(degrees),
-                                                frameSize: frameSize)
+                                                frameSize: frameSize,
+                                                flip: flipRecord)
                                         {
                                             pipeCoordinator.commitLinkedSnapshots(
                                                 snapshots, label: String(localized: "history_rotate"))
@@ -192,7 +193,8 @@ internal struct EditorAreaView: View {
                                                 let snapshots = CropToolRotation.linkedSnapshots(
                                                     ashift: ashiftRecord, crop: cropRecord,
                                                     rotationDegrees: Float(degrees),
-                                                    frameSize: frameSize)
+                                                    frameSize: frameSize,
+                                                    flip: flipRecord)
                                             {
                                                 pipeCoordinator.commitLinkedSnapshots(
                                                     snapshots, label: String(localized: "history_auto_straighten"))
@@ -605,7 +607,8 @@ internal struct EditorAreaView: View {
                                             let snapshots = CropToolRotation.linkedSnapshots(
                                                 ashift: ashiftRecord, crop: cropRecord,
                                                 rotationDegrees: Float(degrees),
-                                                frameSize: frameSize)
+                                                frameSize: frameSize,
+                                                flip: flipRecord)
                                         {
                                             pipeCoordinator.commitLinkedSnapshots(
                                                 snapshots, label: String(localized: "history_rotate"))

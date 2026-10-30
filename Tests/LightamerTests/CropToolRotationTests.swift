@@ -343,4 +343,126 @@ final class CropToolRotationTests: XCTestCase {
             || abs(driftedCrop.bottom - directCrop.bottom) > 1e-6
         XCTAssertTrue(edgesDiffer, "the display-plane wiring provably drifts the refit")
     }
+
+    // MARK: - R7 N-2: the SWAP_XY flip transposes the refit window
+
+    /// M9-3 acceptance N-2 (issue #15): under a SWAP_XY flip the crop op's
+    /// input frame axes are exchanged (flip 16 → crop 24.5), so the refit
+    /// funnel must transpose the record on the way into the bridge and
+    /// back out — the old funnel read the record in the pre-flip AABB
+    /// domain and landed the refit window transposed inside the flip
+    /// frame. The expected value is the TRANSPOSE CLOSED FORM the report
+    /// names: transpose → bridge → withAngle → bridge → transpose.
+    private func transpose(_ r: CropFitAngle.Rect) -> CropFitAngle.Rect {
+        CropFitAngle.Rect(x0: r.y0, y0: r.x0, x1: r.y1, y1: r.x1)
+    }
+
+    func testSwapXYFlipRefitsInTheTransposedFrame() throws {
+        let decoded = SIMD2(600.0, 400.0)
+        // An asymmetric near-full crop in the FLIPPED (rotCW90) frame —
+        // big enough that a 10° turn forces the shrink-in-place path (the
+        // geometry the transposed window corrupts).
+        let record = CropFitAngle.Rect(x0: 0.02, y0: 0.02, x1: 0.92, y1: 0.98)
+        var flipCW = try XCTUnwrap(flip)
+        try flipCW.setParams(
+            FlipModule.Params(orientation: .rotCW90), as: FlipModule.self)
+        var cropRec = try XCTUnwrap(crop)
+        try cropRec.setParams(
+            CropModule.Params(
+                left: Float(record.x0), top: Float(record.y0),
+                right: Float(record.x1), bottom: Float(record.y1)),
+            as: CropModule.self)
+
+        let batch = try XCTUnwrap(CropToolRotation.linkedSnapshots(
+            ashift: ashift, crop: cropRec, rotationDegrees: 10,
+            frameSize: decoded, flip: flipCW))
+        let cropItem = try XCTUnwrap(
+            batch.first { $0.opName == CropModule.opName },
+            "an unfittable window refits: the crop item lands")
+        let landed = try cropItem.params(of: CropModule.self)
+
+        // The transpose closed form (the N-2 fix's exact contract).
+        let oldSpan = CropToolRotation.RotatedFrameBridge.span(
+            w0: 600, h0: 400, angleDegrees: 0)
+        let newSpan = CropToolRotation.RotatedFrameBridge.span(
+            w0: 600, h0: 400, angleDegrees: 10)
+        let rotated = CropToolRotation.RotatedFrameBridge.cropToRotated(
+            transpose(record), span: oldSpan, w0: 600, h0: 400)
+        let refitted = CropFitAngle.withAngle(
+            rotated, angleDegrees: 0, newAngleDegrees: 10, w: 600, h: 400)
+        let expected = transpose(
+            CropToolRotation.RotatedFrameBridge.rotatedToCrop(
+                refitted, span: newSpan, w0: 600, h0: 400))
+
+        XCTAssertEqual(landed.left, Float(expected.x0), accuracy: 1e-6,
+            "the landed record rides the transposed closed form (left)")
+        XCTAssertEqual(landed.top, Float(expected.y0), accuracy: 1e-6,
+            "the landed record rides the transposed closed form (top)")
+        XCTAssertEqual(landed.right, Float(expected.x1), accuracy: 1e-6,
+            "the landed record rides the transposed closed form (right)")
+        XCTAssertEqual(landed.bottom, Float(expected.y1), accuracy: 1e-6,
+            "the landed record rides the transposed closed form (bottom)")
+
+        // Anti-vacuum (the N-2 counterfactual): the OLD untransposed
+        // funnel answer provably differs — the fix is real, not a no-op.
+        let rotatedOld = CropToolRotation.RotatedFrameBridge.cropToRotated(
+            record, span: oldSpan, w0: 600, h0: 400)
+        let refitOld = CropFitAngle.withAngle(
+            rotatedOld, angleDegrees: 0, newAngleDegrees: 10, w: 600, h: 400)
+        let expectedOld = CropToolRotation.RotatedFrameBridge.rotatedToCrop(
+            refitOld, span: newSpan, w0: 600, h0: 400)
+        let differs = abs(landed.left - Float(expectedOld.x0)) > 1e-6
+            || abs(landed.top - Float(expectedOld.y0)) > 1e-6
+            || abs(landed.right - Float(expectedOld.x1)) > 1e-6
+            || abs(landed.bottom - Float(expectedOld.y1)) > 1e-6
+        XCTAssertTrue(differs, "the untransposed answer provably drifts the window")
+
+        // The full-frame face (the acceptance's near-full case): the unit
+        // rect is transpose-invariant and IS the largest@0° — the refit
+        // regrows the largest@10° and lands it through the same bridge +
+        // transpose (the record stays the exact closed form).
+        let fullBatch = try XCTUnwrap(CropToolRotation.linkedSnapshots(
+            ashift: ashift, crop: crop, rotationDegrees: 10,
+            frameSize: decoded, flip: flipCW))
+        let fullCrop = try XCTUnwrap(
+            fullBatch.first { $0.opName == CropModule.opName })
+        .params(of: CropModule.self)
+        let fullRefit = CropFitAngle.fitRect(
+            w: 600, h: 400, angleDegrees: 10, aspect: 1.5)
+        let fullExpected = transpose(
+            CropToolRotation.RotatedFrameBridge.rotatedToCrop(
+                fullRefit, span: newSpan, w0: 600, h0: 400))
+        XCTAssertEqual(fullCrop.left, Float(fullExpected.x0), accuracy: 1e-6)
+        XCTAssertEqual(fullCrop.top, Float(fullExpected.y0), accuracy: 1e-6)
+        XCTAssertEqual(fullCrop.right, Float(fullExpected.x1), accuracy: 1e-6)
+        XCTAssertEqual(fullCrop.bottom, Float(fullExpected.y1), accuracy: 1e-6)
+    }
+
+    func testMirrorOnlyFlipKeepsTheFunnelAnswer() throws {
+        // The flip's MIRROR half needs no handling (the DECISIONS
+        // algebra): withAngle is equivariant under the frame-centred
+        // mirror, so a non-SWAP_XY orientation answers EXACTLY what the
+        // nil-flip funnel answers — the landed record is byte-identical.
+        let decoded = SIMD2(600.0, 400.0)
+        var cropRec = try XCTUnwrap(crop)
+        try cropRec.setParams(
+            CropModule.Params(left: 0.1, top: 0.2, right: 0.7, bottom: 0.9),
+            as: CropModule.self)
+        var flipH = try XCTUnwrap(flip)
+        try flipH.setParams(
+            FlipModule.Params(orientation: .flipH), as: FlipModule.self)
+
+        let withMirror = try XCTUnwrap(CropToolRotation.linkedSnapshots(
+            ashift: ashift, crop: cropRec, rotationDegrees: 12,
+            frameSize: decoded, flip: flipH))
+        let withoutFlip = try XCTUnwrap(CropToolRotation.linkedSnapshots(
+            ashift: ashift, crop: cropRec, rotationDegrees: 12,
+            frameSize: decoded))
+        XCTAssertEqual(withMirror.count, withoutFlip.count)
+        if withMirror.count == 2 {
+            let a = try withMirror[1].params(of: CropModule.self)
+            let b = try withoutFlip[1].params(of: CropModule.self)
+            XCTAssertEqual(a, b, "the mirror-only flip cancels exactly")
+        }
+    }
 }
