@@ -208,11 +208,18 @@ internal final class PixelPipe: @unchecked Sendable {
     /// never the frame). Set in `run()` alongside `roi`.
     internal var frameROI: ROI = ROI()
 
-    /// The ROI this pipe instance is running at — set by `run`/`runIfDirty`/
-    /// `runOnce` from the image extent + the resolution's long edge (scale-
-    /// at-entry, `pixelpipe_hb.c:1930-1999` mirror: the INPUT plane is
-    /// rendered at the target size, modules see `roi.scale` but stay
-    /// geometry-blind in the pass-through era). `scale < 1.0` on
+    /// The ROI this pipe instance is running at — seeded by
+    /// `run`/`runIfDirty`/`runOnce` from the image extent + the resolution's
+    /// long edge (scale-at-entry, `pixelpipe_hb.c:1930-1999` mirror: the
+    /// INPUT plane is rendered at the target size), then UPDATED by
+    /// `forwardWalk` to the negotiated final ROI (`roiWalk` — the walk's
+    /// output frame, dt `pipe->output_backing_dimensions` semantics).
+    /// R8 fix: before this sync the getter still reported the ENTRY ROI
+    /// after any geometry module ran, so `LayerCompositeDriver.composite`'s
+    /// `window = basePipe.roi` handed every sub-run an entry-shaped ROI
+    /// while the accumulator plane was walked-shaped — the pos-0
+    /// negotiated-ROI precondition fired on the first crop/90°-rotation
+    /// (E-1, `9d1f4fa9` + activated geometry). `scale < 1.0` on
     /// PREVIEW/THUMBNAIL runs; exactly 1.0 on FULL.
     internal private(set) var roi: ROI = ROI()
 
@@ -1028,6 +1035,14 @@ internal final class PixelPipe: @unchecked Sendable {
             levelROI.append(out)
             roiWalk = out
         }
+        // R8 fix (E-1 negotiated-ROI crash): publish the walk's FINAL ROI —
+        // `self.roi` previously stayed at the entry (the `roi = entry` seed
+        // above was the last write), so callers reading `pipe.roi` after a
+        // geometry-negotiated run (LayerCompositeDriver's composite window)
+        // saw the entry frame while the rendered plane was `roiWalk`-shaped.
+        // Identity-geometry chains keep `roiWalk == entry` (zero diff —
+        // every pre-R8 caller on pass-through chains reads the same value).
+        roi = roiWalk
         return roiWalk
     }
 
