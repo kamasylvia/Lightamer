@@ -606,3 +606,125 @@ extension LayerCompositeTests {
             0.3 + 0.3 * Float(x + y) / 54.0)
     }
 }
+
+// MARK: - R8 (E-1): the composite window under activated geometry
+
+extension LayerCompositeTests {
+
+    /// The default chain + an ACTIVATED swap-XY flip (rotCW90): after the
+    /// run, `pipe.roi` must report the NEGOTIATED final frame (the forward
+    /// walk's output ROI), not the entry. Before the R8 fix the getter kept
+    /// the entry value (the `roi = entry` seed inside `forwardWalk` was the
+    /// last write), so the composite window stayed entry-shaped while the
+    /// rendered plane came out walk-shaped — the exact split behind the
+    /// pos-0 `negotiated ROI violated` crash on the first geometry edit
+    /// (R7-ACCEPTANCE-OMP E-1). Probe face: no composite, no precondition —
+    /// the ROI-vs-plane mismatch alone.
+    func testPipeROIReportsNegotiatedFinalFrameAfterSwapXY() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        var chain = await makeCommittedDefaultChain(
+            registry: registry, outputProfile: .sRGB)
+        let flipMade = await registry.makeBox(opName: FlipModule.opName)
+        let flipBox = try XCTUnwrap(flipMade as? ModuleBox<FlipModule>)
+        flipBox.setParams(FlipModule.Params(orientation: .rotCW90))
+        chain.append(flipBox)
+
+        // 48×32 entry; the swap-XY flip transposes the walk (32×48 out).
+        let pipe = PixelPipe(resolution: .preview, cache: PipeCache())
+        let (plane, _) = try await pipe.run(
+            image: makeImage(), instances: chain, metal: metal, longEdge: nil)
+
+        XCTAssertEqual(plane.width, 32)
+        XCTAssertEqual(plane.height, 48)
+        XCTAssertEqual(
+            pipe.roi.width, plane.width,
+            "pipe.roi must report the negotiated final frame, not the entry")
+        XCTAssertEqual(pipe.roi.height, plane.height)
+    }
+
+    /// Same contract on the shrink leg: an ACTIVE crop window (the 25–75%
+    /// center box) shrinks the walk; `pipe.roi` follows it.
+    func testPipeROIReportsNegotiatedFinalFrameAfterCrop() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        var chain = await makeCommittedDefaultChain(
+            registry: registry, outputProfile: .sRGB)
+        let cropMade = await registry.makeBox(opName: CropModule.opName)
+        let cropBox = try XCTUnwrap(cropMade as? ModuleBox<CropModule>)
+        cropBox.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
+        chain.append(cropBox)
+
+        // 48×32 entry; the center crop walks to 24×16.
+        let pipe = PixelPipe(resolution: .preview, cache: PipeCache())
+        let (plane, _) = try await pipe.run(
+            image: makeImage(), instances: chain, metal: metal, longEdge: nil)
+
+        XCTAssertEqual(plane.width, 24)
+        XCTAssertEqual(plane.height, 16)
+        XCTAssertEqual(pipe.roi.width, plane.width)
+        XCTAssertEqual(pipe.roi.height, plane.height)
+    }
+
+    /// The E-1 crash scenario, inverted into a regression: base chain with
+    /// an ACTIVE 90° rotation AND an ACTIVE crop, terminal tail included
+    /// (the composite splits colorout/gamma into the terminal sub-run — the
+    /// leg whose pos-0 precondition fired: window = entry-shaped while the
+    /// accumulator = walk-shaped). After the fix the composite completes
+    /// and stays self-consistent: window == output dims on both runs, and
+    /// an identity layer stays byte-identical to the layerless composite.
+    func testCompositeSurvivesActivatedRotationAndCrop() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        var chain = await makeCommittedDefaultChain(
+            registry: registry, outputProfile: .sRGB)
+        let flipMade = await registry.makeBox(opName: FlipModule.opName)
+        let flipBox = try XCTUnwrap(flipMade as? ModuleBox<FlipModule>)
+        flipBox.setParams(FlipModule.Params(orientation: .rotCW90))
+        chain.append(flipBox)
+        let cropMade = await registry.makeBox(opName: CropModule.opName)
+        let cropBox = try XCTUnwrap(cropMade as? ModuleBox<CropModule>)
+        cropBox.setParams(CropModule.Params(left: 0.25, top: 0.25, right: 0.75, bottom: 0.75))
+        chain.append(cropBox)
+
+        let image = makeImage()
+        let imageID = UUID()
+
+        // Layerless composite (empty stack — the pristine-doc shape).
+        let empty = LayerStack(baseLayer: BackgroundLayer())
+        let baseline = try await LayerCompositeDriver.composite(
+            image: image, imageID: imageID, baseInstances: chain,
+            layerStack: empty, registry: registry, resolution: .preview,
+            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview)
+
+        // The window contract: the negotiated window IS the output plane's
+        // frame (both legs agree — this equality was 24×32-vs-48×32-wrong
+        // before the fix).
+        XCTAssertEqual(baseline.window.width, baseline.output.width)
+        XCTAssertEqual(baseline.window.height, baseline.output.height)
+
+        // Identity layer: zero increment through geometry.
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let identity = ModuleInstance(
+            module: TestGainModule.self, multiPriority: 5,
+            params: TestGainModule.Params(gain: 1.0))
+        stack.addAdjustment(
+            AdjustmentLayer(name: "identity", opacity: 1.0, chain: [identity]))
+        let layered = try await LayerCompositeDriver.composite(
+            image: image, imageID: imageID, baseInstances: chain,
+            layerStack: stack, registry: registry, resolution: .preview,
+            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview)
+
+        XCTAssertEqual(layered.window.width, layered.output.width)
+        XCTAssertEqual(layered.window.height, layered.output.height)
+        assertBytesEqual(
+            rawBytes(layered.output, metal: metal),
+            rawBytes(baseline.output, metal: metal),
+            "identity layer over an activated-geometry base == layerless composite")
+    }
+}
