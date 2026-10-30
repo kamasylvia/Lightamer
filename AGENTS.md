@@ -4,6 +4,7 @@
 
 - **执行 = omp 全包**：research / plan / execute / validate 四阶段与全部修复轮一律 omp 派遣（`omp -p --auto-approve --thinking max "<任务书>"`，key = Infisical `OPENCODE_GO_KEY` + 代理 env 10809，nohup+disown；本机直连可达时剥代理直派，遇 403 RegionError 切代理）。任务书 = 三件套（输入集合 + 变换规则 + 验收清单）落盘 `rN-lane-prompt.md` 正本后 `"$(cat …)"` 注入；纪律项（commit-per-task / 封存面 17 件 / 全套跑法与门 / zh-audit / G4 透明越门先例 / 代理与 SPM 离线先例）逐条写进任务书由 omp 自持。
 - **审核 = zcode subagent 双触**：①**review**——每波 omp 产物由 zcode subagent 独立 review（机检 + 行为级深审 + 反自取消探针，切口刻意与 omp 自验错开）；②**终审**——omp 修复后再审（对照 review 报告逐 finding 核）。review 发现 → 回注 omp 修复（对照输入 = review 报告）→ 终审；error/blocking 同循环加严。
+- **omp 域内自审（2026-10-31 补充，用户令）**：omp 每个执行环节完成后，**先派出自己的 omp subagent 对该环节产物 review**（执行 omp 主体 shell 出一个或多个 `omp -p` 实例作 review lane；隔离白名单 = 禁读执行 lane 中间态只读产物、结论头 `PASS / N error + N minor`、发现回注执行 lane 修复、机器纪律写进 subagent 任务书）——域内自审收敛后才交 zcode 审核。即：**omp 自执行 → omp 自审 → 修复循环 → zcode 审核 → omp 修复 → zcode 终审**。
 - **主 agent（orchestrator）只负责派遣与收割**：任务书落盘、omp nohup 派遣与守望、review lane 派遣、账本/收口 commit、机器 guard 与 G4 门控、对外汇报——**不做任何执行层工作**（不写产线/测试代码，不跑全套替代 omp）。
 - **在飞豁免**：本令生效时在飞的 zcode executor 按在飞纪律跑完（进度保全，勿中途杀）；其后续环节即按本模型走（review = zcode subagent ✓，修复 = omp）。
 - 史注：2026-09-20「执行 = omp」→ 2026-10-16 omp 配额阻塞改 zcode subagent 执行 → 2026-10-19 omp 转全阶段复审眼 → **2026-10-31 反转回 omp 全执行 + zcode 纯审核**（本节；动机含 zcode 额度结构优化——执行层 token 大头移 omp 网关，zcode 只留轻审核面）。
