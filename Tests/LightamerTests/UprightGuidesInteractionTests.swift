@@ -332,6 +332,58 @@ final class UprightGuidesInteractionTests: XCTestCase {
         XCTAssertEqual(m.selected, 0, "the moved guide ends up selected (release-time sync)")
     }
 
+    // MARK: - R7 N-1: the endpoint drag's release IS a commit
+
+    /// M9-3 acceptance N-1 (issue #15): an endpoint drag's release used to
+    /// report `false` (the old release only landed the pending-draw arm),
+    /// so the view's `changed == true` gate never fired, `onCommit` never
+    /// ran, and a drag-then-close lost the moved endpoint (live-only
+    /// forever, no undo step). The release now has the endpoint arm
+    /// symmetric with the draw arm; the second half replays the host's
+    /// commit shape (the UprightGuidesToolHost.onCommit seam) and asserts
+    /// the moved endpoint persists with exactly ONE history item.
+    func testEndpointDragReleaseCommitsThroughTheHostSeam() throws {
+        // the model face: the draw release lands the guide …
+        var m = UprightGuidesModel()
+        XCTAssertTrue(m.press(at: SIMD2(0.2, 0.3)))
+        m.dragTick(at: SIMD2(0.8, 0.3))
+        XCTAssertTrue(m.release(), "the draw release lands the guide")
+        // … the endpoint drag release reports the in-place move (N-1) …
+        XCTAssertTrue(m.press(at: SIMD2(0.8, 0.3)))
+        XCTAssertNotNil(m.dragging)
+        m.dragTick(at: SIMD2(0.85, 0.35))
+        XCTAssertTrue(m.release(), "the endpoint drag's release IS a change")
+        XCTAssertEqual(m.guides[0].bx, 0.85, accuracy: 1e-3)
+        // … and a bare grab with zero movement ticks lands NOTHING (the
+        // dragMoved gate — no phantom identical-params history item).
+        XCTAssertTrue(m.press(at: SIMD2(0.85, 0.35)))
+        XCTAssertNotNil(m.dragging)
+        XCTAssertFalse(m.release(), "a zero-tick grab is not a change")
+        XCTAssertEqual(m.guides[0].bx, 0.85, accuracy: 1e-3, "no move, no change")
+
+        // the host seam: what UprightGuidesToolHost.onCommit does with the
+        // release's list — the moved endpoint reaches the params and lands
+        // exactly ONE history item (the persistence face the old code
+        // skipped: closing the image right after the drag lost the move).
+        let editorState = EditorState()
+        editorState.resetHistoryForNewImage(defaultInstances: [
+            ModuleInstance(module: UprightModule.self, params: UprightModule.Params()),
+        ])
+        let record = try XCTUnwrap(
+            editorState.instances.first { $0.opName == UprightModule.opName })
+        var snapshot = record
+        var params = try record.params(of: UprightModule.self)
+        params.guides = m.guides
+        try snapshot.setParams(params, as: UprightModule.self)
+        editorState.recordChange(snapshot, label: "history_upright_guides")
+        XCTAssertEqual(editorState.history.items.count, 1)
+        let live = try XCTUnwrap(
+            editorState.instances.first { $0.opName == UprightModule.opName })
+        let stored = try live.params(of: UprightModule.self).guides
+        XCTAssertEqual(stored.count, 1)
+        XCTAssertEqual(stored[0].bx, 0.85, accuracy: 1e-3, "the moved endpoint persisted")
+    }
+
     // MARK: - M-2: the cap-refusal toast face (the plan AC)
 
     /// The overlay reports the refused 5th draw through `onRefused` and
