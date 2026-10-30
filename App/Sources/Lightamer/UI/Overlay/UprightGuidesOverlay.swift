@@ -40,6 +40,11 @@ struct UprightGuidesModel: Equatable {
     var pending: UprightModule.Guide? = nil
     /// The in-flight endpoint drag (guide index + which end: 0 = a, 1 = b).
     var dragging: DragTarget? = nil
+    /// Whether the active endpoint drag actually moved its endpoint (the
+    /// commit gate — R7 N-1, issue #15): a bare grab with zero movement
+    /// ticks is not a change, so its release lands NO history item (the
+    /// zero-length draw press has the same face).
+    var dragMoved: Bool = false
 
     /// The drag target (a struct — tuples carry no Equatable synthesis).
     struct DragTarget: Equatable, Sendable {
@@ -89,6 +94,7 @@ struct UprightGuidesModel: Equatable {
     @discardableResult
     mutating func press(at pRaw: SIMD2<Double>) -> Bool {
         let p = Self.clamped(pRaw)
+        dragMoved = false
         if let hit = endpointHit(at: p) {
             dragging = hit
             selected = hit.index
@@ -126,15 +132,25 @@ struct UprightGuidesModel: Equatable {
                 g.by = p.y
             }
             guides[drag.index] = g
+            dragMoved = true
         }
     }
 
     /// Release: commit the pending guide into the list (the caller turns
     /// the whole list into the ONE history item). A zero-length press (no
-    /// drag) is NOT a guide. Returns whether the list changed.
+    /// drag) is NOT a guide. R7 N-1 (issue #15): an endpoint drag is the
+    /// release's SECOND landing arm — the ticks mutated `guides` in place
+    /// while the live window streamed them, so the release must report the
+    /// change or the host never commits and a drag-then-close loses the
+    /// move (the old `return false` left endpoint drags live-only forever).
+    /// A bare grab whose ticks never moved the endpoint lands nothing (the
+    /// `dragMoved` gate — no phantom identical-params history item).
+    /// Returns whether the list changed.
     @discardableResult
     mutating func release() -> Bool {
+        let endpointDragLanded = dragging != nil && dragMoved
         dragging = nil
+        dragMoved = false
         if let draw = pending {
             pending = nil
             let dx = draw.bx - draw.ax
@@ -143,7 +159,7 @@ struct UprightGuidesModel: Equatable {
             guides.append(draw)
             return true
         }
-        return false
+        return endpointDragLanded
     }
 
     // MARK: - selection (UI-only) + delete
@@ -190,6 +206,7 @@ struct UprightGuidesModel: Equatable {
         selected = nil
         pending = nil
         dragging = nil
+        dragMoved = false
     }
 }
 
