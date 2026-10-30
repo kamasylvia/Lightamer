@@ -430,3 +430,8 @@ filmSimulationCount / "Film simulation" 分类 = LUT 库子类）+ post-process 
 颗粒滑杆（`EditorPostProcessPanel.qml:147-301` film_grain strength）。
 **无**阶段分离物理模型、**无**配光求解、**无**宽容度/置位教导面——
 V2-PROPOSAL.md:50 「Alcedo 无此面 = 差异化卖点」经源码核对成立。
+
+### 上游增量登记（2026-10-31 复查）
+
+- **Python 参考仓（andreavolpato/spektrafilm）**：无更新——最新 commit 2026-06-07（`3bb2c2d` vlog midgray exposure），最新 tag v0.3.3（2026-05-31）；我方快照（2026-10-13 同步）已在其最新态。零行动。
+- **darktable 侧 spektrafilm 族**（master 已全同步）：2026-10 下旬新增**宽模糊抽稀优化族**——diffusion/halation 的大半径 blur 拆双 kernel + 抽稀 + 递归路径宽度匹配（`4d1fb6a95b`/`9fd80e6db3`/`24109e85c1`/`bb3e11cd48` OpenCL 清理）。**价值登记**：M8 挂账族（halation/diffusion，D-M8-4 空间族）立项时的**性能配方参照**——大半径模糊的抽稀决策与宽度匹配已由上游解决，届时按 M8 零新 kernel 红线语境评估移植/自研。dt 侧频次参照先例：2026-10-13 登记 16 commits。
