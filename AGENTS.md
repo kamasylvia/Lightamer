@@ -1,15 +1,16 @@
 <!-- GSD:project-start source:PROJECT.md -->
 
-## Phase 执行模型（2026-10-21 瘦身批改写；制度变更史见 git log 与各专节）
+## Phase 执行模型（**2026-10-31 用户令：派遣阵容反转——omp 全执行，zcode 纯审核**；此前制度见史注与「全阶段 omp 复审」历史节）
 
-- **执行**：general-purpose subagent executor——按 plan 文件任务序推进（read_first → action → 验收标准逐条核验）、每任务独立提交（Conventional Commits，只 add 相关文件）、重活 `caffeinate -dis` 包裹；测试标准命令 = `Scripts/test-direct.sh`（直启宿主；全套 `--all` 须 orchestrator 预批 + machine-guard）。
-- **验收**：双路 zcode 独立验收（串行，机器级单重活制）→ **omp 二次验收**（严格串行独占，computer-use）——详见「全阶段 omp 复审」与「机器级并发上限」两节。
-- **编排**：omp/巡检运行期不重复启动同一 plan；暂停与门控见「暂停机制」节；人工只处理 GOAL-STATE「阻塞（需人工）」章节登记的事项。
-- （史注：2026-09-20 版「执行 = omp」制度自 2026-10-16 起 omp 配额阻塞由 zcode subagent 替代；2026-10-19 起 omp 转任全阶段复审眼。）
+- **执行 = omp 全包**：research / plan / execute / validate 四阶段与全部修复轮一律 omp 派遣（`omp -p --auto-approve --thinking max "<任务书>"`，key = Infisical `OPENCODE_GO_KEY` + 代理 env 10809，nohup+disown；本机直连可达时剥代理直派，遇 403 RegionError 切代理）。任务书 = 三件套（输入集合 + 变换规则 + 验收清单）落盘 `rN-lane-prompt.md` 正本后 `"$(cat …)"` 注入；纪律项（commit-per-task / 封存面 17 件 / 全套跑法与门 / zh-audit / G4 透明越门先例 / 代理与 SPM 离线先例）逐条写进任务书由 omp 自持。
+- **审核 = zcode subagent 双触**：①**review**——每波 omp 产物由 zcode subagent 独立 review（机检 + 行为级深审 + 反自取消探针，切口刻意与 omp 自验错开）；②**终审**——omp 修复后再审（对照 review 报告逐 finding 核）。review 发现 → 回注 omp 修复（对照输入 = review 报告）→ 终审；error/blocking 同循环加严。
+- **主 agent（orchestrator）只负责派遣与收割**：任务书落盘、omp nohup 派遣与守望、review lane 派遣、账本/收口 commit、机器 guard 与 G4 门控、对外汇报——**不做任何执行层工作**（不写产线/测试代码，不跑全套替代 omp）。
+- **在飞豁免**：本令生效时在飞的 zcode executor 按在飞纪律跑完（进度保全，勿中途杀）；其后续环节即按本模型走（review = zcode subagent ✓，修复 = omp）。
+- 史注：2026-09-20「执行 = omp」→ 2026-10-16 omp 配额阻塞改 zcode subagent 执行 → 2026-10-19 omp 转全阶段复审眼 → **2026-10-31 反转回 omp 全执行 + zcode 纯审核**（本节；动机含 zcode 额度结构优化——执行层 token 大头移 omp 网关，zcode 只留轻审核面）。
 
-## 全阶段 omp 复审（2026-10-19 用户指令，强制）
+## 全阶段 omp 复审（2026-10-19 用户指令设立；**2026-10-31 起废止——omp 转任执行者，四阶段复审角色由 zcode subagent 接管**，见「Phase 执行模型」；本节保留为历史制度记录）
 
-每个 GSD 阶段产物定稿后，由 omp 做一轮**独立复审**（config.toml [gsd] `stage_review_by_omp = true`）：research 定稿后（assumptions/覆盖面/证据抽查）→ plan 定稿后（可执行性/坐标/红线；即 `plan_review_by_omp` 的全阶段化）→ execute 闭环后（omp 二次验收 = `dual_acceptance` 原制度，zcode PASS 后**严格串行**）→ validate/VALIDATION 后（复核）。复审形态分三档（2026-10-19 用户纠偏）：research/plan = **纯文本读评**（明令禁启 computer-use；需 GUI 验证的内容让渡 execute/validate 道），可并行；execute 二次验收 = computer-use 形态，严格串行（原 dual_acceptance 硬约束不变）；validate 复核 = **computer-use 类**（实机抽验职责），串行且持 GUI 互斥——与一切 GUI 驱动活动（其它 omp 实例/executor 探针窗/验收走查）互斥排程，两个并发 = 禁止。复审调 omp -p --thinking max，key = Infisical `OPENCODE_GO_KEY` + 代理 env 10809，nohup+disown；结论落 `<产物名>-REVIEW-OMP.md` / `-ACCEPTANCE-OMP.md`，blocking 级回注该阶段修复轮。omp 用后 `px --stop`。
+（历史原文：2026-10-19 至 2026-10-31 期间，research 定稿后 omp 读评 → plan 定稿后 omp 可执行性审 → execute 后 omp 二次验收（dual_acceptance，zcode PASS 后严格串行 computer-use）→ VALIDATION 后 omp 复核；三档形态与 GUI 互斥排程详见 git 历史版本。复审调用形（key/代理/nohup/结论落盘命名）延续适用于现模型 omp 执行派遣。）
 
 ## 资源监控（2026-09-29 用户指令，强制）
 
