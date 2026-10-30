@@ -235,7 +235,7 @@ APP	9	SettingsPagesTests.swift
 APP	10	SidecarV5Tests.swift
 APP	8	DrtSidecarTests.swift
 APP	7	DrtPersistenceTests.swift
-APP	9	DrtPanelModelTests.swift
+APP	11	DrtPanelModelTests.swift
 APP	7	DrtViewportTests.swift
 APP	7	RasterEditFaceTests.swift
 APP	5	RasterHdrViewportTests.swift
@@ -324,7 +324,7 @@ APP	8	SidecarV7Tests.swift
 APP	11	VersionSwapTests.swift
 APP	5	VersionsPanelTests.swift
 APP	7	HistoryRowJumpTests.swift
-APP	8	AdjustmentTransferTests.swift
+APP	9	AdjustmentTransferTests.swift
 APP	3	CleanTerminateSentinelTests.swift
 #   M6-4-02 T4（2026-10-14，登记随文件同 commit）：App patch/羽化流 4 法入 APP。
 APP	4	AIMaskPatchFlowTests.swift
@@ -902,7 +902,7 @@ LIB	3	SidecarV12Tests.swift
 IOPP	5	BWSpectralGoldenTests.swift
 IOPP	4	FilterBakeKeyTests.swift
 IOPP	2	GrainCalibrationSemanticsTests.swift
-APP	5	FilmPanelBWTests.swift
+APP	6	FilmPanelBWTests.swift
 # M9-3 增行记录（2026-10-27 执行期，checker E2 测试登记纪律）：新测试文件随任务
 #   commit 登记进对应 bundle（归属：UprightMath/CropFitAngle = IOP Core 纯函数
 #   域，HomographyTests 同位；T2 UprightModuleParityTests = IOPP——AshiftParity
@@ -913,8 +913,8 @@ IOP	5	UprightMathTests.swift
 IOP	2	CropFitAngleTests.swift
 IOPP	4	UprightModuleParityTests.swift
 IOP	2	StraightenDetectTests.swift
-APP	7	CropToolRotationTests.swift
-APP	8	UprightGuidesInteractionTests.swift
+APP	9	CropToolRotationTests.swift
+APP	9	UprightGuidesInteractionTests.swift
 # M9-3 修复轮增行（2026-10-29，lane-2 E-1/M-1/M-2/M-3 修复批）：法数 5→7 /
 #   6→8（CropToolRotationTests +2 = commitFrameSize 域胜出面 + 二次提交落闭式
 #   直解；UprightGuidesInteractionTests +3 = post-upright display 腿真链域法 +
@@ -935,3 +935,8 @@ IOPP	4	ProcessForkCacheKeyTests.swift
 IOP	6	LutEncodingExpansionTests.swift
 APP	4	ProcessMigrationGateTests.swift
 APP	4	SmallPoolUITests.swift
+# R7 修复批增行（2026-10-31，M9 站后尾项清偿，issue #15）：法数 FilmPanelBWTests 5→6（纸切换 grade 清键门法）+ DrtPanelModelTests
+#   9→11（读链初值语义法 + 方法切换 sections 联动法）/ AdjustmentTransferTests
+#   8→9（raster 资产引用门清扫法）/ CropToolRotationTests 7→9（SWAP_XY 转置闭式
+#   法 + 纯镜像抵消法）/ UprightGuidesInteractionTests 8→9（端点拖拽 release
+#   提交缝法）。本轮全套预期 4435/34/0（基线 4428 + Δ7）。
