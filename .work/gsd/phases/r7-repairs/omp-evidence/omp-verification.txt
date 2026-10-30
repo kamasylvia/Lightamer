@@ -1,0 +1,43 @@
+R7 omp 实机终审原始观测（逐值）
+审期：2026-10-31 05:06 → 06:10。HEAD=53dfac7e。binary mtime 05:11:25 > 236cd50b(03:27:08) ✓
+
+【构建】xcodebuild build Debug -disableAutomaticPackageResolution → BUILD SUCCEEDED（build.log）。
+  基线对照：worktree f783f1c3 + tuist generate + 同参数 → BUILD SUCCEEDED（容器 Lightamer-r7baseline）。
+
+【T1】r7-raster.tif（1200x900 sRGB）Guided 画线 → 端点拖(560,540)->(720,540)：
+  拖前 guides=[{ax:0.29534883720930233, ay:0.3116279069767442, bx:0.29534883720930233, by:0.6305647840531562}]
+  拖后 items 3->4，「Upright 导线」bx=0.5079734219269103（位移+0.2126），ay/by 不动。
+  quit→重开：items 4/position 3，末 item guides 逐值存活，面板「导线：1」。
+  （t1-after-drag.lra.json / t1-endpoint-dragged.png / t1-relaunch-survived.png）
+
+【T2】BLOCKED——几何编辑即崩（negotiated ROI violated at pos 0）：
+  崩1 HEAD CW90（r7-b.ARW pristine）：roiOut=1840x1227 neg=1840x1227 upstream=1227x1840。
+  崩2 HEAD CCW90：同签名。
+  崩3 基线f783f1c3 rotCW90（popup pick 7）：同签名 → R7 外既有缺陷。
+  崩4 HEAD rot180+flipV 存活，crop.left=0.1 即崩：upstream=1656x1227=1840*0.9（crop 窗被当整面）。
+  崩5 HEAD crop-only left=0.1：同崩4签名。
+  崩6 HEAD crop-only left=0.05：upstream=1748x1227=1840*0.95。
+  对照：tint 滑杆点值提交存活（pointwise 面正常）。
+  flipV/rot180 提交存活（sidecar orientation=3 落盘）→ 非 SWAP 几何提交面正常。
+  （t2-crash-*.ips 六份）
+
+【T3】pristine RAW r7-a.ARW DRT 页首显：100 nits（t3-pristine-peak100.png）。
+  方法切换 radio[1]->radio[0]（OpenDRT→ACES 2.0）：sections Look/Tonescale/Creative White→限色空间（t3-aces-sections.png）。
+  切回 radio[1]：sections 复原；sidecar 落 2×「切换显示变换方法」（method aces_2_0→open_drt）。
+  HDR raster r7-hdr.tif（pq-cicp-16）：首显 1000 nits + 方法 aces_2_0 + 限色空间（t3-hdr-seed1000.png）。
+  SDR raster r7-raster.tif：首显 100 nits（= sdrPeakNits）。
+
+【T4】
+  第5导线：导线：4 后再画 → 仍 4 + status_toast「已达导线上限——最多四条。」（t4-cap-toast.png）。
+  paste 活引用：transfer dialog 实机开启（0个调色/1项显示变换，t4-transfer-dialog.png）；
+    AI bake 三次零落盘（hasSelection 门 + 多实例 picker 未出现 + 无 toast/无 .masks），同源再 paste 未能实机闭环。
+    源码复核：pasteChain captureActiveChain（VersionCoordinator.swift:289→:410-415）值拷贝原链进 slot；
+    清扫 chains=[history]+slots（AdjustmentTransferView.swift:308-309）含捕获链 → 同图 paste 恒 no-op。裁决成立。
+  paper 清键：setPaperStock 同 commit 内 gradedBW 不成立→paperGrade=nil（FilmPanelModel.swift:336-348）；
+    两次 nodes 面板导航期 NSGenericException 崩（NSSplitViewItem _setCollapsed 路径，t4-crash-layout-*.ips），面板点击未达。
+    回归 testPaperSwitchClearsGradeOnlyOnNonGradedPaper（保留/清除/单 commit/items+1/landed nil）全套绿 = 机制证据。
+
+【对账】
+  m-1：MAP:238 DrtPanelModelTests=11 vs 文件 13 法；MAP:327 AdjustmentTransferTests=9 vs 文件 10 法；
+    git 基线 f783f1c3 两行 = 9/8。R7 增行§（939-942）写 9→11/8→9 = 在旧账上 +Δ 继承滞后。验收 §九计数（基线 11/9、HEAD 13/10）逐值成立。
+  obs-1/2/3：纯观察登记，零动作面；本轮 T2 崩溃是 obs-1 域外新发现（几何链崩溃，非浮点措辞）。
