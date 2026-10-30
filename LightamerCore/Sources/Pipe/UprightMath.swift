@@ -70,10 +70,6 @@ public enum UprightMath {
             return (d.x * d.x + d.y * d.y).squareRoot()
         }
 
-        var midpoint: SIMD2<Double> {
-            SIMD2((a.x + b.x) / 2, (a.y + b.y) / 2)
-        }
-
         /// Homogeneous line through the endpoints, normalized so (l0, l1)
         /// is a unit normal (upstream `Segment::line`).
         var lineComponents: [Double] {
@@ -109,20 +105,6 @@ public enum UprightMath {
     }
 
     // MARK: - Vanishing points
-
-    /// Angular error (radians) between a segment and the direction from its
-    /// midpoint to the (homogeneous) point `v` (upstream `vp_error`).
-    static func vpError(_ s: Segment, _ v: [Double]) -> Double {
-        let m = s.midpoint
-        let dx = v[0] - m.x * v[2]
-        let dy = v[1] - m.y * v[2]
-        let sx = s.b.x - s.a.x
-        let sy = s.b.y - s.a.y
-        let d = (dx * dx + dy * dy).squareRoot()
-        if d < 1e-12 { return 0 }
-        let c = min(abs((dx * sx + dy * sy) / (d * max((sx * sx + sy * sy).squareRoot(), 1e-12))), 1.0)
-        return acos(c)
-    }
 
     /// Smallest eigenvector of a symmetric 3×3 matrix (Jacobi rotations;
     /// upstream `smallest_eigvec` — 50 rounds, convergence 1e-15).

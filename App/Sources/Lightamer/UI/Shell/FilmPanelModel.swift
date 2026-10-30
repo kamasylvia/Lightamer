@@ -325,9 +325,26 @@ final class FilmPanelModel {
         commit({ $0.filmStock = id }, label: String(localized: "history_film_material"))
     }
 
-    /// Paper stock switch — ONE discrete commit.
+    /// Paper stock switch — ONE discrete commit. R7 hygiene (M9-2
+    /// obs-omp3, issue #15): the grade key is a graded-BW-paper parameter
+    /// — a switch onto a paper without the graded face clears it in the
+    /// SAME commit, so the sidecar never carries a `paper_grade` the bound
+    /// paper cannot consume (the consumption gate made the stale key
+    /// render-neutral; this makes the record honest at the source). A
+    /// switch between graded BW papers keeps the grade (the ladder keys
+    /// are shared).
     func setPaperStock(_ id: String) {
-        commit({ $0.paperStock = id }, label: String(localized: "history_film_material"))
+        commit({ record in
+            record.paperStock = id
+            let gradedBW = pipeCoordinator?.filmMaterialStore?.profile(id: id).map {
+                paper in
+                paper.info.channelModel == "bw"
+                    && !PaperGradeTable.cachedTable(paper: paper).isEmpty
+            } ?? false
+            if !gradedBW {
+                record.paperGrade = nil
+            }
+        }, label: String(localized: "history_film_material"))
     }
 
     /// The content-adaptive offset arm — ONE discrete commit (default off =

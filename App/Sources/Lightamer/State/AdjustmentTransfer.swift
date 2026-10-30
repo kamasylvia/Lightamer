@@ -189,8 +189,10 @@ enum AdjustmentTransferCatalog {
     /// the pasted layer's mask (the raster dies; drawn/parametric
     /// payloads survive — a mask left with no payload drops entirely).
     /// The skip list lands in `excludedAIMasks` (the toast/note face).
-    /// THE ONE PREDICATE: `isAIMaskSpec` — no second copy of the
-    /// recognition logic anywhere.
+    /// THE ONE PREDICATE: `AIMaskSource.source(ofFileName:) != nil` — no
+    /// second copy of the recognition logic anywhere. (R7 hygiene: the
+    /// comment used to name a nonexistent `isAIMaskSpec` — the predicate
+    /// lives on `AIMaskSource`.)
     static func buildPayload(
         layerSnapshots: [LayerStackSnapshot.Layer],
         items: [UUID: [TransferItem]],

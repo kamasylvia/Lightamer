@@ -298,6 +298,26 @@ struct AdjustmentTransferView: View {
                         name: String(
                             localized: "transfer_pasted_version_name",
                             defaultValue: "Pasted adjustments"))
+                    // R7 hygiene (M9-1 o-omp3, issue #15): the excluded AI
+                    // raster assets get a reference-checked sweep — a file
+                    // whose LAST reference died with this paste is
+                    // reclaimed; a same-image paste keeps it (the captured
+                    // source version still references it, so the sweep
+                    // no-ops there). External-file sources keep their
+                    // assets (their version state is not this app's
+                    // in-memory truth — the reachability collector's face).
+                    if !payload.excludedAIMasks.isEmpty,
+                        case .currentImage = model.source,
+                        let ownerURL = editorState.loadedImageURL
+                    {
+                        let chains = [editorState.history]
+                            + versions.slots.compactMap { $0.chain }
+                        for fileName in payload.excludedAIMasks {
+                            RasterMaskStore.removeAssetIfUnreferenced(
+                                fileName: fileName, forImageURL: ownerURL,
+                                chains: chains)
+                        }
+                    }
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)

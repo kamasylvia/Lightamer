@@ -530,4 +530,68 @@ final class AdjustmentTransferTests: XCTestCase {
         XCTAssertNil(filtered.drtRecord, "includeDrt=false drops the row")
         XCTAssertNil(filtered.snapshot?.layers[0].mask?.contentRevision)
     }
+
+    // MARK: - R7 hygiene (M9-1 o-omp3, issue #15): the asset sweep
+
+    /// The paste-exclusion sweep's reference gate: a baked AI-mask asset
+    /// is deleted ONLY when no HistoryStack in the app's chains still
+    /// references the file name. The three faces: a live reference keeps
+    /// the file (the same-image paste's captured version — the M9-1
+    ///「孤儿留存」observation was THIS reference, not a true orphan), a
+    /// dead-reference asset is reclaimed, and a missing file is silent.
+    func testRasterAssetSweepRespectsTheReferenceGate() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("r7-sweep-\(UUID().uuidString)", isDirectory: true)
+        let imageURL = dir.appendingPathComponent("photo.arw")
+        let masksDir = RasterMaskStore.masksDirectory(forImageURL: imageURL)
+        try FileManager.default.createDirectory(at: masksDir, withIntermediateDirectories: true)
+        let fileName = "ai-subject-\(UUID().uuidString).png"
+        try Data([0x89]).write(to: masksDir.appendingPathComponent(fileName))
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        // A chain whose stack snapshot carries the raster reference.
+        func chain(referencing name: String?) -> HistoryStack {
+            var layer = AdjustmentLayer(id: UUID(), name: "L")
+            layer.mask = MaskSpec(
+                raster: name.map {
+                    RasterMaskRef(fileName: $0, maskHash: 1, invert: false)
+                })
+            let snapshot = LayerStackSnapshot(layers: [.init(layer)])
+            var stack = HistoryStack()
+            let seed = ModuleInstance(
+                module: ExposureModule.self, params: ExposureModule.Params())
+            stack.commit(
+                seed, label: "structure", layerScope: EditorStructureScope.marker,
+                stackSnapshot: snapshot)
+            return stack
+        }
+
+        // ① A live reference (any chain, any item depth) keeps the file.
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: masksDir.appendingPathComponent(fileName).path))
+        XCTAssertFalse(
+            RasterMaskStore.removeAssetIfUnreferenced(
+                fileName: fileName, forImageURL: imageURL,
+                chains: [chain(referencing: fileName)]),
+            "the referenced asset is kept (the captured-version face)")
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: masksDir.appendingPathComponent(fileName).path))
+
+        // ② Zero references (the paste whose exclusion was the last
+        // consumer) reclaim the asset.
+        XCTAssertTrue(
+            RasterMaskStore.removeAssetIfUnreferenced(
+                fileName: fileName, forImageURL: imageURL, chains: []),
+            "the unreferenced asset is reclaimed")
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: masksDir.appendingPathComponent(fileName).path))
+
+        // ③ A missing file is a silent false (hygiene never errors).
+        XCTAssertFalse(
+            RasterMaskStore.removeAssetIfUnreferenced(
+                fileName: fileName, forImageURL: imageURL, chains: []))
+    }
 }
