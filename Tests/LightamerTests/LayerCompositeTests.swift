@@ -728,3 +728,396 @@ extension LayerCompositeTests {
             "identity layer over an activated-geometry base == layerless composite")
     }
 }
+// MARK: - R9 (M-1): the transposed-frame pointwise contract (flat × composite)
+
+extension LayerCompositeTests {
+
+    /// The FLAT path's film-off face: identity geometry vs CW90 through
+    /// RenderPipeline.process, no film policy. The film chain is POINTWISE
+    /// (per-pixel table lookups) — after the transpose the same source
+    /// pixel must produce the same output value at its mapped destination
+    /// (tolerance = the 8-bit tail face). The flat film-on twin lives in
+    /// FilmLegTests (the R9 probe pair).
+    func testFlatFilmOffTransposedFrameMatchesTheUntransposedLookup() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = makeImage()
+        let imageID = UUID()
+        let base = try await makeBaseInstances(registry: registry, baseGain: 1.0)
+        let (refTex, _) = try await RenderPipeline.process(
+            image: image, instances: base, imageID: imageID,
+            resolution: .preview, cache: PipeCache(), metal: metal,
+            longEdge: nil)
+        let flipMade = await registry.makeBox(opName: FlipModule.opName)
+        let flipBox = try XCTUnwrap(flipMade as? ModuleBox<FlipModule>)
+        flipBox.setParams(FlipModule.Params(orientation: .rotCW90))
+        let geoBase = (base + [flipBox]).sorted {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+        let (outTex, _) = try await RenderPipeline.process(
+            image: image, instances: geoBase, imageID: imageID,
+            resolution: .preview, cache: PipeCache(), metal: metal,
+            longEdge: nil)
+        XCTAssertEqual(refTex.width, 48, "identity frame")
+        XCTAssertEqual(outTex.width, 32, "CW90 swapped the flat frame")
+        XCTAssertEqual(outTex.height, 48)
+        let refFloats = Self.expandToFloats(refTex, metal: metal)
+        let outFloats = Self.expandToFloats(outTex, metal: metal)
+        var maxDelta: Float = 0
+        for oy in 0..<48 {
+            for ox in 0..<32 {
+                let src = FlipOrientation.inputXY(
+                    x: ox, y: oy, ow: 32, oh: 48, orientation: .rotCW90)
+                for c in 0..<3 {
+                    let refValue = refFloats[(src.y * 48 + src.x) * 4 + c]
+                    let outValue = outFloats[(oy * 32 + ox) * 4 + c]
+                    maxDelta = max(maxDelta, abs(outValue - refValue))
+                }
+            }
+        }
+        print("R9MARGIN|flat-film-off|maxDelta=\(maxDelta)")
+        XCTAssertLessThan(
+            maxDelta, 0.02,
+            "flat film-off transposed output must match the pointwise lookup (max Δ \(maxDelta))")
+    }
+
+    /// The COMPOSITE path's film-on face, EMPTY stack: the terminal leg
+    /// carries the film policy (no layer legs run). The pointwise
+    /// contract under CW90 — this is the production face the R8 M-1
+    /// walkthrough exercised (the layered default stack always routes
+    /// through the driver).
+    func testCompositeFilmOnEmptyStackTransposedMatchesUntransposed() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = makeImage()
+        // Order-isolation (the BW golden setUp precedent): the
+        // process-wide solve cache is keyed pair ⊕ stats ⊕ mode — an
+        // earlier test's same-key entry would satisfy this run.
+        FilmSolveCache.shared.invalidateAll()
+        let imageID = UUID()
+        let store = try FilmMaterialStore(
+            profilesDirectory: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Resources/FilmProfiles/profiles"))
+        let film = try XCTUnwrap(store.profile(id: "kodak_portra_400"))
+        let paper = try XCTUnwrap(store.profile(id: "kodak_portra_endura"))
+        var record = FilmRecord()
+        record.filmStock = film.info.stock ?? ""
+        record.paperStock = paper.info.stock ?? ""
+        let filmTail = FilmTailParams(
+            record: record, filmProfile: film, paperProfile: paper,
+            materialPairHash: FilmMaterialStore.materialPairHash(film: film, paper: paper))
+        let process = RenderProcessVersion(rawValue: 1)!
+
+        let empty = LayerStack(baseLayer: BackgroundLayer())
+        let base = try await makeBaseInstances(registry: registry, baseGain: 1.0)
+        let ref = try await LayerCompositeDriver.composite(
+            image: image, imageID: imageID, baseInstances: base,
+            layerStack: empty, registry: registry, resolution: .preview,
+            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview, filmTail: filmTail, renderProcess: process)
+
+        let flipMade = await registry.makeBox(opName: FlipModule.opName)
+        let flipBox = try XCTUnwrap(flipMade as? ModuleBox<FlipModule>)
+        flipBox.setParams(FlipModule.Params(orientation: .rotCW90))
+        let geoBase = (base + [flipBox]).sorted {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+        let out = try await LayerCompositeDriver.composite(
+            image: image, imageID: imageID, baseInstances: geoBase,
+            layerStack: LayerStack(baseLayer: BackgroundLayer()),
+            registry: registry, resolution: .preview,
+            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview, filmTail: filmTail, renderProcess: process)
+
+        XCTAssertEqual(ref.output.width, 48, "identity frame")
+        XCTAssertEqual(out.output.width, 32, "CW90 swapped the composite frame")
+        XCTAssertEqual(out.output.height, 48)
+        let refFloats = Self.expandToFloats(ref.output, metal: metal)
+        let outFloats = Self.expandToFloats(out.output, metal: metal)
+        var nanCount = 0
+        var maxDelta: Float = 0
+        for oy in 0..<48 {
+            for ox in 0..<32 {
+                let src = FlipOrientation.inputXY(
+                    x: ox, y: oy, ow: 32, oh: 48, orientation: .rotCW90)
+                for c in 0..<3 {
+                    let refValue = refFloats[(src.y * 48 + src.x) * 4 + c]
+                    let outValue = outFloats[(oy * 32 + ox) * 4 + c]
+                    if outValue.isNaN { nanCount += 1 }
+                    maxDelta = max(maxDelta, abs(outValue - refValue))
+                }
+            }
+        }
+        XCTAssertEqual(nanCount, 0, "NaN in the empty-stack transposed film output")
+        print("R9MARGIN|empty-film-on|maxDelta=\(maxDelta)")
+        XCTAssertLessThan(
+            maxDelta, 0.02,
+            "empty-stack film-on transposed output must match the pointwise lookup (max Δ \(maxDelta))")
+    }
+
+    /// The COMPOSITE path's film-off face: one identity adjustment layer,
+    /// no film policy. The pointwise contract under CW90 — the control
+    /// leg proving the composite path itself registers correctly under
+    /// geometry (a film-on red with this green = the film leg's defect).
+    func testCompositeFilmOffTransposedFrameMatchesTheUntransposedLookup() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = makeImage()
+        let imageID = UUID()
+
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        stack.addAdjustment(layerWithGain(1.0))
+        let base = try await makeBaseInstances(registry: registry, baseGain: 1.0)
+        let ref = try await LayerCompositeDriver.composite(
+            image: image, imageID: imageID, baseInstances: base,
+            layerStack: stack, registry: registry, resolution: .preview,
+            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview)
+
+        let flipMade = await registry.makeBox(opName: FlipModule.opName)
+        let flipBox = try XCTUnwrap(flipMade as? ModuleBox<FlipModule>)
+        flipBox.setParams(FlipModule.Params(orientation: .rotCW90))
+        let geoBase = (base + [flipBox]).sorted {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+        var geoStack = LayerStack(baseLayer: BackgroundLayer())
+        geoStack.addAdjustment(layerWithGain(1.0))
+        let out = try await LayerCompositeDriver.composite(
+            image: image, imageID: imageID, baseInstances: geoBase,
+            layerStack: geoStack, registry: registry, resolution: .preview,
+            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview)
+
+        XCTAssertEqual(ref.output.width, 48, "identity frame")
+        XCTAssertEqual(out.output.width, 32, "CW90 swapped the composite frame")
+        XCTAssertEqual(out.output.height, 48)
+        let refFloats = Self.expandToFloats(ref.output, metal: metal)
+        let outFloats = Self.expandToFloats(out.output, metal: metal)
+        var maxDelta: Float = 0
+        for oy in 0..<48 {
+            for ox in 0..<32 {
+                let src = FlipOrientation.inputXY(
+                    x: ox, y: oy, ow: 32, oh: 48, orientation: .rotCW90)
+                for c in 0..<3 {
+                    let refValue = refFloats[(src.y * 48 + src.x) * 4 + c]
+                    let outValue = outFloats[(oy * 32 + ox) * 4 + c]
+                    maxDelta = max(maxDelta, abs(outValue - refValue))
+                }
+            }
+        }
+        print("R9MARGIN|composite-film-off|maxDelta=\(maxDelta)")
+        XCTAssertLessThan(
+            maxDelta, 0.02,
+            "composite transposed film-off output must match the pointwise lookup (max Δ \(maxDelta))")
+    }
+
+    /// The COMPOSITE path's film-on face, LAYERED: base chain + an
+    /// ACTIVATED rotCW90 + one identity adjustment layer + the
+    /// resolved-materials film leg on the DENSITY arm. The pointwise
+    /// contract under CW90 — the exact production shape the R8 M-1
+    /// walkthrough exercised (default stack「调整 1」+ film + CW90).
+    func testCompositeFilmTransposedFrameMatchesTheUntransposedLookup() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = makeImage()
+        // Order-isolation (the BW golden setUp precedent): see the
+        // empty-stack twin above.
+        FilmSolveCache.shared.invalidateAll()
+        let imageID = UUID()
+        let store = try FilmMaterialStore(
+            profilesDirectory: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Resources/FilmProfiles/profiles"))
+        let film = try XCTUnwrap(store.profile(id: "kodak_portra_400"))
+        let paper = try XCTUnwrap(store.profile(id: "kodak_portra_endura"))
+        var record = FilmRecord()
+        record.filmStock = film.info.stock ?? ""
+        record.paperStock = paper.info.stock ?? ""
+        let filmTail = FilmTailParams(
+            record: record, filmProfile: film, paperProfile: paper,
+            materialPairHash: FilmMaterialStore.materialPairHash(film: film, paper: paper))
+        let process = RenderProcessVersion(rawValue: 1)!
+
+        // Reference: identity geometry, layered, film-on (48×32).
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        stack.addAdjustment(layerWithGain(1.0))
+        let base = try await makeBaseInstances(registry: registry, baseGain: 1.0)
+        let ref = try await LayerCompositeDriver.composite(
+            image: image, imageID: imageID, baseInstances: base,
+            layerStack: stack, registry: registry, resolution: .preview,
+            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview, filmTail: filmTail, renderProcess: process)
+
+        // The M-1 face: + CW90 on the base chain (32×48).
+        let flipMade = await registry.makeBox(opName: FlipModule.opName)
+        let flipBox = try XCTUnwrap(flipMade as? ModuleBox<FlipModule>)
+        flipBox.setParams(FlipModule.Params(orientation: .rotCW90))
+        let geoBase = (base + [flipBox]).sorted {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+        var geoStack = LayerStack(baseLayer: BackgroundLayer())
+        geoStack.addAdjustment(layerWithGain(1.0))
+        let out = try await LayerCompositeDriver.composite(
+            image: image, imageID: imageID, baseInstances: geoBase,
+            layerStack: geoStack, registry: registry, resolution: .preview,
+            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview, filmTail: filmTail, renderProcess: process)
+
+        XCTAssertEqual(ref.output.width, 48, "identity frame")
+        XCTAssertEqual(ref.output.height, 32)
+        XCTAssertEqual(out.output.width, 32, "CW90 swapped the composite frame")
+        XCTAssertEqual(out.output.height, 48)
+        let refFloats = Self.expandToFloats(ref.output, metal: metal)
+        let outFloats = Self.expandToFloats(out.output, metal: metal)
+        var nanCount = 0
+        var maxDelta: Float = 0
+        for oy in 0..<48 {
+            for ox in 0..<32 {
+                let src = FlipOrientation.inputXY(
+                    x: ox, y: oy, ow: 32, oh: 48, orientation: .rotCW90)
+                for c in 0..<3 {
+                    let refValue = refFloats[(src.y * 48 + src.x) * 4 + c]
+                    let outValue = outFloats[(oy * 32 + ox) * 4 + c]
+                    if outValue.isNaN { nanCount += 1 }
+                    maxDelta = max(maxDelta, abs(outValue - refValue))
+                }
+            }
+        }
+        XCTAssertEqual(nanCount, 0, "NaN in the composite transposed film output")
+        print("R9MARGIN|layered-film-on|maxDelta=\(maxDelta)")
+        XCTAssertLessThan(
+            maxDelta, 0.02,
+            "composite transposed film output must match the pointwise lookup (max Δ \(maxDelta))")
+    }
+
+    /// The COMPOSITE path's film-on face, PRODUCTION (m-2 closeout): the
+    /// SPECTRAL arm (process 3, the walkthrough sidecar's value) × the
+    /// NON-IDENTITY default look layer (exposure 1.5 / contrast 15 /
+    /// saturation 1.3 — the「调整 1」verbatim triple). The pointwise
+    /// contract under CW90 — this leg + the v1 layered twin + the flat
+    /// v3 arm green close the arm×path×layer cube by measurement (not
+    /// by the arm-agnostic argument alone). Cost: one spectral cold
+    /// build (~4-5 min; the tc-fit LM grid — the BWSpectralGolden
+    /// precedent for slow spectral legs).
+    func testCompositeFilmTransposedFrameMatchesTheUntransposedLookupV3() async throws {
+        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
+        let metal = try await makeMetal()
+        let registry = try await makeRegistry()
+        let image = makeImage()
+        FilmSolveCache.shared.invalidateAll()
+        let imageID = UUID()
+        let store = try FilmMaterialStore(
+            profilesDirectory: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Resources/FilmProfiles/profiles"))
+        let film = try XCTUnwrap(store.profile(id: "kodak_portra_400"))
+        let paper = try XCTUnwrap(store.profile(id: "kodak_portra_endura"))
+        var record = FilmRecord()
+        record.filmStock = film.info.stock ?? ""
+        record.paperStock = paper.info.stock ?? ""
+        let filmTail = FilmTailParams(
+            record: record, filmProfile: film, paperProfile: paper,
+            materialPairHash: FilmMaterialStore.materialPairHash(film: film, paper: paper))
+        let process = RenderProcessVersion(rawValue: 3)!
+        func defaultLookStack() -> LayerStack {
+            var stack = LayerStack(baseLayer: BackgroundLayer())
+            stack.addAdjustment(AdjustmentLayer(
+                name: "调整 1", opacity: 1.0,
+                chain: [
+                    ModuleInstance(
+                        module: ExposureModule.self, multiPriority: 0,
+                        params: ExposureModule.Params(exposure: 1.5)),
+                    ModuleInstance(
+                        module: ContrastModule.self, multiPriority: 0,
+                        params: ContrastModule.Params(contrast: 15)),
+                    ModuleInstance(
+                        module: SaturationModule.self, multiPriority: 0,
+                        params: SaturationModule.Params(saturation: 1.3)),
+                ]))
+            return stack
+        }
+        let base = try await makeBaseInstances(registry: registry, baseGain: 1.0)
+        let ref = try await LayerCompositeDriver.composite(
+            image: image, imageID: imageID, baseInstances: base,
+            layerStack: defaultLookStack(), registry: registry, resolution: .preview,
+            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview, filmTail: filmTail, renderProcess: process)
+        let flipMade = await registry.makeBox(opName: FlipModule.opName)
+        let flipBox = try XCTUnwrap(flipMade as? ModuleBox<FlipModule>)
+        flipBox.setParams(FlipModule.Params(orientation: .rotCW90))
+        let geoBase = (base + [flipBox]).sorted {
+            ($0.iopOrder, $0.multiPriority) < ($1.iopOrder, $1.multiPriority)
+        }
+        let out = try await LayerCompositeDriver.composite(
+            image: image, imageID: imageID, baseInstances: geoBase,
+            layerStack: defaultLookStack(), registry: registry, resolution: .preview,
+            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
+            policy: .preview, filmTail: filmTail, renderProcess: process)
+        XCTAssertEqual(ref.output.width, 48, "identity frame")
+        XCTAssertEqual(out.output.width, 32, "CW90 swapped the composite frame")
+        XCTAssertEqual(out.output.height, 48)
+        let refFloats = Self.expandToFloats(ref.output, metal: metal)
+        let outFloats = Self.expandToFloats(out.output, metal: metal)
+        var nanCount = 0
+        var maxDelta: Float = 0
+        for oy in 0..<48 {
+            for ox in 0..<32 {
+                let src = FlipOrientation.inputXY(
+                    x: ox, y: oy, ow: 32, oh: 48, orientation: .rotCW90)
+                for c in 0..<3 {
+                    let refValue = refFloats[(src.y * 48 + src.x) * 4 + c]
+                    let outValue = outFloats[(oy * 32 + ox) * 4 + c]
+                    if outValue.isNaN { nanCount += 1 }
+                    maxDelta = max(maxDelta, abs(outValue - refValue))
+                }
+            }
+        }
+        XCTAssertEqual(nanCount, 0, "NaN in the v3 composite transposed film output")
+        print("R9MARGIN|v3-layered-film-on|maxDelta=\(maxDelta)")
+        XCTAssertLessThan(
+            maxDelta, 0.02,
+            "v3 composite transposed film output must match the pointwise lookup (max Δ \(maxDelta))")
+    }
+
+    /// The sRGB8 tail face expanded to [0,1] floats (bgra8 readback →
+    /// RGBA order; alpha dropped). Same face the flat-leg probes use.
+    /// L014: the fence lives INSIDE (rawBytes precedent) — every call
+    /// site reads a settled plane. The bgra8 precondition nails the
+    /// tail-format assumption (a float-tailed run must not silently
+    /// flow through the byte path).
+    private static func expandToFloats(
+        _ texture: any MTLTexture, metal: MetalContext
+    ) -> [Float] {
+        precondition(texture.pixelFormat == .bgra8Unorm, "expandToFloats: sRGB8 tail only")
+        let fence = metal.commandQueue.makeCommandBuffer()
+        fence?.commit()
+        fence?.waitUntilCompleted()
+        var floats = [Float](
+            repeating: 0, count: texture.width * texture.height * 4)
+        var bytes = [UInt8](
+            repeating: 0, count: texture.width * texture.height * 4)
+        texture.getBytes(
+            &bytes, bytesPerRow: texture.width * 4,
+            from: MTLRegionMake2D(0, 0, texture.width, texture.height),
+            mipmapLevel: 0)
+        for i in 0..<(texture.width * texture.height) {
+            floats[i * 4 + 0] = Float(bytes[i * 4 + 2]) / 255.0
+            floats[i * 4 + 1] = Float(bytes[i * 4 + 1]) / 255.0
+            floats[i * 4 + 2] = Float(bytes[i * 4 + 0]) / 255.0
+            floats[i * 4 + 3] = 1.0
+        }
+        return floats
+    }
+}
+
