@@ -1,1 +1,36 @@
 Working...
+# R9 收口：M-1 翻案 + 定罪转移 + 4443/34/0 全绿（issue #17 CLOSED）
+
+## 结论头
+
+**翻案 + 定罪转移 / 0 error + 0 major（几何面脱罪）+ 1 major 转立（C200 光谱中性求解 Y 钳制，#17 本体，路由 M8-3+）**
+
+| 面 | 判定 |
+|---|---|
+| R8 M-1 表型（黑/NaN/持久坏态） | 翻案：爆色+占位交替（非黑）、readout M18.3/Y16.7/×1.00（无 NaN）、重开 `texture=present`（非持久） |
+| 几何面（film × CW90） | 脱罪：5 回归腿 + 双臂探针全绿，R9MARGIN 全 0.0 |
+| 材料对面 | 定罪：C200 solvedPrintCC=(0,108.3,**250 钳制**)，灰误差 3% vs portra 精确 0 |
+| 回归交付 | +5 测试，零产品代码改动，封存 17 件零触 |
+| 全套 | **4443/34/0**（4068s，零 MEMFAIL） |
+| 域内自审 | R1 `PASS / 0 error + 6 minor`，6 项全回注闭环 |
+
+## 机制（file:line）
+
+- R8 假说「film leg walked 帧转置错帧」机检证伪：seed 四项无帧形维（`FilmTailPolicy.swift:150-164`）；solve 键 pair⊕stats⊕mode 转置不变（instrument 双跑 statsHash `14269763105167916199` 一致）；转置帧 32×48 断言全绿；nanCount 全零。
+- 原红 maxΔ 0.73/0.86 + 翻转 = **L014 测试读回竞态**（`expandToFloats` 无 fence 直读在途平面），fence 内移（`rawBytes` 先例）后 18/0/0。
+- 定罪：M8-2 Newton 梯（`SpectralBuildEngine.swift:730-747`，32 轮 seed 50,50，域 [0,250]）在 C200 对上 Y 撞墙；实测锚 C200 [0,85.9,108.3] vs portra [0,51.6,52.5] 佐证 Y 需求 ~2×。自恢复 5 分钟 = tc 拟合 LM 冷 build（C200 278s/portra 269s，sample 栈实锤）。
+- 不确定性（m-3，随 M8-3+ 消化）：「3% 灰误差 → posterize」缺 LUT 级联机制链；M 108.3 vs 实测-Y 108.32 巧合待 verdict 复核；真照片 portra 对照腿缺失。路由本身安全（Y 钳制独立成缺）。
+
+## 交付
+
+- `cc00b623` test(layers)：5 腿 pointwise 契约（+393 行，全加法，`fixes #17`）
+- `f24a3e9d` + `3d1fc76a` docs(r9)：SUMMARY/DECISIONS + omp-evidence（26 件）/ all-runs（全套 + monitor）
+- issue #17：已 comment + CLOSED（`closedAt 2026-10-31T04:58:09Z`）
+- 全套：IOP 814/1/0 / IOPParity 565/10/0 / Layers 536/5/0 / Library 785/4/0 / Sessions 285/4/0 / Export 385/4/0 / App 1073/6/0
+
+## 待 orchestrator 决断（2 件，非阻塞）
+
+1. **stash@{0}**：并行 lane 外来 `FilmDeterminismTests.swift` +337 行（dissect 探针，已被其自家三轮验证绿：A/L/T2/T/blackbox 全 maxΔ=0.0）——暂存未删，凭 `omp-evidence/foreign-*.log` 三存档可重放；若系阵容内 lane 产物请认领，否则由 lane 主自行 `stash pop`。
+2. **m-6①**：undo 腿未重走（冷 build 窗理论可解释但无新观测）+ R8「启用 2 分钟未落盘」降 obs——随 M8-3+ 或下次走查顺路补。
+
+卫生：GUI 零残留；`library.recentProjects` 缺席；`/tmp/editor-probe-*` 清净；monitor 全程零 kill；tracked 零 diff。
