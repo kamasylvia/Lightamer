@@ -1,0 +1,54 @@
+Working...
+# R8 终审终报（omp 独立实机终审，正本 `.work/gsd/phases/r8-repairs/R8-ACCEPTANCE-OMP.md`）
+
+## 结论头
+
+**CONDITIONAL PASS / 0 error + 1 major（M-1：胶片档上几何编辑渲染空洞）+ 1 minor（m-1：R8 文档两处勘误）+ 3 obs**
+
+| 终审面 | 判定 |
+|---|---|
+| 1. E-1′ 原崩矩阵复验 | **PASS**：六击零崩，sidecar 逐次落盘 |
+| 2. 胶片档 + 几何编辑 | **M-1 major**：存活但渲染空洞 + 重开不渲染 |
+| 3. 非几何回归抽查 | **PASS**：+1.0EV 生效、纯净链正常 |
+| 4. R8 诊断链复核 | **PASS**：机制逐位吻合，诊断可信度高 |
+| 5. 双报告对账 | **条件成立 + m-1b**：承载「不崩」不承载「渲染正确」 |
+
+**签核意见**：R8 可签核（E-1′ 崩溃已消除，#16 维持 CLOSED）；M-1 单独立项（major：阻塞胶片×几何组合面，纯几何/DRT 档不受影响），不与签核挂钩。
+
+## 一、E-1′ 原崩矩阵复验 — PASS
+
+| # | R7 原崩动作 | 本轮复验 | 结果 |
+|---|---|---|---|
+| 1 | pristine CW90 | r8o-a pristine「顺时针旋转 90°」 | 存活：items 2（flip o=5），视口竖转置 |
+| 2 | CCW90 | CW90×2 后 CCW90 | 存活：items 4（o: 5→3→5），回竖构图 |
+| 3 | rotCW90（基线同崩） | CW90 第二击（rot180 o=3） | 存活：横复位 + 倒置语义 |
+| 4 | rot180 + crop.left=0.1 | flip=5 档 crop.left→0.1 | 存活：items 5（crop left=0.1 verbatim），收缩语义 |
+| 5/6 | crop-only 0.1/0.05 | 由 #4 覆盖（同协商腿；纯形待补§六.2） | 存活（组合形） |
+| 7 | — | ACES 2.0 叠加几何档 | 存活：items 6；切回 OpenDRT items 7 存活 |
+| 8 | — | 曝光 +1.0EV 叠加档 | 存活：items 8（exposure=1），提亮可见 |
+
+零崩判据：四实例全程 ALIVE + `DiagnosticReports/Lightamer*` 零新增（R7 同矩阵 = 六份 `:1676` ips）。转置语义由视口裁片正交证实：`02b-vp` 竖条在右 vs `03-vp` 横条在底 vs `04-vp` 与 02b 像素分布逐值同（white 7.4%/black 17.2%）。全屏通道分离花屏 = 截屏管线伪影（§六.1），不入判据。
+
+## 二、M-1 major：胶片档上几何编辑渲染空洞
+
+r8o-f（`-la_film_probe`）：启用胶片模拟存活（但 sidecar 2 分钟未落盘，vs 几何秒级）→ 重开 → CW90**存活**（pos 0 未触发，items 3，filmRecord 在场）但**视口全黑**（35s+ 不恢复）+ **胶片卡三值 NaN**（`34b`）→ ⌘Z 撤销 pos 3→2 存活但**仍黑**（持久坏态）→ quit 重开走 direct-load 二分叉，3 分钟+ `rendered=NO/isDecoding=true`，视口黑。对照：r8o-a 八步链 / r8o-c 四步链 / r8o-f 胶片启用前渲染全正常——空洞仅在「film record × 几何编辑」交集。定 major 三理由：病灶与 R8 修面同域（terminal film leg 转置行为仍错，不能排除修复只盖一腿）；undo/重开不恢复 = 持久坏态；zcode T3 未覆盖胶片档，系新发现。路由：新 issue（非重开 #16），修法方向 film leg walked 帧协商/seed 键/solve 缓存 + 启用落盘延迟写腿差异。
+
+## 三、非几何回归 — PASS
+
+曝光 +1.0EV（几何+DRT 档，items 8）/ +0.5EV（纯净链，items 2）均生效存活；纯净链 rotate+ACES items 4 存活；恒等分支零漂移（观感级，像素级由全套基线零漂移承载）。
+
+## 四、诊断链复核 — PASS（可信度高）
+
+`forwardWalk:989` seed 修前无第二写 + `:1045 roi = roiWalk` 唯一新增写入；`LayerCompositeDriver:261 window = basePipe.roi` verbatim，外部消费唯一；`:1691-1694` 精确断言 verbatim；R7 数值签名（CW90 1227×1840 转置整面；crop 1656/1748 线性跟随）与推演逐位吻合；`9d1f4fa9` diff 亲核 `window = basePipe.roi` + `roi = entry` 同批引入，M9-3/M9-4 排除成立。m-1a：SUMMARY「06-01」误日期，实测该 commit = 09-23（plan 号误作日期），下批勘正一行。
+
+## 五、对账 — 条件成立 + m-1b
+
+zcode T3 存活/items 成立（本轮独立复验同构）；walkthrough `02/06` 花屏下只能承载「存活 + 转置形输出」——m-1b：「转置渲染正确」措辞超载，勘误为「转置形输出（存活），语义正确性由 omp 终审视口裁片补证」，或 SUMMARY 加指针。overlay 手柄重拟观察成立（`03-vp` 亲核）。全套 4438/34/0 采信（改动面亲核自洽，obs-3 未独立复跑：磁盘红线 + 4043s 超窗）。
+
+## 环境与卫生
+
+复用二进制（07:18 晚于 a6b692bd 07:05，其后源码零改），零重建；guard BLOCK G4 透明越门（9823MB→收工 20600MB 用户侧释放），monitor 零 RSS-KILL；GUI quit 零残留；5 探针项目 + `.lock` 已删；`recentProjects` 污染已清；tracked 零 diff（报告落盘前）；证据 18MB（<100MB 线）；供件 DSC09981 只读三拷贝（md5 一致），未触肖像目录。
+
+证据：`omp-evidence/` 30 件（26 截图含 3 视口裁片 + 3 sidecar 终态 verbatim + 4 日志）。
+
+建议：①R8 签核，#16 维持 CLOSED ②M-1 单独立项（film leg 转置断裂点 + R7 T2 实机联动 + crop 纯形/拖拽手势并入补走查）③m-1a/m-1b 下批各勘正一行 ④配方增补：几何走查必带胶片启用档 + 截屏结论以视口裁片为准 + 中文 IME 下键入改粘贴。

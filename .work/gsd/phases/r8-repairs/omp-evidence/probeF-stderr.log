@@ -1,0 +1,12 @@
+[editor-probe] project created — importing srcF
+[import-obs] deliver scanning 0/1
+[import-obs] fire#1 -> importing 0/1 adapter=nil
+[import-obs] deliver completed 1/1
+[import-obs] fire#2 -> completed 1/1 adapter=alive
+[import-obs] tail nil written
+[import-obs] fire#3 -> nil adapter=nil
+[editor-probe] row id=1 file=r8o-f.ARW sidecar=no focal=0.0 aperture=0.0 exposure=0.03333333333333333 iso=160
+[editor-probe] load file=r8o-f.ARW loaded=yes rendered=yes texture=r8o-f.ARW
+[editor-probe] film page flag = true
+[editor-probe] film page final = true — staying alive
+2026-10-31 09:25:41.212 Lightamer[11443:17040019] error messaging the mach port for IMKCFRunLoopWakeUpReliable
