@@ -584,6 +584,23 @@ public enum SpectralPrintBake {
         if let filter = tags?.cameraFilter {
             parameters.cameraFilter = filter.transmission
         }
+        // M8-3+ T1: the anchored seed (the measured neutral table's row
+        // for this triple — a MISS (absent asset/pair) keeps the legacy
+        // (50, 50): the seed moves ROUNDS, never the converged pair —
+        // and an absent seed is value-identical to the pre-T1 build).
+        // The seed is NOT a bake key term (the converged tables are
+        // seed-invariant — the 14 safety pairs' bit-identity is the key
+        // face's proof); the fallback-out changes nothing downstream.
+        if parameters.printCC == nil,
+            let tableURL = Bundle.main.resourceURL?
+                .appendingPathComponent("FilmProfiles/neutral_print_filters.json"),
+            let table = try? NeutralPrintAnchorTable.cachedTable(url: tableURL),
+            let filmStock = film.info.stock, let paperStock = paper.info.stock,
+            let anchor = table.seed(
+                paper: paperStock,
+                illuminant: parameters.enlargerIlluminant, film: filmStock) {
+            parameters.neutralSeed = anchor
+        }
         let built = try SpectralBuildEngine.build(
             film: film, paper: paper, parameters: parameters)
         tcLutSlot.store(built, for: tcKey)
