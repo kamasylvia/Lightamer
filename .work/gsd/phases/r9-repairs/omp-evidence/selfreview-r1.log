@@ -1,0 +1,46 @@
+Working...
+PASS / 0 error + 6 minor
+
+R9 域内自审（只读取证：唯一 diff + evidence + R8 M-1 + 白名单源码面；零改码、零构建、零 GUI）。
+
+A. 测试语义 — PASS
+- 4 腿正交：flat-off 对照 / composite-off 对照 / composite-on 空栈（终端腿载 film = M-1 面）/ composite-on 分层（默认栈形）；`LayerCompositeTests.swift:731-1022` 全加法。
+- 参照系正确：`inputXY(x:ox,y:oy,ow:32,oh:48)` 输出帧坐标 + 输出 dims（`FlipModule.swift:136-149` 后向映射定义），ref 按 48 宽、out 按 32 宽索引；手算 rotCW90 逆映射闭合，且 flat-off 腿跨轮稳定绿实证映射无误。
+- 容差 0.02 ≈ 5 LSB（8-bit 尾 `/255` 面），真红 0.73/0.86（185/255、219/255）36× 裕量，合理。
+- 缺口见 m-2（v1+identity vs 生产 v3+exposure1.5）、m-5（NaN 非对称、无 passing-Δ 记录）。
+
+B. L014 修辞 — PASS
+- 围栏内移 = `rawBytes` 先例逐字形（`LayerCompositeTests.swift:96-99`：makeCommandBuffer/commit/waitUntilCompleted 后 getBytes），符合 L014「读回前必须 fence」。
+- 「围栏掩盖真缺陷」不成立：同二进制同测绿↔红翻转（layered：`layers-matrix.log` 绿 vs `layers-composite-red-repro.log` 红 Δ0.7254902 vs `layers-bisection2.log` 红）——产品缺陷具确定性，翻转性 + fence 后 `layers-fenced-green.log` 18/0/0 全绿 = 读回竞态签名。
+- 缺口见 m-4（`R9-DECISIONS.md:49`「film-off 腿亦曾红 Δ1.0」无日志在 evidence 落盘）。
+
+C. 定罪链 — CONDITIONAL PASS
+- 钳制事实经源码验证：`SpectralBuildEngine.swift:730-747`（seed 50,50、32 轮、`[0,250]` 钳制）；实测锚经 JSON 验证（C200 `[0,85.91,108.32]`、portra `[0,51.57,52.53]`，`neutral_print_filters.json`）。
+- 候选排除成立：①seed 四项无帧形维（`FilmTailPolicy.swift:150-164`）；②缓存键 pair⊕stats⊕mode 转置不变（instrument 双跑 statsHash 一致 + 计数直方图置换不变结构性）；③转置帧断言 32×48 全绿 + precondition 零触发；④nanCount 零命中。
+- 因果链「Y=250 钳制 → posterize」缺机制：灰误差 3%（`(0.983,0.988,1.030)`）解释色偏不解释 solarization 级非线性；无 solver 迭代 trace；见 m-3。
+
+D. 翻案证据 — CONDITIONAL PASS
+- ①NaN 不存在： solid——R8 自家 `34b` 与 R9 `34-history` readout 放大同值 `M 18.3·Y 16.7·×1.00`，R8 误读被双方像素证伪。
+- ②先于几何： solid 实质、表述犯规——R8 `31-film-enabled.png`（CW90 前）即 posterize（sat 2.8%）；但 R9 evidence 无 CW90 前截图，「R8/R9 双轮一致」实为 R8-31（前）vs R9-32c（后），非同位双轮。
+- ③自恢复： 举证错配——被引为恢复证据的 `33-after-render.png` 实为灰占位（vpmean 148.7、无图像内容）；真正显示恢复的是 `32c`（转置 posterize 渲染帧）与 R8 自家 `32b`（同状，sat 2.9%——R8「黑」被自家截图证伪）；「5 分钟」无源（三图 mtime 同秒 09:53:21，sidecar 旋转 09:45:50）；见 m-1、m-6。
+
+E. 反自取消探针 — PASS
+- 无调测保绿：红绿两轮阈值恒 0.02（红日志原文 `is not less than (0.02)`），无容差放宽；映射公式验算为精确逆；`invalidateAll` 为无害 hygiene（同 key 同正确值，不掩盖；真掩盖需 solve 转置变异，与计数纯函数构造矛盾）。
+- 通道序正确：`floats[R,G,B]=bytes[2,1,0]` bgra→rgb，与外来探针 bgra 分支一致；绿 Δ<0.02 实证格式假设成立。
+- 缺口见 m-5（缺 `pixelFormat == .bgra8` 断言钉死假设；外来 `readFloats` 有 rgba32Float 分支而交付 helper 无）。
+
+F. 全套门 — PASS
+- 同文件加测：`Project.swift:626` 与 `M2-4-0-BUNDLE-MAP.txt:304`（LAYERS 域）早已登记本文件；新文件落域规则（显式清单 + generate）未被触发，零登记变更正确。
+- 算术：4438/34/0 ⊕ 4 = 4442/34/0 ✓；封存面 17 件零触（git diff 唯一文件即测试文件，App/Core/IOP/Scripts 零 diff）✓；全套尚未跑（预期值，非结论）如实标注 ✓。
+
+error 清单：无。
+
+minor 清单：
+- m-1（D/证据错配+缺失）：`33-after-render.png` 误引为恢复证据（实为占位帧；恢复帧是 `32c`）；「5 分钟」无计时源；`SUMMARY §七` 登记的 `probe-verdict.txt` 缺席；oslog 行（`DECISIONS:7-8`）、sample 栈（`:15`）无日志落盘。要求：重命名/重引 33、补 verdict stdout + oslog 片段，或降断言为「占位→渲染（时序未精确计时）」。
+- m-2（A/覆盖洞）：交付矩阵 film-on 两腿恒 `RenderProcessVersion(rawValue: 1)`（密度臂），生产 sidecar `process: 3`（光谱臂）；分层腿用 identity gain-1.0，生产「调整 1」= exposure 1.5 非恒等。「M-1 精确形绿」超载——精确形（v3 × composite × 非恒等层）仅存于已 revert 外来探针（红于竞态，未 fence 重跑）。要求：重放 `foreign-filleg-diff-1042.log` 的 v3 腿 + fence fix 补绿，或降措辞为「组合论证（v1-composite ⊕ v3-flat ⊕ 驱动臂无关）」。
+- m-3（C/因果缺口）：①3% 灰误差 → posterize 缺机制链（需 scan 表退化/LUT 级联解释或像素值证据）；②solved-M 108.3 == 实测-Y 108.32 四位有效数字巧合未核查（verdict 日志补后复核 M/Y 有无误标）；③真照片 portra 对照腿缺失（portra 绿全在合成 fixture）；④posterize 无非截图旁证（导出 JPEG/像素 readback），而 R8 §六.1 已确立本机截屏伪影先例。路由 M8-3+ 本身安全（Y 钳制独立成缺），但「爆色上游源」暂为相关非因果。
+- m-4（B/断言无源）：film-off Δ1.0 红无日志；passing-Δ 全未记录（绿裕量未知——0.0 还是 0.019 不可考）；instrument 探针源已删（仅存 fenced 日志两行 `R9PROBE`，缓存命中 vs 重算不可分辨）。要求：绿轮打印 maxΔ（单行 log 不入断言亦可）。
+- m-5（A/E/测试卫生）：NaN 计数仅 1/4 腿（分层腿有，空栈 film-on 腿无）；缺 bgra8 格式断言。两行补齐即可。
+- m-6（D/走查尾巴）：①undo/reopen 腿未重走（R8 `36b/37c` 仅被「冷 build 窗」理论解释，无新观测）；②`layers-fenced-green.log:7` 行交错异常（`FilmLegTests.swift:574` 碎片混入 LayerCompositeTests 行，并行 lane 产物 `foreign-determinism-diff-1049.log` 10:50 落地佐证并行 lane 在飞）需一行注记；③R8「启用胶片 2 分钟未落盘」未解释（R9 侧 sidecar 正常落盘 items 3，降为 obs）。
+
+收口意见：结论链成立（翻案实质 + 几何脱罪 + 定罪转移路由），6 minor 全是证据/措辞/覆盖口径问题，无一推翻结论。建议回注执行 lane 闭环 m-1（重引 33 + 补 verdict/oslog）与 m-2（v3 腿重放补绿）后收口；m-3 随 M8-3+ 立项消化。

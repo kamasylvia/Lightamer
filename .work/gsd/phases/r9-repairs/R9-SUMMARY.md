@@ -68,7 +68,7 @@ portra 档精确 0），属 M8 光谱核的材料覆盖面缺口（M8 obs-1 在�
 
 ## 三、材料对面定罪 — C200 光谱中性求解 Y 钳制
 
-构建探针（同二进制同链；探针源 `evidence/c200build.swift/portrabuild.swift`）：
+构建探针（同二进制同链；探针源 `omp-evidence/c200build.swift/portrabuild.swift`）：
 
 | 对 | solvedPrintCC | midgrayPrintRaw | midgrayFactor | 实测锚 |
 |---|---|---|---|---|
@@ -106,7 +106,7 @@ portra 档精确 0），属 M8 光谱核的材料覆盖面缺口（M8 obs-1 在�
   m-2（v3×非恒等层腿重放，见下）/ m-4（R9MARGIN 裕量打印）✓ / m-5（空栈 NaN + bgra8 断言）✓ /
   m-3（因果机制缺口，随 M8-3+ 立项消化）/ m-6（undo 腿未重走 + 并行 lane 注记 + 启用落盘 obs）。
 
-## 七、证据清单（`evidence/`）
+## 七、证据清单（`omp-evidence/` + `all-runs/`）
 
 | 文件 | 内容 |
 |---|---|

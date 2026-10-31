@@ -1,0 +1,345 @@
+diff --git a/Tests/LightamerTests/FilmDeterminismTests.swift b/Tests/LightamerTests/FilmDeterminismTests.swift
+index e58639c7..25785962 100644
+--- a/Tests/LightamerTests/FilmDeterminismTests.swift
++++ b/Tests/LightamerTests/FilmDeterminismTests.swift
+@@ -418,3 +418,340 @@ final class FilmDeterminismTests: XCTestCase {
+                 + "DECISIONS process, in the same commit as the math change)")
+     }
+ }
++// R9 M-1 dissect probe — canonical copy (append target:
++// Tests/LightamerTests/FilmDeterminismTests.swift as a separate class;
++// this file is the restore-safe master under .work, not in any target).
++//
++// Leg-by-leg re-enactment of LayerCompositeDriver.composite with an
++// identity adjustment layer (TestGain 1.0) + film tail (portra, .v3)
++// under CW90 — each leg's plane is readable, so the breakage point is
++// directly observable:
++//   A = base pipe run ([flip?] + split terminal)      -> transposition check
++//   L = layer sub-run (TestGain 1.0) over (A, window) -> identity check
++//   T2 = terminal runSub WITHOUT film tail over L     -> terminal value check
++//   T  = terminal runSub WITH film tail over L        -> the M-1 face
++//   F  = film-only isolation face via the same runSub shape minus residents
++// Red matrix so far (FilmLegTests probes, this build):
++//   composite(v3, identity layer, film) = RED 0.8667 (276s!)
++//   composite(v3, none layer, film)     = green (1.1s)
++//   composite(film off, none layer)     = green
++//   flat process (v1/v3, film)          = green
++
++@testable import LightamerCore
++import LightamerIOP
++import Metal
++import XCTest
++
++final class FilmLegM1DissectTests: XCTestCase {
++
++    private static let imageID = UUID(
++        uuidString: "F11DA7E0-0000-4000-8000-00000000D155")!
++
++    private func makeMetal() async throws -> MetalContext {
++        let metal = try MetalContext()
++        try await metal.registerDefaultLibrary(in: PassthroughKernel.metalBundle)
++        return metal
++    }
++
++    private func makeImage(width: Int = 48, height: Int = 32) -> DecodedImage {
++        var pixels = [Float](repeating: 0, count: width * height * 4)
++        for y in 0..<height {
++            for x in 0..<width {
++                let o = (y * width + x) * 4
++                pixels[o + 0] = 0.1 + 0.7 * Float(x) / Float(width - 1)
++                pixels[o + 1] = 0.2 + 0.5 * Float(y) / Float(height - 1)
++                pixels[o + 2] = 0.3 + 0.3 * Float(x + y) / Float(width + height - 2)
++                pixels[o + 3] = 1.0
++            }
++        }
++        let bitmap = pixels.withUnsafeBytes { Data($0) }
++        let ci = CIImage(
++            bitmapData: bitmap,
++            bytesPerRow: width * 4 * MemoryLayout<Float>.stride,
++            size: CGSize(width: width, height: height),
++            format: .RGBAf, colorSpace: WorkingSpace.colorSpace)
++        return DecodedImage(
++            ciImage: ci,
++            rawTech: RAWTechnicalParams(blackLevel: 0.0),
++            capture: CaptureMetadata(),
++            segmentationSkyMatte: nil,
++            decoderVersionUsed: .v8
++        )
++    }
++
++    private func makeRegistry() async throws -> ModuleRegistry {
++        let registry = ModuleRegistry.makeDefault()
++        await LightamerIOPRegistry.populate(registry)
++        return registry
++    }
++
++    private func makeTerminalChain(
++        registry: ModuleRegistry
++    ) async throws -> [any ModuleBoxing] {
++        var chain = [any ModuleBoxing]()
++        let coloroutMade = await registry.makeBox(opName: ColorOutModule.opName)
++        let colorout = try XCTUnwrap(coloroutMade as? ModuleBox<ColorOutModule>)
++        colorout.setParams(ColorOutModule.Params(outputProfile: .sRGB))
++        chain.append(colorout)
++        let gammaMade = await registry.makeBox(opName: GammaModule.opName)
++        let gamma = try XCTUnwrap(gammaMade as? ModuleBox<GammaModule>)
++        gamma.setParams(GammaModule.Params())
++        chain.append(gamma)
++        return chain
++    }
++
++    private func makeBoundTail() throws -> FilmTailPolicy {
++        let store = try FilmMaterialStore(
++            profilesDirectory: URL(fileURLWithPath: #filePath)
++                .deletingLastPathComponent()
++                .deletingLastPathComponent()
++                .deletingLastPathComponent()
++                .appendingPathComponent("Resources/FilmProfiles/profiles"))
++        let film = try XCTUnwrap(store.profile(id: "kodak_portra_400"))
++        let paper = try XCTUnwrap(store.profile(id: "kodak_portra_endura"))
++        var record = FilmRecord()
++        record.filmStock = film.info.stock ?? ""
++        record.paperStock = paper.info.stock ?? ""
++        return FilmTailParams(
++            record: record, filmProfile: film, paperProfile: paper,
++            materialPairHash: FilmMaterialStore.materialPairHash(film: film, paper: paper))
++    }
++
++    private static func drain(_ metal: MetalContext) async {
++        let fence = metal.commandQueue.makeCommandBuffer()
++        fence?.commit()
++        await fence?.completed()
++    }
++
++    private static func readFloats(_ texture: any MTLTexture) -> [Float] {
++        var floats = [Float](
++            repeating: 0, count: texture.width * texture.height * 4)
++        if texture.pixelFormat == .rgba32Float {
++            floats.withUnsafeMutableBytes {
++                texture.getBytes(
++                    $0.baseAddress!, bytesPerRow: texture.width * 16,
++                    from: MTLRegionMake2D(0, 0, texture.width, texture.height),
++                    mipmapLevel: 0)
++            }
++            return floats
++        }
++        var bytes = [UInt8](
++            repeating: 0, count: texture.width * texture.height * 4)
++        texture.getBytes(
++            &bytes, bytesPerRow: texture.width * 4,
++            from: MTLRegionMake2D(0, 0, texture.width, texture.height),
++            mipmapLevel: 0)
++        for i in 0..<(texture.width * texture.height) {
++            floats[i * 4 + 0] = Float(bytes[i * 4 + 2]) / 255.0
++            floats[i * 4 + 1] = Float(bytes[i * 4 + 1]) / 255.0
++            floats[i * 4 + 2] = Float(bytes[i * 4 + 0]) / 255.0
++            floats[i * 4 + 3] = 1.0
++        }
++        return floats
++    }
++
++    /// The pointwise delta of `out` (transposed W×H) against `ref`
++    /// (H×W) under the CW90 backward map — size-parameterized. Also
++    /// counts NaNs.
++    private static func transposedDelta(
++        _ ref: any MTLTexture, _ out: any MTLTexture
++    ) -> (maxDelta: Float, nanCount: Int, hotPixels: Int) {
++        let r = readFloats(ref)
++        let o = readFloats(out)
++        let ow = out.width, oh = out.height
++        let rw = ref.width
++        precondition(rw == oh && ref.height == ow, "transposed size pair broken")
++        var maxDelta: Float = 0
++        var nanCount = 0
++        var hotPixels = 0
++        for oy in 0..<oh {
++            for ox in 0..<ow {
++                let src = FlipOrientation.inputXY(
++                    x: ox, y: oy, ow: ow, oh: oh, orientation: .rotCW90)
++                var pixelMax: Float = 0
++                for c in 0..<3 {
++                    let rv = r[(src.y * rw + src.x) * 4 + c]
++                    let ov = o[(oy * ow + ox) * 4 + c]
++                    if ov.isNaN { nanCount += 1 }
++                    let d = abs(ov - rv)
++                    pixelMax = max(pixelMax, d)
++                    maxDelta = max(maxDelta, d)
++                }
++                if pixelMax > 0.1 { hotPixels += 1 }
++            }
++        }
++        return (maxDelta, nanCount, hotPixels)
++    }
++
++    /// Leg-by-leg re-enactment; returns per-leg deltas.
++    func testM1DissectCompositeLegsUnderCW90() async throws {
++        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
++        FilmSolveCache.shared.invalidateAll()
++        let metal = try await makeMetal()
++        let registry = try await makeRegistry()
++        let image = makeImage()
++        let tail = try makeBoundTail()
++        let version = RenderProcessVersion(rawValue: 3)!
++        let t0 = Date()
++
++        func enact(flip: Bool) async throws -> (
++            base: any MTLTexture, layer: any MTLTexture,
++            terminal: any MTLTexture, film: any MTLTexture, window: ROI
++        ) {
++            var baseChain = [any ModuleBoxing]()
++            if flip {
++                let made = await registry.makeBox(opName: FlipModule.opName)
++                let box = try XCTUnwrap(made as? ModuleBox<FlipModule>)
++                box.setParams(FlipModule.Params(orientation: .rotCW90))
++                baseChain.append(box)
++            }
++            baseChain.append(contentsOf: try await makeTerminalChain(registry: registry))
++            // LayerCompositeDriver.composite's splitTerminal shape: the
++            // iopOrder>=70 residents leave the base chain. With this
++            // chain the split leaves base = [flip?] — but keep the REAL
++            // split call to stay byte-faithful to the driver.
++            let (baseChainSplit, terminalChain) =
++                LayerCompositeDriver.splitTerminal(baseChain)
++
++            // ── A: the base pipe run.
++            let basePipe = PixelPipe(resolution: .preview, cache: PipeCache())
++            basePipe.imageID = Self.imageID
++            basePipe.renderProcess = version
++            let (basePlane, _) = try await basePipe.run(
++                image: image, instances: baseChainSplit, metal: metal, longEdge: nil)
++            let window = basePipe.roi
++            var prefixHash = basePipe.levelHash.last ?? basePipe.decodeParamsHash
++
++            // ── B: the identity layer sub-run (TestGain 1.0).
++            let layerID = UUID()
++            let gainMade = await registry.makeBox(opName: TestGainModule.opName)
++            let gainBox = try XCTUnwrap(gainMade as? ModuleBox<TestGainModule>)
++            gainBox.setParams(TestGainModule.Params(gain: 1.0))
++            let layerPipe = PixelPipe(resolution: .preview, cache: PipeCache())
++            layerPipe.imageID = Self.imageID
++            layerPipe.renderProcess = version
++            let (layerPlane, _) = try await layerPipe.runSub(
++                input: basePlane, inputROI: window,
++                instances: [gainBox], decodeHash: prefixHash,
++                metal: metal, layerID: layerID)
++            // opacity-1.0 normal blend == identity: accumulator = layerPlane
++            // (the blend's identity face — the driver's triple at these
++            // settings is value-neutral).
++            prefixHash = Self.foldChain(prefixHash, layerPipe.levelHash.last)
++
++            // ── T2: terminal sub-run WITHOUT the film tail.
++            let t2Pipe = PixelPipe(resolution: .preview, cache: PipeCache())
++            t2Pipe.imageID = Self.imageID
++            t2Pipe.terminalTail = .sdrGamma
++            t2Pipe.renderProcess = version
++            let (t2Plane, _) = try await t2Pipe.runSub(
++                input: layerPlane, inputROI: window,
++                instances: terminalChain, decodeHash: prefixHash,
++                metal: metal, layerID: PipeCacheKey.baseLayerSentinelID)
++
++            // ── T: terminal sub-run WITH the film tail (the M-1 face).
++            let tPipe = PixelPipe(resolution: .preview, cache: PipeCache())
++            tPipe.imageID = Self.imageID
++            tPipe.terminalTail = .sdrGamma
++            tPipe.filmTail = tail
++            tPipe.renderProcess = version
++            let (tPlane, _) = try await tPipe.runSub(
++                input: layerPlane, inputROI: window,
++                instances: terminalChain, decodeHash: prefixHash,
++                metal: metal, layerID: PipeCacheKey.baseLayerSentinelID)
++
++            return (basePlane, layerPlane, t2Plane, tPlane, window)
++        }
++
++        let ref = try await enact(flip: false)
++        let out = try await enact(flip: true)
++        await Self.drain(metal)
++        let elapsed = Date().timeIntervalSince(t0)
++
++        XCTAssertEqual(ref.base.width, 48)
++        XCTAssertEqual(out.base.width, 32)
++        let aDelta = Self.transposedDelta(ref.base, out.base)
++        let lDelta = Self.transposedDelta(ref.layer, out.layer)
++        let t2Delta = Self.transposedDelta(ref.terminal, out.terminal)
++        let tDelta = Self.transposedDelta(ref.film, out.film)
++
++        print("M1-DISSECT elapsed=\(Int(elapsed))s")
++        print("M1-DISSECT A(base) maxΔ=\(aDelta.maxDelta) nan=\(aDelta.nanCount) hot=\(aDelta.hotPixels)")
++        print("M1-DISSECT L(layer) maxΔ=\(lDelta.maxDelta) nan=\(lDelta.nanCount) hot=\(lDelta.hotPixels)")
++        print("M1-DISSECT T2(no-film) maxΔ=\(t2Delta.maxDelta) nan=\(t2Delta.nanCount) hot=\(t2Delta.hotPixels)")
++        print("M1-DISSECT T(film) maxΔ=\(tDelta.maxDelta) nan=\(tDelta.nanCount) hot=\(tDelta.hotPixels)")
++
++        XCTAssertEqual(aDelta.nanCount, 0)
++        XCTAssertEqual(lDelta.nanCount, 0)
++        XCTAssertEqual(t2Delta.nanCount, 0)
++        XCTAssertLessThan(aDelta.maxDelta, 0.02, "base leg")
++        XCTAssertLessThan(lDelta.maxDelta, 0.02, "layer leg")
++        XCTAssertLessThan(t2Delta.maxDelta, 0.02, "terminal no-film leg")
++        // The M-1 face — the assertion that must turn green after the fix.
++        XCTAssertLessThan(tDelta.maxDelta, 0.02, "terminal film leg (M-1)")
++    }
++
++    private static func foldChain(_ seed: UInt64, _ tailHash: UInt64?) -> UInt64 {
++        guard let tailHash else { return seed }
++        var v = tailHash
++        return withUnsafeBytes(of: &v) { StableHash.combine(seed, $0) }
++    }
++
++    /// The BLACK-BOX control: the exact production composite call (identity
++    /// layer + film v3) run FIRST in this process, then the leg re-enactment.
++    /// `longEdge` 24 = the production PREVIEW bucket face (scale-at-entry
++    /// < 1 — the scaled decode leg the real walkthrough exercised; nil =
++    /// the full-extent legacy leg covered by the earlier probes).
++    func testM1BlackBoxThenDissect() async throws {
++        try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
++        FilmSolveCache.shared.invalidateAll()
++        let metal = try await makeMetal()
++        let registry = try await makeRegistry()
++        let image = makeImage()
++        let tail = try makeBoundTail()
++        let version = RenderProcessVersion(rawValue: 3)!
++
++        func stack() -> LayerStack {
++            var s = LayerStack(baseLayer: BackgroundLayer())
++            s.addAdjustment(AdjustmentLayer(
++                name: "identity", opacity: 1.0,
++                chain: [ModuleInstance(
++                    module: TestGainModule.self, multiPriority: 5,
++                    params: TestGainModule.Params(gain: 1.0))]))
++            return s
++        }
++        func base(flip: Bool) async throws -> [any ModuleBoxing] {
++            var chain = [any ModuleBoxing]()
++            if flip {
++                let made = await registry.makeBox(opName: FlipModule.opName)
++                let box = try XCTUnwrap(made as? ModuleBox<FlipModule>)
++                box.setParams(FlipModule.Params(orientation: .rotCW90))
++                chain.append(box)
++            }
++            chain.append(contentsOf: try await makeTerminalChain(registry: registry))
++            return chain
++        }
++
++        for longEdge in [Int?.none, 24] {
++            let refBox = try await LayerCompositeDriver.composite(
++                image: image, imageID: Self.imageID,
++                baseInstances: await base(flip: false),
++                layerStack: stack(), registry: registry, resolution: .preview,
++                cache: PipeCache(), metal: metal, longEdge: longEdge, roiHint: nil,
++                policy: .preview, filmTail: tail, renderProcess: version)
++            let outBox = try await LayerCompositeDriver.composite(
++                image: image, imageID: Self.imageID,
++                baseInstances: await base(flip: true),
++                layerStack: stack(), registry: registry, resolution: .preview,
++                cache: PipeCache(), metal: metal, longEdge: longEdge, roiHint: nil,
++                policy: .preview, filmTail: tail, renderProcess: version)
++            await Self.drain(metal)
++            let boxDelta = Self.transposedDelta(refBox.output, outBox.output)
++            let label = longEdge == nil ? "full" : "bucket24"
++            print("M1-DISSECT BLACKBOX[\(label)] maxΔ=\(boxDelta.maxDelta) nan=\(boxDelta.nanCount) hot=\(boxDelta.hotPixels)")
++            XCTAssertLessThan(
++                boxDelta.maxDelta, 0.02,
++                "black-box composite \(label) (M-1) maxΔ \(boxDelta.maxDelta)")
++        }
++    }
++}

@@ -1,0 +1,35 @@
+sandbox_extension_issue_file_to_process failed for /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug//Lightamer.app: 1 (Operation not permitted)
+Test Suite 'Selected tests' started at 2026-10-31 10:57:16.867.
+Test Suite 'LightamerTestsLayers.xctest' started at 2026-10-31 10:57:16.868.
+Test Suite 'FilmLegM1DissectTests' started at 2026-10-31 10:57:16.868.
+Test Case '-[LightamerTestsLayers.FilmLegM1DissectTests testM1DissectCompositeLegsUnderCW90]' started.
+Test Case '-[LightamerTestsLayers.FilmLegM1DissectTests testM1DissectCompositeLegsUnderCW90]' passed (271.369 seconds).
+Test Suite 'FilmLegM1DissectTests' passed at 2026-10-31 11:01:48.237.
+	 Executed 1 test, with 0 failures (0 unexpected) in 271.369 (271.369) seconds
+Test Suite 'LightamerTestsLayers.xctest' passed at 2026-10-31 11:01:48.237.
+	 Executed 1 test, with 0 failures (0 unexpected) in 271.369 (271.369) seconds
+Test Suite 'Selected tests' passed at 2026-10-31 11:01:48.237.
+	 Executed 1 test, with 0 failures (0 unexpected) in 271.369 (271.369) seconds
+M1-DISSECT elapsed=271s
+M1-DISSECT A(base) maxΔ=0.0 nan=0 hot=0
+M1-DISSECT L(layer) maxΔ=0.0 nan=0 hot=0
+M1-DISSECT T2(no-film) maxΔ=0.0 nan=0 hot=0
+M1-DISSECT T(film) maxΔ=0.0 nan=0 hot=0
+      273.01 real      2497.86 user         6.72 sys
+           241057792  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               19308  page reclaims
+                2006  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   1  messages sent
+                   0  messages received
+                   0  signals received
+                2349  voluntary context switches
+             1619283  involuntary context switches
+      33176444619297  instructions retired
+       8197903211309  cycles elapsed
+           148964648  peak memory footprint

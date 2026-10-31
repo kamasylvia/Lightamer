@@ -1,0 +1,605 @@
+{
+  "appVersion" : "0.1.0",
+  "colorLabel" : null,
+  "decodeParamsHash" : "8881515261323961662",
+  "decoderVersionUsed" : "v8",
+  "filmRecord" : {
+    "content_adaptive_shift" : false,
+    "exposure_ev" : 0,
+    "film_stock" : "fujifilm_c200",
+    "m_filter_shift" : 0,
+    "paper_stock" : "fujifilm_crystal_archive_typeii",
+    "strength" : 1,
+    "y_filter_shift" : 0
+  },
+  "flag" : null,
+  "history" : {
+    "items" : [
+      {
+        "id" : "2A8FECF2-054C-4D3B-B434-62FE481F3047",
+        "label" : "默认观感",
+        "layerScope" : "__layerStack__",
+        "snapshot" : {
+          "enabled" : true,
+          "id" : "CD29E418-992F-4F8B-AAAC-4D1FD67FC5B8",
+          "iopOrder" : 3,
+          "multiName" : "",
+          "multiPriority" : 0,
+          "opName" : "temperature",
+          "paramsData" : "eyJibHVlIjoxLCJncmVlbiI6MSwicHJlc2V0IjoyLCJyZWQiOjF9",
+          "paramsHash" : "13705676264521454111",
+          "version" : 1
+        },
+        "stackSnapshot" : {
+          "layers" : [
+            {
+              "blendMode" : 1,
+              "blendOptions" : 0,
+              "chain" : [
+                {
+                  "enabled" : true,
+                  "id" : "90DC62B7-99B4-4AD5-8C39-F68890EA6C70",
+                  "iopOrder" : 21,
+                  "multiName" : "",
+                  "multiPriority" : 0,
+                  "opName" : "exposure",
+                  "paramsData" : "eyJibGFjayI6MCwiY29tcGVuc2F0ZUV4cG9zdXJlQmlhcyI6ZmFsc2UsImNvbXBlbnNhdGVIaWxpdGVQcmVzIjp0cnVlLCJkZWZsaWNrZXJQZXJjZW50aWxlIjo1MCwiZGVmbGlja2VyVGFyZ2V0TGV2ZWwiOi00LCJleHBvc3VyZSI6MS41LCJtb2RlIjowfQ==",
+                  "paramsHash" : "13236133024862524682",
+                  "version" : 1
+                },
+                {
+                  "enabled" : true,
+                  "id" : "A8AE44E7-D925-4E56-94CE-B325315F367F",
+                  "iopOrder" : 41.6,
+                  "multiName" : "",
+                  "multiPriority" : 0,
+                  "opName" : "contrast",
+                  "paramsData" : "eyJjb250cmFzdCI6MTV9",
+                  "paramsHash" : "13762580274711870727",
+                  "version" : 1
+                },
+                {
+                  "enabled" : true,
+                  "id" : "2582507D-62A1-42B6-AC7C-D3BA34C51F62",
+                  "iopOrder" : 42.2,
+                  "multiName" : "",
+                  "multiPriority" : 0,
+                  "opName" : "saturation",
+                  "paramsData" : "eyJzYXR1cmF0aW9uIjoxLjN9",
+                  "paramsHash" : "14954125451243226087",
+                  "version" : 1
+                }
+              ],
+              "enabled" : true,
+              "id" : "C5212D2B-A304-4C86-8129-F47D69A84D24",
+              "isVisible" : true,
+              "kind" : "adjustment",
+              "name" : "调整 1",
+              "opacity" : 1
+            }
+          ]
+        },
+        "timestamp" : 815103864.039602
+      },
+      {
+        "filmRecord" : {
+          "content_adaptive_shift" : false,
+          "exposure_ev" : 0,
+          "film_stock" : "fujifilm_c200",
+          "m_filter_shift" : 0,
+          "paper_stock" : "fujifilm_crystal_archive_typeii",
+          "strength" : 1,
+          "y_filter_shift" : 0
+        },
+        "id" : "897E6105-0CC7-427B-BAA4-E5F156E23EED",
+        "label" : "启用胶片模拟",
+        "layerScope" : "__filmDocument__",
+        "snapshot" : {
+          "enabled" : true,
+          "id" : "CD29E418-992F-4F8B-AAAC-4D1FD67FC5B8",
+          "iopOrder" : 3,
+          "multiName" : "",
+          "multiPriority" : 0,
+          "opName" : "temperature",
+          "paramsData" : "eyJibHVlIjoxLCJncmVlbiI6MSwicHJlc2V0IjoyLCJyZWQiOjF9",
+          "paramsHash" : "13705676264521454111",
+          "version" : 1
+        },
+        "timestamp" : 815103917.183531
+      },
+      {
+        "id" : "15BF316D-D46E-47A7-8BD6-3DEB395422E5",
+        "label" : "旋转",
+        "snapshot" : {
+          "enabled" : true,
+          "id" : "032845F1-696B-498E-8761-76D99F5712A3",
+          "iopOrder" : 16,
+          "multiName" : "",
+          "multiPriority" : 0,
+          "opName" : "flip",
+          "paramsData" : "eyJvcmllbnRhdGlvbiI6NX0=",
+          "paramsHash" : "3001644133230364948",
+          "version" : 1
+        },
+        "timestamp" : 815103950.729502
+      }
+    ],
+    "position" : 2
+  },
+  "historyHash" : "3986533208671365389",
+  "imageID" : "D0E0819E-147B-42A2-8F68-EB92A2763DC5",
+  "instances" : [
+    {
+      "enabled" : true,
+      "id" : "CD29E418-992F-4F8B-AAAC-4D1FD67FC5B8",
+      "iopOrder" : 3,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "temperature",
+      "paramsData" : "eyJibHVlIjoxLCJncmVlbiI6MSwicHJlc2V0IjoyLCJyZWQiOjF9",
+      "paramsHash" : "13705676264521454111",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "DE4A6D53-8F01-4BCE-9FBB-5AA875065E2C",
+      "iopOrder" : 13,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "lens",
+      "paramsData" : "eyJhcGVydHVyZSI6MCwiY2FtZXJhTWFrZXIiOiJTT05ZIiwiY2FtZXJhTW9kZWwiOiJJTENFLTdSTTUiLCJkaXN0b3J0aW9uSzEiOjAsImRpc3RvcnRpb25LMiI6MCwiZW1iZWRkZWRHZW9tZXRyeSI6InVua25vd24iLCJmb2NhbExlbmd0aCI6MCwibGVuc0tleSI6IlNvbnkgMG1tIEYwLjAiLCJzb3VyY2UiOiJvZmYiLCJ0Y2FCIjowLCJ0Y2FSIjowLCJ2aWduZXR0ZUsxIjowLCJ2aWduZXR0ZUsyIjowLCJ2aWduZXR0ZUszIjowfQ==",
+      "paramsHash" : "4772647691221885127",
+      "version" : 1
+    },
+    {
+      "enabled" : false,
+      "id" : "3719A396-EF4B-4225-A1CF-F07678A7D025",
+      "iopOrder" : 14,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "hazeremoval",
+      "paramsData" : "eyJhZGFwdGl2ZSI6dHJ1ZSwiZGlzdGFuY2UiOjAuMiwic3RyZW5ndGgiOjAuMn0=",
+      "paramsHash" : "276049393495922245",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "670B95F7-A8E0-45E7-AB14-71166249EFC2",
+      "iopOrder" : 15,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "ashift",
+      "paramsData" : "eyJjYiI6MSwiY2wiOjAsImNyIjoxLCJjcm9wRmFjdG9yIjoxLCJjdCI6MCwiZkxlbmd0aCI6MjgsImxlbnNTaGlmdEgiOjAsImxlbnNTaGlmdFYiOjAsInJvdGF0aW9uIjowLCJzaGVhciI6MH0=",
+      "paramsHash" : "6735508200198937738",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "F0255A9C-F41D-410E-B0F4-2CC8D8AAEB1B",
+      "iopOrder" : 15.5,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "upright",
+      "paramsData" : "eyJndWlkZXMiOltdLCJtb2RlIjoib2ZmIn0=",
+      "paramsHash" : "8283791384702228798",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "032845F1-696B-498E-8761-76D99F5712A3",
+      "iopOrder" : 16,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "flip",
+      "paramsData" : "eyJvcmllbnRhdGlvbiI6NX0=",
+      "paramsHash" : "3001644133230364948",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "614BB7C5-8A84-4511-921D-F714790FFE3F",
+      "iopOrder" : 18,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "liquify",
+      "paramsData" : "eyJpbnRlcnBvbGF0aW9uIjoibGFuY3pvczMiLCJwYXRocyI6W119",
+      "paramsHash" : "11614219162976156524",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "DA11C6B1-8860-4C8C-92CB-9C5B0369E825",
+      "iopOrder" : 21,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "exposure",
+      "paramsData" : "eyJibGFjayI6MCwiY29tcGVuc2F0ZUV4cG9zdXJlQmlhcyI6ZmFsc2UsImNvbXBlbnNhdGVIaWxpdGVQcmVzIjp0cnVlLCJkZWZsaWNrZXJQZXJjZW50aWxlIjo1MCwiZGVmbGlja2VyVGFyZ2V0TGV2ZWwiOi00LCJleHBvc3VyZSI6MCwibW9kZSI6MH0=",
+      "paramsHash" : "14428141783784165696",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "A0367798-7A3D-4EA4-A298-F27FCE692FA5",
+      "iopOrder" : 24,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "toneequal",
+      "paramsData" : "eyJibGFja3MiOjAsImJsZW5kaW5nIjo1LCJjb250cmFzdEJvb3N0IjowLCJkZWVwQmxhY2tzIjowLCJkZXRhaWxzIjo0LCJleHBvc3VyZUJvb3N0IjowLCJmZWF0aGVyaW5nIjoxLCJoaWdobGlnaHRzIjowLCJpdGVyYXRpb25zIjoxLCJtZXRob2QiOjQsIm1pZHRvbmVzIjowLCJub2lzZSI6MCwicXVhbnRpemF0aW9uIjowLCJzaGFkb3dzIjowLCJzbW9vdGhpbmciOjEuNDE0MjEzNSwic3BlY3VsYXJzIjowLCJ1bHRyYURlZXBCbGFja3MiOjAsIndoaXRlcyI6MH0=",
+      "paramsHash" : "8630045132673984123",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "87E2C6EF-5ADA-4425-B57D-795CBB83863B",
+      "iopOrder" : 24.5,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "crop",
+      "paramsData" : "eyJib3R0b20iOjEsImxlZnQiOjAsInJhdGlvRCI6LTEsInJhdGlvTiI6LTEsInJpZ2h0IjoxLCJ0b3AiOjB9",
+      "paramsHash" : "106223557218511692",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "71E7A037-F697-4A1E-B46C-7983F19A168D",
+      "iopOrder" : 27,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "equalizer",
+      "paramsData" : "eyJnMCI6MCwiZzEiOjAsImcyIjowLCJnMyI6MCwiZzQiOjAsImc1IjowfQ==",
+      "paramsHash" : "15285273689431344200",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "C77CB99E-8877-4A4F-A770-74D34A7CE493",
+      "iopOrder" : 28,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "colorin",
+      "paramsData" : "e30=",
+      "paramsHash" : "645223143103797797",
+      "version" : 1
+    },
+    {
+      "enabled" : false,
+      "id" : "2BE4477E-493B-4FC6-B596-647FD25A1B4B",
+      "iopOrder" : 28.5,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "channelmixerrgb",
+      "paramsData" : "eyJhZGFwdGF0aW9uIjoxLCJibHVlIjpbMCwwLDEsMF0sImNsaXAiOnRydWUsImdhbXV0IjoxLCJncmVlbiI6WzAsMSwwLDBdLCJncmV5IjpbMCwwLDAsMF0sImlsbHVtRmx1byI6MiwiaWxsdW1MRUQiOjQsImlsbHVtaW5hbnQiOjIsImxpZ2h0bmVzcyI6WzAsMCwwLDBdLCJub3JtYWxpemVCIjpmYWxzZSwibm9ybWFsaXplRyI6ZmFsc2UsIm5vcm1hbGl6ZUdyZXkiOmZhbHNlLCJub3JtYWxpemVMaWdodCI6ZmFsc2UsIm5vcm1hbGl6ZVIiOmZhbHNlLCJub3JtYWxpemVTYXQiOmZhbHNlLCJyZWQiOlsxLDAsMCwwXSwic2F0dXJhdGlvbiI6WzAsMCwwLDBdLCJ0ZW1wZXJhdHVyZSI6NTAwMywidmVyc2lvbiI6MiwieCI6MC4zMzMsInkiOjAuMzMzfQ==",
+      "paramsHash" : "5944561655672356818",
+      "version" : 1
+    },
+    {
+      "enabled" : false,
+      "id" : "7097BB12-60F1-4CB7-85B5-41B330DA098E",
+      "iopOrder" : 34,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "highpass",
+      "paramsData" : "eyJjb250cmFzdCI6NTAsInNoYXJwbmVzcyI6NTB9",
+      "paramsHash" : "16368584295058422660",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "8AFEBDD2-959A-485A-93D9-FA615EBF0832",
+      "iopOrder" : 35,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "sharpen",
+      "paramsData" : "eyJhbW91bnQiOjAsInJhZGl1cyI6MiwidGhyZXNob2xkIjowLjV9",
+      "paramsHash" : "4569857521159075247",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "E8A96F5B-105E-4FC0-A7D1-3BC7AF71D3DA",
+      "iopOrder" : 36,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "lut3d",
+      "paramsData" : "eyJjb2xvcnNwYWNlIjoic1JHQiIsImludGVycG9sYXRpb24iOiJ0ZXRyYWhlZHJhbCJ9",
+      "paramsHash" : "17838307237844272082",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "26C5254D-55E0-4B36-A7E3-AAB60FA054CA",
+      "iopOrder" : 39,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "channelmixer",
+      "paramsData" : "eyJhbGdvcml0aG0iOjEsImJsdWUiOlswLDAsMCwwLDAsMSwwXSwiZ3JlZW4iOlswLDAsMCwwLDEsMCwwXSwicmVkIjpbMCwwLDAsMSwwLDAsMF19",
+      "paramsHash" : "1765202977950012172",
+      "version" : 1
+    },
+    {
+      "enabled" : false,
+      "id" : "DB4E9B00-2C23-4E14-A773-5FCB558A2D4D",
+      "iopOrder" : 41.5,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "colorbalancergb",
+      "paramsData" : "eyJicmlsbGlhbmNlR2xvYmFsIjowLCJicmlsbGlhbmNlSGlnaGxpZ2h0cyI6MCwiYnJpbGxpYW5jZU1pZHRvbmVzIjowLCJicmlsbGlhbmNlU2hhZG93cyI6MCwiY2hyb21hR2xvYmFsIjowLCJjaHJvbWFIaWdobGlnaHRzIjowLCJjaHJvbWFNaWR0b25lcyI6MCwiY2hyb21hU2hhZG93cyI6MCwiY29udHJhc3QiOjAsImdsb2JhbEMiOjAsImdsb2JhbEgiOjAsImdsb2JhbFkiOjAsImdyZXlGdWxjcnVtIjowLjE4NDUsImhpZ2hsaWdodHNDIjowLCJoaWdobGlnaHRzSCI6MCwiaGlnaGxpZ2h0c1dlaWdodCI6MSwiaGlnaGxpZ2h0c1kiOjAsImh1ZUFuZ2xlIjowLCJtYXNrR3JleUZ1bGNydW0iOjAuMTg0NSwibWlkdG9uZXNDIjowLCJtaWR0b25lc0giOjAsIm1pZHRvbmVzWSI6MCwic2F0dXJhdGlvbkZvcm11bGEiOjEsInNhdHVyYXRpb25HbG9iYWwiOjAsInNhdHVyYXRpb25IaWdobGlnaHRzIjowLCJzYXR1cmF0aW9uTWlkdG9uZXMiOjAsInNhdHVyYXRpb25TaGFkb3dzIjowLCJzaGFkb3dzQyI6MCwic2hhZG93c0giOjAsInNoYWRvd3NXZWlnaHQiOjEsInNoYWRvd3NZIjowLCJ2aWJyYW5jZSI6MCwid2hpdGVGdWxjcnVtIjowfQ==",
+      "paramsHash" : "7002986264713440636",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "820FAE64-0B79-4899-BEB4-7D52C3A8F0F1",
+      "iopOrder" : 47,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "colisa",
+      "paramsData" : "eyJicmlnaHRuZXNzIjowLCJjb250cmFzdCI6MCwic2F0dXJhdGlvbiI6MH0=",
+      "paramsHash" : "13943360754637817550",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "B5AA1ED6-C91E-4F42-9002-45D2EE6B291D",
+      "iopOrder" : 48,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "tonecurve",
+      "paramsData" : "eyJhdXRvc2NhbGVBYiI6MywiY3VydmVBIjpbeyJ4IjowLCJ5IjowfSx7IngiOjAuNSwieSI6MC41fSx7IngiOjEsInkiOjF9XSwiY3VydmVCIjpbeyJ4IjowLCJ5IjowfSx7IngiOjAuNSwieSI6MC41fSx7IngiOjEsInkiOjF9XSwiY3VydmVMIjpbeyJ4IjowLCJ5IjowfSx7IngiOjEsInkiOjF9XSwicHJlc2VydmVDb2xvcnMiOjMsInR5cGVBIjoyLCJ0eXBlQiI6MiwidHlwZUwiOjIsInVuYm91bmRBYiI6dHJ1ZX0=",
+      "paramsHash" : "12013264035580440802",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "A04CB93A-D4CF-41B3-87C0-1EC4B086C838",
+      "iopOrder" : 49,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "levels",
+      "paramsData" : "eyJibGFjayI6MCwiZ3JheSI6NTAsImxldmVscyI6WzAsMC41LDFdLCJtb2RlIjowLCJ3aGl0ZSI6MTAwfQ==",
+      "paramsHash" : "10768660105275467332",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "C5C85A38-CF7E-4063-8350-4EA997BAA603",
+      "iopOrder" : 50,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "shadhi",
+      "paramsData" : "eyJhbGdvIjowLCJjb21wcmVzcyI6NTAsImhpZ2hsaWdodHMiOi01MCwiaGlnaGxpZ2h0c0NDb3JyZWN0Ijo1MCwibG93QXBwcm94aW1hdGlvbiI6MWUtMDYsInJhZGl1cyI6MTAwLCJzaGFkb3dzIjo1MCwic2hhZG93c0NDb3JyZWN0IjoxMDAsInVuYm91bmQiOnRydWUsIndoaXRlcG9pbnQiOjB9",
+      "paramsHash" : "13162850813298915081",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "D174E4AC-279C-4BE3-86C8-8EC0CD076FC6",
+      "iopOrder" : 54,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "bilat",
+      "paramsData" : "eyJkZXRhaWwiOjAsInNpZ21hUiI6MC41LCJzaWdtYVMiOjIwfQ==",
+      "paramsHash" : "8316957198653685990",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "9A738431-26C6-42EE-ABB5-F889F71F063A",
+      "iopOrder" : 56,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "colorcontrast",
+      "paramsData" : "eyJhT2Zmc2V0IjowLCJhU3RlZXBuZXNzIjoxLCJiT2Zmc2V0IjowLCJiU3RlZXBuZXNzIjoxLCJ1bmJvdW5kIjp0cnVlfQ==",
+      "paramsHash" : "16171938252613627236",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "E192F878-DA0F-4CA0-8A6F-51373E69BB1F",
+      "iopOrder" : 57,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "velvia",
+      "paramsData" : "eyJiaWFzIjoxLCJzdHJlbmd0aCI6MH0=",
+      "paramsHash" : "3418835968961344200",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "080BA5BA-3A30-441C-A504-7A682988837F",
+      "iopOrder" : 58,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "vibrance",
+      "paramsData" : "eyJhbW91bnQiOjB9",
+      "paramsHash" : "16301107634534898735",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "DA669B58-B398-42E8-A9FA-846B8939A155",
+      "iopOrder" : 60,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "colorzones",
+      "paramsData" : "eyJjaGFubmVsIjoyLCJjdXJ2ZUMiOlt7IngiOjAsInkiOjAuNX0seyJ4IjoxLCJ5IjowLjV9XSwiY3VydmVIIjpbeyJ4IjowLjI1LCJ5IjowLjV9LHsieCI6MC43NSwieSI6MC41fV0sImN1cnZlTCI6W3sieCI6MCwieSI6MC41fSx7IngiOjEsInkiOjAuNX1dLCJtb2RlIjowLCJzdHJlbmd0aCI6MCwidHlwZUMiOjEsInR5cGVIIjoxLCJ0eXBlTCI6MX0=",
+      "paramsHash" : "5278470456952261903",
+      "version" : 1
+    },
+    {
+      "enabled" : false,
+      "id" : "9FEBCF70-B938-4E0E-8879-F268E88B6204",
+      "iopOrder" : 61,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "bloom",
+      "paramsData" : "eyJzaXplIjoyMCwic3RyZW5ndGgiOjI1LCJ0aHJlc2hvbGQiOjkwfQ==",
+      "paramsHash" : "8031170049463403802",
+      "version" : 1
+    },
+    {
+      "enabled" : false,
+      "id" : "41078FB9-7B26-4A22-8D32-211A404C5CD3",
+      "iopOrder" : 64,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "monochrome",
+      "paramsData" : "eyJhIjowLCJiIjowLCJoaWdobGlnaHRzIjowLCJzaXplIjoyfQ==",
+      "paramsHash" : "16395304093538795528",
+      "version" : 1
+    },
+    {
+      "enabled" : false,
+      "id" : "BA11EB72-2C7D-4573-A6B5-83C41A6CCA57",
+      "iopOrder" : 65,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "grain",
+      "paramsData" : "eyJtaWR0b25lc0JpYXMiOjAsInNjYWxlIjo3LjUwNDY5MDYsInN0cmVuZ3RoIjoyNX0=",
+      "paramsHash" : "18033916712935750314",
+      "version" : 1
+    },
+    {
+      "enabled" : false,
+      "id" : "DC113FEC-0066-4572-9B41-EBEC43553F6B",
+      "iopOrder" : 66,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "soften",
+      "paramsData" : "eyJhbW91bnQiOjUwLCJicmlnaHRuZXNzIjowLjMzLCJzYXR1cmF0aW9uIjoxMDAsInNpemUiOjUwfQ==",
+      "paramsHash" : "15358132703527141710",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "1B39C605-FBCB-42C3-90DD-858649314685",
+      "iopOrder" : 66.5,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "skinSmooth",
+      "paramsData" : "eyJkZXRhaWxQcmVzZXJ2ZSI6MC4wMiwicmFkaXVzIjo4LCJzdHJlbmd0aCI6MCwidmFyaWFudCI6InR3b0JhbmRHYXVzc2lhbiJ9",
+      "paramsHash" : "15902181827786878274",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "9B941B05-610E-4A43-8B27-AF3A11238CE4",
+      "iopOrder" : 66.7,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "textOverlay",
+      "paramsData" : "eyJjb2xvckIiOjEsImNvbG9yRyI6MSwiY29sb3JSIjoxLCJjb250ZW50IjoiIiwiZm9udE5hbWUiOiJIZWx2ZXRpY2EiLCJmb250U2l6ZSI6NjAsImxpbmVTcGFjaW5nIjowLCJvcGFjaXR5IjoxLCJwb3NYIjowLjUsInBvc1kiOjAuNSwicm90YXRpb25EZWdyZWVzIjowfQ==",
+      "paramsHash" : "15367851750889629907",
+      "version" : 1
+    },
+    {
+      "enabled" : false,
+      "id" : "B6C26185-9D5A-4A75-A750-5877E726D541",
+      "iopOrder" : 68,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "vignette",
+      "paramsData" : "eyJhdXRvcmF0aW8iOmZhbHNlLCJicmlnaHRuZXNzIjotMC41LCJjZW50ZXJYIjowLCJjZW50ZXJZIjowLCJmYWxsb2ZmU2NhbGUiOjUwLCJzYXR1cmF0aW9uIjotMC41LCJzY2FsZSI6ODAsInNoYXBlIjoxLCJ1bmJvdW5kIjp0cnVlLCJ3aHJhdGlvIjoxfQ==",
+      "paramsHash" : "9063378091584686033",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "2C44C400-2C45-443A-B7EC-7A80065B8C99",
+      "iopOrder" : 70,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "colorout",
+      "paramsData" : "eyJpbnRlbnQiOiJyZWxhdGl2ZUNvbG9yaW1ldHJpYyIsIm91dHB1dFByb2ZpbGUiOiJkaXNwbGF5In0=",
+      "paramsHash" : "7730151441516749841",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "4827A17E-DBA5-4A1E-9ECF-DD3BAA261948",
+      "iopOrder" : 76,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "borders",
+      "paramsData" : "eyJhZGFwdGl2ZUJhY2tkcm9wIjp0cnVlLCJsYW5kc2NhcGVPdXRwdXQiOmZhbHNlLCJtYWluSW1hZ2VXaWR0aFJhdGUiOjEwMCwibWluaVRvcEJvdHRvbU1hcmdpbiI6MCwibW9kZSI6eyJzb2xpZCI6eyJjb2xvciI6IiNmZmZmZmYifX0sInRleHRCb3R0b21PZmZzZXQiOjAuMDI3fQ==",
+      "paramsHash" : "17265767441140476308",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "82D79FF0-444C-4120-A025-9CFBC727D1E7",
+      "iopOrder" : 77,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "watermark",
+      "paramsData" : "eyJhbmNob3IiOiJib3R0b21DZW50ZXIiLCJkYXRlRm9ybWF0IjoieXl5eVwvTU1cL2RkIGhoOm1tOnNzIiwiZmllbGRzIjpbeyJjdXN0b21WYWx1ZSI6IiIsImZvcmNlVXNlIjpmYWxzZSwia2V5IjoiUGVyc29uYWxTaWduIiwibG9nb1ZhcmlhbnQiOiJhdXRvIiwic2hvdyI6dHJ1ZSwidHlwZSI6InRleHQiLCJ1c2UiOmZhbHNlfSx7ImN1c3RvbVZhbHVlIjoiIiwiZm9yY2VVc2UiOmZhbHNlLCJrZXkiOiJNYWtlIiwibG9nb1ZhcmlhbnQiOiJhdXRvIiwic2hvdyI6dHJ1ZSwidHlwZSI6InRleHQiLCJ1c2UiOmZhbHNlfSx7ImN1c3RvbVZhbHVlIjoiIiwiZm9yY2VVc2UiOmZhbHNlLCJrZXkiOiJNb2RlbCIsImxvZ29WYXJpYW50IjoiYXV0byIsInNob3ciOnRydWUsInR5cGUiOiJ0ZXh0IiwidXNlIjpmYWxzZX0seyJjdXN0b21WYWx1ZSI6IiIsImZvcmNlVXNlIjpmYWxzZSwia2V5IjoiTGVuc01ha2UiLCJsb2dvVmFyaWFudCI6ImF1dG8iLCJzaG93Ijp0cnVlLCJ0eXBlIjoidGV4dCIsInVzZSI6ZmFsc2V9LHsiY3VzdG9tVmFsdWUiOiIiLCJmb3JjZVVzZSI6ZmFsc2UsImtleSI6IkxlbnNNb2RlbCIsImxvZ29WYXJpYW50IjoiYXV0byIsInNob3ciOnRydWUsInR5cGUiOiJ0ZXh0IiwidXNlIjpmYWxzZX0seyJjdXN0b21WYWx1ZSI6IiIsImZvcmNlVXNlIjpmYWxzZSwia2V5IjoiRXhwb3N1cmVUaW1lIiwibG9nb1ZhcmlhbnQiOiJhdXRvIiwic2hvdyI6dHJ1ZSwidHlwZSI6InRleHQiLCJ1c2UiOmZhbHNlfSx7ImN1c3RvbVZhbHVlIjoiIiwiZm9yY2VVc2UiOmZhbHNlLCJrZXkiOiJGTnVtYmVyIiwibG9nb1ZhcmlhbnQiOiJhdXRvIiwic2hvdyI6dHJ1ZSwidHlwZSI6InRleHQiLCJ1c2UiOmZhbHNlfSx7ImN1c3RvbVZhbHVlIjoiIiwiZm9yY2VVc2UiOmZhbHNlLCJrZXkiOiJJU08iLCJsb2dvVmFyaWFudCI6ImF1dG8iLCJzaG93Ijp0cnVlLCJ0eXBlIjoidGV4dCIsInVzZSI6ZmFsc2V9LHsiY3VzdG9tVmFsdWUiOiIiLCJmb3JjZVVzZSI6ZmFsc2UsImtleSI6IkZvY2FsTGVuZ3RoIiwibG9nb1ZhcmlhbnQiOiJhdXRvIiwic2hvdyI6dHJ1ZSwidHlwZSI6InRleHQiLCJ1c2UiOmZhbHNlfSx7ImN1c3RvbVZhbHVlIjoiIiwiZm9yY2VVc2UiOmZhbHNlLCJrZXkiOiJGb2NhbExlbmd0aEluMzVtbUZvcm1hdCIsImxvZ29WYXJpYW50IjoiYXV0byIsInNob3ciOnRydWUsInR5cGUiOiJ0ZXh0IiwidXNlIjpmYWxzZX0seyJjdXN0b21WYWx1ZSI6IiIsImZvcmNlVXNlIjpmYWxzZSwia2V5IjoiRXhwb3N1cmVQcm9ncmFtIiwibG9nb1ZhcmlhbnQiOiJhdXRvIiwic2hvdyI6dHJ1ZSwidHlwZSI6InRleHQiLCJ1c2UiOmZhbHNlfSx7ImN1c3RvbVZhbHVlIjoiIiwiZm9yY2VVc2UiOmZhbHNlLCJrZXkiOiJEYXRlVGltZU9yaWdpbmFsIiwibG9nb1ZhcmlhbnQiOiJhdXRvIiwic2hvdyI6dHJ1ZSwidHlwZSI6InRleHQiLCJ1c2UiOmZhbHNlfSx7ImN1c3RvbVZhbHVlIjoiIiwiZm9yY2VVc2UiOmZhbHNlLCJrZXkiOiJFeHBvc3VyZUNvbXBlbnNhdGlvbiIsImxvZ29WYXJpYW50IjoiYXV0byIsInNob3ciOnRydWUsInR5cGUiOiJ0ZXh0IiwidXNlIjpmYWxzZX0seyJjdXN0b21WYWx1ZSI6IiIsImZvcmNlVXNlIjpmYWxzZSwia2V5IjoiTWV0ZXJpbmdNb2RlIiwibG9nb1ZhcmlhbnQiOiJhdXRvIiwic2hvdyI6dHJ1ZSwidHlwZSI6InRleHQiLCJ1c2UiOmZhbHNlfSx7ImN1c3RvbVZhbHVlIjoiIiwiZm9yY2VVc2UiOmZhbHNlLCJrZXkiOiJXaGl0ZUJhbGFuY2UiLCJsb2dvVmFyaWFudCI6ImF1dG8iLCJzaG93Ijp0cnVlLCJ0eXBlIjoidGV4dCIsInVzZSI6ZmFsc2V9XSwiZm9udCI6eyJib2xkIjpmYWxzZSwiY2FzZVR5cGUiOiJkZWZhdWx0IiwiY29sb3IiOiIiLCJpdGFsaWMiOmZhbHNlLCJuYW1lIjoiIiwic2l6ZVBlcmNlbnQiOjIuMn0sImxpbmVTcGFjaW5nIjowLjQsImxvZ29PcGFjaXR5IjoxLCJ0ZW1wbGF0ZXMiOlt7ImZvbnQiOnsiYm9sZCI6dHJ1ZSwiY2FzZVR5cGUiOiJkZWZhdWx0IiwiY29sb3IiOiIiLCJpdGFsaWMiOmZhbHNlLCJuYW1lIjoiIiwic2l6ZVBlcmNlbnQiOjN9LCJrZXkiOiJtYWtlLW1vZGVsIiwibmFtZSI6IkxvZ2\/lnovlj7fmqKHniYgiLCJwYXR0ZXJuIjoie01ha2V9IHtNb2RlbH0iLCJ1c2UiOmZhbHNlLCJ2ZXJ0aWNhbEFsaWduIjoiYmFzZWxpbmUifSx7ImZvbnQiOnsiYm9sZCI6dHJ1ZSwiY2FzZVR5cGUiOiJkZWZhdWx0IiwiY29sb3IiOiIiLCJpdGFsaWMiOmZhbHNlLCJuYW1lIjoiIiwic2l6ZVBlcmNlbnQiOjIuMn0sImtleSI6ImV4aWYtcGFyYW1zIiwibmFtZSI6IuWPguaVsOaooeeJiCAtIOetieaViOeEpui3nSIsInBhdHRlcm4iOiJ7Rm9jYWxMZW5ndGhJbjM1bW1Gb3JtYXR9bW0gZlwve0ZOdW1iZXJ9IHtFeHBvc3VyZVRpbWV9cyBJU097SVNPfSIsInVzZSI6ZmFsc2UsInZlcnRpY2FsQWxpZ24iOiJiYXNlbGluZSJ9LHsiZm9udCI6eyJib2xkIjp0cnVlLCJjYXNlVHlwZSI6ImRlZmF1bHQiLCJjb2xvciI6IiIsIml0YWxpYyI6ZmFsc2UsIm5hbWUiOiIiLCJzaXplUGVyY2VudCI6Mi4yfSwia2V5IjoiZXhpZi1wYXJhbXMtMSIsIm5hbWUiOiLlj4LmlbDmqKHniYggLSDljp\/lp4vnhKbot50iLCJwYXR0ZXJuIjoie0ZvY2FsTGVuZ3RofW1tIGZcL3tGTnVtYmVyfSB7RXhwb3N1cmVUaW1lfXMgSVNPe0lTT30iLCJ1c2UiOmZhbHNlLCJ2ZXJ0aWNhbEFsaWduIjoiYmFzZWxpbmUifV19",
+      "paramsHash" : "4047648938770142897",
+      "version" : 1
+    },
+    {
+      "enabled" : true,
+      "id" : "BAE78050-3564-4536-A205-18CEC6E5A628",
+      "iopOrder" : 78,
+      "multiName" : "",
+      "multiPriority" : 0,
+      "opName" : "gamma",
+      "paramsData" : "e30=",
+      "paramsHash" : "645223143103797797",
+      "version" : 1
+    }
+  ],
+  "keywords" : null,
+  "layerStack" : {
+    "layers" : [
+      {
+        "blendMode" : 1,
+        "blendOptions" : 0,
+        "chain" : [
+          {
+            "enabled" : true,
+            "id" : "90DC62B7-99B4-4AD5-8C39-F68890EA6C70",
+            "iopOrder" : 21,
+            "multiName" : "",
+            "multiPriority" : 0,
+            "opName" : "exposure",
+            "paramsData" : "eyJibGFjayI6MCwiY29tcGVuc2F0ZUV4cG9zdXJlQmlhcyI6ZmFsc2UsImNvbXBlbnNhdGVIaWxpdGVQcmVzIjp0cnVlLCJkZWZsaWNrZXJQZXJjZW50aWxlIjo1MCwiZGVmbGlja2VyVGFyZ2V0TGV2ZWwiOi00LCJleHBvc3VyZSI6MS41LCJtb2RlIjowfQ==",
+            "paramsHash" : "13236133024862524682",
+            "version" : 1
+          },
+          {
+            "enabled" : true,
+            "id" : "A8AE44E7-D925-4E56-94CE-B325315F367F",
+            "iopOrder" : 41.6,
+            "multiName" : "",
+            "multiPriority" : 0,
+            "opName" : "contrast",
+            "paramsData" : "eyJjb250cmFzdCI6MTV9",
+            "paramsHash" : "13762580274711870727",
+            "version" : 1
+          },
+          {
+            "enabled" : true,
+            "id" : "2582507D-62A1-42B6-AC7C-D3BA34C51F62",
+            "iopOrder" : 42.2,
+            "multiName" : "",
+            "multiPriority" : 0,
+            "opName" : "saturation",
+            "paramsData" : "eyJzYXR1cmF0aW9uIjoxLjN9",
+            "paramsHash" : "14954125451243226087",
+            "version" : 1
+          }
+        ],
+        "enabled" : true,
+        "id" : "C5212D2B-A304-4C86-8129-F47D69A84D24",
+        "isVisible" : true,
+        "kind" : "adjustment",
+        "name" : "调整 1",
+        "opacity" : 1
+      }
+    ]
+  },
+  "note" : null,
+  "process" : 3,
+  "rating" : null,
+  "schemaVersion" : 12
+}

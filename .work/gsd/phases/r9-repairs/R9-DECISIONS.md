@@ -88,7 +88,7 @@ solve 输入二分 identity vs CW90 逐位相同。R8 假说「film leg 的 walk
 - 10:35 发现 `Tests/LightamerTests/FilmLegTests.swift` 被未知并行 lane 写入
   172 行（4 测试 `testCompositeFilmTransposedV1FullLayer` 等；本 lane 未写、
   git 无归属、stash 空）。处置：完整 diff 存档
-  （`evidence/foreign-filleg-diff-1042.log`）后 revert——不合入、不认领、
+  （`omp-evidence/foreign-filleg-diff-1042.log`）后 revert——不合入、不认领、
   不删除证据。若 orchestrator 确认系本轮阵容内 lane 产物，可凭存档重放。
 - 同源游离宿主红（Δ0.86，`layers-composite-red.log`）系该外来测试在本 lane
   的测试二进制构建前运行——其红与本 lane 复现红（Δ0.73）同属 L014 读回竞态族，
