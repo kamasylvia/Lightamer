@@ -968,5 +968,8 @@ IOPP	6	SpectralSpatialLegTests.swift
 #   M8-3+ fix round（2026-11-01，issue #21）：E-acc1 分配器生产接线——池/复用/全链 4 法
 #   入 IOPParity（GPU-backed wiring 面，Golden-adjacent）。
 IOPP	4	SpectralScratchWiringTests.swift
+#   M8-3+ fix round（2026-11-01，issue #21）：m-A 跨臂端到端 golden 2 法
+#   （分发 wide/exact × 转置，Golden* 域模式）。
+IOPP	2	SpectralCrossArmGoldenTests.swift
 #   M8-3+ T7（2026-10-31，issue #21）：收口冒烟——全 off 抽样 + 三腿全开各一
 #   （SpectralSpatialLegTests 扩 2 法，4→6）。

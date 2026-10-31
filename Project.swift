@@ -345,6 +345,9 @@ let project = Project(
                 // M8-3+ fix round (E-acc1): the allocator's production
                 // wiring face (pool/reuse/chain — GPU-backed, Golden-adjacent).
                 "Tests/LightamerTests/SpectralScratchWiringTests.swift",
+                // M8-3+ fix round (m-A): the cross-arm end-to-end golden
+                // (dispatch wide/exact × transpose — the Golden* pattern).
+                "Tests/LightamerTests/SpectralCrossArmGoldenTests.swift",
                 "Tests/LightamerTests/SpectralWideBlurGoldenTests.swift",
                 "Tests/LightamerTests/SpectralSpatialLegTests.swift",
                 "Tests/LightamerTests/SpectralKernelGoldenTests.swift",
