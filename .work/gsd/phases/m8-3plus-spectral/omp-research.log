@@ -1,0 +1,13 @@
+Working...
+交付：`.work/gsd/phases/m8-3plus-spectral/RESEARCH.md`（39KB，6/6 todos）。零 commit 零构建，纯文本。
+
+核心结论：
+
+1. **C200 撞墙 = dichroic 杠杆耗尽 + 工作点近分叉**，非求解器收敛问题。静态复演三证据：Y=250 处 dim 系数已饱和 0.9968（扩域到 500 只换 0.3% 光量，安慰剂）；C200 解对中灰密度 ±0.5dex 内从 Y=46 摆到钳制（portra 同扰动下 Y 18-27 稳定）；7 seed 逐位同解（初值改进零收益）。修法推荐两段式：实测锚 seed + 守恒回退（墙内最优 + 通道仿射归一），钳制域不动。
+2. **28 profile 分布**：14 负片安全（Y<80）；近墙唯二 C200/Xtra400；4 反转片在 RA-4 纸上中性解病态（velvia 残差 18%）→ OQ-M83-3 路由决策（推荐正片直印语义）；worst paper 20/20 全 crystal——默认对恰最紧对。
+3. **m-3①②③**：②关闭（跨通道数值巧合，无机制含义）；①方向已定（蓝偏），像素值证据列执行批验收；③转验收面 portra 对照腿。
+4. **三算子接谱**：grain = B 拆口（develop 后 print 前）+ 子层表从谱面/标定派生零新资产；halation/diffusion = 前置腿 + B2 print 座位，宽模糊走四 commit 抽稀设计（plan 三阈值 + 中央方差扣减 + 拆双 kernel + ROI 网格锚定，读解正本已入 §2.3 表）；默认全 off。
+5. **m-6①**：源码面 carrier 同步在位，零代码，验收补测即关。**时长维**：机理假设 = `filmRecordDidChange` 先 await 4-5 分钟冷 build 再调度写 → 写腿饥饿；可三戳对账证伪；修法 OQ-M83-8 推荐写腿前提（单行移动）。
+6. **OQ×9 全带推荐值**（§6）；process/sidecar：C200 修法 v3 内 additive，三算子 on 档语义预留 v4，FilmRecord 新字段 → schema v13。
+
+待 orchestrator：收割 RESEARCH.md；m-3① 像素值证据与 m-3③/m-6① 实测归执行/验收批。

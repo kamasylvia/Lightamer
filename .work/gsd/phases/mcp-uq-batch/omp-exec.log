@@ -1,0 +1,35 @@
+Working...
+# MCP-UQ 增量批收口（UQ-S1/S2/S3 一级，omp 执行 lane，一次性完整输出）
+
+## 结论
+
+三件全交付，`PASS`。全套 **4461/34/0**（基线 4443/34/0 ⊕ ΔN=**+18**），union 快照 33→34，封存面 17 件零 diff，zh-audit 双 PASS，域内自审 R1 FAIL/2+14 → 全修 → R2 PASS/0+4 → 全修收敛。
+
+## 交付
+
+- **UQ-S1 `get_schema`**（`a98318cc`，refs #18）：editing 域新只读工具。合成缝 = `IopCatalog.ops`（名录+type 串，消费不复列）× seed 编码默认值（seed paramsData ∥ GradeCatalog.identityJSON，与 T3 guard 同源）× 手写 range/meaning 表（19 op/223 row 全覆盖）。应答含 path/type/range/meaning/default；默认面经 `defaultFaceOps()` 收窄 16。
+- **UQ-S2 onboarding 节**（`f9ceb510`，refs #19）：Settings MCP 页「接入向导」节——`~/.local/bin/lightamer` 两行脚本安装行 + Claude Code/Desktop/CLI 三粘贴块（Copy 按钮），路径全 live 生成。xcstrings 15 键 en+zh（+S1 描述键 1 = 本批 16 键）。
+- **UQ-S3 一级 CLI 门**（`310a499a`，refs #20）：`Lightamer mcp list|call <tool> '<json>'`——discovery→SDK HTTP 握手→tools/list-call→打印→退出；stdout 纯结果，exit 0/1/2 typed；Bearer 经 `requestModifier`。入口 fork 在 `--mcp-*` 后、AI-worker 前。
+- 账本（`7ad4a9c2`）：`phases/mcp-uq-batch/MCP-UQ-{SUMMARY,DECISIONS}.md` + R1/R2 任务书与报告。
+
+## union 快照变化（serial right 行使）
+
+editing 10→11，union 33→34（`all33→all34` 改名），count 钉 11 处（union×3、SC7、control、refine 域枚举、editing+culling、host×2、launcher、searchstate），descriptionKeys +1，`tools.md` 再生成（34 tools/editing 11），SKILL.md count×3+枚举+§6 nod。destructive 恒 10。
+
+## 验证实数
+
+- 新法 18：`McpGetSchemaTests` 7（名录/注记/默认值源三闭合 + registry + 默认面 + InMemory/HTTP 双腿）+ `McpOnboardingTests` 11（含真二进制 `mcp list` e2e，有界 60s）。
+- App 终轮 **1091/6/0**（=1073+18）；余六 bundle 沿 `--all` 轮全绿值（814/565/536/785/285/385，R2 修复仅 App 面）。
+- zh-audit `--check` PASS（1783 源键/2116 仓键）+ `--self-test` PASS。
+
+## 域内自审结论
+
+- **R1 FAIL/2+14**：E-1（Project.swift 登记行误删吞 Control 行——本批最大执行事故，已修纯插入）+ E-2（onboarding 15 键 en 裸键，已补 en）；12 minor 全修，M-4 接受（空白重序列化语义零触）、M-8/M-13 挂账（二级 CLI 面）。
+- **R2 PASS/0+4**：R1 修复逐项 FIXED 确认；新 4 minor（头注残名/live-image 码/usage 别名/收口 gate）全修；收口 gate = 本 App 终轮 1091/6/0。
+- 审查纪律：R1/R2 均只读（零构建/零测试执行/零写入），隔离白名单遵守。
+
+## 申报
+
+- D-UQ-4：S3 只做 HTTP 单腿（stdio 派生抢 writer lock 且语义分裂，二级立项再议）——任务书「stdio/HTTP」落为 HTTP，特此申报。
+- 执行事故注记：Project.swift 两次 PUT 吞行（Control + Coordinator 登记行，均补回，diff 纯插入亲证）——显式清单文件行级编辑必须 diff 复核，见 DECISIONS D-UQ-0。
+- 机器：G4 透明越门（Data 19G 现实基线）+ `--monitor` 全程伴跑 + ps 清零 + 离线构建先例；首轮 `--all` 在既有 FilmCoordinator 面超时中断（非本批面），改定向 App 轮收口。
