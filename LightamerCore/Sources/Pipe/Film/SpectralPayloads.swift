@@ -584,7 +584,8 @@ public final class SpectralGPUPayloads {
         input: any MTLTexture, output: any MTLTexture, metal: MetalContext,
         exposureGain: Float, magentaCC: Float, yellowCC: Float, strength: Float,
         grainAmount: Float? = nil, halationAmount: Float? = nil,
-        diffusionFamily: String? = nil, diffusionAmount: Float? = nil
+        diffusionFamily: String? = nil, diffusionAmount: Float? = nil,
+        scratch: SpectralScratchAllocator.Slot? = nil
     ) async throws {
         precondition(
             input.width == output.width && input.height == output.height,
@@ -596,6 +597,10 @@ public final class SpectralGPUPayloads {
         updateFrameGeometry(width: input.width, height: input.height)
         applySessionTuning(exposureGain: exposureGain, kM: Float(kM), kY: Float(kY),
                            strength: strength)
+        // The E-acc1 run slot: the entry owns ONE Slot per run and
+        // threads it down both segments (pre-leg → release → stage B;
+        // an injected slot lets tests read the accounting face).
+        let runScratch = scratch ?? SpectralScratchAllocator.Slot()
         let w = input.width, h = input.height
         // M8-3+ T5: the spatial pre-leg (taking diffusion → halation —
         // the upstream order verbatim) runs on a COPY of the input when
@@ -624,7 +629,8 @@ public final class SpectralGPUPayloads {
             try await dispatchSpatialPreLeg(
                 plane: preCopy, halationAmount: halationAmount,
                 diffusionFamily: diffusionFamily,
-                diffusionAmount: diffusionAmount, metal: metal)
+                diffusionAmount: diffusionAmount, metal: metal,
+                scratch: runScratch)
             chainInput = preCopy
         } else {
             chainInput = input
@@ -692,14 +698,14 @@ public final class SpectralGPUPayloads {
             }
             try await dispatchStageB(
                 input: chainInput, output: stageBTarget, corr: corrA, metal: metal,
-                grainAmount: grainAmount)
+                grainAmount: grainAmount, scratch: runScratch)
         } else {
             // The couplers-off face: B only. The corr slot binds the tc
             // texture as a never-read placeholder (the kernel guards on
             // use_corr = 0 before touching it).
             try await dispatchStageB(
                 input: chainInput, output: stageBTarget, corr: tcLutTexture, metal: metal,
-                grainAmount: grainAmount)
+                grainAmount: grainAmount, scratch: runScratch)
         }
 
         if wantsMix {
@@ -722,28 +728,56 @@ public final class SpectralGPUPayloads {
     /// runs on it when armed (nil = skipped, zero dispatches — the
     /// off-identity is structural, not a kernel gate), B2 resumes at
     /// print_expose. The corr field rides texture 2 per the kernel ABI.)
+    /// The E-acc1 scratch face: the run's Slot threads through the leg
+    /// dispatches (default nil = independent allocation, the legacy face).
+    /// The holder segment is .stageB2 for the whole B1→grain→B2 span:
+    /// the B1 CMY plane borrows FIRST and stays live through grain + B2
+    /// (grain's working set top-ups with the same leg — the pool's
+    /// same-holder re-entry — and releases BEFORE the CMY plane does).
     private func dispatchStageB(
         input: any MTLTexture, output: any MTLTexture,
         corr: any MTLTexture, metal: MetalContext,
-        grainAmount: Float? = nil
+        grainAmount: Float? = nil,
+        scratch: SpectralScratchAllocator.Slot? = nil
     ) async throws {
-        guard let cmyPlane = try Self.makeReadWriteTexture(
+        // The B1 CMY plane (the pool's .stageB2 face — live across the
+        // whole span; nil scratch = the legacy independent face).
+        let cmyPlane: any MTLTexture
+        if let scratch {
+            guard let borrowed = try scratch.borrowPlanes(
+                .stageB2, device: metal.device, count: 1,
+                width: input.width, height: input.height),
+                let plane = borrowed.first
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: B1 CMY plane allocation")
+            }
+            cmyPlane = plane
+        } else if let plane = try Self.makeReadWriteTexture(
             metal: metal, width: input.width, height: input.height)
-        else {
+        {
+            cmyPlane = plane
+        } else {
             throw SpectralBuildError.projectionUnavailable(
                 "SpectralGPUPayloads: B1 CMY plane allocation")
         }
-        try await dispatchStageB1(
-            input: input, output: cmyPlane, corr: corr, metal: metal)
-        // The zero face: amount == 0 skips the group (the on-identity —
-        // upstream's own `grain_amount > 0` gate: a zero-delta add would
-        // still blur+USM the clean density, which is NOT the identity).
-        if let amount = grainAmount, amount != 0 {
-            try await dispatchGrainGroup(
-                density: cmyPlane, amount: amount, metal: metal)
+        do {
+            try await dispatchStageB1(
+                input: input, output: cmyPlane, corr: corr, metal: metal)
+            // The zero face: amount == 0 skips the group (the on-identity —
+            // upstream's own `grain_amount > 0` gate: a zero-delta add would
+            // still blur+USM the clean density, which is NOT the identity).
+            if let amount = grainAmount, amount != 0 {
+                try await dispatchGrainGroup(
+                    density: cmyPlane, amount: amount, metal: metal,
+                    scratch: scratch)
+            }
+            try await dispatchStageB2(
+                input: cmyPlane, output: output, corr: corr, metal: metal)
         }
-        try await dispatchStageB2(
-            input: cmyPlane, output: output, corr: corr, metal: metal)
+        if let scratch {
+            scratch.releasePlanes([cmyPlane])
+        }
     }
 
     /// Stage B1 (expose + lograw + develop → the CMY density plane).
@@ -805,25 +839,58 @@ public final class SpectralGPUPayloads {
     /// The grain group (M8-3+ T4): gen_raw_sl × 3 channels (reset
     /// accumulate each) → finalize × 3 → add → clump blur (row+col on
     /// the combined field) → USM. Single-sublayer face. All run-scoped.
+    /// The E-acc1 face: the working set borrows from the run Slot with
+    /// the SAME .stageB2 leg (the stage-B span's holder — the top-up
+    /// re-entry) and releases before stage B's CMY plane does. The tiny
+    /// param/curve/roi/weights buffers stay direct (≤256 floats — pool
+    /// traffic for bytes, kernel-by-kernel allocation by design).
     private func dispatchGrainGroup(
-        density: any MTLTexture, amount: Float, metal: MetalContext
+        density: any MTLTexture, amount: Float, metal: MetalContext,
+        scratch: SpectralScratchAllocator.Slot? = nil
     ) async throws {
         let w = density.width, h = density.height
         let rows = Self.sublayerRowsForGrain(
             curvesNorm: tables.curvesNorm, filmDmax: tables.filmDmax,
             filmDmin: tables.filmDmin, publishedRms: publishedRms)
-        guard let rawBuffer = metal.device.makeBuffer(
-            length: w * h * MemoryLayout<Float>.size,
-            options: .storageModeShared),
-            let accBuffer = metal.device.makeBuffer(
-                length: w * h * MemoryLayout<Float>.size,
-                options: .storageModeShared),
-            let grainBuffer = metal.device.makeBuffer(
-                length: w * h * 4 * MemoryLayout<Float>.size,
-                options: .storageModeShared)
-        else {
-            throw SpectralBuildError.projectionUnavailable(
-                "SpectralGPUPayloads: grain buffer allocation")
+        let wh = w * h
+        let floatBytes = MemoryLayout<Float>.size
+        let rawBuffer: any MTLBuffer
+        let accBuffer: any MTLBuffer
+        let grainBuffer: any MTLBuffer
+        var borrowedBuffers: [any MTLBuffer] = []
+        if let scratch {
+            guard let borrowed = try scratch.borrowBuffers(
+                .stageB2, device: metal.device,
+                byteLengths: [wh * floatBytes, wh * floatBytes,
+                              wh * 4 * floatBytes]),
+                borrowed.count == 3
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: grain buffer allocation")
+            }
+            rawBuffer = borrowed[0]
+            accBuffer = borrowed[1]
+            grainBuffer = borrowed[2]
+            borrowedBuffers = borrowed
+        } else {
+            guard let raw = metal.device.makeBuffer(
+                length: wh * floatBytes, options: .storageModeShared),
+                let acc = metal.device.makeBuffer(
+                    length: wh * floatBytes, options: .storageModeShared),
+                let grain = metal.device.makeBuffer(
+                    length: wh * 4 * floatBytes, options: .storageModeShared)
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: grain buffer allocation")
+            }
+            rawBuffer = raw
+            accBuffer = acc
+            grainBuffer = grain
+        }
+        defer {
+            if !borrowedBuffers.isEmpty {
+                scratch?.releaseBuffers(borrowedBuffers)
+            }
         }
         func paramBuffer(_ values: [Float]) throws -> any MTLBuffer {
             guard let buffer = metal.device.makeBuffer(
@@ -878,7 +945,8 @@ public final class SpectralGPUPayloads {
             if dyeSigma > 0.05 {
                 try await dispatchSeparableBlur(
                     buffer: rawBuffer, width: w, height: h,
-                    sigma: Double(dyeSigma), metal: metal)
+                    sigma: Double(dyeSigma), metal: metal,
+                    scratch: scratch)
             }
             let accParams = try paramBuffer([Float(w), Float(h), 1.0])
             let acc = try await metal.makeEncoder(
@@ -921,13 +989,40 @@ public final class SpectralGPUPayloads {
         add.encoder.endEncoding()
         add.commandBuffer.commit()
         await add.commandBuffer.completed()
-        guard let blurTmp = try Self.makeReadWriteTexture(
-            metal: metal, width: w, height: h),
-            let usmOrig = try Self.makeReadWriteTexture(
-                metal: metal, width: w, height: h)
-        else {
-            throw SpectralBuildError.projectionUnavailable(
-                "SpectralGPUPayloads: grain blur plane allocation")
+        // The clump-blur pair (the pool's .stageB2 top-up — the pair
+        // borrows AFTER the add pass and releases at group end; nil
+        // scratch = the legacy independent face).
+        let blurTmp: any MTLTexture
+        let usmOrig: any MTLTexture
+        var borrowedPlanes: [any MTLTexture] = []
+        if let scratch {
+            guard let borrowed = try scratch.borrowPlanes(
+                .stageB2, device: metal.device, count: 2,
+                width: w, height: h),
+                borrowed.count == 2
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: grain blur plane allocation")
+            }
+            blurTmp = borrowed[0]
+            usmOrig = borrowed[1]
+            borrowedPlanes = borrowed
+        } else {
+            guard let tmp = try Self.makeReadWriteTexture(
+                metal: metal, width: w, height: h),
+                let orig = try Self.makeReadWriteTexture(
+                    metal: metal, width: w, height: h)
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: grain blur plane allocation")
+            }
+            blurTmp = tmp
+            usmOrig = orig
+        }
+        defer {
+            if !borrowedPlanes.isEmpty {
+                scratch?.releasePlanes(borrowedPlanes)
+            }
         }
         if let commandBuffer = try? metal.makeRoutedCommandBuffer(),
             let blit = commandBuffer.makeBlitCommandEncoder() {
@@ -1025,26 +1120,51 @@ public final class SpectralGPUPayloads {
 
     /// The buffer blur (row+col over a flat float buffer — the dye-cloud
     /// face; texture-backed staging because the blur kernels read
-    /// textures).
+    /// textures). The E-acc1 face: the r32 staging pair rides the pool
+    /// (same .stageB2 leg — the caller is always the grain group inside
+    /// the stage-B span; the weights/params buffers stay direct).
     private func dispatchSeparableBlur(
         buffer: any MTLBuffer, width: Int, height: Int,
-        sigma: Double, metal: MetalContext
+        sigma: Double, metal: MetalContext,
+        scratch: SpectralScratchAllocator.Slot? = nil
     ) async throws {
-        func stagingTexture() throws -> any MTLTexture {
-            let descriptor = MTLTextureDescriptor.texture2DDescriptor(
-                pixelFormat: .r32Float, width: max(width, 1),
-                height: max(height, 1), mipmapped: false)
-            descriptor.usage = [.shaderRead, .shaderWrite]
-            descriptor.storageMode = .shared
-            guard let texture = metal.device.makeTexture(descriptor: descriptor)
+        let stageA: any MTLTexture
+        let stageB: any MTLTexture
+        var borrowedStaging: [any MTLTexture] = []
+        if let scratch {
+            guard let borrowed = try scratch.borrowPlanes(
+                .stageB2, device: metal.device, count: 2,
+                width: width, height: height, pixelFormat: .r32Float),
+                borrowed.count == 2
             else {
                 throw SpectralBuildError.projectionUnavailable(
                     "SpectralGPUPayloads: blur staging allocation")
             }
-            return texture
+            stageA = borrowed[0]
+            stageB = borrowed[1]
+            borrowedStaging = borrowed
+        } else {
+            func stagingTexture() throws -> any MTLTexture {
+                let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+                    pixelFormat: .r32Float, width: max(width, 1),
+                    height: max(height, 1), mipmapped: false)
+                descriptor.usage = [.shaderRead, .shaderWrite]
+                descriptor.storageMode = .shared
+                guard let texture = metal.device.makeTexture(descriptor: descriptor)
+                else {
+                    throw SpectralBuildError.projectionUnavailable(
+                        "SpectralGPUPayloads: blur staging allocation")
+                }
+                return texture
+            }
+            stageA = try stagingTexture()
+            stageB = try stagingTexture()
         }
-        let stageA = try stagingTexture()
-        let stageB = try stagingTexture()
+        defer {
+            if !borrowedStaging.isEmpty {
+                scratch?.releasePlanes(borrowedStaging)
+            }
+        }
         if let commandBuffer = try? metal.makeRoutedCommandBuffer(),
             let blit = commandBuffer.makeBlitCommandEncoder() {
             blit.copy(
@@ -1170,12 +1290,17 @@ public final class SpectralGPUPayloads {
     /// order verbatim — boost/glare seats reserved, never dispatched).
     /// In-place on `plane` (read_write). Nil legs = skipped (the
     /// off-identity is structural — the caller skips the whole leg).
+    /// The E-acc1 face: the segment holder is .spatialPre — diffusion's
+    /// trio + halation's quartet borrow SEQUENTIALLY (each leg releases
+    /// its faces before the next borrows; the wide staging inside the
+    /// bank loop top-ups with the same leg per pass).
     func dispatchSpatialPreLeg(
         plane: any MTLTexture,
         halationAmount: Float?,
         diffusionFamily: String?,
         diffusionAmount: Float?,
-        metal: MetalContext
+        metal: MetalContext,
+        scratch: SpectralScratchAllocator.Slot? = nil
     ) async throws {
         // Taking diffusion FIRST (the upstream order).
         if let familyId = diffusionFamily,
@@ -1184,13 +1309,14 @@ public final class SpectralGPUPayloads {
             if amount != 0 {
                 try await dispatchTakingDiffusion(
                     plane: plane, family: family, strength: amount,
-                    metal: metal)
+                    metal: metal, scratch: scratch)
             }
         }
         // Halation SECOND.
         if let amount = halationAmount, amount != 0 {
             try await dispatchHalation(
-                plane: plane, amount: Double(amount), metal: metal)
+                plane: plane, amount: Double(amount), metal: metal,
+                scratch: scratch)
         }
     }
 
@@ -1199,9 +1325,14 @@ public final class SpectralGPUPayloads {
     /// allocator's spatialPre face); each bank component blurs the
     /// SOURCE plane (exact kernel below the effect threshold, the wide
     /// path above it) and folds in with its channel weights.
+    /// The E-acc1 face: acc/tmp/comp borrow as ONE .spatialPre call; the
+    /// wide staging top-ups per wide pass (borrow → release inside the
+    /// pass, so the next pass re-hits the pool). The trio releases at
+    /// leg end (halation's quartet reuses the same faces next).
     func dispatchTakingDiffusion(
         plane: any MTLTexture, family: SpectralSpatialTables.DiffFamily,
-        strength: Double, metal: MetalContext
+        strength: Double, metal: MetalContext,
+        scratch: SpectralScratchAllocator.Slot? = nil
     ) async throws {
         let w = plane.width, h = plane.height
         let pitch = Self.pixelUm(frameWidth: w)
@@ -1209,15 +1340,42 @@ public final class SpectralGPUPayloads {
         let scatter = SpectralSpatialTables.scatterFraction(
             strength: strength, family: family)
         guard scatter > 0 else { return }
-        guard let acc = try Self.makeReadWriteTexture(
-            metal: metal, width: w, height: h),
-            let tmp = try Self.makeReadWriteTexture(
+        let acc: any MTLTexture
+        let tmp: any MTLTexture
+        let comp: any MTLTexture
+        var borrowedTrio: [any MTLTexture] = []
+        if let scratch {
+            guard let borrowed = try scratch.borrowPlanes(
+                .spatialPre, device: metal.device, count: 3,
+                width: w, height: h),
+                borrowed.count == 3
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: diffusion plane allocation")
+            }
+            acc = borrowed[0]
+            tmp = borrowed[1]
+            comp = borrowed[2]
+            borrowedTrio = borrowed
+        } else {
+            guard let a = try Self.makeReadWriteTexture(
                 metal: metal, width: w, height: h),
-            let comp = try Self.makeReadWriteTexture(
-                metal: metal, width: w, height: h)
-        else {
-            throw SpectralBuildError.projectionUnavailable(
-                "SpectralGPUPayloads: diffusion plane allocation")
+                let t = try Self.makeReadWriteTexture(
+                    metal: metal, width: w, height: h),
+                let c = try Self.makeReadWriteTexture(
+                    metal: metal, width: w, height: h)
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: diffusion plane allocation")
+            }
+            acc = a
+            tmp = t
+            comp = c
+        }
+        defer {
+            if !borrowedTrio.isEmpty {
+                scratch?.releasePlanes(borrowedTrio)
+            }
         }
         // Zero the acc plane (blit from a zero buffer would need a
         // staging buffer — instead track the first-component face).
@@ -1238,7 +1396,8 @@ public final class SpectralGPUPayloads {
                 await commandBuffer.completed()
             }
             try await blurPlane(
-                plane: comp, tmp: tmp, sigmaPx: sigmaPx, metal: metal)
+                plane: comp, tmp: tmp, sigmaPx: sigmaPx, metal: metal,
+                scratch: scratch)
             let cw = component.channelWeight
             try await foldBankComponent(
                 acc: acc, comp: comp,
@@ -1254,14 +1413,18 @@ public final class SpectralGPUPayloads {
 
     /// One blur at σ px (exact kernel below the effect threshold, the
     /// wide path above it — the threshold face (100px starting value; the
-    /// re-mark probe is pending).
+    /// re-mark probe is pending). The E-acc1 face: the scratch slot
+    /// threads to the wide arm (the exact arm allocates nothing but
+    /// weights/params — direct by design).
     func blurPlane(
         plane: any MTLTexture, tmp: any MTLTexture,
-        sigmaPx: Double, metal: MetalContext
+        sigmaPx: Double, metal: MetalContext,
+        scratch: SpectralScratchAllocator.Slot? = nil
     ) async throws {
         if sigmaPx >= Double(Self.wideEffectThreshold) {
             try await blurPlaneWide(
-                plane: plane, tmp: tmp, sigmaPx: sigmaPx, metal: metal)
+                plane: plane, tmp: tmp, sigmaPx: sigmaPx, metal: metal,
+                scratch: scratch)
         } else {
             try await dispatchTextureBlur(
                 texture: plane, tmp: tmp, sigma: sigmaPx, metal: metal)
@@ -1270,9 +1433,15 @@ public final class SpectralGPUPayloads {
 
     /// The wide path (down → low-face exact blur → up — the抽稀 trio).
     /// Texture↔buffer staging rides blits (the grain blur's own face).
+    /// The E-acc1 face: the five staging buffers borrow as ONE .spatialPre
+    /// top-up (the caller — diffusion's trio or halation's quartet — holds
+    /// the segment) and release at pass end, so the next wide pass in the
+    /// bank loop re-hits the pool. Params/inv/weights buffers stay direct
+    /// (tiny, kernel-by-kernel by design).
     func blurPlaneWide(
         plane: any MTLTexture, tmp: any MTLTexture,
-        sigmaPx: Double, metal: MetalContext
+        sigmaPx: Double, metal: MetalContext,
+        scratch: SpectralScratchAllocator.Slot? = nil
     ) async throws {
         let w = plane.width, h = plane.height
         guard let plan = SpectralWideBlurPlan.plan(
@@ -1285,21 +1454,53 @@ public final class SpectralGPUPayloads {
             return
         }
         let device = metal.device
-        func float4Buffer(count: Int) throws -> any MTLBuffer {
-            guard let buffer = device.makeBuffer(
-                length: count * 4 * MemoryLayout<Float>.size,
-                options: .storageModeShared)
+        let stride = 4 * MemoryLayout<Float>.size
+        let srcBuffer: any MTLBuffer
+        let rowsBuffer: any MTLBuffer
+        let lowBuffer: any MTLBuffer
+        let lowBlurBuffer: any MTLBuffer
+        let dstBuffer: any MTLBuffer
+        var borrowedStaging: [any MTLBuffer] = []
+        if let scratch {
+            guard let borrowed = try scratch.borrowBuffers(
+                .spatialPre, device: device,
+                byteLengths: [w * h * stride, plan.lw * h * stride,
+                              plan.lw * plan.lh * stride,
+                              plan.lw * plan.lh * stride,
+                              w * h * stride]),
+                borrowed.count == 5
             else {
                 throw SpectralBuildError.projectionUnavailable(
                     "SpectralGPUPayloads: wide staging allocation")
             }
-            return buffer
+            srcBuffer = borrowed[0]
+            rowsBuffer = borrowed[1]
+            lowBuffer = borrowed[2]
+            lowBlurBuffer = borrowed[3]
+            dstBuffer = borrowed[4]
+            borrowedStaging = borrowed
+        } else {
+            func float4Buffer(count: Int) throws -> any MTLBuffer {
+                guard let buffer = device.makeBuffer(
+                    length: count * 4 * MemoryLayout<Float>.size,
+                    options: .storageModeShared)
+                else {
+                    throw SpectralBuildError.projectionUnavailable(
+                        "SpectralGPUPayloads: wide staging allocation")
+                }
+                return buffer
+            }
+            srcBuffer = try float4Buffer(count: w * h)
+            rowsBuffer = try float4Buffer(count: plan.lw * h)
+            lowBuffer = try float4Buffer(count: plan.lw * plan.lh)
+            lowBlurBuffer = try float4Buffer(count: plan.lw * plan.lh)
+            dstBuffer = try float4Buffer(count: w * h)
         }
-        let srcBuffer = try float4Buffer(count: w * h)
-        let rowsBuffer = try float4Buffer(count: plan.lw * h)
-        let lowBuffer = try float4Buffer(count: plan.lw * plan.lh)
-        let lowBlurBuffer = try float4Buffer(count: plan.lw * plan.lh)
-        let dstBuffer = try float4Buffer(count: w * h)
+        defer {
+            if !borrowedStaging.isEmpty {
+                scratch?.releaseBuffers(borrowedStaging)
+            }
+        }
         // Download the plane into the source buffer.
         if let commandBuffer = try? metal.makeRoutedCommandBuffer(),
             let blit = commandBuffer.makeBlitCommandEncoder() {
@@ -1521,24 +1722,58 @@ public final class SpectralGPUPayloads {
     /// One halation pass (scatter stage + 3 bounces — the still
     /// baseline; the s convex weight rides the record amount clamped
     /// to [0, 1]; the bounce σ rides first_sigma_um/pixel_um·√k).
+    /// The E-acc1 face: tmp/core/tail/comp borrow as ONE .spatialPre
+    /// call (diffusion's trio already released, so three of the four
+    /// re-hit the pool; the bounce plane top-ups stage-2-only).
     func dispatchHalation(
-        plane: any MTLTexture, amount: Double, metal: MetalContext
+        plane: any MTLTexture, amount: Double, metal: MetalContext,
+        scratch: SpectralScratchAllocator.Slot? = nil
     ) async throws {
         let w = plane.width, h = plane.height
         let pitch = Self.pixelUm(frameWidth: w)
         let base = SpectralSpatialTables.stillBaseline
         let s = min(max(amount, 0.0), 1.0)
-        guard let tmp = try Self.makeReadWriteTexture(
-            metal: metal, width: w, height: h),
-            let core = try Self.makeReadWriteTexture(
+        let tmp: any MTLTexture
+        let core: any MTLTexture
+        let tail: any MTLTexture
+        let comp: any MTLTexture
+        var borrowedQuartet: [any MTLTexture] = []
+        if let scratch {
+            guard let borrowed = try scratch.borrowPlanes(
+                .spatialPre, device: metal.device, count: 4,
+                width: w, height: h),
+                borrowed.count == 4
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: halation plane allocation")
+            }
+            tmp = borrowed[0]
+            core = borrowed[1]
+            tail = borrowed[2]
+            comp = borrowed[3]
+            borrowedQuartet = borrowed
+        } else {
+            guard let t = try Self.makeReadWriteTexture(
                 metal: metal, width: w, height: h),
-            let tail = try Self.makeReadWriteTexture(
-                metal: metal, width: w, height: h),
-            let comp = try Self.makeReadWriteTexture(
-                metal: metal, width: w, height: h)
-        else {
-            throw SpectralBuildError.projectionUnavailable(
-                "SpectralGPUPayloads: halation plane allocation")
+                let c = try Self.makeReadWriteTexture(
+                    metal: metal, width: w, height: h),
+                let ta = try Self.makeReadWriteTexture(
+                    metal: metal, width: w, height: h),
+                let co = try Self.makeReadWriteTexture(
+                    metal: metal, width: w, height: h)
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: halation plane allocation")
+            }
+            tmp = t
+            core = c
+            tail = ta
+            comp = co
+        }
+        defer {
+            if !borrowedQuartet.isEmpty {
+                scratch?.releasePlanes(borrowedQuartet)
+            }
         }
         // Stage 1 (scatter): core + 3-Gaussian tail → convex mix.
         // The per-channel σ rides the baseline/core-tail faces; the
@@ -1566,7 +1801,8 @@ public final class SpectralGPUPayloads {
                 await commandBuffer.completed()
             }
             try await blurPlane(
-                plane: core, tmp: tmp, sigmaPx: coreSigma, metal: metal)
+                plane: core, tmp: tmp, sigmaPx: coreSigma, metal: metal,
+                scratch: scratch)
             // Tail (3 Gaussians, amp-weighted into `tail`).
             var tailFirst = true
             for g in 0..<3 {
@@ -1590,7 +1826,8 @@ public final class SpectralGPUPayloads {
                     await commandBuffer.completed()
                 }
                 try await blurPlane(
-                    plane: comp, tmp: tmp, sigmaPx: tailSigma, metal: metal)
+                    plane: comp, tmp: tmp, sigmaPx: tailSigma, metal: metal,
+                    scratch: scratch)
                 let amp = Float(SpectralSpatialTables.tailAmps[g])
                 try await foldBankComponent(
                     acc: tail, comp: comp,
@@ -1612,11 +1849,34 @@ public final class SpectralGPUPayloads {
             Float(base.strength.y * amount),
             Float(base.strength.z * amount))
         if aTot.x > 0 || aTot.y > 0 || aTot.z > 0 {
-            guard let blur = try Self.makeReadWriteTexture(
-                metal: metal, width: w, height: h)
-            else {
-                throw SpectralBuildError.projectionUnavailable(
-                    "SpectralGPUPayloads: halation bounce allocation")
+            // The stage-2 bounce acc (the pool's .spatialPre top-up —
+            // quartet still live; releases before the quartet does).
+            let blur: any MTLTexture
+            var borrowedBounce: [any MTLTexture] = []
+            if let scratch {
+                guard let borrowed = try scratch.borrowPlanes(
+                    .spatialPre, device: metal.device, count: 1,
+                    width: w, height: h),
+                    let plane = borrowed.first
+                else {
+                    throw SpectralBuildError.projectionUnavailable(
+                        "SpectralGPUPayloads: halation bounce allocation")
+                }
+                blur = plane
+                borrowedBounce = borrowed
+            } else {
+                guard let plane = try Self.makeReadWriteTexture(
+                    metal: metal, width: w, height: h)
+                else {
+                    throw SpectralBuildError.projectionUnavailable(
+                        "SpectralGPUPayloads: halation bounce allocation")
+                }
+                blur = plane
+            }
+            defer {
+                if !borrowedBounce.isEmpty {
+                    scratch?.releasePlanes(borrowedBounce)
+                }
             }
             var bounceFirst = true
             for k in 1...3 {
@@ -1635,7 +1895,8 @@ public final class SpectralGPUPayloads {
                     await commandBuffer.completed()
                 }
                 try await blurPlane(
-                    plane: comp, tmp: tmp, sigmaPx: sigma, metal: metal)
+                    plane: comp, tmp: tmp, sigmaPx: sigma, metal: metal,
+                    scratch: scratch)
                 let decay = SpectralSpatialTables.bounceDecay[k - 1]
                 try await foldBankComponent(
                     acc: blur, comp: comp,

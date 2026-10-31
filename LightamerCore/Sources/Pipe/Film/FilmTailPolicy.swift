@@ -346,15 +346,22 @@ public final class FilmMethodBox: IOPModule {
     /// the strength mix), the density face stays untouched. Same instance
     /// ownership discipline as `runPayloads`.
     public let runSpectralPayloads: SpectralGPUPayloads?
+    /// The run's scratch slot (M8-3+ fix round, E-acc1, additive): the
+    /// spectral chain's serial-reuse pool — nil = the chain mints its own
+    /// per run (production face); a test hands one in to read the
+    /// accounting watermark after the render.
+    public let runScratch: SpectralScratchAllocator.Slot?
 
     public init(
         record: FilmRecord, method: Params? = nil, payloads: FilmGPUPayloads? = nil,
-        spectralPayloads: SpectralGPUPayloads? = nil
+        spectralPayloads: SpectralGPUPayloads? = nil,
+        scratch: SpectralScratchAllocator.Slot? = nil
     ) {
         self.record = record
         self.method = method ?? Params(record: record)
         self.runPayloads = payloads
         self.runSpectralPayloads = spectralPayloads
+        self.runScratch = scratch
     }
 
     public func reloadDefaults(image: DecodedImage) async -> Params {
@@ -397,7 +404,8 @@ public final class FilmMethodBox: IOPModule {
                 grainAmount: method.record.grainAmount,
                 halationAmount: method.record.halationAmount,
                 diffusionFamily: method.record.diffusionFamily,
-                diffusionAmount: method.record.diffusionAmount)
+                diffusionAmount: method.record.diffusionAmount,
+                scratch: runScratch)
             return
         }
         // The fused leg needs the run's GPU payloads (the curve buffer +
