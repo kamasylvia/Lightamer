@@ -249,7 +249,11 @@ public final class SpectralGPUPayloads {
         /// (u[36..38] — the T2 kernels read by literal index; safe
         /// pairs ride ones — the uniform face's identity member).
         public static let midgrayChannelGain = 36
-        public static let total = 39
+        /// M8-3+ T5: the B2 print-diffusion hook (u[39..41] — the gate
+        /// amount + the two reserved seats; 0 = the hook off —
+        /// off-identity by construction).
+        public static let printDiffusion = 39
+        public static let total = 42
     }
 
     /// The kernel argument layout (the tests' and M8-2's binding map).
@@ -489,6 +493,11 @@ public final class SpectralGPUPayloads {
         uniformShadow[UniformSlot.midgrayChannelGain + 0] = tables.midgrayChannelGain.x
         uniformShadow[UniformSlot.midgrayChannelGain + 1] = tables.midgrayChannelGain.y
         uniformShadow[UniformSlot.midgrayChannelGain + 2] = tables.midgrayChannelGain.z
+        // M8-3+ T5: the print-diffusion hook rides the geometry reset
+        // (zeros — the hook off; the T5 leg arms it per-run).
+        uniformShadow[UniformSlot.printDiffusion + 0] = 0
+        uniformShadow[UniformSlot.printDiffusion + 1] = 0
+        uniformShadow[UniformSlot.printDiffusion + 2] = 0
         uploadUniforms()
         self.corrWidth = newW
         self.corrHeight = newH
@@ -567,7 +576,8 @@ public final class SpectralGPUPayloads {
     public func dispatchFilmChain(
         input: any MTLTexture, output: any MTLTexture, metal: MetalContext,
         exposureGain: Float, magentaCC: Float, yellowCC: Float, strength: Float,
-        grainAmount: Float? = nil
+        grainAmount: Float? = nil, halationAmount: Float? = nil,
+        diffusionFamily: String? = nil, diffusionAmount: Float? = nil
     ) async throws {
         precondition(
             input.width == output.width && input.height == output.height,
@@ -580,6 +590,38 @@ public final class SpectralGPUPayloads {
         applySessionTuning(exposureGain: exposureGain, kM: Float(kM), kY: Float(kY),
                            strength: strength)
         let w = input.width, h = input.height
+        // M8-3+ T5: the spatial pre-leg (taking diffusion → halation —
+        // the upstream order verbatim) runs on a COPY of the input when
+        // armed (nil legs = skipped, zero dispatches — the off-identity
+        // is structural). The chain below reads `chainInput`.
+        let chainInput: any MTLTexture
+        if halationAmount != nil || diffusionFamily != nil {
+            guard let preCopy = try Self.makeReadWriteTexture(
+                metal: metal, width: w, height: h)
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: pre-leg plane allocation")
+            }
+            if let commandBuffer = try? metal.makeRoutedCommandBuffer(),
+                let blit = commandBuffer.makeBlitCommandEncoder() {
+                blit.copy(
+                    from: input, sourceSlice: 0, sourceLevel: 0,
+                    sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                    sourceSize: MTLSize(width: w, height: h, depth: 1),
+                    to: preCopy, destinationSlice: 0, destinationLevel: 0,
+                    destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+                blit.endEncoding()
+                commandBuffer.commit()
+                await commandBuffer.completed()
+            }
+            try await dispatchSpatialPreLeg(
+                plane: preCopy, halationAmount: halationAmount,
+                diffusionFamily: diffusionFamily,
+                diffusionAmount: diffusionAmount, metal: metal)
+            chainInput = preCopy
+        } else {
+            chainInput = input
+        }
         let useCorr = couplers.active && corrWidth > 0 && corrHeight > 0
         // The strength<1 path needs stage B's raw output as a MIX SOURCE —
         // stage B then targets an intermediate and the mix kernel blends
@@ -611,7 +653,7 @@ public final class SpectralGPUPayloads {
             // A: the decimated-grid corr generation (box-averages its ds×ds
             // source block — the downsample IS the write pattern).
             let sessionA = try await metal.makeEncoder(functionName: "spectral_film_stage_a")
-            sessionA.encoder.setTexture(input, index: SpectralGPUPayloads.TextureIndex.input)
+            sessionA.encoder.setTexture(chainInput, index: SpectralGPUPayloads.TextureIndex.input)
             sessionA.encoder.setTexture(corrA, index: 1)
             sessionA.encoder.setTexture(tcLutTexture, index: 2)  // the A-face tc slot
             sessionA.encoder.setBuffer(curvesBuffer, offset: 0, index: 0)
@@ -642,21 +684,21 @@ public final class SpectralGPUPayloads {
                 await blur.commandBuffer.completed()
             }
             try await dispatchStageB(
-                input: input, output: stageBTarget, corr: corrA, metal: metal,
+                input: chainInput, output: stageBTarget, corr: corrA, metal: metal,
                 grainAmount: grainAmount)
         } else {
             // The couplers-off face: B only. The corr slot binds the tc
             // texture as a never-read placeholder (the kernel guards on
             // use_corr = 0 before touching it).
             try await dispatchStageB(
-                input: input, output: stageBTarget, corr: tcLutTexture, metal: metal,
+                input: chainInput, output: stageBTarget, corr: tcLutTexture, metal: metal,
                 grainAmount: grainAmount)
         }
 
         if wantsMix {
             let mix = try await metal.makeEncoder(functionName: "spectral_film_strength_mix")
             mix.encoder.setTexture(stageBTarget, index: 0)
-            mix.encoder.setTexture(input, index: 1)
+            mix.encoder.setTexture(chainInput, index: 1)
             mix.encoder.setTexture(output, index: 2)
             mix.encoder.setBuffer(uniformsBuffer, offset: 0, index: 0)
             mix.encoder.dispatchThreads(
@@ -1091,6 +1133,584 @@ public final class SpectralGPUPayloads {
             blur.commandBuffer.commit()
             await blur.commandBuffer.completed()
         }
+    }
+
+    // MARK: - M8-3+ T5: the spatial pre-leg (taking diffusion → halation)
+
+    /// The pre-leg's pixel pitch (µm — the µm→px conversion face).
+    /// The pipe carries no sensor pitch, so the leg anchors the FULL
+    /// frame to the 36mm reference width (upstream's own 36mm face —
+    /// pixel_um = 36000 / width; a preview/exposure-resolution render
+    /// re-anchors per run, the σ face stays physical).
+    static func pixelUm(frameWidth: Int) -> Double {
+        36000.0 / Double(max(frameWidth, 1))
+    }
+
+    /// The pre-leg dispatch (taking diffusion → halation, the upstream
+    /// order verbatim — boost/glare seats reserved, never dispatched).
+    /// In-place on `plane` (read_write). Nil legs = skipped (the
+    /// off-identity is structural — the caller skips the whole leg).
+    func dispatchSpatialPreLeg(
+        plane: any MTLTexture,
+        halationAmount: Float?,
+        diffusionFamily: String?,
+        diffusionAmount: Float?,
+        metal: MetalContext
+    ) async throws {
+        // Taking diffusion FIRST (the upstream order).
+        if let familyId = diffusionFamily,
+            let family = SpectralSpatialTables.family(id: familyId) {
+            let amount = Double(diffusionAmount ?? 1.0)
+            if amount != 0 {
+                try await dispatchTakingDiffusion(
+                    plane: plane, family: family, strength: amount,
+                    metal: metal)
+            }
+        }
+        // Halation SECOND.
+        if let amount = halationAmount, amount != 0 {
+            try await dispatchHalation(
+                plane: plane, amount: Double(amount), metal: metal)
+        }
+    }
+
+    /// One taking-diffusion pass (the bank → scatter field → convex mix).
+    /// The scatter field accumulates in a run-scoped acc plane (the
+    /// allocator's spatialPre face); each bank component blurs the
+    /// SOURCE plane (exact kernel below the effect threshold, the wide
+    /// path above it) and folds in with its channel weights.
+    func dispatchTakingDiffusion(
+        plane: any MTLTexture, family: SpectralSpatialTables.DiffFamily,
+        strength: Double, metal: MetalContext
+    ) async throws {
+        let w = plane.width, h = plane.height
+        let pitch = Self.pixelUm(frameWidth: w)
+        let bank = SpectralSpatialTables.bank(family: family)
+        let scatter = SpectralSpatialTables.scatterFraction(
+            strength: strength, family: family)
+        guard scatter > 0 else { return }
+        guard let acc = try Self.makeReadWriteTexture(
+            metal: metal, width: w, height: h),
+            let tmp = try Self.makeReadWriteTexture(
+                metal: metal, width: w, height: h),
+            let comp = try Self.makeReadWriteTexture(
+                metal: metal, width: w, height: h)
+        else {
+            throw SpectralBuildError.projectionUnavailable(
+                "SpectralGPUPayloads: diffusion plane allocation")
+        }
+        // Zero the acc plane (blit from a zero buffer would need a
+        // staging buffer — instead track the first-component face).
+        var first = true
+        for component in bank {
+            let sigmaPx = component.sigmaUm / pitch
+            // Copy the source into the component plane, blur it, fold.
+            if let commandBuffer = try? metal.makeRoutedCommandBuffer(),
+                let blit = commandBuffer.makeBlitCommandEncoder() {
+                blit.copy(
+                    from: plane, sourceSlice: 0, sourceLevel: 0,
+                    sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                    sourceSize: MTLSize(width: w, height: h, depth: 1),
+                    to: comp, destinationSlice: 0, destinationLevel: 0,
+                    destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+                blit.endEncoding()
+                commandBuffer.commit()
+                await commandBuffer.completed()
+            }
+            try await blurPlane(
+                plane: comp, tmp: tmp, sigmaPx: sigmaPx, metal: metal)
+            let cw = component.channelWeight
+            try await foldBankComponent(
+                acc: acc, comp: comp,
+                weight: SIMD3<Float>(Float(cw.x), Float(cw.y), Float(cw.z)),
+                first: first, metal: metal)
+            first = false
+        }
+        // The convex mix: plane = (1−p)·plane + p·acc.
+        try await convexMix(
+            plane: plane, scatter: acc, fraction: Float(scatter),
+            metal: metal)
+    }
+
+    /// One blur at σ px (exact kernel below the effect threshold, the
+    /// wide path above it — the threshold face the T5 probe法定).
+    func blurPlane(
+        plane: any MTLTexture, tmp: any MTLTexture,
+        sigmaPx: Double, metal: MetalContext
+    ) async throws {
+        if sigmaPx >= Double(Self.wideEffectThreshold) {
+            try await blurPlaneWide(
+                plane: plane, tmp: tmp, sigmaPx: sigmaPx, metal: metal)
+        } else {
+            try await dispatchTextureBlur(
+                texture: plane, tmp: tmp, sigma: sigmaPx, metal: metal)
+        }
+    }
+
+    /// The wide path (down → low-face exact blur → up — the抽稀 trio).
+    /// Texture↔buffer staging rides blits (the grain blur's own face).
+    func blurPlaneWide(
+        plane: any MTLTexture, tmp: any MTLTexture,
+        sigmaPx: Double, metal: MetalContext
+    ) async throws {
+        let w = plane.width, h = plane.height
+        guard let plan = SpectralWideBlurPlan.plan(
+            sigma: Float(sigmaPx), width: w, height: h)
+        else {
+            // Below the min face (should not happen above the effect
+            // threshold — the exact path is the fail-closed twin).
+            try await dispatchTextureBlur(
+                texture: plane, tmp: tmp, sigma: sigmaPx, metal: metal)
+            return
+        }
+        let device = metal.device
+        func float4Buffer(count: Int) throws -> any MTLBuffer {
+            guard let buffer = device.makeBuffer(
+                length: count * 4 * MemoryLayout<Float>.size,
+                options: .storageModeShared)
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: wide staging allocation")
+            }
+            return buffer
+        }
+        let srcBuffer = try float4Buffer(count: w * h)
+        let rowsBuffer = try float4Buffer(count: plan.lw * h)
+        let lowBuffer = try float4Buffer(count: plan.lw * plan.lh)
+        let lowBlurBuffer = try float4Buffer(count: plan.lw * plan.lh)
+        let dstBuffer = try float4Buffer(count: w * h)
+        // Download the plane into the source buffer.
+        if let commandBuffer = try? metal.makeRoutedCommandBuffer(),
+            let blit = commandBuffer.makeBlitCommandEncoder() {
+            blit.copy(
+                from: plane, sourceSlice: 0, sourceLevel: 0,
+                sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                sourceSize: MTLSize(width: w, height: h, depth: 1),
+                to: srcBuffer, destinationOffset: 0,
+                destinationBytesPerRow: w * 16,
+                destinationBytesPerImage: w * h * 16)
+            blit.endEncoding()
+            commandBuffer.commit()
+            await commandBuffer.completed()
+        }
+        func paramsBuffer(_ values: [Float]) throws -> any MTLBuffer {
+            guard let buffer = device.makeBuffer(
+                bytes: values,
+                length: values.count * MemoryLayout<Float>.size,
+                options: .storageModeShared)
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: wide params allocation")
+            }
+            return buffer
+        }
+        var invValues = SpectralWideBlurPlan.inverseTable(k: plan.k)
+        guard let invBuffer = device.makeBuffer(
+            bytes: &invValues,
+            length: invValues.count * MemoryLayout<Float>.size,
+            options: .storageModeShared)
+        else {
+            throw SpectralBuildError.projectionUnavailable(
+                "SpectralGPUPayloads: wide inv allocation")
+        }
+        // rows → down → low-face exact blur (host-side separable over
+        // the low buffer through staging textures) → up.
+        let rowsParams = try paramsBuffer([
+            Float(w), Float(h), Float(plan.k), Float(plan.lw),
+            Float(plan.ox),
+        ])
+        let rows = try await metal.makeEncoder(
+            functionName: "spectral_film_wide_rows")
+        rows.encoder.setBuffer(srcBuffer, offset: 0, index: 0)
+        rows.encoder.setBuffer(rowsBuffer, offset: 0, index: 1)
+        rows.encoder.setBuffer(rowsParams, offset: 0, index: 2)
+        rows.encoder.dispatchThreads(
+            MTLSize(width: plan.lw, height: h, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
+        rows.encoder.endEncoding()
+        rows.commandBuffer.commit()
+        await rows.commandBuffer.completed()
+        let downParams = try paramsBuffer([
+            Float(w), Float(h), Float(plan.k), Float(plan.lw),
+            Float(plan.lh), Float(plan.ox), Float(plan.oy),
+        ])
+        let down = try await metal.makeEncoder(
+            functionName: "spectral_film_wide_down")
+        down.encoder.setBuffer(rowsBuffer, offset: 0, index: 0)
+        down.encoder.setBuffer(lowBuffer, offset: 0, index: 1)
+        down.encoder.setBuffer(downParams, offset: 0, index: 2)
+        down.encoder.setBuffer(invBuffer, offset: 0, index: 3)
+        down.encoder.dispatchThreads(
+            MTLSize(width: plan.lw, height: plan.lh, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
+        down.encoder.endEncoding()
+        down.commandBuffer.commit()
+        await down.commandBuffer.completed()
+        // The low-face exact blur (σ_low is small — the exact kernel).
+        try await blurFloat4Buffer(
+            buffer: lowBuffer, outBuffer: lowBlurBuffer,
+            width: plan.lw, height: plan.lh,
+            sigma: Double(plan.sigmaLow), metal: metal)
+        let upParams = try paramsBuffer([
+            Float(w), Float(h), Float(plan.k), Float(plan.lw),
+            Float(plan.lh), Float(plan.ox), Float(plan.oy),
+            1.0 / Float(2 * plan.k),
+        ])
+        let up = try await metal.makeEncoder(
+            functionName: "spectral_film_wide_up")
+        up.encoder.setBuffer(lowBlurBuffer, offset: 0, index: 0)
+        up.encoder.setBuffer(dstBuffer, offset: 0, index: 1)
+        up.encoder.setBuffer(upParams, offset: 0, index: 2)
+        up.encoder.dispatchThreads(
+            MTLSize(width: w, height: h, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
+        up.encoder.endEncoding()
+        up.commandBuffer.commit()
+        await up.commandBuffer.completed()
+        // Upload the blurred buffer back into the plane.
+        if let commandBuffer = try? metal.makeRoutedCommandBuffer(),
+            let blit = commandBuffer.makeBlitCommandEncoder() {
+            blit.copy(
+                from: dstBuffer, sourceOffset: 0,
+                sourceBytesPerRow: w * 16,
+                sourceBytesPerImage: w * h * 16,
+                sourceSize: MTLSize(width: w, height: h, depth: 1),
+                to: plane, destinationSlice: 0, destinationLevel: 0,
+                destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+            blit.endEncoding()
+            commandBuffer.commit()
+            await commandBuffer.completed()
+        }
+    }
+
+    /// The float4-buffer exact blur (row+col separable over buffer
+    /// faces — the low-face leg; staging textures carry the pass).
+    func blurFloat4Buffer(
+        buffer: any MTLBuffer, outBuffer: any MTLBuffer,
+        width: Int, height: Int, sigma: Double, metal: MetalContext
+    ) async throws {
+        let weights = Self.gaussianWeights(sigma: sigma)
+        let radius = (weights.count - 1) / 2
+        // Pass 1 (rows): buffer → outBuffer; pass 2 (cols): outBuffer
+        // → buffer (in-place ping-pong — the blurred field lands back
+        // in `buffer`).
+        for (pass, src, dst, isRow) in [
+            (0, buffer, outBuffer, true),
+            (1, outBuffer, buffer, false),
+        ] as [(Int, any MTLBuffer, any MTLBuffer, Bool)] {
+            _ = pass
+            let kernel = isRow
+                ? "spectral_film_wide_gauss_row"
+                : "spectral_film_wide_gauss_col"
+            var weightValues = weights
+            guard let weightsBuffer = metal.device.makeBuffer(
+                bytes: &weightValues,
+                length: weightValues.count * MemoryLayout<Float>.size,
+                options: .storageModeShared)
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: gauss weights allocation")
+            }
+            var params: [Float] = [
+                Float(width), Float(height), Float(radius),
+            ]
+            guard let paramsBuffer = metal.device.makeBuffer(
+                bytes: &params,
+                length: params.count * MemoryLayout<Float>.size,
+                options: .storageModeShared)
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: gauss params allocation")
+            }
+            let pass_ = try await metal.makeEncoder(functionName: kernel)
+            pass_.encoder.setBuffer(src, offset: 0, index: 0)
+            pass_.encoder.setBuffer(dst, offset: 0, index: 1)
+            pass_.encoder.setBuffer(weightsBuffer, offset: 0, index: 2)
+            pass_.encoder.setBuffer(paramsBuffer, offset: 0, index: 3)
+            pass_.encoder.dispatchThreads(
+                MTLSize(width: width, height: height, depth: 1),
+                threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
+            pass_.encoder.endEncoding()
+            pass_.commandBuffer.commit()
+            await pass_.commandBuffer.completed()
+        }
+    }
+
+    /// Fold one bank component into the acc plane (first = overwrite,
+    /// else channel-weighted add — the per-channel weights ride the
+    /// fold; the T5 mix kernel carries them).
+    func foldBankComponent(
+        acc: any MTLTexture, comp: any MTLTexture,
+        weight: SIMD3<Float>, first: Bool, metal: MetalContext
+    ) async throws {
+        var params: [Float] = [
+            Float(acc.width), Float(acc.height),
+            weight.x, weight.y, weight.z, first ? 1.0 : 0.0,
+        ]
+        guard let paramsBuffer = metal.device.makeBuffer(
+            bytes: &params,
+            length: params.count * MemoryLayout<Float>.size,
+            options: .storageModeShared)
+        else {
+            throw SpectralBuildError.projectionUnavailable(
+                "SpectralGPUPayloads: fold params allocation")
+        }
+        let fold = try await metal.makeEncoder(
+            functionName: "spectral_film_bank_fold")
+        fold.encoder.setTexture(comp, index: 0)
+        fold.encoder.setTexture(acc, index: 1)
+        fold.encoder.setBuffer(paramsBuffer, offset: 0, index: 2)
+        fold.encoder.dispatchThreads(
+            MTLSize(width: acc.width, height: acc.height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
+        fold.encoder.endEncoding()
+        fold.commandBuffer.commit()
+        await fold.commandBuffer.completed()
+    }
+
+    /// The convex mix (plane = (1−p)·plane + p·scatter — in-place).
+    func convexMix(
+        plane: any MTLTexture, scatter: any MTLTexture,
+        fraction: Float, metal: MetalContext
+    ) async throws {
+        var params: [Float] = [
+            Float(plane.width), Float(plane.height), fraction,
+        ]
+        guard let paramsBuffer = metal.device.makeBuffer(
+            bytes: &params,
+            length: params.count * MemoryLayout<Float>.size,
+            options: .storageModeShared)
+        else {
+            throw SpectralBuildError.projectionUnavailable(
+                "SpectralGPUPayloads: mix params allocation")
+        }
+        let mix = try await metal.makeEncoder(
+            functionName: "spectral_film_convex_mix")
+        mix.encoder.setTexture(plane, index: 0)
+        mix.encoder.setTexture(scatter, index: 1)
+        mix.encoder.setBuffer(paramsBuffer, offset: 0, index: 2)
+        mix.encoder.dispatchThreads(
+            MTLSize(width: plane.width, height: plane.height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
+        mix.encoder.endEncoding()
+        mix.commandBuffer.commit()
+        await mix.commandBuffer.completed()
+    }
+
+    /// One halation pass (scatter stage + 3 bounces — the still
+    /// baseline; the s convex weight rides the record amount clamped
+    /// to [0, 1]; the bounce σ rides first_sigma_um/pixel_um·√k).
+    func dispatchHalation(
+        plane: any MTLTexture, amount: Double, metal: MetalContext
+    ) async throws {
+        let w = plane.width, h = plane.height
+        let pitch = Self.pixelUm(frameWidth: w)
+        let base = SpectralSpatialTables.stillBaseline
+        let s = min(max(amount, 0.0), 1.0)
+        guard let tmp = try Self.makeReadWriteTexture(
+            metal: metal, width: w, height: h),
+            let core = try Self.makeReadWriteTexture(
+                metal: metal, width: w, height: h),
+            let tail = try Self.makeReadWriteTexture(
+                metal: metal, width: w, height: h),
+            let comp = try Self.makeReadWriteTexture(
+                metal: metal, width: w, height: h)
+        else {
+            throw SpectralBuildError.projectionUnavailable(
+                "SpectralGPUPayloads: halation plane allocation")
+        }
+        // Stage 1 (scatter): core + 3-Gaussian tail → convex mix.
+        // The per-channel σ rides the baseline/core-tail faces; the
+        // tail accumulates amp-weighted (the fma fold's host twin is
+        // the fold kernel with first/add faces).
+        if s > 0 {
+            // Core (per-channel σ — the blur is achromatic per pass,
+            // so run the core per channel through the mix kernel's
+            // channel mask — simplified: the max-σ single pass, the
+            // per-channel split rides the T5+ refinement; the scatter
+            // weight s scales the mix).
+            let coreSigma = max(
+                base.scatterCore.x, base.scatterCore.y,
+                base.scatterCore.z) / pitch
+            if let commandBuffer = try? metal.makeRoutedCommandBuffer(),
+                let blit = commandBuffer.makeBlitCommandEncoder() {
+                blit.copy(
+                    from: plane, sourceSlice: 0, sourceLevel: 0,
+                    sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                    sourceSize: MTLSize(width: w, height: h, depth: 1),
+                    to: core, destinationSlice: 0, destinationLevel: 0,
+                    destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+                blit.endEncoding()
+                commandBuffer.commit()
+                await commandBuffer.completed()
+            }
+            try await blurPlane(
+                plane: core, tmp: tmp, sigmaPx: coreSigma, metal: metal)
+            // Tail (3 Gaussians, amp-weighted into `tail`).
+            var tailFirst = true
+            for g in 0..<3 {
+                let tailSigma = max(
+                    SpectralSpatialTables.tailRatios[g]
+                        * base.scatterTail.x,
+                    SpectralSpatialTables.tailRatios[g]
+                        * base.scatterTail.y,
+                    SpectralSpatialTables.tailRatios[g]
+                        * base.scatterTail.z) / pitch
+                if let commandBuffer = try? metal.makeRoutedCommandBuffer(),
+                    let blit = commandBuffer.makeBlitCommandEncoder() {
+                    blit.copy(
+                        from: plane, sourceSlice: 0, sourceLevel: 0,
+                        sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                        sourceSize: MTLSize(width: w, height: h, depth: 1),
+                        to: comp, destinationSlice: 0, destinationLevel: 0,
+                        destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+                    blit.endEncoding()
+                    commandBuffer.commit()
+                    await commandBuffer.completed()
+                }
+                try await blurPlane(
+                    plane: comp, tmp: tmp, sigmaPx: tailSigma, metal: metal)
+                let amp = Float(SpectralSpatialTables.tailAmps[g])
+                try await foldBankComponent(
+                    acc: tail, comp: comp,
+                    weight: SIMD3<Float>(amp, amp, amp),
+                    first: tailFirst, metal: metal)
+                tailFirst = false
+            }
+            // scattered = w·tail + (1−w)·core; plane = (1−s)·plane +
+            // s·scattered (the T5 scatter-combine kernel).
+            try await scatterCombine(
+                plane: plane, core: core, tail: tail,
+                weights: base.scatterTailWeight, amount: Float(s),
+                metal: metal)
+        }
+        // Stage 2 (3 bounces, σ√k, decay-weighted, additive over
+        // (1+a) — the T5 bounce kernel folds per bounce).
+        let aTot = SIMD3<Float>(
+            Float(base.strength.x * amount),
+            Float(base.strength.y * amount),
+            Float(base.strength.z * amount))
+        if aTot.x > 0 || aTot.y > 0 || aTot.z > 0 {
+            guard let blur = try Self.makeReadWriteTexture(
+                metal: metal, width: w, height: h)
+            else {
+                throw SpectralBuildError.projectionUnavailable(
+                    "SpectralGPUPayloads: halation bounce allocation")
+            }
+            var bounceFirst = true
+            for k in 1...3 {
+                let sigma = base.firstSigmaUm / pitch
+                    * Double(k).squareRoot()
+                if let commandBuffer = try? metal.makeRoutedCommandBuffer(),
+                    let blit = commandBuffer.makeBlitCommandEncoder() {
+                    blit.copy(
+                        from: plane, sourceSlice: 0, sourceLevel: 0,
+                        sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                        sourceSize: MTLSize(width: w, height: h, depth: 1),
+                        to: comp, destinationSlice: 0, destinationLevel: 0,
+                        destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+                    blit.endEncoding()
+                    commandBuffer.commit()
+                    await commandBuffer.completed()
+                }
+                try await blurPlane(
+                    plane: comp, tmp: tmp, sigmaPx: sigma, metal: metal)
+                let decay = SpectralSpatialTables.bounceDecay[k - 1]
+                try await foldBankComponent(
+                    acc: blur, comp: comp,
+                    weight: SIMD3<Float>(decay, decay, decay),
+                    first: bounceFirst, metal: metal)
+                bounceFirst = false
+            }
+            try await halationApply(
+                plane: plane, blur: blur, strength: aTot, metal: metal)
+        }
+    }
+
+    /// The scatter combine (scattered = w·tail + (1−w)·core, then
+    /// plane = (1−s)·plane + s·scattered — in-place on `plane`).
+    func scatterCombine(
+        plane: any MTLTexture, core: any MTLTexture, tail: any MTLTexture,
+        weights: SIMD3<Double>, amount: Float, metal: MetalContext
+    ) async throws {
+        var params: [Float] = [
+            Float(plane.width), Float(plane.height),
+            Float(weights.x), Float(weights.y), Float(weights.z), amount,
+        ]
+        guard let paramsBuffer = metal.device.makeBuffer(
+            bytes: &params,
+            length: params.count * MemoryLayout<Float>.size,
+            options: .storageModeShared)
+        else {
+            throw SpectralBuildError.projectionUnavailable(
+                "SpectralGPUPayloads: scatter params allocation")
+        }
+        let combine = try await metal.makeEncoder(
+            functionName: "spectral_film_scatter_combine")
+        combine.encoder.setTexture(plane, index: 0)
+        combine.encoder.setTexture(core, index: 1)
+        combine.encoder.setTexture(tail, index: 2)
+        combine.encoder.setBuffer(paramsBuffer, offset: 0, index: 3)
+        combine.encoder.dispatchThreads(
+            MTLSize(width: plane.width, height: plane.height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
+        combine.encoder.endEncoding()
+        combine.commandBuffer.commit()
+        await combine.commandBuffer.completed()
+    }
+
+    /// The halation apply (plane = (a·blur + plane) / (1 + a) —
+    /// in-place on `plane`).
+    func halationApply(
+        plane: any MTLTexture, blur: any MTLTexture,
+        strength: SIMD3<Float>, metal: MetalContext
+    ) async throws {
+        var params: [Float] = [
+            Float(plane.width), Float(plane.height),
+            strength.x, strength.y, strength.z,
+        ]
+        guard let paramsBuffer = metal.device.makeBuffer(
+            bytes: &params,
+            length: params.count * MemoryLayout<Float>.size,
+            options: .storageModeShared)
+        else {
+            throw SpectralBuildError.projectionUnavailable(
+                "SpectralGPUPayloads: halation params allocation")
+        }
+        let apply = try await metal.makeEncoder(
+            functionName: "spectral_film_halation_apply")
+        apply.encoder.setTexture(plane, index: 0)
+        apply.encoder.setTexture(blur, index: 1)
+        apply.encoder.setBuffer(paramsBuffer, offset: 0, index: 2)
+        apply.encoder.dispatchThreads(
+            MTLSize(width: plane.width, height: plane.height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
+        apply.encoder.endEncoding()
+        apply.commandBuffer.commit()
+        await apply.commandBuffer.completed()
+    }
+
+    /// The wide-effect threshold (px — the STARTING value 100; the T5
+    /// Metal re-mark probe法定 the final one, DECISIONS-logged).
+    /// The lock-box form (Swift 6 rejects static mutable globals).
+    private static let wideThresholdBox = WideThresholdBox()
+    private final class WideThresholdBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: Float = 100.0
+        func get() -> Float {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
+        }
+        func set(_ next: Float) {
+            lock.lock()
+            defer { lock.unlock() }
+            value = next
+        }
+    }
+    static var wideEffectThreshold: Float {
+        get { wideThresholdBox.get() }
+        set { wideThresholdBox.set(newValue) }
     }
 
     /// A read/write rgba32Float plane (the run-scoped corr + mix faces).

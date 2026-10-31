@@ -375,6 +375,11 @@ private struct SessionControlsView: View {
             // toggle arms the spectral grain leg; the readout shows the
             // bridged amount; Apply lands ONE discrete film item).
             grainTrackRow(model: model)
+            // M8-3+ T5: the halation/diffusion rows (off by default —
+            // the toggles arm the pre-leg; the family picker rides the
+            // upstream verbatim ids).
+            halationRow(model: model)
+            diffusionRow(model: model)
             // M9-2 T3 (D-M92-6): the SHOOT section — the taking (camera)
             // filter rides the film leg's INPUT side (spectral sensW
             // multiply), distinct from the Y/M dichroic enlarger shifts
@@ -520,6 +525,69 @@ private struct SessionControlsView: View {
                         .foregroundStyle(ThemeTokens.textSecondary)
                         .accessibilityIdentifier("film.grain.track.off")
                 }
+            }
+        }
+    }
+
+    /// The halation row (M8-3+ T5): the toggle arms the pre-leg's
+    /// halation stage (on = amount 1.0, off = nil).
+    private func halationRow(model: FilmPanelModel) -> some View {
+        row(String(localized: "film_label_halation",
+                   defaultValue: "Halation")) {
+            HStack(spacing: 6) {
+                Toggle(
+                    String(localized: "film_label_halation",
+                           defaultValue: ""),
+                    isOn: Binding(
+                        get: { model.selectedHalationAmount != nil },
+                        set: { on in
+                            model.setHalationAmount(on ? 1.0 : nil)
+                        }
+                    )
+                )
+                .labelsHidden()
+                .accessibilityIdentifier("film.halation.toggle")
+                if let amount = model.selectedHalationAmount {
+                    Text(verbatim: String(format: "%.2f", Double(amount)))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(ThemeTokens.textSecondary)
+                        .accessibilityIdentifier("film.halation.value")
+                } else {
+                    Text(String(
+                            localized: "film_halation_off",
+                            defaultValue: "Off"))
+                        .font(.caption2)
+                        .foregroundStyle(ThemeTokens.textSecondary)
+                        .accessibilityIdentifier("film.halation.off")
+                }
+            }
+        }
+    }
+
+    /// The diffusion row (M8-3+ T5): the family picker (nil = off) +
+    /// the amount readout (absent = 1.0 when the family is set).
+    private func diffusionRow(model: FilmPanelModel) -> some View {
+        row(String(localized: "film_label_diffusion",
+                   defaultValue: "Diffusion")) {
+            HStack(spacing: 6) {
+                Picker(
+                    String(localized: "film_label_diffusion",
+                           defaultValue: "Diffusion"),
+                    selection: Binding(
+                        get: { model.selectedDiffusionFamily ?? "" },
+                        set: { model.setDiffusionFamily(
+                            $0.isEmpty ? nil : $0) }
+                    )
+                ) {
+                    Text(String(localized: "film_diffusion_none",
+                                defaultValue: "None"))
+                        .tag("")
+                    ForEach(model.availableDiffusionFamilies, id: \.self) { id in
+                        Text(verbatim: id).tag(id)
+                    }
+                }
+                .labelsHidden()
+                .accessibilityIdentifier("film.diffusion.picker")
             }
         }
     }

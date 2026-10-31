@@ -385,3 +385,209 @@ kernel void spectral_film_spatial_blur_col(
   }
   out.write(acc, gid);
 }
+
+/* ---- T5: the wide-blur抽稀 trio (dt `4d1fb6a95b:data/kernels/
+   spektrafilm.cl:1013-1068`, GPL-3.0, (C) darktable developers —
+   transcribed, Metal dialect; buffer-backed (float4 planes), matching
+   the upstream __global float4 * faces operation for operation) ---- */
+
+/* Per-block-row sums (one item per (block column, image row)).
+   ABI: params = [w, h, k, lw, ox]. */
+kernel void spectral_film_wide_rows(
+    device const float4 *in [[buffer(0)]],
+    device float4 *rows [[buffer(1)]],
+    constant const float *params [[buffer(2)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+  const int w = (int)params[0], h = (int)params[1];
+  const int k = (int)params[2], lw = (int)params[3];
+  const int ox = (int)params[4];
+  const int X = (int)gid.x, y = (int)gid.y;
+  if (X >= lw || y >= h) { return; }
+  const int x0 = max(X * k - ox, 0), x1 = min((X + 1) * k - ox, w);
+  float4 rs = float4(0.0f);
+  for (int x = x0; x < x1; x++) { rs += in[(size_t)y * (size_t)w + (size_t)x]; }
+  rows[(size_t)y * (size_t)lw + (size_t)X] = rs;
+}
+
+/* Fold the row sums into block means (one item per block).
+   ABI: params = [w, h, k, lw, lh, ox, oy]; inv = the host table. */
+kernel void spectral_film_wide_down(
+    device const float4 *rows [[buffer(0)]],
+    device float4 *low [[buffer(1)]],
+    constant const float *params [[buffer(2)]],
+    device const float *inv [[buffer(3)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+  const int w = (int)params[0], h = (int)params[1];
+  const int k = (int)params[2], lw = (int)params[3], lh = (int)params[4];
+  const int ox = (int)params[5], oy = (int)params[6];
+  const int X = (int)gid.x, Y = (int)gid.y;
+  if (X >= lw || Y >= lh) { return; }
+  const int x0 = max(X * k - ox, 0), x1 = min((X + 1) * k - ox, w);
+  const int y0 = max(Y * k - oy, 0), y1 = min((Y + 1) * k - oy, h);
+  const float ix = inv[x1 - x0];
+  float4 lo = float4(0.0f);
+  for (int y = y0; y < y1; y++)
+  {
+    lo = fma(rows[(size_t)y * (size_t)lw + (size_t)X], float4(ix), lo);
+  }
+  low[(size_t)Y * (size_t)lw + (size_t)X] = lo * inv[y1 - y0];
+}
+
+/* Bilinear interpolation of the low field back to w x h at block
+   centres (clamped to the outermost centres).
+   ABI: params = [w, h, k, lw, lh, ox, oy, inv2k]. */
+kernel void spectral_film_wide_up(
+    device const float4 *low [[buffer(0)]],
+    device float4 *out [[buffer(1)]],
+    constant const float *params [[buffer(2)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+  const int w = (int)params[0], h = (int)params[1];
+  const int k = (int)params[2], lw = (int)params[3], lh = (int)params[4];
+  const int ox = (int)params[5], oy = (int)params[6];
+  const float inv2k = params[7];
+  const int x = (int)gid.x, y = (int)gid.y;
+  if (x >= w || y >= h) { return; }
+  const float v = (float)(2 * (y + oy) + 1 - k) * inv2k;
+  int j0 = (int)floor(v), j1;
+  float fy;
+  if (j0 < 0) { j0 = j1 = 0; fy = 0.0f; }
+  else if (j0 >= lh - 1) { j0 = j1 = lh - 1; fy = 0.0f; }
+  else { j1 = j0 + 1; fy = v - (float)j0; }
+  const float u = (float)(2 * (x + ox) + 1 - k) * inv2k;
+  int i0 = (int)floor(u), i1;
+  float fx;
+  if (i0 < 0) { i0 = i1 = 0; fx = 0.0f; }
+  else if (i0 >= lw - 1) { i0 = i1 = lw - 1; fx = 0.0f; }
+  else { i1 = i0 + 1; fx = u - (float)i0; }
+  const float4 p00 = low[(size_t)j0 * (size_t)lw + (size_t)i0];
+  const float4 p01 = low[(size_t)j0 * (size_t)lw + (size_t)i1];
+  const float4 p10 = low[(size_t)j1 * (size_t)lw + (size_t)i0];
+  const float4 p11 = low[(size_t)j1 * (size_t)lw + (size_t)i1];
+  const float4 top = fma(float4(fx), p01 - p00, p00);
+  const float4 bot = fma(float4(fx), p11 - p10, p10);
+  out[(size_t)y * (size_t)w + (size_t)x] = fma(float4(fy), bot - top, top);
+}
+
+/* ---- T5: the bank/mix/combine/apply packet + the buffer gauss pair ----
+   (the T5 leg's splice faces — the upstream fma-pinned combines,
+   transcribed from spektra_core.c's sf_halation/sf_diffusion_filter
+   combine loops + spektrafilm.cl's spektrafilm_gauss_row/col_4c) */
+
+/* Fold one blurred component into the acc plane (first = overwrite,
+   else channel-weighted add). ABI: params = [w, h, w0, w1, w2, first]. */
+kernel void spectral_film_bank_fold(
+    texture2d<float, access::read> comp [[texture(0)]],
+    texture2d<float, access::read_write> acc [[texture(1)]],
+    constant const float *params [[buffer(2)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+  const int w = (int)params[0], h = (int)params[1];
+  if ((int)gid.x >= w || (int)gid.y >= h) { return; }
+  const float4 c = comp.read(gid);
+  const float3 cw = float3(params[2], params[3], params[4]);
+  const float4 add = float4(c.x * cw.x, c.y * cw.y, c.z * cw.z, 0.0f);
+  if (params[5] != 0.0f) { acc.write(add, gid); }
+  else { acc.write(acc.read(gid) + add, gid); }
+}
+
+/* The convex mix (plane = (1−p)·plane + p·scatter — in-place).
+   ABI: params = [w, h, p]. */
+kernel void spectral_film_convex_mix(
+    texture2d<float, access::read_write> plane [[texture(0)]],
+    texture2d<float, access::read> scatter [[texture(1)]],
+    constant const float *params [[buffer(2)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+  const int w = (int)params[0], h = (int)params[1];
+  if ((int)gid.x >= w || (int)gid.y >= h) { return; }
+  const float p = params[2];
+  const float4 cur = plane.read(gid);
+  const float4 sct = scatter.read(gid);
+  plane.write(fma(float4(p), sct - cur, cur), gid);
+}
+
+/* The scatter combine (scattered = w·tail + (1−w)·core, then plane =
+   (1−s)·plane + s·scattered — in-place on plane).
+   ABI: params = [w, h, w0, w1, w2, s]. */
+kernel void spectral_film_scatter_combine(
+    texture2d<float, access::read_write> plane [[texture(0)]],
+    texture2d<float, access::read> core [[texture(1)]],
+    texture2d<float, access::read> tail [[texture(2)]],
+    constant const float *params [[buffer(3)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+  const int w = (int)params[0], h = (int)params[1];
+  if ((int)gid.x >= w || (int)gid.y >= h) { return; }
+  const float3 ws = float3(params[2], params[3], params[4]);
+  const float s = params[5];
+  const float4 cur = plane.read(gid);
+  const float4 co = core.read(gid);
+  const float4 ta = tail.read(gid);
+  const float3 scattered = fma(ws, ta.xyz, (1.0f - ws) * co.xyz);
+  plane.write(float4(fma(float3(s), scattered - cur.xyz, cur.xyz), cur.w), gid);
+}
+
+/* The halation apply (plane = (a·blur + plane) / (1 + a) — in-place).
+   ABI: params = [w, h, a0, a1, a2]. */
+kernel void spectral_film_halation_apply(
+    texture2d<float, access::read_write> plane [[texture(0)]],
+    texture2d<float, access::read> blur [[texture(1)]],
+    constant const float *params [[buffer(2)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+  const int w = (int)params[0], h = (int)params[1];
+  if ((int)gid.x >= w || (int)gid.y >= h) { return; }
+  const float3 a = float3(params[2], params[3], params[4]);
+  const float4 cur = plane.read(gid);
+  const float4 bl = blur.read(gid);
+  plane.write(
+      float4(fma(a, bl.xyz, cur.xyz) / (1.0f + a), cur.w), gid);
+}
+
+/* The buffer-backed separable gauss pair (the low-face leg — float4
+   buffer faces, fma-pinned accumulators, clamped bounds).
+   ABI: params = [w, h, radius]. */
+kernel void spectral_film_wide_gauss_row(
+    device const float4 *src [[buffer(0)]],
+    device float4 *dst [[buffer(1)]],
+    device const float *weights [[buffer(2)]],
+    constant const float *params [[buffer(3)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+  const int w = (int)params[0], h = (int)params[1];
+  if ((int)gid.x >= w || (int)gid.y >= h) { return; }
+  const int radius = (int)params[2];
+  float4 acc = float4(0.0f);
+  for (int k = -radius; k <= radius; k++)
+  {
+    int xx = (int)gid.x + k;
+    xx = xx < 0 ? 0 : (xx >= w ? w - 1 : xx);
+    acc = fma(float4(weights[k + radius]),
+              src[(size_t)gid.y * (size_t)w + (size_t)xx], acc);
+  }
+  dst[(size_t)gid.y * (size_t)w + (size_t)gid.x] = acc;
+}
+
+kernel void spectral_film_wide_gauss_col(
+    device const float4 *src [[buffer(0)]],
+    device float4 *dst [[buffer(1)]],
+    device const float *weights [[buffer(2)]],
+    constant const float *params [[buffer(3)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+  const int w = (int)params[0], h = (int)params[1];
+  if ((int)gid.x >= w || (int)gid.y >= h) { return; }
+  const int radius = (int)params[2];
+  float4 acc = float4(0.0f);
+  for (int k = -radius; k <= radius; k++)
+  {
+    int yy = (int)gid.y + k;
+    yy = yy < 0 ? 0 : (yy >= h ? h - 1 : yy);
+    acc = fma(float4(weights[k + radius]),
+              src[(size_t)yy * (size_t)w + (size_t)gid.x], acc);
+  }
+  dst[(size_t)gid.y * (size_t)w + (size_t)gid.x] = acc;
+}

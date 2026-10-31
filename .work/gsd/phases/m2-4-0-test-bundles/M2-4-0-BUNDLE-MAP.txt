@@ -955,8 +955,13 @@ APP	3	FilmPanelClampedTests.swift
 #   三面+seed 折+优先级+bake 不折 4 法入 Layers / pristine 双面+off 默认 3 法入 App。
 LIB	3	SidecarV13Tests.swift
 LAYERS	4	FilmRecordSpatialTests.swift
-APP	5	FilmPanelSpatialTests.swift
+APP	7	FilmPanelSpatialTests.swift
 #   M8-3+ T4（2026-10-31，issue #21）：grain 接谱——派生/Poisson/Teschner/桥 6 法
 #   入 IOP / 拆口哨兵+全扫+on/0 恒等 4 法入 IOPParity / 面板扩 2 法（3→5）。
 IOP	6	SpectralGrainDeriveTests.swift
 IOPP	4	SpectralGrainGoldenTests.swift
+#   M8-3+ T5（2026-10-31，issue #21）：宽模糊+双腿——plan/方差/网格/inv/分配器 6 法
+#   入 IOP / 抽稀三件逐位 1 法 + 腿数学/off/on 4 法入 IOPParity / 面板扩 2 法（5→7）。
+IOP	6	SpectralWideBlurTests.swift
+IOPP	1	SpectralWideBlurGoldenTests.swift
+IOPP	4	SpectralSpatialLegTests.swift
