@@ -178,3 +178,12 @@
 B8 交互 → 站 1；C1 色轮 → 站 4；C2 stars/C3 encodings → 站 4）；**路线豁免 2**（B1
 模型集、B2 sidecar——Vision 原生替代）；**已有/不适用 5**；注记 3。正本 =
 `M9-CHARTER-INPUT.md` §2.1/§2.4。
+
+### 增量登记（2026-10-31 晚复查；窗口 = M9 调研批 +87）
+
+- **Library in-place refresh**（`9a1d773`）：导入/删除后原地刷新不整页重载——方向与 R7 T1 导入行发布修复同域，我方已修至行级发布，登记对照。
+- **LUT browser previews**（`1b18a07`）+ **LUT tile tooltip 仅限不可应用项**（`5a2a6fd`）：LUT 浏览/导入根显示每张 LUT 的预览 tile——我方 LUT 库（M2-5-3）无逐 LUT 视觉预览，小 UX 候选。
+- **Scope histogram polish**（`3c443b9`）：单色调主导时直方图保持可读 + scope plot 打磨——我方示波器（M2-3 GPU 面）打磨候选。
+- **Library zoom slider 两端 icon + flat grid 滚动条**（`952a009`/`a3ffaca`）/ **rubber-band 选区跨 grid origin 移动**（`caf4adc`）：小 UX 群。
+- **AI Mask range 编辑期编辑**（`126e0cf`）+ range section 折叠改名：AI 蒙版 UX 继续深化（我方蒙版模型不同构，观察）。
+- **发布工程**：v0.3.4 + GPU kernel 发布包校验 + macOS 原生 arm64 aria2 内置（模型下载）——分发/下载面参考。
