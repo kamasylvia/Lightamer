@@ -77,7 +77,7 @@ final class McpControlToolsetTests: XCTestCase {
         await McpServerController.makeRegistry(control: McpControlContext())
     }
 
-    /// The full 32-face union (the admit judgment needs every domain).
+    /// The full 34-face union (the admit judgment needs every domain).
     private func makeUnionRegistry() async -> McpToolRegistry {
         await McpServerController.makeRegistry(
             editing: EditingToolset.Seams(
@@ -154,12 +154,12 @@ final class McpControlToolsetTests: XCTestCase {
         }
     }
 
-    // MARK: - The union 32 分账 (the fifth row) + the zh catalog keys
+    // MARK: - The union 34 分账 (the fifth row) + the zh catalog keys
 
     func testUnionCarriesTheControlDomain() async throws {
         let registry = await makeUnionRegistry()
         let names = await registry.descriptors().map(\.name)
-        XCTAssertEqual(names.count, 33, "the union is the 33-face (LUMEN-C T3)")
+        XCTAssertEqual(names.count, 34, "the union is the 34-face (UQ-S1)")
         for tool in Self.controlTools {
             XCTAssertTrue(names.contains(tool.name), tool.name)
         }

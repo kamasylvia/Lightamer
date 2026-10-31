@@ -19,7 +19,8 @@ import XCTest
 // domain (3 tools) opened as the FOURTH domain — the freeze was the
 // 27-tool set then (the identifier chain grew one deliberate edit per
 // wave; 29 since M7-4-01, 32 since M7-5-01, 33 since LUMEN-C T3
-// (refine_masks joins the editing domain — the serial right), see below).
+// (refine_masks joins the editing domain), 34 since MCP-UQ S1
+// (get_schema joins the editing domain — the serial right), see below).
 // M7-4-01 (the union snapshot conscious change, THIS file's edit right
 // exercised again): the O4 pair copy_adjustments/paste_adjustments joins
 // the editing domain (7→9) and apply_params gains the item-level note
@@ -31,13 +32,13 @@ import XCTest
 // the right).
 //
 // Snapshot layers (all must consciously change together):
-//   - the editing domain (10)     → McpRegistrySnapshotTests (14-2;
-//                                  +1 LUMEN-C T3)
+//   - the editing domain (11)     → McpRegistrySnapshotTests (14-2;
+//                                  +1 LUMEN-C T3, +1 MCP-UQ S1)
 //   - the culling domain (14)     → McpCullingToolsetTests (14-3)
 //   - the search/state domain (3) → McpSearchStateToolsetTests (M7-2)
 //   - the project domain (3)      → McpProjectToolsetTests (M7-3)
 //   - the control domain (3)      → McpControlToolsetTests (M7-5)
-//   - THE UNION (33)              → this file (the final freeze)
+//   - THE UNION (34)              → this file (the final freeze)
 // ─────────────────────────────────────────────────────────────────────────────
 
 final class McpFinalSnapshotTests: XCTestCase {
@@ -72,6 +73,14 @@ final class McpFinalSnapshotTests: XCTestCase {
             inputSchemaJSON:
                 #"{"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"format":{"type":"string","enum":["jpeg","png","tiff","heic","avif","webp"],"default":"jpeg"},"quality":{"type":"integer","minimum":1,"maximum":100,"default":90,"description":"Lossy formats only"},"sizing":{"type":"object","properties":{"mode":{"type":"string","enum":["original","longEdge","shortEdge"],"default":"original"},"px":{"type":"integer","minimum":1,"description":"Required for longEdge/shortEdge"}}},"colorSpace":{"type":"string","enum":["sRGB","displayP3","adobeRGB","proPhoto","rec2020"],"default":"sRGB"},"yiyin":{"type":"boolean","default":false,"description":"Render through the image's existing yiyin frame/watermark configuration"}},"required":["relPath"]}"#,
             destructiveHint: true),
+        McpToolDescriptor(
+            // UQ-S1: get_schema joins the editing domain (10→11, the
+            // agent's field-meaning face — this union snapshot edits
+            // consciously, the serial right: 33→34).
+            name: "get_schema",
+            description: "snapshot",
+            inputSchemaJSON: #"{"type":"object","properties":{},"required":[]}"#,
+            readOnlyHint: true),
         McpToolDescriptor(
             name: "list_iops",
             description: "snapshot",
@@ -278,7 +287,7 @@ final class McpFinalSnapshotTests: XCTestCase {
             inputSchemaJSON: #"{"type":"object","properties":{}}"#),
     ]
 
-    static var all33: [McpToolDescriptor] {
+    static var all34: [McpToolDescriptor] {
         editingTools + cullingTools + searchStateTools + projectTools
             + controlTools
     }
@@ -305,15 +314,15 @@ final class McpFinalSnapshotTests: XCTestCase {
             control: McpControlContext())
     }
 
-    /// THE final freeze: every host assembles exactly these 32 descriptors —
+    /// THE final freeze: every host assembles exactly these 34 descriptors —
     /// names, VERBATIM inputSchema JSON and the §A annotation column.
-    func testFinalSnapshotUnion32Verbatim() async throws {
+    func testFinalSnapshotUnion34Verbatim() async throws {
         let registry = await makeUnionRegistry()
         try await McpRegistrySnapshotTests.assertSnapshot(
-            registry: registry, expected: Self.all33)
+            registry: registry, expected: Self.all34)
         let descriptors = await registry.descriptors()
-        XCTAssertEqual(descriptors.count, 33,
-                       "D3: the final count is 33 (LUMEN-C T3: refine_masks "
+        XCTAssertEqual(descriptors.count, 34,
+                       "D3: the final count is 34 (UQ-S1: get_schema "
                            + "joined the editing domain)")
         // §A annotations at a glance: exactly 10 destructive tools — the §A
         // write face + match_color + paste_adjustments (M7-4-01); the
@@ -374,7 +383,7 @@ final class McpFinalSnapshotTests: XCTestCase {
         XCTAssertEqual(
             Set(u), Set(e).union(Set(c)).union(Set(s)).union(Set(p))
                 .union(Set(k)))
-        XCTAssertEqual(u.count, 33, "LUMEN-C T3: the union grew to 33")
+        XCTAssertEqual(u.count, 34, "UQ-S1: the union grew to 34")
     }
 
     /// The whitelist negative: a 21st tool does NOT exist. `match_color` WAS
@@ -402,7 +411,7 @@ final class McpFinalSnapshotTests: XCTestCase {
             }
         }
         let tools = try await client.listTools().tools
-        XCTAssertEqual(tools.count, 33, "no 34th tool rides the list either")
+        XCTAssertEqual(tools.count, 34, "no 35th tool rides the list either")
     }
 
     // MARK: - zh/en description keys (D-14-CONTEXT-3②: the L025 face)
@@ -414,6 +423,7 @@ final class McpFinalSnapshotTests: XCTestCase {
         "apply_params": "mcp_tool_desc_apply_params",
         "refine_masks": "mcp_tool_desc_refine_masks",
         "render_preview": "mcp_tool_desc_render_preview",
+        "get_schema": "mcp_tool_desc_get_schema",
         "list_iops": "mcp_tool_desc_list_iops",
         "export_image": "mcp_tool_desc_export_image",
         "list_photos": "mcp_tool_desc_list_photos",
@@ -553,8 +563,8 @@ final class McpFinalSnapshotTests: XCTestCase {
             searchState: McpSearchStateContext(),
             project: McpProjectContext(),
             // M7-5-01: the union single-value discipline — the chain host
-            // lists the same 33-face (the admit seam stays nil = the
-            // sentinel agent's set_rating passes).
+            // lists the same 34-face (the admit seam stays nil = the
+            // sentinel agent's set_rating passes; UQ-S1 get_schema joined).
             control: McpControlContext())
         defer { Task { await handle.stop() } }
 
@@ -564,7 +574,7 @@ final class McpFinalSnapshotTests: XCTestCase {
         let direct = MCP.Client(name: "direct-entry", version: "0.0.1")
         try await direct.connect(transport: directTransport)
         let directTools = try await direct.listTools().tools.map(\.name)
-        XCTAssertEqual(directTools.count, 33, "the direct entry sees the full face")
+        XCTAssertEqual(directTools.count, 34, "the direct entry sees the full face")
 
         // ── Entry 2: the LAUNCHER pulls the sentinel agent. ──
         let script = Self.agentScript(agentDir: agentDir.path)

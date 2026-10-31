@@ -179,6 +179,24 @@ enum EditingToolset {
             })
         await registerRenderPreview(into: registry, seams: seams)
         await registry.register(
+            getSchemaDescriptor, requiresWriter: false,
+            handler: { [seams] _ in
+                // UQ-S1: the get_schema synthesis face — same face switch
+                // as list_iops (KD-1), the seed records through the SAME
+                // seed the guard reads (default instances + editing seed).
+                try await McpCullingToolset.withTimeout(
+                    McpTimeouts.list,
+                    McpToolError.internalError("get_schema timed out")
+                ) {
+                    let modules = await seams.modules()
+                    let seed = await modules.makeDefaultInstances()
+                        + LightamerIOPRegistry.editingDefaultInstances(
+                            defaultFace: seams.defaultFace)
+                    return try .text(McpSchemaCatalog.schemaJSON(
+                        defaultFace: seams.defaultFace, seed: seed))
+                }
+            })
+        await registry.register(
             listIopsDescriptor, requiresWriter: false,
             handler: { [seams] _ in
                 // M2-1: the catalog face rides the seams' editing face —
@@ -344,6 +362,23 @@ enum EditingToolset {
             withJSONObject: view, options: [.sortedKeys, .prettyPrinted])
         return .text(String(decoding: data, as: UTF8.self))
     }
+
+    // MARK: - get_schema (UQ-S1 — the agent's field-meaning reference channel)
+
+    private static let getSchemaDescriptor = McpToolDescriptor(
+        name: "get_schema",
+        description: String(localized: "mcp_tool_desc_get_schema", defaultValue: String.LocalizationValue(
+                    "Every editable field: its path in the apply_params params object, "
+                + "type, interface range and meaning. Read this before editing. Per "
+                + "op the opName, display name, v50 iopOrder, a VERSION (refresh your "
+                + "cache when it changes), the applicable domain and every params "
+                + "field with its path, type, range, meaning and canonical default. "
+                + "Ranges are the interface's (panel stops) — out-of-range writes "
+                + "are refused, not clamped. Ops absent from this document accept "
+                + "full-JSON replace via apply_params without a field reference. "
+                + "Read-only, stateless, no errors beyond internalError.")),
+        inputSchemaJSON: #"{"type":"object","properties":{},"required":[]}"#,
+        readOnlyHint: true)
 
     // MARK: - list_iops (T3 — the agent's params-key reference channel)
 

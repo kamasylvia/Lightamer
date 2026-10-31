@@ -96,14 +96,14 @@ final class McpRefineMasksToolTests: XCTestCase {
         XCTAssertEqual(tool.inputSchemaJSON, Self.schemaJSON)
         XCTAssertEqual(tool.readOnlyHint, false)
         XCTAssertFalse(tool.description.isEmpty)
-        // The whole editing set: the ten names (nine pre-LUMEN-C + this).
+        // The whole editing set: the eleven names (ten pre-UQ-S1 + get_schema).
         let names = Set(descriptors.map(\.name))
         for expected in ["load_image", "apply_params", "render_preview", "list_iops",
             "export_image", "list_luts", "copy_adjustments", "paste_adjustments",
-            "match_color", "refine_masks"] {
+            "match_color", "refine_masks", "get_schema"] {
             XCTAssertTrue(names.contains(expected), "missing \(expected)")
         }
-        XCTAssertEqual(descriptors.count, 10, "the editing domain grew to ten")
+        XCTAssertEqual(descriptors.count, 11, "the editing domain grew to eleven")
     }
 
     // MARK: ② the typed unavailable face (nil seam)

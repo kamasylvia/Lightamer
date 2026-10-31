@@ -197,7 +197,7 @@ final class McpLauncherTests: XCTestCase {
                 gate: McpRenderGate(), liveImageURL: { nil }),
             culling: McpServerController.makeCullingContext(session: { nil }))
         let names = await assembled.descriptors().map(\.name)
-        XCTAssertEqual(names.count, 24, "the closed face (LUMEN-C T3 refine_masks joined): \(names.sorted())")
+        XCTAssertEqual(names.count, 25, "the closed face (UQ-S1 get_schema joined): \(names.sorted())")
         XCTAssertFalse(names.contains("ping"))
         XCTAssertFalse(names.contains("count_images"))
     }

@@ -158,6 +158,14 @@ final class McpRegistrySnapshotTests: XCTestCase {
                         #"{"type":"object","properties":{"source":{"type":"string","description":"A library image id (digits) or an open-session relPath (the copy_adjustments addressing)"},"targets":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":1000,"description":"Open-session relPaths to paste onto"},"note":{"type":"string","minLength":1,"description":"ITEM-level edit note attached to each history commit (distinct from the document-level note set via append_note)"},"include":{"type":"array","items":{"type":"string","format":"uuid"},"description":"instanceId subset from copy_adjustments (default: every transferable instance)"},"includeDrt":{"type":"boolean","default":true,"description":"false drops the source's DRT row"},"version":{"type":"string","description":"A copy_adjustments versions[] id (default: the active chain)"}},"required":["source","targets"]}"#,
                     destructiveHint: true),
                 McpToolDescriptor(
+                    // UQ-S1: get_schema joins the editing domain (10→11 —
+                    // this domain snapshot edits consciously, the same
+                    // batch the union layer edits).
+                    name: "get_schema",
+                    description: "schema",
+                    inputSchemaJSON: #"{"type":"object","properties":{},"required":[]}"#,
+                    readOnlyHint: true),
+                McpToolDescriptor(
                     name: "list_iops",
                     description: "list",
                     inputSchemaJSON: #"{"type":"object","properties":{},"required":[]}"#,
@@ -229,9 +237,9 @@ final class McpRegistrySnapshotTests: XCTestCase {
         XCTAssertFalse(names.contains("ping"), "ping is retired")
         XCTAssertFalse(names.contains("count_images"), "count_images is retired")
         XCTAssertEqual(
-            names.count, 24,
-            "the editing+culling closed face is exactly 24 tools "
-                + "(LUMEN-C T3 refine_masks joined the editing domain): \(names.sorted())")
+            names.count, 25,
+            "the editing+culling closed face is exactly 25 tools "
+                + "(UQ-S1 get_schema joined the editing domain): \(names.sorted())")
     }
 
     /// A minimal LOCAL double for the transport-echo tests (the registry

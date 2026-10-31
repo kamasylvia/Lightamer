@@ -7,7 +7,7 @@ description: Use when driving the Lightamer photo editor over MCP — finding a 
 
 Lightamer is a macOS RAW/photo editor. One MCP server kernel serves three
 host forms: the GUI-embedded HTTP endpoint, a headless stdio fork, and a
-headless HTTP daemon — all exposing the same closed face of 32 tools in five
+headless HTTP daemon — all exposing the same closed face of 34 tools in five
 domains. This skill covers how to connect, which domain does what, how the
 GUI control hand-off works, and where the details live.
 
@@ -47,7 +47,7 @@ workflow belong in that template, not in this skill.
 
 ## 2. Turn-taking (GUI control)
 
-On a GUI-backed session, 13 of the 32 tools change session state
+On a GUI-backed session, 13 of the 34 tools change session state
 (`load_image`, `apply_params`, `paste_adjustments`, `export_image`,
 `set_rating`, `set_flag`, `set_color_label`, `append_note`, `set_keywords`,
 `apply_preset`, `match_color`, `project_open`, `project_create`) and refuse
@@ -80,15 +80,15 @@ no human to hand the control back to.
 
 ## 3. Tool domains
 
-32 tools across five domains. The machine-checked per-tool reference (names,
+34 tools across five domains. The machine-checked per-tool reference (names,
 domain sections, hints, verbatim schemas with per-field argument semantics)
 lives in [references/tools.md](references/tools.md); the domain boundaries
 are:
 
-- **editing (9)** — the pixel-session face. `load_image` / `apply_params` /
+- **editing (11)** — the pixel-session face. `load_image` / `apply_params` /
   `render_preview` / `export_image` change or produce pixels;
   `list_iops` / `list_luts` / `copy_adjustments` / `paste_adjustments` /
-  `match_color` inspect and transfer edits. An open GUI session (or a
+  `match_color` / `refine_masks` / `get_schema` inspect and transfer edits. An open GUI session (or a
   headless `--project` arm's session face) is required; without one the
   session-bound tools answer `notSessionMember`.
 - **culling (14)** — library inspection and metadata write-back
@@ -136,7 +136,9 @@ GUI's live viewport:
 The GUI sliders store RAW parameter values — the on-screen range and unit
 suffix (EV, percent, pixels) are display affinities; the wire value is the
 same number the readout shows, with no UI-side scaling. `list_iops` is the
-agent-facing schema channel: per operation it returns the parameter keys,
+agent-facing key channel and `get_schema` the field-meaning channel (path,
+type, interface range, meaning, canonical default per field — read before
+editing): per operation they return the parameter keys,
 types, the applicable source domain, and the params-shape `version` (bump it
 when a params shape migrates — re-read the catalog when it changes). Ops
 with nested payloads that the catalog does not annotate take full-JSON
