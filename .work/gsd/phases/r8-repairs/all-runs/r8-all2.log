@@ -1,0 +1,10 @@
+BUNDLE|IOP|814/1/0|peakRSS=6141MB|933s|sampling=time
+BUNDLE|IOPParity|565/10/0|peakRSS=5213MB|1567s|sampling=time
+BUNDLE|Layers|531/5/0|peakRSS=801MB|448s|sampling=time
+BUNDLE|Library|785/4/0|peakRSS=784MB|172s|sampling=time
+BUNDLE|Sessions|285/4/0|peakRSS=1179MB|64s|sampling=time
+BUNDLE|Export|385/4/0|peakRSS=4621MB|201s|sampling=time
+  ↳ 末条 Executed 行未挂靠 Test Suite 'All tests'（类 suite 截断形态，L055 假绿签名）；日志 /tmp/la-direct-tests-App.log
+BUNDLE|App|0/0/0|peakRSS=0MB|658s|sampling=ps-poll
+  ↳ App FAILED（no-total-line；host exit=1 仅参考）— 完整输出: /tmp/la-direct-tests-App.log
+TOTAL|3365/28/0|4043s

@@ -1,0 +1,23 @@
+BUNDLE|IOP|814/1/59|peakRSS=3417MB|860s|sampling=time
+  ↳ IOP FAILED（fail；host exit=1 仅参考）— 完整输出: /tmp/la-direct-tests-IOP.log
+Test Case '-[LightamerTestsIOP.PipeCacheTests testDecodeParamsChangeInvalidatesAll]' started.
+<unknown>:0: error: -[LightamerTestsIOP.PipeCacheTests testDecodeParamsChangeInvalidatesAll] : failed: caught error: "functionNotFound("default.metallib in LightamerIOP.framework")"
+Test Case '-[LightamerTestsIOP.PipeCacheTests testDecodeParamsChangeInvalidatesAll]' failed (1.629 seconds).
+Test Case '-[LightamerTestsIOP.PipeCacheTests testDisabledPieceBehavesAsRemoved]' started.
+<unknown>:0: error: -[LightamerTestsIOP.PipeCacheTests testDisabledPieceBehavesAsRemoved] : failed: caught error: "functionNotFound("default.metallib in LightamerIOP.framework")"
+Test Case '-[LightamerTestsIOP.PipeCacheTests testDisabledPieceBehavesAsRemoved]' failed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.PipeCacheTests testFullPipeSkipsIntermediateCaching]' started.
+<unknown>:0: error: -[LightamerTestsIOP.PipeCacheTests testFullPipeSkipsIntermediateCaching] : failed: caught error: "functionNotFound("default.metallib in LightamerIOP.framework")"
+Test Case '-[LightamerTestsIOP.PipeCacheTests testFullPipeSkipsIntermediateCaching]' failed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.PipeCacheTests testHitPathSkipsMakeAndCountsExactlyOnce]' started.
+<unknown>:0: error: -[LightamerTestsIOP.PipeCacheTests testHitPathSkipsMakeAndCountsExactlyOnce] : failed: caught error: "functionNotFound("default.metallib in LightamerIOP.framework")"
+Test Case '-[LightamerTestsIOP.PipeCacheTests testHitPathSkipsMakeAndCountsExactlyOnce]' failed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.PipeCacheTests testInvalidateImageIDSweepsOnlyThatImage]' started.
+<unknown>:0: error: -[LightamerTestsIOP.PipeCacheTests testInvalidateImageIDSweepsOnlyThatImage] : failed: caught error: "functionNotFound("default.metallib in LightamerIOP.framework")"
+Test Case '-[LightamerTestsIOP.PipeCacheTests testInvalidateImageIDSweepsOnlyThatImage]' failed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.PipeCacheTests testLRUEvictionKeepsRecentlyTouchedPlanes]' started.
+<unknown>:0: error: -[LightamerTestsIOP.PipeCacheTests testLRUEvictionKeepsRecentlyTouchedPlanes] : failed: caught error: "functionNotFound("default.metallib in LightamerIOP.framework")"
+Test Case '-[LightamerTestsIOP.PipeCacheTests testLRUEvictionKeepsRecentlyTouchedPlanes]' failed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.PipeCacheTests testLRUEvictionRespectsBudget]' started.
+<unknown>:0: error: -[LightamerTestsIOP.PipeCacheTests testLRUEvictionRespectsBudget] : failed: caught error: "functionNotFound("default.metallib in LightamerIOP.framework")"
+TOTAL|814/1/59|860s
