@@ -1452,9 +1452,125 @@ struct SettingsMCPPage: View {
                     .font(.caption)
                     .foregroundStyle(LightamerColors.textSecondary)
             }
+            // UQ-S2: the Agents onboarding section — paste-ready configs
+            // (generated from the live discovery path) + the CLI install
+            // face (UQ-S3). Everything an agent could be told to type is
+            // shown here with a Copy button.
+            Section(String(localized: "settings_mcp_onboarding_section")) {
+                Text("settings_mcp_onboarding_hint")
+                    .font(.caption)
+                    .foregroundStyle(LightamerColors.textSecondary)
+                McpOnboardingSection()
+            }
         }
         .formStyle(.grouped)
         .accessibilityIdentifier("settings.page.mcp")
+    }
+}
+
+/// UQ-S2: the onboarding section body — install row + three copyable
+/// snippets (Claude Code / Claude Desktop / CLI). Pure view over the
+/// McpOnboarding model single sources.
+struct McpOnboardingSection: View {
+    @State private var installState = McpOnboarding.installState
+    @State private var installError: String?
+    @State private var copied: String?
+
+    var body: some View {
+        // The CLI install row (UQ-S3's install face).
+        HStack(spacing: 10) {
+            Text(statusText)
+                .font(.caption)
+                .accessibilityIdentifier("settings.mcp.onboarding.install-state")
+            Spacer(minLength: 0)
+            if installState != .absent {
+                Button(String(localized: "settings_mcp_onboarding_uninstall")) {
+                    run(McpOnboarding.uninstall)
+                }
+                .accessibilityIdentifier("settings.mcp.onboarding.uninstall")
+            }
+            Button(
+                installState == .absent
+                    ? String(localized: "settings_mcp_onboarding_install")
+                    : String(localized: "settings_mcp_onboarding_reinstall")
+            ) {
+                run(McpOnboarding.install)
+            }
+            .accessibilityIdentifier("settings.mcp.onboarding.install")
+        }
+        Text(McpOnboarding.installURL.path.replacingOccurrences(
+            of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(LightamerColors.textSecondary)
+            .textSelection(.enabled)
+        Text("settings_mcp_onboarding_cli_hint")
+            .font(.caption)
+            .foregroundStyle(LightamerColors.textSecondary)
+        if let installError {
+            Text(installError)
+                .font(.caption)
+                .foregroundStyle(.orange)
+        }
+        snippet(
+            titleKey: "settings_mcp_onboarding_claude_code",
+            text: McpOnboarding.claudeCodeCommand,
+            id: "settings.mcp.onboarding.claude-code")
+        snippet(
+            titleKey: "settings_mcp_onboarding_claude_desktop",
+            text: McpOnboarding.desktopConfig,
+            id: "settings.mcp.onboarding.claude-desktop")
+        snippet(
+            titleKey: "settings_mcp_onboarding_cli",
+            text: McpOnboarding.cliUsage,
+            id: "settings.mcp.onboarding.cli")
+        Text("settings_mcp_onboarding_config_hint")
+            .font(.caption)
+            .foregroundStyle(LightamerColors.textSecondary)
+    }
+
+    private var statusText: String {
+        switch installState {
+        case .absent: String(localized: "settings_mcp_onboarding_not_installed")
+        case .current: String(localized: "settings_mcp_onboarding_installed")
+        case .other: String(localized: "settings_mcp_onboarding_installed_other")
+        }
+    }
+
+    private func run(_ action: () throws -> Void) {
+        do {
+            try action()
+            installError = nil
+        } catch {
+            installError = String(describing: error)
+        }
+        installState = McpOnboarding.installState
+    }
+
+    private func snippet(titleKey: LocalizedStringKey, text: String, id: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(titleKey)
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer(minLength: 0)
+                Button(
+                    copied == id
+                        ? String(localized: "settings_mcp_onboarding_copied")
+                        : String(localized: "settings_mcp_onboarding_copy")
+                ) {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(text, forType: .string)
+                    copied = id
+                }
+                .accessibilityIdentifier(id + ".copy")
+            }
+            Text(text)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(LightamerColors.textSecondary)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier(id)
+        }
     }
 }
 
