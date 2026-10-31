@@ -131,6 +131,11 @@ public struct SpectralFilmTables: Sendable, Equatable {
     /// The print CC triple the build resolved (the solved neutral pair's
     /// [0, M, Y]; the M8-2 solve face's seed and the audit face).
     public let solvedPrintCC: SIMD3<Float>
+    /// M8-3+ T1: the solve touched the dial wall ([0, 250] within 1e-9).
+    /// The T2 conservation fallback's trigger + the panel disclosed face.
+    /// Pinned printCC branch = false (no solve ran — the semantic pin).
+    /// Build-derived (recomputable), never serialized — not a sidecar key.
+    public let clamped: Bool
 
     /// Typed placeholders (v1 identities): preflash off (exposure 0 →
     /// zero raw), the black/white-point fits off.
@@ -175,6 +180,7 @@ public struct SpectralFilmTables: Sendable, Equatable {
             && lhs.xyzNorm.bitPattern == rhs.xyzNorm.bitPattern
             && lhs.midgrayPrintRaw == rhs.midgrayPrintRaw
             && lhs.solvedPrintCC == rhs.solvedPrintCC
+            && lhs.clamped == rhs.clamped
             && lhs.preflashRaw == rhs.preflashRaw
             && lhs.blackWhiteActive == rhs.blackWhiteActive
     }
@@ -248,6 +254,14 @@ public enum SpectralBuildEngine {
         /// with it — the consumers fold the filter tag into every slot
         /// key (D-M92-5).
         public var cameraFilter: [Double]?
+        /// M8-3+ T1 (R-M83P-3): the neutral-solve seed override. nil
+        /// (the default) = the legacy (50, 50) seed verbatim; a non-nil
+        /// pair (the measured neutral_print_filters anchor for this
+        /// film×paper×illuminant triple, resolved by the caller) starts
+        /// the Newton ladder there. The seed moves ROUNDS, never the
+        /// converged pair (the 14 safety pairs pin anchored-vs-(50,50)
+        /// bit-identical — a moved convergence is the K1 stop-hand).
+        public var neutralSeed: (m: Double, y: Double)?
 
         public init(
             enlargerIlluminant: String = "TH-KG3",
@@ -264,7 +278,8 @@ public enum SpectralBuildEngine {
             scanBlackCorrection: Bool = false,
             scanWhiteCorrection: Bool = false,
             adaptationSurface: Bool = false,
-            cameraFilter: [Double]? = nil
+            cameraFilter: [Double]? = nil,
+            neutralSeed: (m: Double, y: Double)? = nil
         ) {
             self.enlargerIlluminant = enlargerIlluminant
             self.printCC = printCC
@@ -281,6 +296,7 @@ public enum SpectralBuildEngine {
             self.scanWhiteCorrection = scanWhiteCorrection
             self.adaptationSurface = adaptationSurface
             self.cameraFilter = cameraFilter
+            self.neutralSeed = neutralSeed
         }
     }
 
@@ -717,36 +733,23 @@ public enum SpectralBuildEngine {
         // over (mCC, yCC) driving the mid-gray log-channel ratios to zero
         // (C stays neutral-fixed at 0). Deterministic fixed ladder; the
         // solved CC is what M8-2's solve face consumes as its seed.
+        // M8-3+ T1 (R-M83P-3): the ladder lives in SpectralNeutralSolve
+        // (the static pure function — this call site passes the nested
+        // faces' inputs; the iteration order is verbatim). The pinned
+        // branch keeps its judgment HERE (pinned = no solve = clamped
+        // false, the semantic pin).
         var solvedCC: SIMD3<Double>
+        var solvedClamped = false
         if let pinned = parameters.printCC {
             solvedCC = pinned
         } else {
-            func logRatios(_ illum: [Double]) -> SIMD2<Double> {
-                let raw = printRaw(midgrayDS, illum)
-                return SIMD2<Double>(
-                    log(raw.y / max(raw.x, 1e-300)),
-                    log(raw.z / max(raw.x, 1e-300)))
-            }
-            var m = 50.0, y = 50.0
-            let eps = 1e-4
-            for _ in 0..<32 {
-                let r = logRatios(illumPrintFor(cc: m, y))
-                if abs(r.x) + abs(r.y) < 1e-12 { break }
-                let rm = logRatios(illumPrintFor(cc: m + eps, y))
-                let ry = logRatios(illumPrintFor(cc: m, y + eps))
-                let dMdx = (rm.x - r.x) / eps
-                let dYdx = (ry.x - r.x) / eps
-                let dMdy = (rm.y - r.y) / eps
-                let dYdy = (ry.y - r.y) / eps
-                let det = dMdx * dYdy - dYdx * dMdy
-                guard det.isFinite, abs(det) > 1e-300 else { break }
-                let dm = (-r.x * dYdy + r.y * dYdx) / det
-                let dy = (-r.y * dMdx + r.x * dMdy) / det
-                m = min(max(m + dm, 0.0), 250.0)
-                y = min(max(y + dy, 0.0), 250.0)
-                if max(abs(dm), abs(dy)) < 1e-10 { break }
-            }
-            solvedCC = SIMD3<Double>(0, m, y)
+            let solution = SpectralNeutralSolve.solve(
+                midgrayDS: midgrayDS, printSens: printSens,
+                illuminant: enlargerSPD,
+                dichroic: SpectralConstantsData.dichroicTransmissions,
+                seed: parameters.neutralSeed)
+            solvedCC = SIMD3<Double>(0, solution.m, solution.y)
+            solvedClamped = solution.clamped
         }
         let illumPrintD = illumPrintFor(cc: solvedCC.y, solvedCC.z)
 
@@ -885,6 +888,7 @@ public enum SpectralBuildEngine {
             xyzNorm: Float(xyzNormD),
             midgrayPrintRaw: SIMD3<Float>(midgrayPrintRawD),
             solvedPrintCC: SIMD3<Float>(solvedCC),
+            clamped: solvedClamped,
             preflashRaw: SIMD3<Float>(preflashRawD),
             blackWhiteActive: false)
     }

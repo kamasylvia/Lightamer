@@ -943,3 +943,6 @@ APP	4	SmallPoolUITests.swift
 #   8→9（raster 资产引用门清扫法）/ CropToolRotationTests 7→9（SWAP_XY 转置闭式
 #   法 + 纯镜像抵消法）/ UprightGuidesInteractionTests 8→9（端点拖拽 release
 #   提交缝法）。本轮全套预期 4435/34/0（基线 4428 + Δ7）。
+#   M8-3+ T1（2026-10-31，issue #21）：求解加固——锚覆盖/seed 双值恒等/C200 七 seed/
+#   clamped 旗/轮数门 5 法入 IOP。
+IOP	5	SpectralNeutralSolveTests.swift

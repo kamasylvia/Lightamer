@@ -541,6 +541,7 @@ let project = Project(
                 "Tests/LightamerTests/SpectralProfileDecodeTests.swift",
                 "Tests/LightamerTests/SpectralTcFitTests.swift",
                 "Tests/LightamerTests/SpectralSolveTests.swift",
+                "Tests/LightamerTests/SpectralNeutralSolveTests.swift",
                 "Tests/LightamerTests/VibranceVelviaCommitTests.swift",
                 "Tests/LightamerTests/VignetteTests.swift",
                 "Tests/LightamerTests/VisionDetectTests.swift",
