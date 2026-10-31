@@ -127,3 +127,21 @@ D12 B-1 注记 + v4 预留；D13 E2/E3 已修码。
 - **封存面**：修复轮三 commit 触面 = Slot/Payloads/Box（additive）+ 新测试 2
   文件 + Project/MAP 登记——17 件零 diff；kernel/双臂/RenderProcess/默认
   off 全冻结。
+
+## 九、修复轮二（E-fix-1 + m-fix-1，2026-11-01）
+
+复审正本 = `c86767f4` fix-round review（FAIL / 1E+1m+5obs）。
+
+| 项 | 内容 | ΔN |
+|---|---|---|
+| E-fix-1 | `SpectralGrainGoldenTests.swift` 加回 IOPParity target（`8fb4291e` 替换行误删；文件在盘、内容零触、BUNDLE-MAP 仍登记）+ `tuist generate`（L041 末位） | +4（IOPP） |
+| m-fix-1 | CrossArm 保留命名 + 补 pinned hash 双常量（注册轮实测 wide `15571136022812571430` / 转置 `12304591439955305968`；exact 孪生预期随 kernel 数学漂移、按设计不钉） | +0 |
+
+- **ΔN 勘误实数**：轮一账面 4514+6=4516 隐含 −4 脱落（真算术 4514+4+2−4=4516）；
+  加回后**全套预期 4520/34/0**（IOPP 580→584：grain 4 法恢复 + Wiring 4 + CrossArm 2 维持绿；
+  --all 归 orchestrator 批准轮，未跑）。
+- **定向值**：grain 4/0/0（297s：28 配对 291s 主导）+ CrossArm 2/0/0（266s，钉后复绿）+
+  Wiring 4/0/0（259s）+ App Mcp 族 237/0/0（18 类逐个全绿；`-XCTest Mcp` 前缀过滤 0 命中=
+  xctest 要求完整类名，注记）。
+- **封存面**：本轮触面 = Project.swift 登记行 + CrossArm 测试内部（常量+2 断言）+ 本节——
+  17 件零 diff；zh-audit `--check` PASS（1795/2128）。
