@@ -25,7 +25,7 @@ flipV/rot180/tint 存活的对照面也自洽(无 swapsXY/无收缩 → walked =
 
 **引入 commit 判定**:
 
-- 潜伏缺陷 = `9d1f4fa9`(06-01 T4,composite 骨架 + `window = basePipe.roi`
+- 潜伏缺陷 = `9d1f4fa9`(09-23 T4,composite 骨架 + `window = basePipe.roi`
   语义错)——当时链上无激活几何模块,不可达。
 - 暴露条件 = 几何模块激活;用户可达化 = M9-3 crop tool strip(90° 对/滑杆)。
 - 故「嫌疑面按新近度」的 M9-3/M9-4 两条均**排除**:omp 双机实测(HEAD `a0206e83`
