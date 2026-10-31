@@ -381,13 +381,19 @@ enum McpSchemaCatalog {
     }
 
     /// A JSONSerialization value → McpJSON (null for absent/foreign).
+    ///
+    /// E-3 (zcode MCP-UQ review): `value as? Bool` MUST NOT be used here —
+    /// Foundation bridges `__NSCFNumber(0/1)` to Bool (0/1 gain defaults
+    /// answered `false`/`true`). The single discriminator is CFBoolean
+    /// identity: a genuine Bool (or JSON true/false) is a kCFBoolean
+    /// instance; numbers never are, whatever their value.
     static func jsonValue(_ value: Any?) -> McpJSON {
         guard let value else { return McpJSON.null }
         if value is NSNull { return McpJSON.null }
-        if let b = value as? Bool { return McpJSON.bool(b) }
         if let n = value as? NSNumber {
-            // Bool rides NSNumber too — the Bool check above caught real
-            // booleans; what remains is numeric.
+            if CFGetTypeID(n) == CFBooleanGetTypeID() {
+                return McpJSON.bool(n.boolValue)
+            }
             let d = n.doubleValue
             if d == d.rounded(), abs(d) < 9e15 { return McpJSON.int(n.intValue) }
             return McpJSON.double(d)

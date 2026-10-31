@@ -55,6 +55,9 @@ final class McpOnboardingTests: XCTestCase {
     func testParseListAndHelp() throws {
         XCTAssertEqual(try McpOneShot.parse(["list"]), .list)
         XCTAssertEqual(try McpOneShot.parse(["--list"]), .list)
+        // B-2 (zcode MCP-UQ review): the usage line must carry the
+        // `--list` alias the parser accepts.
+        XCTAssertTrue(McpOneShot.usage.contains("--list"))
         XCTAssertThrowsError(try McpOneShot.parse([]))
         XCTAssertThrowsError(try McpOneShot.parse(["list", "extra"]))
         XCTAssertThrowsError(try McpOneShot.parse(["nope"]))
