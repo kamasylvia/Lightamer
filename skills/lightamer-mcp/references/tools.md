@@ -5,8 +5,8 @@ the live registry and byte-compares this file on every suite run
 (OQ-M7-6-3: the test IS the gate). Edit the toolset sources, not this
 file; a registration change lands here through the snapshot tests.
 
-33 tools across five domains
-editing (10) / culling (14) / searchstate (3) / project (3) / control (3).
+34 tools across five domains
+editing (11) / culling (14) / searchstate (3) / project (3) / control (3).
 Hints mirror the `tools/list` annotation columns (`readOnlyHint`,
 `destructiveHint`); the schema is the verbatim `inputSchema` JSON
 (its per-field descriptions are the English argument semantics).
@@ -15,7 +15,7 @@ zh localization family) — they stay OUT of this reference: the
 skill docs are en-only by decision (OQ-M7-6-2), and the domain
 boundaries in SKILL.md §3 carry the English semantics.
 
-## editing (10 tools)
+## editing (11 tools)
 
 ### apply_params
 
@@ -48,6 +48,17 @@ Schema (verbatim):
 
 ```json
 {"type":"object","properties":{"relPath":{"type":"string","description":"Image path relative to the session root"},"format":{"type":"string","enum":["jpeg","png","tiff","heic","avif","webp"],"default":"jpeg"},"quality":{"type":"integer","minimum":1,"maximum":100,"default":90,"description":"Lossy formats only"},"sizing":{"type":"object","properties":{"mode":{"type":"string","enum":["original","longEdge","shortEdge"],"default":"original"},"px":{"type":"integer","minimum":1,"description":"Required for longEdge/shortEdge"}}},"colorSpace":{"type":"string","enum":["sRGB","displayP3","adobeRGB","proPhoto","rec2020"],"default":"sRGB"},"yiyin":{"type":"boolean","default":false,"description":"Render through the image's existing yiyin frame/watermark configuration"}},"required":["relPath"]}
+```
+
+### get_schema
+
+- readOnlyHint: true
+- destructiveHint: false
+
+Schema (verbatim):
+
+```json
+{"type":"object","properties":{},"required":[]}
 ```
 
 ### list_iops
