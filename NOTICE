@@ -133,7 +133,26 @@ Third-party provenance
    Lightamer. The film/paper PROFILE data the core consumes stays with its
    own CC BY-SA attribution (Resources/FilmProfiles/NOTICE).
 
-──────────────────────────────────────────────────────────────────────────────
+3b. darktable spektrafilm grain group (spatial grain leg — Plan M8-3+ T4;
+   code-level port with attribution)
+
+   Upstream: darktable (darktable developers), tree `4d1fb6a95b`
+   https://github.com/darktable-org/darktable
+   License: GPL-3.0 (c) 2026 darktable developers.
+
+   Lightamer's spectral grain leg
+   (LightamerCore/Sources/Pipe/Film/SpectralSpatialKernels.metal —
+   the grain five + the separable blur pair; LightamerCore/Sources/
+   Film/SpectralGrainSublayer.swift — the nl==1 sublayer derivation)
+   is PORTED from `data/kernels/grain.h` (the hash/Poisson/particle
+   sampler + the exp/log polynomials) and `data/kernels/spektrafilm.cl`
+   :510-660 (the five grain kernels) and `src/common/spektra_sim.c`
+   :2569-2592 (the nl==1 sublayer arm) with the upstream copyright
+   preserved in the file headers and the modifications marked there
+   (the OpenCL→Metal translation, the single-sublayer face, the USM
+   pow through the shared polynomial instead of the platform pow
+   the upstream NOTE flags at 16 ULP). This file is GPL-3.0 as part
+   of Lightamer.
 LENS-01 batch additions (Lensfun lens correction, 2026-10-21)
 ──────────────────────────────────────────────────────────────────────────────
 

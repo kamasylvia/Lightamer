@@ -185,11 +185,9 @@ final class SpectralPerfProbeTests: XCTestCase {
         // the blurred field lands back in corrA (the ping-pong wrote it last)
         var t2 = DispatchTime.now()
 
-        let sessionB = try await metal.makeEncoder(functionName: "spectral_film_stage_b")
-        sessionB.encoder.setTexture(input, index: 0)
-        sessionB.encoder.setTexture(output, index: 1)
-        sessionB.encoder.setTexture(corrA, index: 2)
-        sessionB.encoder.setTexture(payloads.tcLutTexture, index: 3)
+        // M8-3+ T4: the fused stage B is retired — the probe times the
+        // B1 → B2 chain (the bMs face is the split tail's cost).
+        let cmyPlane = try texture(metal, width: w, height: h, write: true)
         let buffers: [any MTLBuffer] = [
             payloads.curvesBuffer, payloads.printCurvesBuffer,
             payloads.printLut, payloads.printSx, payloads.printSy,
@@ -198,13 +196,25 @@ final class SpectralPerfProbeTests: XCTestCase {
             payloads.scanSz, payloads.scanCmin, payloads.scanCmax,
             payloads.cmaxBuffer, payloads.constBlockBuffer, payloads.uniformsBuffer,
         ]
-        for (i, b) in buffers.enumerated() { sessionB.encoder.setBuffer(b, offset: 0, index: i) }
-        sessionB.encoder.dispatchThreads(
-            MTLSize(width: w, height: h, depth: 1),
-            threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
-        sessionB.encoder.endEncoding()
-        sessionB.commandBuffer.commit()
-        await sessionB.commandBuffer.completed()
+        for (kernel, src, dst) in [
+            ("spectral_film_stage_b1", input, cmyPlane),
+            ("spectral_film_stage_b2", cmyPlane, output),
+        ] {
+            let sessionB = try await metal.makeEncoder(functionName: kernel)
+            sessionB.encoder.setTexture(src, index: 0)
+            sessionB.encoder.setTexture(dst, index: 1)
+            sessionB.encoder.setTexture(corrA, index: 2)
+            sessionB.encoder.setTexture(payloads.tcLutTexture, index: 3)
+            for (i, b) in buffers.enumerated() {
+                sessionB.encoder.setBuffer(b, offset: 0, index: i)
+            }
+            sessionB.encoder.dispatchThreads(
+                MTLSize(width: w, height: h, depth: 1),
+                threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
+            sessionB.encoder.endEncoding()
+            sessionB.commandBuffer.commit()
+            await sessionB.commandBuffer.completed()
+        }
         let t3 = DispatchTime.now()
 
         func ms(_ from: DispatchTime, _ to: DispatchTime) -> Double {

@@ -845,12 +845,14 @@ static inline float3 sf_corr_sample(
       fma(c00.z, w00, fma(c10.z, w10, fma(c01.z, w01, c11.z * w11))));
 }
 
-/* dispatch B — the fused tail: expose + lograw re-derived per pixel
-   (compute-for-memory: the lograw plane never exists), develop
-   (the blurred corr field sampled bilinearly = the fused upsample),
-   print_expose, print_develop, scan — one write, alpha carried from
-   the input pixel (the upstream crop_out convention). */
-kernel void spectral_film_stage_b(
+/* dispatch B1 — the fitted head: expose + lograw + develop (the CMY
+   film density plane write-out — the M8-3+ T4 split: the fused stage B
+   is retired, B1 writes the developed density, the grain group runs on
+   it, B2 resumes at print_expose. float32 store/load round-trips
+   bit-exact (register → texture, no extra rounding); the stage bodies
+   are the fused B's verbatim lines — the compiler sees the same fma
+   forest (the off-identity proof is the 28-pair sentinel hash). */
+kernel void spectral_film_stage_b1(
     texture2d<float, access::read> in [[texture(0)]],
     texture2d<float, access::write> out [[texture(1)]],
     texture2d<float, access::read> corr [[texture(2)]],
@@ -877,7 +879,6 @@ kernel void spectral_film_stage_b(
   const int w = (int)u[SF_U_WIDTH], h = (int)u[SF_U_HEIGHT];
   if ((int)gid.x >= w || (int)gid.y >= h) { return; }
   const int tcSide = (int)u[SF_U_TC_SIDE];
-  const int steps = (int)u[SF_U_STEPS];
   const int curveCount = (int)u[SF_U_CURVE_COUNT];
   const int cw = (int)u[SF_U_CORR_W], ch = (int)u[SF_U_CORR_H];
   const float evScale = u[SF_U_EV_SCALE];
@@ -889,8 +890,48 @@ kernel void spectral_film_stage_b(
       ? sf_corr_sample(corr, cw, ch, (float)gid.x, (float)gid.y)
       : float3(0.0f);
   const float3 cmy = spectral_stage_develop(lg, arrived, curves, consts, u, curveCount);
+  out.write(float4(cmy, px.w), gid);
+}
+
+/* dispatch B2 — the fitted tail: print_expose (+ the T5 print-diffusion
+   hook seat — the uniform gate, absent = off-identity) + print_develop
+   + scan. Reads the B1 CMY plane, writes the display RGB. */
+kernel void spectral_film_stage_b2(
+    texture2d<float, access::read> in [[texture(0)]],
+    texture2d<float, access::write> out [[texture(1)]],
+    texture2d<float, access::read> corr [[texture(2)]],
+    texture2d<float, access::read> tcLut [[texture(3)]],
+    device const float *curves [[buffer(0)]],
+    device const float *printCurves [[buffer(1)]],
+    device const float *printLut [[buffer(2)]],
+    device const float *printSx [[buffer(3)]],
+    device const float *printSy [[buffer(4)]],
+    device const float *printSz [[buffer(5)]],
+    device const float *printCmin [[buffer(6)]],
+    device const float *printCmax [[buffer(7)]],
+    device const float *scanLut [[buffer(8)]],
+    device const float *scanSx [[buffer(9)]],
+    device const float *scanSy [[buffer(10)]],
+    device const float *scanSz [[buffer(11)]],
+    device const float *scanCmin [[buffer(12)]],
+    device const float *scanCmax [[buffer(13)]],
+    device const float *cmaxTable [[buffer(14)]],
+    constant const float *consts [[buffer(15)]],
+    constant const float *u [[buffer(16)]],
+    uint2 gid [[thread_position_in_grid]])
+{
+  const int w = (int)u[SF_U_WIDTH], h = (int)u[SF_U_HEIGHT];
+  if ((int)gid.x >= w || (int)gid.y >= h) { return; }
+  const int steps = (int)u[SF_U_STEPS];
+  const int curveCount = (int)u[SF_U_CURVE_COUNT];
+
+  const float4 px = in.read(gid);
+  const float3 cmy = px.xyz;
   const float3 loge = spectral_stage_print_expose(
       cmy, printLut, printSx, printSy, printSz, printCmin, printCmax, u, steps);
+  /* T5 hook seat: the print-diffusion gate reads its uniform here
+     (pow10 → diffusion → log10, print_expose后座位) — T4 ships the seat
+     EMPTY (no gate read = off-identity by construction). */
   const float3 printCmy =
       spectral_stage_print_develop(loge, printCurves, u, curveCount);
   const float3 rgb = spectral_stage_scan(

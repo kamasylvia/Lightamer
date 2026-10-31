@@ -112,7 +112,7 @@ final class FilmPanelSpatialTests: XCTestCase {
             model.isPristine, "a grain-only record is touched")
     }
 
-    // MARK: - 2: the off-default commit face (T4/T5 extend)
+    // MARK: - 2: the off-default commit face (T4 extends, T5 extends)
 
     func testEnableWritesNoLegs() async throws {
         try await loadGradient()
@@ -124,5 +124,36 @@ final class FilmPanelSpatialTests: XCTestCase {
         XCTAssertNil(record.halationAmount, "enable writes no halation leg")
         XCTAssertNil(record.diffusionFamily, "enable writes no diffusion leg")
         XCTAssertNil(record.diffusionAmount, "enable writes no diffusion amount")
+    }
+
+    // MARK: - T4: the B-track commit faces
+
+    func testGrainAmountCommitLandsOneDiscreteItem() async throws {
+        try await loadGradient()
+        model.enableFilm()
+        XCTAssertNil(model.selectedGrainAmount)
+        let itemsBefore = editorState.history.items.count
+        model.setGrainAmount(1.5)
+        XCTAssertEqual(model.selectedGrainAmount, 1.5)
+        XCTAssertEqual(
+            editorState.history.items.count, itemsBefore + 1,
+            "the grain amount lands ONE discrete item")
+        model.setGrainAmount(1.5)
+        XCTAssertEqual(editorState.history.items.count, itemsBefore + 1)
+        model.setGrainAmount(nil)
+        XCTAssertNil(model.selectedGrainAmount)
+        XCTAssertEqual(editorState.history.items.count, itemsBefore + 2)
+    }
+
+    func testLegacyOneClickLeavesTheBTrackNil() async throws {
+        // The legacy one-click (M9-2) edits the GrainModule instance —
+        // the B-track amount stays nil (the two tracks never interact;
+        // GrainModule zero-diff's behavioral twin).
+        try await loadGradient()
+        model.enableFilm()
+        model.applyRecommendedGrainStrength()
+        XCTAssertNil(
+            model.selectedGrainAmount,
+            "the legacy one-click never arms the B track")
     }
 }

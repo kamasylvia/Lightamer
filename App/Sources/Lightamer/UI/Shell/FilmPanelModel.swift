@@ -250,6 +250,32 @@ final class FilmPanelModel {
         editorState.recordChange(record, label: String(localized: "history_grain"))
     }
 
+    // MARK: - M8-3+ T4: the B-track grain face (R-M83P-2)
+
+    /// The B-track amount (nil = off — the legacy path verbatim).
+    var selectedGrainAmount: Float? {
+        record.grainAmount
+    }
+
+    /// Commit a B-track amount (nil = off — ONE discrete commit).
+    func setGrainAmount(_ amount: Float?) {
+        commit({ $0.grainAmount = amount },
+               label: String(localized: "history_film_param"))
+    }
+
+    /// The B-track one-click apply (the M9-2 readout's B-track twin):
+    /// the recommended legacy strength → the upstream amount domain
+    /// (÷ 25 — the default-1.0-anchored bridge) lands as the B-track
+    /// grainAmount (ONE discrete film item). The LEGACY one-click
+    /// (`applyRecommendedGrainStrength`) is untouched (the negative
+    /// test pins it — GrainModule zero-diff).
+    func applyRecommendedGrainAmount() {
+        guard let readout = bwGrainReadout else { return }
+        let amount = Float(SpectralGrainBridge.amount(
+            legacyStrength: readout.recommendedStrength))
+        setGrainAmount(amount)
+    }
+
     /// A stock's display name (the asset's info.name; unknown ids degrade to
     /// the raw id — the typed-degrade posture).
     func displayName(for stockId: String) -> String {

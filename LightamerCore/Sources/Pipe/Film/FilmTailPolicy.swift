@@ -393,7 +393,8 @@ public final class FilmMethodBox: IOPModule {
                 input: input, output: output, metal: metal,
                 exposureGain: method.exposureGain,
                 magentaCC: method.magentaCC, yellowCC: method.yellowCC,
-                strength: method.record.strength)
+                strength: method.record.strength,
+                grainAmount: method.record.grainAmount)
             return
         }
         // The fused leg needs the run's GPU payloads (the curve buffer +

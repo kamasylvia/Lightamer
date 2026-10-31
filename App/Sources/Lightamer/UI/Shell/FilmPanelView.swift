@@ -371,6 +371,10 @@ private struct SessionControlsView: View {
                 }
                 .padding(.vertical, 2)
             }
+            // M8-3+ T4: the B-track grain section (off by default — the
+            // toggle arms the spectral grain leg; the readout shows the
+            // bridged amount; Apply lands ONE discrete film item).
+            grainTrackRow(model: model)
             // M9-2 T3 (D-M92-6): the SHOOT section — the taking (camera)
             // filter rides the film leg's INPUT side (spectral sensW
             // multiply), distinct from the Y/M dichroic enlarger shifts
@@ -477,6 +481,46 @@ private struct SessionControlsView: View {
                 .accessibilityIdentifier("film.content.toggle")
             }
             readoutRow
+        }
+    }
+
+    /// The B-track grain row (M8-3+ T4): the toggle arms the spectral
+    /// leg (on = the bridged recommended amount, off = nil); the Apply
+    /// button re-lands the bridged amount (ONE discrete film item).
+    private func grainTrackRow(model: FilmPanelModel) -> some View {
+        row(String(localized: "film_label_grain_track",
+                   defaultValue: "Spectral Grain")) {
+            HStack(spacing: 6) {
+                Toggle(
+                    String(localized: "film_label_grain_track",
+                           defaultValue: ""),
+                    isOn: Binding(
+                        get: { model.selectedGrainAmount != nil },
+                        set: { on in
+                            if on {
+                                model.applyRecommendedGrainAmount()
+                            } else {
+                                model.setGrainAmount(nil)
+                            }
+                        }
+                    )
+                )
+                .labelsHidden()
+                .accessibilityIdentifier("film.grain.track.toggle")
+                if let amount = model.selectedGrainAmount {
+                    Text(verbatim: String(format: "%.2f", Double(amount)))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(ThemeTokens.textSecondary)
+                        .accessibilityIdentifier("film.grain.track.value")
+                } else {
+                    Text(String(
+                            localized: "film_grain_track_off",
+                            defaultValue: "Off"))
+                        .font(.caption2)
+                        .foregroundStyle(ThemeTokens.textSecondary)
+                        .accessibilityIdentifier("film.grain.track.off")
+                }
+            }
         }
     }
 
