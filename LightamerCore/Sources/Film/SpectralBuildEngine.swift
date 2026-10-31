@@ -113,6 +113,12 @@ public struct SpectralFilmTables: Sendable, Equatable {
     /// The print-exposure normalization (the geometric-mean mid-gray
     /// factor) and the print exposure in log10.
     public let midgrayFactor: Float
+    /// M8-3+ T2: the conservation fallback's channel-affine gain (the
+    /// geometric-mean归一's per-channel twin — safe pairs ride ones,
+    /// bit-identical; clamped pairs ride the residual compensation).
+    /// Consumed at the uniform face (the session-tuning layer), never
+    /// baked into the PCHIP tables (the bake-key honesty discipline).
+    public let midgrayChannelGain: SIMD3<Float>
     public let log10PrintExposure: Float
     /// The exposure scale — identically 1.0: the exposure EV rides the
     /// solve-gain consumption layer (D-M8-8), never the expose chain head.
@@ -173,6 +179,7 @@ public struct SpectralFilmTables: Sendable, Equatable {
             && lhs.scanLo == rhs.scanLo && lhs.scanHi == rhs.scanHi
             && lhs.scanInvRange == rhs.scanInvRange
             && lhs.midgrayFactor.bitPattern == rhs.midgrayFactor.bitPattern
+            && lhs.midgrayChannelGain == rhs.midgrayChannelGain
             && lhs.log10PrintExposure.bitPattern == rhs.log10PrintExposure.bitPattern
             && lhs.evScale.bitPattern == rhs.evScale.bitPattern
             && lhs.illumPrint.elementsEqual(rhs.illumPrint, by: { $0.bitPattern == $1.bitPattern })
@@ -262,6 +269,12 @@ public enum SpectralBuildEngine {
         /// converged pair (the 14 safety pairs pin anchored-vs-(50,50)
         /// bit-identical — a moved convergence is the K1 stop-hand).
         public var neutralSeed: (m: Double, y: Double)?
+        /// M8-3+ T2 (R-M83P-1): the reversal print-mode override. nil
+        /// (the default) = the legacy print-exposure solve verbatim;
+        /// "direct-positive" = the scan-leg neutrality target (the B
+        /// route — reversal polarity's honest seat). Unknown strings
+        /// degrade to nil at the RECORD face (FilmRecord), never here.
+        public var reversalPrintMode: String?
 
         public init(
             enlargerIlluminant: String = "TH-KG3",
@@ -279,7 +292,8 @@ public enum SpectralBuildEngine {
             scanWhiteCorrection: Bool = false,
             adaptationSurface: Bool = false,
             cameraFilter: [Double]? = nil,
-            neutralSeed: (m: Double, y: Double)? = nil
+            neutralSeed: (m: Double, y: Double)? = nil,
+            reversalPrintMode: String? = nil
         ) {
             self.enlargerIlluminant = enlargerIlluminant
             self.printCC = printCC
@@ -297,6 +311,7 @@ public enum SpectralBuildEngine {
             self.adaptationSurface = adaptationSurface
             self.cameraFilter = cameraFilter
             self.neutralSeed = neutralSeed
+            self.reversalPrintMode = reversalPrintMode
         }
     }
 
@@ -646,6 +661,14 @@ public enum SpectralBuildEngine {
                 scanChanDens[l][c] = paperChan[c][l]
             }
         }
+        // M8-3+ T2: the viewing-luminance norm, hoisted (the
+        // direct-positive solve consumes it BEFORE the viewing block —
+        // the same Riemann sum the viewing block recomputes below; the
+        // hoist is value-identical, the block below is untouched).
+        var scanXyzNormHoisted = 0.0
+        for l in 0..<axis.count {
+            scanXyzNormHoisted += viewSPD[l] * cmfs[l][1]
+        }
 
         // ---- the mid-gray balance (geometric-mean normalization) ----
         // The reference gray walks the chain head in sRGB (the upstream
@@ -738,10 +761,28 @@ public enum SpectralBuildEngine {
         // faces' inputs; the iteration order is verbatim). The pinned
         // branch keeps its judgment HERE (pinned = no solve = clamped
         // false, the semantic pin).
+        // M8-3+ T2 (OQ-M83-1 ②): the conservation fallback — a clamped
+        // solve re-resolves INSIDE the wall (the 1D line search over the
+        // free dial) + the channel-affine gain compensates the leftover
+        // residual. Safe solves skip both legs (gain==ones verbatim —
+        // the zero-drift proof).
         var solvedCC: SIMD3<Double>
         var solvedClamped = false
+        var channelGainD = SIMD3<Double>(1, 1, 1)
         if let pinned = parameters.printCC {
             solvedCC = pinned
+        } else if parameters.reversalPrintMode == SpectralNeutralSolve.directPositiveMode {
+            // R-M83P-1 B: the direct-positive solve (the scan-leg
+            // neutrality target — the reversal polarity's honest seat).
+            let solution = SpectralNeutralSolve.solveDirectPositive(
+                midgrayDS: midgrayDS, printSens: printSens,
+                scanBase: paperBase, scanChanDens: scanChanDens,
+                illuminant: enlargerSPD, viewSPD: viewSPD, cmfs: cmfs,
+                xyzNorm: scanXyzNormHoisted,
+                dichroic: SpectralConstantsData.dichroicTransmissions,
+                seed: parameters.neutralSeed)
+            solvedCC = SIMD3<Double>(0, solution.m, solution.y)
+            solvedClamped = solution.clamped
         } else {
             let solution = SpectralNeutralSolve.solve(
                 midgrayDS: midgrayDS, printSens: printSens,
@@ -750,6 +791,13 @@ public enum SpectralBuildEngine {
                 seed: parameters.neutralSeed)
             solvedCC = SIMD3<Double>(0, solution.m, solution.y)
             solvedClamped = solution.clamped
+            if let back = SpectralNeutralSolve.fallback(
+                solution: solution, midgrayDS: midgrayDS,
+                printSens: printSens, illuminant: enlargerSPD,
+                dichroic: SpectralConstantsData.dichroicTransmissions) {
+                solvedCC = SIMD3<Double>(0, back.m, back.y)
+                channelGainD = back.channelGain
+            }
         }
         let illumPrintD = illumPrintFor(cc: solvedCC.y, solvedCC.z)
 
@@ -768,8 +816,11 @@ public enum SpectralBuildEngine {
         case (false, true): midgrayFactorD = fComp / fMid
         case (false, false): midgrayFactorD = 1.0
         }
+        // M8-3+ T2: the measurement face reads the FALLBACK-compensated
+        // raw (the gain the kernel consumes at print_expose — the metric
+        // and the render agree by construction; safe pairs = ones).
         let midgrayPrintRawD = printRaw(midgrayDS, illumPrintD)
-            * midgrayFactorD
+            * midgrayFactorD * channelGainD
 
         // ---- the enlarger + scan table domains ----
         let enlLoD = SIMD3<Double>(
@@ -881,6 +932,7 @@ public enum SpectralBuildEngine {
             scanHi: SIMD3<Float>(scanHiD),
             scanInvRange: SIMD3<Float>(scanInvRangeD),
             midgrayFactor: Float(midgrayFactorD),
+            midgrayChannelGain: SIMD3<Float>(channelGainD),
             log10PrintExposure: Float(log10PrintExposureD),
             evScale: 1.0,
             illumPrint: illumPrintD.map { Float($0) },

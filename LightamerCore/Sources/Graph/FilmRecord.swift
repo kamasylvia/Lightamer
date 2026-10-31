@@ -83,7 +83,14 @@ public struct FilmRecord: Codable, Hashable, Sendable {
     /// encodings are ambiguous; the key maps 1:1 onto paper_grades.json).
     /// nil = the solver's own neutral pack (zero-drift default).
     public var paperGrade: String?
-
+    /// M8-3+ T2 (R-M83P-1): the reversal print-mode gate. nil (the
+    /// default) = the legacy print-exposure solve verbatim;
+    /// "direct-positive" = the scan-leg neutrality target (the B route).
+    /// Unknown strings degrade to nil at the NORMALIZED face
+    /// (`resolvedReversalPrintMode` — the engine compares against the
+    /// normalized value, never the raw string). Incumbent T2 intermediate:
+    /// the on-disk face activates with the T3 v13 bump (R-M83P-8).
+    public var reversalPrintMode: String?
     /// Preset-name placeholder constants (KD-1). Deliberately EMPTY for
     /// this plan: no named film-look presets exist yet — M3-3-03 owns the
     /// preset registration face and appends its spellings here so the key
@@ -101,6 +108,13 @@ public struct FilmRecord: Codable, Hashable, Sendable {
         exposureEv = 0.0
         cameraFilter = nil
         paperGrade = nil
+        reversalPrintMode = nil
+    }
+
+    /// The normalized mode (unknown strings → nil — the tolerant face).
+    public var resolvedReversalPrintMode: String? {
+        reversalPrintMode == SpectralNeutralSolve.directPositiveMode
+            ? reversalPrintMode : nil
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -116,6 +130,10 @@ public struct FilmRecord: Codable, Hashable, Sendable {
         // of the hash: one omission, three silent failures).
         case cameraFilter = "camera_filter"
         case paperGrade = "paper_grade"
+        // M8-3+ T2 (R-M83P-1 + R-M83P-8: the on-disk face activates with
+        // the T3 v13 bump — nil encodes nothing, the absent-identity
+        // discipline covers the T2 window).
+        case reversalPrintMode = "reversal_print_mode"
     }
 
     /// Tolerant decode: every field decodeIfPresent with the pristine
@@ -135,6 +153,8 @@ public struct FilmRecord: Codable, Hashable, Sendable {
         exposureEv = try c.decodeIfPresent(Float.self, forKey: .exposureEv) ?? d.exposureEv
         cameraFilter = try c.decodeIfPresent(String.self, forKey: .cameraFilter) ?? d.cameraFilter
         paperGrade = try c.decodeIfPresent(String.self, forKey: .paperGrade) ?? d.paperGrade
+        reversalPrintMode = try c.decodeIfPresent(
+            String.self, forKey: .reversalPrintMode) ?? d.reversalPrintMode
     }
 
     /// FNV-1a over the canonical JSON bytes (`.sortedKeys`, L013). The

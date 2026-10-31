@@ -304,6 +304,49 @@ private struct SessionControlsView: View {
                     .accessibilityIdentifier("film.grade.picker")
                 }
             }
+            // M8-3+ T2 (R-M83P-1): the reversal print-mode section
+            // (reversal films only — the B-route gate + the C-convergence
+            // caption; negative films render nothing).
+            if model.isReversalFilm {
+                row(String(localized: "film_label_reversal",
+                           defaultValue: "Print Mode")) {
+                    Picker(
+                        String(localized: "film_label_reversal",
+                               defaultValue: "Print Mode"),
+                        selection: Binding(
+                            get: { model.selectedReversalPrintMode ?? "" },
+                            set: { model.setReversalPrintMode(
+                                $0.isEmpty ? nil : $0) }
+                        )
+                    ) {
+                        Text(String(localized: "film_reversal_legacy",
+                                    defaultValue: "Legacy (print exposure)"))
+                            .tag("")
+                        Text(String(localized: "film_reversal_direct",
+                                    defaultValue: "Direct positive (scan neutral)"))
+                            .tag(SpectralNeutralSolve.directPositiveMode)
+                    }
+                    .labelsHidden()
+                    .accessibilityIdentifier("film.reversal.picker")
+                }
+                Text(String(
+                        localized: "film_reversal_converge",
+                        defaultValue:
+                            "Reversal printing converges onto print film (2383/2393) — the current paper stays until you switch."))
+                    .font(.caption2)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+                // The B-clamped caption (the "manual CC" honesty face —
+                // the Y/M sliders below are the existing carrier).
+                if model.directPositiveClamped == true {
+                    Text(String(
+                            localized: "film_reversal_manual_cc",
+                            defaultValue:
+                                "Direct-positive solve also wall-limited — trim with the Y/M shifts below."))
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .accessibilityIdentifier("film.reversal.manualcc")
+                }
+            }
             // M9-2 T4: the BW stock's granularity readout (published RMS +
             // the calibration layer's recommended strength; the one-click
             // apply = a plain grain params edit, D-M92-2).
@@ -464,6 +507,17 @@ private struct SessionControlsView: View {
                 .buttonStyle(.borderless)
                 .controlSize(.mini)
                 .accessibilityIdentifier("film.solve.button")
+            }
+            // M8-3+ T2: the disclosed amber row (the wall-touch honesty
+            // face — clamped pairs only; safe pairs render nothing).
+            if model.solveClamped == true {
+                Text(String(
+                        localized: "film_disclosed_clamped",
+                        defaultValue:
+                            "Neutral unreached — wall-limited; showing the compensated fallback"))
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier("film.disclosed.clamped")
             }
         }
     }

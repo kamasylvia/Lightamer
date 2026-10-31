@@ -468,10 +468,18 @@ public enum SpectralPrintBake {
         /// the sensW input moves every built table — tc, print and scan
         /// alike — a filter change must miss all three slots).
         public var cameraFilter: CameraFilterTag?
+        /// M8-3+ T2 (R-M83P-1): the reversal print mode (the
+        /// direct-positive solve's trigger — normalized at the record
+        /// face; nil = legacy). Folds into the PRINT/SCAN keys only
+        /// (the tcLut lattice lives upstream of the solve — a mode
+        /// move MUST hit the tc slot, the T2 negative's split face).
+        public var reversalPrintMode: String?
         public init(paperGrade: PaperGradeTag? = nil,
-                    cameraFilter: CameraFilterTag? = nil) {
+                    cameraFilter: CameraFilterTag? = nil,
+                    reversalPrintMode: String? = nil) {
             self.paperGrade = paperGrade
             self.cameraFilter = cameraFilter
+            self.reversalPrintMode = reversalPrintMode
         }
     }
 
@@ -561,10 +569,16 @@ public enum SpectralPrintBake {
         if let filter = tags?.cameraFilter {
             tcKey = foldTag(tcKey, "filter:\(filter.name)")
         }
-        // print/scan keys = fold(tcKey, grade?) — the print-side preset.
+        // print/scan keys = fold(tcKey, grade?, mode?) — the print-side
+        // preset + the reversal solve target (both live downstream of
+        // the tcLut lattice — the tc slot stays shared).
         var psKey = tcKey
         if let grade = gradeTag {
             psKey = foldTag(psKey, "grade:\(grade.key)")
+        }
+        let reversalMode = tags?.reversalPrintMode
+        if reversalMode == SpectralNeutralSolve.directPositiveMode {
+            psKey = foldTag(psKey, "reversal:\(SpectralNeutralSolve.directPositiveMode)")
         }
         if let hit = tcLutSlot.consult(tcKey),
            printSlot.consult(psKey) != nil, scanSlot.consult(psKey) != nil {
@@ -583,6 +597,11 @@ public enum SpectralPrintBake {
         }
         if let filter = tags?.cameraFilter {
             parameters.cameraFilter = filter.transmission
+        }
+        // M8-3+ T2 (R-M83P-1): the mode rides the build's solve branch
+        // (normalized — only the verbatim id arms the B route).
+        if reversalMode == SpectralNeutralSolve.directPositiveMode {
+            parameters.reversalPrintMode = reversalMode
         }
         // M8-3+ T1: the anchored seed (the measured neutral table's row
         // for this triple — a MISS (absent asset/pair) keeps the legacy

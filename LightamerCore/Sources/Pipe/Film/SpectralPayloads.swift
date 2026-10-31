@@ -245,7 +245,11 @@ public final class SpectralGPUPayloads {
         /// The M8-2 strength-mix face (the kernel reads u[34]/u[35]).
         public static let mixStrength = 34
         public static let mixGain = 35
-        public static let total = 36
+        /// M8-3+ T2: the conservation fallback's channel-affine gain
+        /// (u[36..38] — the T2 kernels read by literal index; safe
+        /// pairs ride ones — the uniform face's identity member).
+        public static let midgrayChannelGain = 36
+        public static let total = 39
     }
 
     /// The kernel argument layout (the tests' and M8-2's binding map).
@@ -480,6 +484,11 @@ public final class SpectralGPUPayloads {
         uniformShadow[UniformSlot.corrH] = Float(newH)
         uniformShadow[UniformSlot.corrDS] = Float(decimation)
         uniformShadow[UniformSlot.blurRadius] = Float(blurRadius)
+        // M8-3+ T2: the fallback gain rides the geometry reset (safe
+        // pairs = ones — the reset's own identity member).
+        uniformShadow[UniformSlot.midgrayChannelGain + 0] = tables.midgrayChannelGain.x
+        uniformShadow[UniformSlot.midgrayChannelGain + 1] = tables.midgrayChannelGain.y
+        uniformShadow[UniformSlot.midgrayChannelGain + 2] = tables.midgrayChannelGain.z
         uploadUniforms()
         self.corrWidth = newW
         self.corrHeight = newH

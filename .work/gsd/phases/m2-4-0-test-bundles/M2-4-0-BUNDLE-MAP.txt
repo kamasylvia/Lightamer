@@ -946,3 +946,8 @@ APP	4	SmallPoolUITests.swift
 #   M8-3+ T1（2026-10-31，issue #21）：求解加固——锚覆盖/seed 双值恒等/C200 七 seed/
 #   clamped 旗/轮数门 5 法入 IOP。
 IOP	5	SpectralNeutralSolveTests.swift
+#   M8-3+ T2（2026-10-31，issue #21）：守恒回退 + 反转路由 + disclosed——回退
+#   5 法入 IOP / clamped 真 build 2 法入 IOPParity / 面板 3 法入 App。
+IOP	5	SpectralConservationFallbackTests.swift
+IOPP	2	SpectralClampedGoldenTests.swift
+APP	3	FilmPanelClampedTests.swift

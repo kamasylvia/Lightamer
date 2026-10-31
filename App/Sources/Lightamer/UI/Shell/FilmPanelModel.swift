@@ -283,6 +283,26 @@ final class FilmPanelModel {
         return (solution.magentaCC, solution.yellowCC, solution.exposureGain)
     }
 
+    /// M8-3+ T2: the bound pair's wall flag (the disclosed amber row's
+    /// trigger). Consults the CACHED spectral tables (a tc-slot HIT —
+    /// the render's own build; a cold miss BUILDS — the readout's first
+    /// touch pays the seconds-band build once, then the slot holds it).
+    /// nil = unbound/failed (the row hides — fail-closed).
+    var solveClamped: Bool? {
+        guard let coordinator = pipeCoordinator,
+            let store = coordinator.filmMaterialStore,
+            !record.filmStock.isEmpty, !record.paperStock.isEmpty,
+            let film = store.profile(id: record.filmStock),
+            let paper = store.profile(id: record.paperStock)
+        else { return nil }
+        guard let tables = try? SpectralPrintBake.tables(
+            forPairHash: FilmMaterialStore.materialPairHash(
+                film: film, paper: paper),
+            film: film, paper: paper)
+        else { return nil }
+        return tables.clamped
+    }
+
     /// The Solve button: force a re-solve through the cache invalidation
     /// face (the readout recomputes on the next read).
     func forceResolve() {
@@ -353,6 +373,72 @@ final class FilmPanelModel {
         commit(
             { $0.contentAdaptiveShift = on },
             label: String(localized: "history_film_param"))
+    }
+
+    // MARK: - M8-3+ T2: the reversal print-mode gate (R-M83P-1)
+
+    /// Whether the BOUND film is a reversal (positive) stock — the mode
+    /// section shows ONLY then (negative films never need the B route).
+    var isReversalFilm: Bool {
+        guard !record.filmStock.isEmpty,
+            let film = pipeCoordinator?.filmMaterialStore?
+                .profile(id: record.filmStock)
+        else { return false }
+        return film.info.type == "positive"
+    }
+
+    /// The record's current mode (nil = legacy A solve).
+    var selectedReversalPrintMode: String? {
+        record.resolvedReversalPrintMode
+    }
+
+    /// Commit a mode choice (nil = legacy — ONE discrete commit).
+    func setReversalPrintMode(_ mode: String?) {
+        let normalized = (mode?.isEmpty == true) ? nil : mode
+        commit({ $0.reversalPrintMode = normalized },
+               label: String(localized: "history_film_param"))
+    }
+
+    /// Whether the direct-positive solve ALSO clamped (the B route's own
+    /// wall flag — the "manual CC" caption's trigger). Solved through
+    /// the production build face (cached); nil = unbound/failed (the
+    /// caption hides — fail-closed, never a wrong caption).
+    var directPositiveClamped: Bool? {
+        guard selectedReversalPrintMode
+            == SpectralNeutralSolve.directPositiveMode,
+            let coordinator = pipeCoordinator,
+            let store = coordinator.filmMaterialStore,
+            !record.filmStock.isEmpty, !record.paperStock.isEmpty,
+            let film = store.profile(id: record.filmStock),
+            let paper = store.profile(id: record.paperStock)
+        else { return nil }
+        var parameters = SpectralBuildEngine.Parameters()
+        parameters.reversalPrintMode = SpectralNeutralSolve.directPositiveMode
+        guard let tables = try? SpectralBuildEngine.build(
+            film: film, paper: paper, parameters: parameters)
+        else { return nil }
+        return tables.clamped
+    }
+
+    /// The C-convergence paper list: a reversal film's NEW selections
+    /// converge onto the print-film pair — resolved through the STORE
+    /// (2383/2393 are film-support, NOT paper-support: the paper roster
+    /// never carries them, so the filter runs against the store's id
+    /// lookup). The CURRENT paper always stays head (incumbent records
+    /// never jump paper). Non-reversal films keep the full paper list.
+    var convergedPaperStocks: [FilmProfile] {
+        let all = paperStocks
+        guard isReversalFilm,
+            let store = pipeCoordinator?.filmMaterialStore
+        else { return all }
+        let prints = [store.profile(id: "kodak_2383"),
+                      store.profile(id: "kodak_2393")].compactMap { $0 }
+        guard !prints.isEmpty else { return all }
+        if prints.contains(where: { $0.info.stock == record.paperStock }) {
+            return prints
+        }
+        let incumbent = all.filter { $0.info.stock == record.paperStock }
+        return incumbent + prints
     }
 
     // MARK: - The D-H1 live/commit trio (the sliders)
