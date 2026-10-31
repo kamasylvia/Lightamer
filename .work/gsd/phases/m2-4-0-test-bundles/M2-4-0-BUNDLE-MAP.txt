@@ -860,6 +860,9 @@ APP	4	LibraryAnalysisWiringTests.swift
 #   LUMEN-C T2/T3（2026-10-24，登记随文件同 commit）：编排 6 法 + MCP 工具面 5 法入 APP。
 APP	6	MaskRefineCoordinatorTests.swift
 APP	5	McpRefineMasksToolTests.swift
+#   MCP-UQ（2026-10-31）：get_schema 面 7 法 + onboarding/oneshot 面 11 法入 APP。
+APP	7	McpGetSchemaTests.swift
+APP	11	McpOnboardingTests.swift
 APP	22	CullFaceModelTests.swift
 #   M8-1a T5（2026-10-25）：谱数据面四文件入域——解码/常量 sanity/拟合器 = IOP，
 #   golden（含 28-profile 全表构建冒烟）= IOPParity（*Golden* 域模式）。
