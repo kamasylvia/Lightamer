@@ -474,12 +474,19 @@ public enum SpectralPrintBake {
         /// (the tcLut lattice lives upstream of the solve — a mode
         /// move MUST hit the tc slot, the T2 negative's split face).
         public var reversalPrintMode: String?
+        /// M8-3+ T7 self-review E3: the film's published diffuse RMS
+        /// (the 1000× achromatic figure; nil = unknown). RUNTIME-ONLY:
+        /// folds NO slot key (the RMS moves no baked table — the grain
+        /// npart inverts at dispatch, the runtime-uniform discipline).
+        public var publishedRms: Int?
         public init(paperGrade: PaperGradeTag? = nil,
                     cameraFilter: CameraFilterTag? = nil,
-                    reversalPrintMode: String? = nil) {
+                    reversalPrintMode: String? = nil,
+                    publishedRms: Int? = nil) {
             self.paperGrade = paperGrade
             self.cameraFilter = cameraFilter
             self.reversalPrintMode = reversalPrintMode
+            self.publishedRms = publishedRms
         }
     }
 

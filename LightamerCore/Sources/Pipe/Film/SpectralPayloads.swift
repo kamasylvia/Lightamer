@@ -333,7 +333,9 @@ public final class SpectralGPUPayloads {
     public let couplers: SpectralCouplerParams
     /// The source tables (the identity face M8-2's cache keys fold).
     public let tables: SpectralFilmTables
-
+    /// M8-3+ T5 self-review E3: the film's published diffuse RMS
+    /// (the grain npart's inversion anchor; nil = unknown).
+    public let publishedRms: Int?
     // MARK: - Build
 
     public init(
@@ -343,9 +345,14 @@ public final class SpectralGPUPayloads {
         outputRGBToXYZ: [[Double]] = SpectralConstants.rec2020.rgbToXYZ,
         decimation: Int = 4,
         frameWidth: Int? = nil,
-        frameHeight: Int? = nil
+        frameHeight: Int? = nil,
+        // M8-3+ T5 self-review E3: the film's published diffuse RMS
+        // (the 1000× achromatic figure; nil = unknown — the grain
+        // npart degrades per-channel, never invented).
+        publishedRms: Int? = nil
     ) throws {
         self.tables = tables
+        self.publishedRms = publishedRms
         self.decimation = max(decimation, 1)
 
         func buffer(_ values: [Float]) throws -> any MTLBuffer {
@@ -804,7 +811,7 @@ public final class SpectralGPUPayloads {
         let w = density.width, h = density.height
         let rows = Self.sublayerRowsForGrain(
             curvesNorm: tables.curvesNorm, filmDmax: tables.filmDmax,
-            filmDmin: tables.filmDmin)
+            filmDmin: tables.filmDmin, publishedRms: publishedRms)
         guard let rawBuffer = metal.device.makeBuffer(
             length: w * h * MemoryLayout<Float>.size,
             options: .storageModeShared),
@@ -964,13 +971,16 @@ public final class SpectralGPUPayloads {
     /// The sublayer rows from the tables' own curve faces (the
     /// single-sublayer derivation's dispatch twin — curvesNorm is
     /// ALREADY minus-the-floor (256×3 [i·3+c]); dmax/dmin ride the
-    /// tables' filmDmax/filmDmin; npart rides the neutral default —
-    /// the per-stock RMS wires in T5's allocator turn).
+    /// tables' filmDmax/filmDmin; npart INVERTS from the published RMS
+    /// through the upstream nl==1 formula (self-review E3 — the 1000.0
+    /// placeholder is retired); nil RMS = the a_grain floor's face
+    /// (the derive twin's own degrade — the sampler still runs)).
     static func sublayerRowsForGrain(
         curvesNorm: [Float], filmDmax: SIMD3<Float>,
-        filmDmin: SIMD3<Float>
+        filmDmin: SIMD3<Float>, publishedRms: Int? = nil
     ) -> [GrainRow] {
         let count = curvesNorm.count / 3
+        let rms = SpectralGrainSublayer.broadcastRms(publishedRms)
         return (0..<3).map { c in
             var curve = [Float](repeating: 0, count: 256)
             for i in 0..<min(count, 256) {
@@ -983,8 +993,18 @@ public final class SpectralGPUPayloads {
             case 1: dmax = filmDmax.y; dmin = filmDmin.y
             default: dmax = filmDmax.z; dmin = filmDmin.z
             }
+            // The npart inversion (the derive twin's Float face —
+            // u == 1.0, the neutral uniformity).
+            let dRef = Double(dmin) + 1.0
+            let sig = rms[c].map { Double($0) / 1000.0 } ?? 0.0
+            let denom = max(
+                dRef * (Double(dmax) + Double(dmin) - dRef), 1e-6)
+            let aGrain = sig * sig
+                * SpectralGrainSublayer.aperture48Area / denom
+            let ref = SpectralGrainSublayer.referenceUm
+            let npart = ref * ref / max(aGrain, 1e-4)
             return GrainRow(
-                dmax: dmax + dmin, npart: 1000.0, dmin: dmin,
+                dmax: dmax + dmin, npart: Float(npart), dmin: dmin,
                 curve: curve)
         }
     }
@@ -1233,7 +1253,8 @@ public final class SpectralGPUPayloads {
     }
 
     /// One blur at σ px (exact kernel below the effect threshold, the
-    /// wide path above it — the threshold face the T5 probe法定).
+    /// wide path above it — the threshold face (100px starting value; the
+    /// re-mark probe is pending).
     func blurPlane(
         plane: any MTLTexture, tmp: any MTLTexture,
         sigmaPx: Double, metal: MetalContext
@@ -1691,7 +1712,8 @@ public final class SpectralGPUPayloads {
     }
 
     /// The wide-effect threshold (px — the STARTING value 100; the T5
-    /// Metal re-mark probe法定 the final one, DECISIONS-logged).
+    /// Metal re-mark pending — the 100px starting value stands until the
+    /// T7 evidence leg法定 a re-marked one, DECISIONS-logged).
     /// The lock-box form (Swift 6 rejects static mutable globals).
     private static let wideThresholdBox = WideThresholdBox()
     private final class WideThresholdBox: @unchecked Sendable {

@@ -30,11 +30,12 @@ import Foundation
 
 public enum SpectralGrainSublayer {
 
-    /// Upstream's fixed reference scale (µm — `SF_GRAIN_REF_UM`).
-    public static let referenceUm = 47.0
+    /// Upstream's fixed reference scale (µm — `SF_GRAIN_REF_UM` = 10.0,
+    /// spektrafilm's own pixel_size_um — self-review E1: the first
+    /// draft's 47.0 was a transcription error, fixed here).
+    public static let referenceUm = 10.0
     /// The 48 µm microdensitometer aperture area (π·24²).
     public static let aperture48Area = Double.pi * 24.0 * 24.0
-
     /// One channel's derived sublayer row.
     public struct ChannelRow: Sendable, Equatable {
         public let dmax: Double

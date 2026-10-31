@@ -964,4 +964,6 @@ IOPP	4	SpectralGrainGoldenTests.swift
 #   入 IOP / 抽稀三件逐位 1 法 + 腿数学/off/on 4 法入 IOPParity / 面板扩 2 法（5→7）。
 IOP	6	SpectralWideBlurTests.swift
 IOPP	1	SpectralWideBlurGoldenTests.swift
-IOPP	4	SpectralSpatialLegTests.swift
+IOPP	6	SpectralSpatialLegTests.swift
+#   M8-3+ T7（2026-10-31，issue #21）：收口冒烟——全 off 抽样 + 三腿全开各一
+#   （SpectralSpatialLegTests 扩 2 法，4→6）。

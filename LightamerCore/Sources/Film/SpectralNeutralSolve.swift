@@ -331,9 +331,10 @@ public enum SpectralNeutralSolve {
         }
         // The scan-leg neutrality ratios at one (m, y): the print raw
         // (mid-gray through the dialed light) → print-leg log face →
-        // paper curves are BYPASSED (the scan target needs only the
-        // print-density RATIOS — the curves are monotone per-channel, so
-        // ratio-zero upstream = ratio-zero downstream) → scan XYZ ratios.
+        // paper curves are BYPASSED (a heuristic: the scan target reads
+        // the print-density RATIOS directly — monotone curves preserve
+        // ORDER, not ratios, so cross-channel curve differences shift
+        // the target; the parity leg calibrates the truth) → scan XYZ.
         func logRatios(_ illum: [Double]) -> SIMD2<Double> {
             var praw = SIMD3<Double>.zero
             for l in 0..<axisCount {

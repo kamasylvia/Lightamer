@@ -267,7 +267,7 @@ public enum SpectralBuildEngine {
         /// film×paper×illuminant triple, resolved by the caller) starts
         /// the Newton ladder there. The seed moves ROUNDS, never the
         /// converged pair (the 14 safety pairs pin anchored-vs-(50,50)
-        /// bit-identical — a moved convergence is the K1 stop-hand).
+        /// in the 1e-9 band — a CC-point move is the K1 stop-hand).
         public var neutralSeed: (m: Double, y: Double)?
         /// M8-3+ T2 (R-M83P-1): the reversal print-mode override. nil
         /// (the default) = the legacy print-exposure solve verbatim;

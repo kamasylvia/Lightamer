@@ -262,17 +262,31 @@ private struct SessionControlsView: View {
                         set: { model.setPaperStock($0) }
                     )
                 ) {
-                    ForEach(model.paperStockSections, id: \.title) { section in
-                        if let title = section.title {
-                            Text(String(localized: "film_section_bw",
-                                        defaultValue: "B&W"))
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .tag("__section__\(title)")
-                        }
-                        ForEach(section.stocks, id: \.info.stock) { profile in
+                    // M8-3+ T7 self-review E2: reversal films pick from
+                    // the CONVERGED list (incumbent head + the print
+                    // pair); the binding is by stock id, so a
+                    // print-film selection persists and renders (the
+                    // render resolves through the store's id lookup,
+                    // never the support split).
+                    if model.isReversalFilm {
+                        ForEach(model.convergedPaperStocks,
+                                id: \.info.stock) { profile in
                             Text(verbatim: profile.info.name ?? profile.info.stock ?? "")
                                 .tag(profile.info.stock ?? "")
+                        }
+                    } else {
+                        ForEach(model.paperStockSections, id: \.title) { section in
+                            if let title = section.title {
+                                Text(String(localized: "film_section_bw",
+                                            defaultValue: "B&W"))
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .tag("__section__\(title)")
+                            }
+                            ForEach(section.stocks, id: \.info.stock) { profile in
+                                Text(verbatim: profile.info.name ?? profile.info.stock ?? "")
+                                    .tag(profile.info.stock ?? "")
+                            }
                         }
                     }
                 }

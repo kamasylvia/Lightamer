@@ -908,7 +908,52 @@ final class PipeCoordinator {
             tags.reversalPrintMode = mode
             any = true
         }
+        // M8-3+ T7 self-review E3: the film's published RMS rides the
+        // tags (runtime-only, no key fold — the grain npart's inversion
+        // anchor; unknown = absent — the dispatch degrades per-channel).
+        if let rms = Self.publishedRmsForFilmStock(record.filmStock) {
+            tags.publishedRms = rms
+            any = true
+        }
         return any ? tags : nil
+    }
+
+    /// The published-RMS memo (the BW calibration table loads once per
+    /// process — the table is a vendored asset, never mutated at
+    /// runtime; the box form follows the codebase's memo precedent).
+    private static let rmsTableBox = RmsTableBox()
+    private final class RmsTableBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var table: [String: GrainCalibration.Entry]?
+        func rms(for stock: String) -> Int? {
+            lock.lock()
+            if let table {
+                lock.unlock()
+                return GrainCalibration.publishedRms(
+                    forStock: stock, in: table)
+            }
+            lock.unlock()
+            var loaded: [String: GrainCalibration.Entry] = [:]
+            if let url = Bundle.main.resourceURL?
+                .appendingPathComponent(
+                    "FilmProfilesBW/grain_calibration.json"),
+                let table = try? GrainCalibration.load(url: url) {
+                loaded = table
+            }
+            lock.lock()
+            self.table = loaded
+            lock.unlock()
+            return GrainCalibration.publishedRms(
+                forStock: stock, in: loaded)
+        }
+    }
+
+    /// The film's published RMS figure (nil = unknown stock or table
+    /// absent — the typed degrade; injectable for tests via the
+    /// TaskLocal tags, never through this face).
+    static func publishedRmsForFilmStock(_ stock: String) -> Int? {
+        guard !stock.isEmpty else { return nil }
+        return rmsTableBox.rms(for: stock)
     }
 
     // ── M8-3 T3 (the migration UX + the D-M8-1 read path): the document's
