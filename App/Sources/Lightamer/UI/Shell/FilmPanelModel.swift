@@ -83,6 +83,9 @@ final class FilmPanelModel {
             && r.mFilterShift == 0 && r.yFilterShift == 0
             && !r.contentAdaptiveShift && r.strength == 1.0 && r.exposureEv == 0
             && r.cameraFilter == nil && r.paperGrade == nil
+            && r.reversalPrintMode == nil && r.grainAmount == nil
+            && r.halationAmount == nil && r.diffusionFamily == nil
+            && r.diffusionAmount == nil
             && !hasActiveRecord
     }
 

@@ -610,6 +610,7 @@ let project = Project(
                 "Tests/LightamerTests/DrtTailTests.swift",
                 "Tests/LightamerTests/RenderProcessSeamTests.swift",
                 "Tests/LightamerTests/RenderProcessLedgerTests.swift",
+                "Tests/LightamerTests/FilmRecordSpatialTests.swift",
                 "Tests/LightamerTests/DrtPostMigrationTests.swift",
                 "Tests/LightamerTests/GradeEnvelopePerfProbeTests.swift",
                 "Tests/LightamerTests/DrawnMaskRasterTests.swift",
@@ -674,6 +675,7 @@ let project = Project(
                 // M9-2 T2: the v12 bump's three byte faces (the
                 // SidecarV10/V11 chain's seat).
                 "Tests/LightamerTests/SidecarV12Tests.swift",
+                "Tests/LightamerTests/SidecarV13Tests.swift",
                 "Tests/LightamerTests/AutoStackClusteringTests.swift",
                 "Tests/LightamerTests/AIEndpointPolicyTests.swift",
                 "Tests/LightamerTests/AIProviderClientTests.swift",
@@ -1022,6 +1024,7 @@ let project = Project(
                 "Tests/LightamerTests/FilmPanelTests.swift",
                 "Tests/LightamerTests/FilmPanelSpectralUITests.swift",
                 "Tests/LightamerTests/FilmPanelClampedTests.swift",
+                "Tests/LightamerTests/FilmPanelSpatialTests.swift",
                 // M9-2 T2: the BW panel faces (sections/grade picker/pristine).
                 "Tests/LightamerTests/FilmPanelBWTests.swift",
                 "Tests/LightamerTests/FilmCardTests.swift",

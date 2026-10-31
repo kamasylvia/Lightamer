@@ -421,8 +421,10 @@ final class SpectralDualArmGoldenTests: XCTestCase {
     // the M9-2 PLAN's declared exemption of the M7-6 sealed-face list)
 
     func testSidecarRoundTripsByteExactAtV12() throws {
-        // M9-2 T2 bumped 11 -> 12 (the declared single-bump exemption).
-        XCTAssertEqual(LightamerSidecar.schemaVersionCurrent, 12)
+        // M8-3+ T3 bumped 12 -> 13 (the declared single-bump exemption;
+        // the test name keeps its v12 origin — the document below is
+        // built at the LIVE digit, byte-exactness is the invariant).
+        XCTAssertEqual(LightamerSidecar.schemaVersionCurrent, 13)
 
         let canonicalEncoder: JSONEncoder = {
             let encoder = JSONEncoder()
@@ -455,14 +457,14 @@ final class SpectralDualArmGoldenTests: XCTestCase {
             process: RenderProcessVersion(rawValue: 2)!)
         let bytes = try canonicalEncoder.encode(document)
         let decoded = try decoder.decode(LightamerSidecar.self, from: bytes)
-        XCTAssertEqual(decoded.schemaVersion, 12, "M9-2 T2: the v12 digit")
+        XCTAssertEqual(decoded.schemaVersion, 13, "M8-3+ T3: the v13 digit")
         XCTAssertEqual(decoded.process?.rawValue, 2, "the process key round-trips")
         XCTAssertEqual(decoded.filmRecord, record, "the film record round-trips")
         let reEncoded = try canonicalEncoder.encode(decoded)
         XCTAssertEqual(reEncoded, bytes,
-                       "the v12 document decode→encode is BYTE-EXACT (the bump "
-                           + "touches only the digit; the two new film-record "
-                           + "keys stay absent when nil — M9-2 T2)")
+                       "the v13 document decode→encode is BYTE-EXACT (the bump "
+                           + "touches only the digit; the five new film-record "
+                           + "keys stay absent when nil — M8-3+ T3)")
 
         // The stored-0 normalization: a stored 0 IS nil (0 ≡ absent ≡
         // legacy) — the bump cannot have touched the legacy face.
@@ -513,7 +515,7 @@ final class SpectralDualArmGoldenTests: XCTestCase {
             ["film_stock", "paper_stock", "y_filter_shift", "m_filter_shift",
              "content_adaptive_shift", "strength", "exposure_ev"],
             "the NIL face keeps the seven M3-3 keys verbatim — the M9-2 "
-                + "optionals stay absent until set")
+                + "optionals and the M8-3+ five legs stay absent until set")
         record.cameraFilter = "w25"
         record.paperGrade = "3"
         let setObject = try XCTUnwrap(
@@ -524,6 +526,20 @@ final class SpectralDualArmGoldenTests: XCTestCase {
             setKeys.subtracting(Set(object.keys)),
             ["camera_filter", "paper_grade"],
             "the SET face adds exactly the two M9-2 legs")
+        // M8-3+ T3: the five legs add exactly their five keys.
+        record.reversalPrintMode = SpectralNeutralSolve.directPositiveMode
+        record.grainAmount = 2.5
+        record.halationAmount = 0.75
+        record.diffusionFamily = "pro-mist"
+        record.diffusionAmount = 0.5
+        let fiveObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: try JSONEncoder().encode(record)) as? [String: Any])
+        XCTAssertEqual(
+            Set(fiveObject.keys).subtracting(setKeys),
+            ["reversal_print_mode", "grain_amount", "halation_amount",
+             "diffusion_family", "diffusion_amount"],
+            "the SET face adds exactly the five M8-3+ legs")
     }
 
     // MARK: - D: the pristine zero-behavior gate
