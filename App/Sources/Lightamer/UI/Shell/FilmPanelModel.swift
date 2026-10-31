@@ -276,6 +276,47 @@ final class FilmPanelModel {
         setGrainAmount(amount)
     }
 
+    // MARK: - M8-3+ T5: the halation/diffusion faces (R-M83P-2)
+
+    /// The halation amount (nil = off).
+    var selectedHalationAmount: Float? {
+        record.halationAmount
+    }
+
+    /// Commit a halation amount (nil = off — ONE discrete commit).
+    func setHalationAmount(_ amount: Float?) {
+        commit({ $0.halationAmount = amount },
+               label: String(localized: "history_film_param"))
+    }
+
+    /// The diffusion family + amount (nil family = the leg off).
+    var selectedDiffusionFamily: String? {
+        record.diffusionFamily
+    }
+
+    var selectedDiffusionAmount: Float? {
+        record.diffusionAmount
+    }
+
+    /// The family picker's data source (the four upstream ids verbatim).
+    var availableDiffusionFamilies: [String] {
+        SpectralSpatialTables.families.map(\.id)
+    }
+
+    /// Commit a diffusion family (nil = off — ONE discrete commit).
+    func setDiffusionFamily(_ id: String?) {
+        let normalized = (id?.isEmpty == true) ? nil : id
+        commit({ $0.diffusionFamily = normalized },
+               label: String(localized: "history_film_param"))
+    }
+
+    /// Commit a diffusion amount (nil = 1.0 when the family is set —
+    /// ONE discrete commit).
+    func setDiffusionAmount(_ amount: Float?) {
+        commit({ $0.diffusionAmount = amount },
+               label: String(localized: "history_film_param"))
+    }
+
     /// A stock's display name (the asset's info.name; unknown ids degrade to
     /// the raw id — the typed-degrade posture).
     func displayName(for stockId: String) -> String {

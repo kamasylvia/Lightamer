@@ -153,6 +153,26 @@ Third-party provenance
    pow through the shared polynomial instead of the platform pow
    the upstream NOTE flags at 16 ULP). This file is GPL-3.0 as part
    of Lightamer.
+
+3c. darktable spektrafilm wide-blur + halation/diffusion (spatial legs —
+   Plan M8-3+ T5; code-level port with attribution)
+
+   Upstream: darktable (darktable developers), tree `4d1fb6a95b`
+   https://github.com/darktable-org/darktable
+   License: GPL-3.0 (c) 2026 darktable developers.
+
+   Lightamer's spatial legs (SpectralSpatialKernels.metal — the wide
+   trio + the bank/mix/combine/apply packet + the buffer gauss pair;
+   SpectralSpatialTables.swift — the still halation baseline + the four
+   diffusion families; SpectralWideBlurPlan.swift — the抽稀 plan) are
+   PORTED from `src/common/spektra_core.c` :391-560 (the wide plan +
+   down/up twins) and :780-900 (sf_halation) and :936-1060 (the
+   diffusion families + bank) and `data/kernels/spektrafilm.cl`
+   :1013-1068 (the wide trio) with the upstream copyright preserved in
+   the file headers and the modifications marked there (the OpenCL→
+   Metal translation, the TRUE-σ variance target instead of the
+   recursive-path match — no _yvv_ref_variance term — the host/device
+   threshold re-mark). This file is GPL-3.0 as part of Lightamer.
 LENS-01 batch additions (Lensfun lens correction, 2026-10-21)
 ──────────────────────────────────────────────────────────────────────────────
 

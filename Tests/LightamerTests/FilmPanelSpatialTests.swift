@@ -156,4 +156,40 @@ final class FilmPanelSpatialTests: XCTestCase {
             model.selectedGrainAmount,
             "the legacy one-click never arms the B track")
     }
+
+    // MARK: - T5: the halation/diffusion commit faces
+
+    func testHalationCommitLandsOneDiscreteItem() async throws {
+        try await loadGradient()
+        model.enableFilm()
+        XCTAssertNil(model.selectedHalationAmount)
+        let itemsBefore = editorState.history.items.count
+        model.setHalationAmount(1.0)
+        XCTAssertEqual(model.selectedHalationAmount, 1.0)
+        XCTAssertEqual(
+            editorState.history.items.count, itemsBefore + 1,
+            "the halation amount lands ONE discrete item")
+        model.setHalationAmount(nil)
+        XCTAssertNil(model.selectedHalationAmount)
+        XCTAssertEqual(editorState.history.items.count, itemsBefore + 2)
+    }
+
+    func testDiffusionFamilyCommitsVerbatimIds() async throws {
+        try await loadGradient()
+        model.enableFilm()
+        XCTAssertEqual(
+            model.availableDiffusionFamilies,
+            ["black-pro-mist", "glimmerglass", "pro-mist", "cinebloom"])
+        XCTAssertNil(model.selectedDiffusionFamily)
+        let itemsBefore = editorState.history.items.count
+        model.setDiffusionFamily("cinebloom")
+        XCTAssertEqual(model.selectedDiffusionFamily, "cinebloom")
+        XCTAssertEqual(
+            editorState.history.items.count, itemsBefore + 1,
+            "the diffusion family lands ONE discrete item")
+        model.setDiffusionAmount(0.5)
+        XCTAssertEqual(model.selectedDiffusionAmount, 0.5)
+        model.setDiffusionFamily(nil)
+        XCTAssertNil(model.selectedDiffusionFamily)
+    }
 }

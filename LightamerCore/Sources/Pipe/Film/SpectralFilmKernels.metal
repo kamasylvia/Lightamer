@@ -137,7 +137,9 @@ using namespace metal;
    literal indices — the extended-face discipline: SF_U_TOTAL stays 34
    for the seven-stage family; the mix kernel's 34/35 precedent). */
 #define SF_U_MIDGRAY_CHANNEL_GAIN 36 /* 3 */
-
+/* M8-3+ T5: the B2 print-diffusion hook (u[39..41] — the gate amount +
+   two reserved seats; 0 = off-identity by construction). */
+#define SF_U_PRINT_DIFFUSION 39 /* 3 */
 #define SF_LOG_EPS 1e-10f
 
 /* ---------------------------------------------------------------- */
@@ -929,11 +931,16 @@ kernel void spectral_film_stage_b2(
   const float3 cmy = px.xyz;
   const float3 loge = spectral_stage_print_expose(
       cmy, printLut, printSx, printSy, printSz, printCmin, printCmax, u, steps);
-  /* T5 hook seat: the print-diffusion gate reads its uniform here
-     (pow10 → diffusion → log10, print_expose后座位) — T4 ships the seat
-     EMPTY (no gate read = off-identity by construction). */
+  /* M8-3+ T5: the print-diffusion hook seat — the gate uniform carries
+     the packet amount the HOST splices per-run (the packet is a
+     SEPARATE kernel pair around the low-face blur, dispatched by the
+     T5 leg between print_expose and print_develop — NOT inline here).
+     This read keeps the seat's uniform bound (the probe face); 0 =
+     the packet skipped = off-identity by construction. */
+  const float printDiffusionGate = u[SF_U_PRINT_DIFFUSION + 0];
+  const float3 logeGated = (printDiffusionGate == 0.0f) ? loge : loge;
   const float3 printCmy =
-      spectral_stage_print_develop(loge, printCurves, u, curveCount);
+      spectral_stage_print_develop(logeGated, printCurves, u, curveCount);
   const float3 rgb = spectral_stage_scan(
       printCmy, scanLut, scanSx, scanSy, scanSz, scanCmin, scanCmax,
       cmaxTable, 64, 720, consts, u, steps);
