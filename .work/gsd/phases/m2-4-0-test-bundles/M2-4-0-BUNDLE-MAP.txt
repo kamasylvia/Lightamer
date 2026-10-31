@@ -301,7 +301,7 @@ LAYERS	10	AIMaskSemanticTests.swift
 #   LUMEN-C T1/T4（2026-10-24，登记随文件同 commit）：MaskRefine 五步 golden + 场景参照 + 门控/钳/容错 8 法入 LAYERS（1 探针默认 skip）。
 LAYERS	8	MaskRefineTests.swift
 LAYERS	10	LayerCacheTests.swift
-LAYERS	10	LayerCompositeTests.swift
+LAYERS	13	LayerCompositeTests.swift
 LAYERS	11	MaskCommandTests.swift
 LAYERS	16	LayerCoreTests.swift
 LAYERS	18	HistoryStackTests.swift

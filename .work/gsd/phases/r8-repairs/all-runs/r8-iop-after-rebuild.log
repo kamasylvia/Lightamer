@@ -1,0 +1,1990 @@
+sandbox_extension_issue_file_to_process failed for /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug//Lightamer.app: 1 (Operation not permitted)
+Test Suite 'All tests' started at 2026-10-31 07:34:19.995.
+Test Suite 'LightamerTestsIOP.xctest' started at 2026-10-31 07:34:19.995.
+Test Suite 'BilateralGrid3DTests' started at 2026-10-31 07:34:19.995.
+Test Case '-[LightamerTestsIOP.BilateralGrid3DTests testFlatFieldInOutIdentity]' started.
+Test Case '-[LightamerTestsIOP.BilateralGrid3DTests testFlatFieldInOutIdentity]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.BilateralGrid3DTests testGridSizeClampsSmallSigma]' started.
+Test Case '-[LightamerTestsIOP.BilateralGrid3DTests testGridSizeClampsSmallSigma]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.BilateralGrid3DTests testGridSizeMatchesDtFormula]' started.
+Test Case '-[LightamerTestsIOP.BilateralGrid3DTests testGridSizeMatchesDtFormula]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.BilateralGrid3DTests testSmallImageFilteringParity]' started.
+Test Case '-[LightamerTestsIOP.BilateralGrid3DTests testSmallImageFilteringParity]' passed (0.009 seconds).
+Test Case '-[LightamerTestsIOP.BilateralGrid3DTests testSplatWeightConservation]' started.
+Test Case '-[LightamerTestsIOP.BilateralGrid3DTests testSplatWeightConservation]' passed (0.000 seconds).
+Test Suite 'BilateralGrid3DTests' passed at 2026-10-31 07:34:20.006.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.011 (0.011) seconds
+Test Suite 'BloomTests' started at 2026-10-31 07:34:20.006.
+Test Case '-[LightamerTestsIOP.BloomTests testCascadeGeometryAndIntermediateResolutions]' started.
+Test Case '-[LightamerTestsIOP.BloomTests testCascadeGeometryAndIntermediateResolutions]' passed (0.027 seconds).
+Test Case '-[LightamerTestsIOP.BloomTests testFloat64ChainParityDefaults]' started.
+Test Case '-[LightamerTestsIOP.BloomTests testFloat64ChainParityDefaults]' passed (0.014 seconds).
+Test Case '-[LightamerTestsIOP.BloomTests testHDRAboveOneRidesThroughNoClamp]' started.
+Test Case '-[LightamerTestsIOP.BloomTests testHDRAboveOneRidesThroughNoClamp]' passed (0.231 seconds).
+Test Case '-[LightamerTestsIOP.BloomTests testPointLightHaloRadiusAndAmplitude]' started.
+Test Case '-[LightamerTestsIOP.BloomTests testPointLightHaloRadiusAndAmplitude]' passed (0.034 seconds).
+Test Case '-[LightamerTestsIOP.BloomTests testRegistrationAndLayerEligibility]' started.
+Test Case '-[LightamerTestsIOP.BloomTests testRegistrationAndLayerEligibility]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.BloomTests testThresholdLinearMappingAnchor]' started.
+Test Case '-[LightamerTestsIOP.BloomTests testThresholdLinearMappingAnchor]' passed (0.006 seconds).
+Test Suite 'BloomTests' passed at 2026-10-31 07:34:20.320.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.313 (0.314) seconds
+Test Suite 'CIContextPoolMemoKeyTests' started at 2026-10-31 07:34:20.320.
+Test Case '-[LightamerTestsIOP.CIContextPoolMemoKeyTests testFullAndLongEdgeLegsDoNotCollide]' started.
+Test Case '-[LightamerTestsIOP.CIContextPoolMemoKeyTests testFullAndLongEdgeLegsDoNotCollide]' passed (0.013 seconds).
+Test Case '-[LightamerTestsIOP.CIContextPoolMemoKeyTests testSameLegRepeatedRequestIsFrozen]' started.
+Test Case '-[LightamerTestsIOP.CIContextPoolMemoKeyTests testSameLegRepeatedRequestIsFrozen]' passed (0.006 seconds).
+Test Suite 'CIContextPoolMemoKeyTests' passed at 2026-10-31 07:34:20.339.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.019 (0.019) seconds
+Test Suite 'CPUDerivationTests' started at 2026-10-31 07:34:20.339.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testExposureBlackClampDomain]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testExposureBlackClampDomain]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testExposureIdentityPassthroughByDefault]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testExposureIdentityPassthroughByDefault]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testExposureKnownVectors]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testExposureKnownVectors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testExposureParamsHashStable]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testExposureParamsHashStable]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testExposureWhiteDerivation]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testExposureWhiteDerivation]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testFilmicIllegalCombinationsNoNaN]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testFilmicIllegalCombinationsNoNaN]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testFilmicOutputPowerAndNormBounds]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testFilmicOutputPowerAndNormBounds]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testFilmicSplineCurveTypes]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testFilmicSplineCurveTypes]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testFilmicSplineDefaultCoefficients]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testFilmicSplineDefaultCoefficients]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testFilmicSplineVariedParamsAgainstReference]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testFilmicSplineVariedParamsAgainstReference]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testFilmicSplineVersionBranches]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testFilmicSplineVersionBranches]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testShadhiDerivedParams]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testShadhiDerivedParams]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testShadhiOverlayKnownVectors]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testShadhiOverlayKnownVectors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testSigmoidCurveConstraints]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testSigmoidCurveConstraints]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testSigmoidExtremeParamsNoNaN]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testSigmoidExtremeParamsNoNaN]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testSigmoidFourScalarDerivation]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testSigmoidFourScalarDerivation]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testWBD65AnchorIdentity]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testWBD65AnchorIdentity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testWBEyedropperNeutralSolve]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testWBEyedropperNeutralSolve]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testWBGainsDirection]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testWBGainsDirection]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testWBKelvinGainsRoundTrip]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testWBKelvinGainsRoundTrip]' passed (0.022 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testWBTemperatureToXYZMatchesDarktable]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testWBTemperatureToXYZMatchesDarktable]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testWBTemperatureToXYZMaxNormalized]' started.
+Test Case '-[LightamerTestsIOP.CPUDerivationTests testWBTemperatureToXYZMaxNormalized]' passed (0.000 seconds).
+Test Suite 'CPUDerivationTests' passed at 2026-10-31 07:34:20.366.
+	 Executed 22 tests, with 0 failures (0 unexpected) in 0.026 (0.027) seconds
+Test Suite 'CameraFilterTests' started at 2026-10-31 07:34:20.366.
+Test Case '-[LightamerTestsIOP.CameraFilterTests testAlignmentIsIdentityOnTheMatchingGridAndResamplesForeignAxes]' started.
+Test Case '-[LightamerTestsIOP.CameraFilterTests testAlignmentIsIdentityOnTheMatchingGridAndResamplesForeignAxes]' passed (0.015 seconds).
+Test Case '-[LightamerTestsIOP.CameraFilterTests testGreenRollFactorRecomputationMatchesTheEngineIdentity]' started.
+Test Case '-[LightamerTestsIOP.CameraFilterTests testGreenRollFactorRecomputationMatchesTheEngineIdentity]' passed (255.790 seconds).
+Test Case '-[LightamerTestsIOP.CameraFilterTests testTableLoadsAllEightWrattenKeysOnTheEngineGrid]' started.
+Test Case '-[LightamerTestsIOP.CameraFilterTests testTableLoadsAllEightWrattenKeysOnTheEngineGrid]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.CameraFilterTests testTypedRejectionAndTheW58DualSourceNote]' started.
+Test Case '-[LightamerTestsIOP.CameraFilterTests testTypedRejectionAndTheW58DualSourceNote]' passed (0.001 seconds).
+Test Suite 'CameraFilterTests' passed at 2026-10-31 07:38:36.173.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 255.806 (255.806) seconds
+Test Suite 'ChannelMixerColorContrastTests' started at 2026-10-31 07:38:36.173.
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testColorContrastClampVsUnbound]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testColorContrastClampVsUnbound]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testColorContrastDefaultsIdentity]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testColorContrastDefaultsIdentity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testDefaultParamsSelectRGBIdentity]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testDefaultParamsSelectRGBIdentity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testGrayMixFoldsRows]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testGrayMixFoldsRows]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testHSLMixSelectsV2]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testHSLMixSelectsV2]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testHSLRoundTripIdentity]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testHSLRoundTripIdentity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testLegacyAndContrastSlots]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testLegacyAndContrastSlots]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testReferenceAllModesFinite]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testReferenceAllModesFinite]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testV1ForcesHSLV1]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerColorContrastTests testV1ForcesHSLV1]' passed (0.000 seconds).
+Test Suite 'ChannelMixerColorContrastTests' passed at 2026-10-31 07:38:36.174.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'ChannelMixerCommonTests' started at 2026-10-31 07:38:36.174.
+Test Case '-[LightamerTestsIOP.ChannelMixerCommonTests testBradfordAndCAT16RoundTrip]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerCommonTests testBradfordAndCAT16RoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerCommonTests testCCTModelsHandVectors]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerCommonTests testCCTModelsHandVectors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerCommonTests testIlluminantToXYFamilies]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerCommonTests testIlluminantToXYFamilies]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerCommonTests testLumaChromaAndGamutSmoke]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerCommonTests testLumaChromaAndGamutSmoke]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerCommonTests testXYToXYZHandVectors]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerCommonTests testXYToXYZHandVectors]' passed (0.000 seconds).
+Test Suite 'ChannelMixerCommonTests' passed at 2026-10-31 07:38:36.175.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'ChannelMixerRGBCommitTests' started at 2026-10-31 07:38:36.175.
+Test Case '-[LightamerTestsIOP.ChannelMixerRGBCommitTests testFivePathsProduceNonIdentityMatrices]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerRGBCommitTests testFivePathsProduceNonIdentityMatrices]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerRGBCommitTests testGamutFold]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerRGBCommitTests testGamutFold]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerRGBCommitTests testGreyAndNormalizeDerivation]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerRGBCommitTests testGreyAndNormalizeDerivation]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerRGBCommitTests testIlluminantChangeAltersParamsHash]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerRGBCommitTests testIlluminantChangeAltersParamsHash]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ChannelMixerRGBCommitTests testPipeXYZPathCarriesPipeMatrix]' started.
+Test Case '-[LightamerTestsIOP.ChannelMixerRGBCommitTests testPipeXYZPathCarriesPipeMatrix]' passed (0.000 seconds).
+Test Suite 'ChannelMixerRGBCommitTests' passed at 2026-10-31 07:38:36.176.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'ColorWheelsLegacyConvertTests' started at 2026-10-31 07:38:36.176.
+Test Case '-[LightamerTestsIOP.ColorWheelsLegacyConvertTests testCommonDomainFitParity]' started.
+Test Case '-[LightamerTestsIOP.ColorWheelsLegacyConvertTests testCommonDomainFitParity]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.ColorWheelsLegacyConvertTests testExtremeDomainFitParity]' started.
+Test Case '-[LightamerTestsIOP.ColorWheelsLegacyConvertTests testExtremeDomainFitParity]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.ColorWheelsLegacyConvertTests testFitKSplitKeepsUnclampedStopsAndClampsDisc]' started.
+Test Case '-[LightamerTestsIOP.ColorWheelsLegacyConvertTests testFitKSplitKeepsUnclampedStopsAndClampsDisc]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ColorWheelsLegacyConvertTests testGammaNonNeutralLegacyKeepsLookAndDirectionAtUpgrade]' started.
+Test Case '-[LightamerTestsIOP.ColorWheelsLegacyConvertTests testGammaNonNeutralLegacyKeepsLookAndDirectionAtUpgrade]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.ColorWheelsLegacyConvertTests testLegacyLiftBecomesOffsetExactly]' started.
+Test Case '-[LightamerTestsIOP.ColorWheelsLegacyConvertTests testLegacyLiftBecomesOffsetExactly]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ColorWheelsLegacyConvertTests testNeutralLegacyConvertsToNeutralQuad]' started.
+Test Case '-[LightamerTestsIOP.ColorWheelsLegacyConvertTests testNeutralLegacyConvertsToNeutralQuad]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ColorWheelsLegacyConvertTests testV3ShapeRoundTrip]' started.
+Test Case '-[LightamerTestsIOP.ColorWheelsLegacyConvertTests testV3ShapeRoundTrip]' passed (0.000 seconds).
+Test Suite 'ColorWheelsLegacyConvertTests' passed at 2026-10-31 07:38:36.182.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.006 (0.006) seconds
+Test Suite 'ColorZonesCommitTests' started at 2026-10-31 07:38:36.182.
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testCatmullV2MatchesV1]' started.
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testCatmullV2MatchesV1]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testColorZonesSlot]' started.
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testColorZonesSlot]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testCommitWritesUniformTables]' started.
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testCommitWritesUniformTables]' passed (0.048 seconds).
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testCubicV2MatchesV1]' started.
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testCubicV2MatchesV1]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testIdentityTablesBuild]' started.
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testIdentityTablesBuild]' passed (0.083 seconds).
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testMonotoneVariantDiffersFromV1]' started.
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testMonotoneVariantDiffersFromV1]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testPeriodicPassesThroughKnots]' started.
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testPeriodicPassesThroughKnots]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testPeriodicWrapsSeamlessly]' started.
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testPeriodicWrapsSeamlessly]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testReferenceHueLowSaturationSuppression]' started.
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testReferenceHueLowSaturationSuppression]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testReferenceIdentityTables]' started.
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testReferenceIdentityTables]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testStrengthFold]' started.
+Test Case '-[LightamerTestsIOP.ColorZonesCommitTests testStrengthFold]' passed (0.000 seconds).
+Test Suite 'ColorZonesCommitTests' passed at 2026-10-31 07:38:36.320.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.138 (0.139) seconds
+Test Suite 'CropFitAngleTests' started at 2026-10-31 07:38:36.320.
+Test Case '-[LightamerTestsIOP.CropFitAngleTests testFitRectAnalyticExampleAndMaximality]' started.
+Test Case '-[LightamerTestsIOP.CropFitAngleTests testFitRectAnalyticExampleAndMaximality]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CropFitAngleTests testWithAngleThreeGenerationSemantics]' started.
+Test Case '-[LightamerTestsIOP.CropFitAngleTests testWithAngleThreeGenerationSemantics]' passed (0.000 seconds).
+Test Suite 'CropFitAngleTests' passed at 2026-10-31 07:38:36.321.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'CubeLutParserTests' started at 2026-10-31 07:38:36.321.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testCRLFAndCommentsAndTabs]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testCRLFAndCommentsAndTabs]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testDirtyFixtureMixedCRLF]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testDirtyFixtureMixedCRLF]' passed (0.022 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testDirtyFixtureScientific1D]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testDirtyFixtureScientific1D]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testDirtyFixtureTitleTail]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testDirtyFixtureTitleTail]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testDomainOrderedPairAboveOneParses]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testDomainOrderedPairAboveOneParses]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testDomainScalarBroadcast]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testDomainScalarBroadcast]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testDomainThreeFloatForm]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testDomainThreeFloatForm]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testInputRange]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testInputRange]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testParse1DGolden]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testParse1DGolden]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testParse1DTwoFloatVariant]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testParse1DTwoFloatVariant]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testParse3DMinimalGolden]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testParse3DMinimalGolden]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testParse3DSize4RowOrder]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testParse3DSize4RowOrder]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testScientificNotation]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testScientificNotation]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowConflictingSizes]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowConflictingSizes]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowDataCountMismatch]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowDataCountMismatch]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowDomainInvalid]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowDomainInvalid]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowEmptyFile]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowEmptyFile]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowMissingSize]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowMissingSize]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowMissingSizeWithKeysButNoSize]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowMissingSizeWithKeysButNoSize]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowNonNumericToken]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowNonNumericToken]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowSizeOutOfRange]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testThrowSizeOutOfRange]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testTitleAfterDataIsToleratedWarning]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testTitleAfterDataIsToleratedWarning]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testTitleWholeLineWithSpacesAndQuotes]' started.
+Test Case '-[LightamerTestsIOP.CubeLutParserTests testTitleWholeLineWithSpacesAndQuotes]' passed (0.000 seconds).
+Test Suite 'CubeLutParserTests' passed at 2026-10-31 07:38:36.355.
+	 Executed 23 tests, with 0 failures (0 unexpected) in 0.033 (0.034) seconds
+Test Suite 'DNGOpcodeProbeTests' started at 2026-10-31 07:38:36.355.
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testAdditiveFieldDefaultsNil]' started.
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testAdditiveFieldDefaultsNil]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testBigEndianIFD0OpcodeTagDetected]' started.
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testBigEndianIFD0OpcodeTagDetected]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testDNGUTIFamilyPredicate]' started.
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testDNGUTIFamilyPredicate]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testExifIFDPointerOpcodeTagDetected]' started.
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testExifIFDPointerOpcodeTagDetected]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testLittleEndianIFD0OpcodeTagDetected]' started.
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testLittleEndianIFD0OpcodeTagDetected]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testLUTICCTIFFLegStampsNotApplicable]' started.
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testLUTICCTIFFLegStampsNotApplicable]' passed (0.019 seconds).
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testMalformedInputsDegradeToFalse]' started.
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testMalformedInputsDegradeToFalse]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testNativeTIFFLegStampsNotApplicable]' started.
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testNativeTIFFLegStampsNotApplicable]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testNoOpcodeTagsReadsFalse]' started.
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testNoOpcodeTagsReadsFalse]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testProbeURLOnDiskFiles]' started.
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testProbeURLOnDiskFiles]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testRetiredRasterLegStampsNotApplicable]' started.
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testRetiredRasterLegStampsNotApplicable]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testSubIFDOpcodeTagDetected]' started.
+Test Case '-[LightamerTestsIOP.DNGOpcodeProbeTests testSubIFDOpcodeTagDetected]' passed (0.000 seconds).
+Test Suite 'DNGOpcodeProbeTests' passed at 2026-10-31 07:38:36.382.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.027 (0.028) seconds
+Test Suite 'DefaultFaceTests' started at 2026-10-31 07:38:36.382.
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testDefaultFacePanelsExcludeDisabledKeepsEnabled]' started.
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testDefaultFacePanelsExcludeDisabledKeepsEnabled]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testDefaultFaceProjectInstancesRejectsUpsertAllowsRemove]' started.
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testDefaultFaceProjectInstancesRejectsUpsertAllowsRemove]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testDefaultFaceRegistryExcludesDisabledAndKeepsEnabled]' started.
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testDefaultFaceRegistryExcludesDisabledAndKeepsEnabled]' passed (0.004 seconds).
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testDefaultFaceSeedExcludesDisabledKeepsSortAndCount]' started.
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testDefaultFaceSeedExcludesDisabledKeepsSortAndCount]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testDisabledSetMatchesMatrixExactly]' started.
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testDisabledSetMatchesMatrixExactly]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testFullFaceDefaultParameterKeepsDisabledRegistered]' started.
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testFullFaceDefaultParameterKeepsDisabledRegistered]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testLegacySidecarWithDisabledOpsRoundTripsByteSemantics]' started.
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testLegacySidecarWithDisabledOpsRoundTripsByteSemantics]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testMCPDefaultFaceCatalogAndToolFace]' started.
+Test Case '-[LightamerTestsIOP.DefaultFaceTests testMCPDefaultFaceCatalogAndToolFace]' passed (0.001 seconds).
+Test Suite 'DefaultFaceTests' passed at 2026-10-31 07:38:36.394.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.012 (0.012) seconds
+Test Suite 'DehazeTests' started at 2026-10-31 07:38:36.394.
+Test Case '-[LightamerTestsIOP.DehazeTests testAmbientReuseAndHashInvalidation]' started.
+Test Case '-[LightamerTestsIOP.DehazeTests testAmbientReuseAndHashInvalidation]' passed (0.032 seconds).
+Test Case '-[LightamerTestsIOP.DehazeTests testFloat64ChainParity]' started.
+Test Case '-[LightamerTestsIOP.DehazeTests testFloat64ChainParity]' passed (0.186 seconds).
+Test Case '-[LightamerTestsIOP.DehazeTests testNeutralStrengthZeroIsByteIdentity]' started.
+Test Case '-[LightamerTestsIOP.DehazeTests testNeutralStrengthZeroIsByteIdentity]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOP.DehazeTests testRegisteredAtV50Slot14AndCLAHEAbsent]' started.
+Test Case '-[LightamerTestsIOP.DehazeTests testRegisteredAtV50Slot14AndCLAHEAbsent]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.DehazeTests testSyntheticFogInversionGolden]' started.
+Test Case '-[LightamerTestsIOP.DehazeTests testSyntheticFogInversionGolden]' passed (0.180 seconds).
+Test Case '-[LightamerTestsIOP.DehazeTests testWindowSizesVerbatim]' started.
+Test Case '-[LightamerTestsIOP.DehazeTests testWindowSizesVerbatim]' passed (0.000 seconds).
+Test Suite 'DehazeTests' passed at 2026-10-31 07:38:36.801.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.406 (0.407) seconds
+Test Suite 'EDRDisplayLegTests' started at 2026-10-31 07:38:36.801.
+Test Case '-[LightamerTestsIOP.EDRDisplayLegTests testEDRLegPassesValuesAboveSDRWhite]' started.
+Test Case '-[LightamerTestsIOP.EDRDisplayLegTests testEDRLegPassesValuesAboveSDRWhite]' passed (0.011 seconds).
+Test Case '-[LightamerTestsIOP.EDRDisplayLegTests testEDRNeverEntersExportLeg]' started.
+Test Case '-[LightamerTestsIOP.EDRDisplayLegTests testEDRNeverEntersExportLeg]' passed (0.009 seconds).
+Test Case '-[LightamerTestsIOP.EDRDisplayLegTests testEDROnBypassEqualsGammalessChain]' started.
+Test Case '-[LightamerTestsIOP.EDRDisplayLegTests testEDROnBypassEqualsGammalessChain]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOP.EDRDisplayLegTests testEDRToggleDoesNotStalePipeCacheKey]' started.
+Test Case '-[LightamerTestsIOP.EDRDisplayLegTests testEDRToggleDoesNotStalePipeCacheKey]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.EDRDisplayLegTests testEDRToggleNeverCreatesHistoryItem]' started.
+Test Case '-[LightamerTestsIOP.EDRDisplayLegTests testEDRToggleNeverCreatesHistoryItem]' passed (1.060 seconds).
+Test Case '-[LightamerTestsIOP.EDRDisplayLegTests testEDRToggleNeverWritesSidecar]' started.
+Test Case '-[LightamerTestsIOP.EDRDisplayLegTests testEDRToggleNeverWritesSidecar]' passed (3.945 seconds).
+Test Case '-[LightamerTestsIOP.EDRDisplayLegTests testSDROffTailIsTheBytePlaneAndDefaultIdentical]' started.
+Test Case '-[LightamerTestsIOP.EDRDisplayLegTests testSDROffTailIsTheBytePlaneAndDefaultIdentical]' passed (0.019 seconds).
+Test Suite 'EDRDisplayLegTests' passed at 2026-10-31 07:38:41.860.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 5.058 (5.059) seconds
+Test Suite 'EDRHeadroomMonitorTests' started at 2026-10-31 07:38:41.860.
+Test Case '-[LightamerTestsIOP.EDRHeadroomMonitorTests testHeadroomQueryLegalDomainAndBadgeBit]' started.
+Test Case '-[LightamerTestsIOP.EDRHeadroomMonitorTests testHeadroomQueryLegalDomainAndBadgeBit]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.EDRHeadroomMonitorTests testScreenNotificationsInvalidateMonitor]' started.
+Test Case '-[LightamerTestsIOP.EDRHeadroomMonitorTests testScreenNotificationsInvalidateMonitor]' passed (0.348 seconds).
+Test Suite 'EDRHeadroomMonitorTests' passed at 2026-10-31 07:38:42.209.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.348 (0.349) seconds
+Test Suite 'EDRViewportTests' started at 2026-10-31 07:38:42.209.
+Test Case '-[LightamerTestsIOP.EDRViewportTests testBlitPSODualVariantsExist]' started.
+Test Case '-[LightamerTestsIOP.EDRViewportTests testBlitPSODualVariantsExist]' passed (0.107 seconds).
+Test Case '-[LightamerTestsIOP.EDRViewportTests testBlitRegimePickAllArms]' started.
+Test Case '-[LightamerTestsIOP.EDRViewportTests testBlitRegimePickAllArms]' passed (0.102 seconds).
+Test Case '-[LightamerTestsIOP.EDRViewportTests testEDRSurfaceFlipOnAndOff]' started.
+Test Case '-[LightamerTestsIOP.EDRViewportTests testEDRSurfaceFlipOnAndOff]' passed (0.112 seconds).
+Test Case '-[LightamerTestsIOP.EDRViewportTests testEDRToggleStateRoundTripWithoutImage]' started.
+Test Case '-[LightamerTestsIOP.EDRViewportTests testEDRToggleStateRoundTripWithoutImage]' passed (0.102 seconds).
+Test Case '-[LightamerTestsIOP.EDRViewportTests testP4MetalLayerAcceptsEDRTrio]' started.
+Test Case '-[LightamerTestsIOP.EDRViewportTests testP4MetalLayerAcceptsEDRTrio]' passed (0.103 seconds).
+Test Suite 'EDRViewportTests' passed at 2026-10-31 07:38:42.736.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.526 (0.527) seconds
+Test Suite 'ExifLensFieldsTests' started at 2026-10-31 07:38:42.736.
+Test Case '-[LightamerTestsIOP.ExifLensFieldsTests testDecodedTIFFCarriesLensFieldsThroughDecodedImage]' started.
+Test Case '-[LightamerTestsIOP.ExifLensFieldsTests testDecodedTIFFCarriesLensFieldsThroughDecodedImage]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.ExifLensFieldsTests testLegacyMetadataJSONDecodesWithoutAppendedKeys]' started.
+Test Case '-[LightamerTestsIOP.ExifLensFieldsTests testLegacyMetadataJSONDecodesWithoutAppendedKeys]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.ExifLensFieldsTests testLensFieldsRoundTripThroughJSON]' started.
+Test Case '-[LightamerTestsIOP.ExifLensFieldsTests testLensFieldsRoundTripThroughJSON]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ExifLensFieldsTests testLensFieldsSurviveDecodeWalk]' started.
+Test Case '-[LightamerTestsIOP.ExifLensFieldsTests testLensFieldsSurviveDecodeWalk]' passed (0.001 seconds).
+Test Suite 'ExifLensFieldsTests' passed at 2026-10-31 07:38:42.741.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.005 (0.005) seconds
+Test Suite 'FilmPlacementTests' started at 2026-10-31 07:38:42.741.
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testCatalogIdentityJSONIsTheKernelNoOpPoint]' started.
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testCatalogIdentityJSONIsTheKernelNoOpPoint]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testClampDomain]' started.
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testClampDomain]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testKneeSolveIsDeterministicBitIdentical]' started.
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testKneeSolveIsDeterministicBitIdentical]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testM1ClosedFormLandsExactly]' started.
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testM1ClosedFormLandsExactly]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testM2BisectionNewtonLandsExactly]' started.
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testM2BisectionNewtonLandsExactly]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testModuleIsDefaultFaceRegisteredAndResolves]' started.
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testModuleIsDefaultFaceRegisteredAndResolves]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testParamsCodingUsesSnakeCaseKeysAndRoundTrips]' started.
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testParamsCodingUsesSnakeCaseKeysAndRoundTrips]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testPlacementGainCompressesMonotonically]' started.
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testPlacementGainCompressesMonotonically]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testPlacementGainIsIdentityInTheCore]' started.
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testPlacementGainIsIdentityInTheCore]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testShadowSideSolvesSymmetrically]' started.
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testShadowSideSolvesSymmetrically]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testZeroPullBackIsTheInactiveIdentity]' started.
+Test Case '-[LightamerTestsIOP.FilmPlacementTests testZeroPullBackIsTheInactiveIdentity]' passed (0.000 seconds).
+Test Suite 'FilmPlacementTests' passed at 2026-10-31 07:38:42.746.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.004 (0.005) seconds
+Test Suite 'FocusStackTests' started at 2026-10-31 07:38:42.746.
+Test Case '-[LightamerTestsIOP.FocusStackTests testClearRegionAttributionMAE]' started.
+Test Case '-[LightamerTestsIOP.FocusStackTests testClearRegionAttributionMAE]' passed (1.016 seconds).
+Test Case '-[LightamerTestsIOP.FocusStackTests testDrainReadbackCorrectUnderQueuedLoad]' started.
+Test Case '-[LightamerTestsIOP.FocusStackTests testDrainReadbackCorrectUnderQueuedLoad]' passed (0.029 seconds).
+Test Case '-[LightamerTestsIOP.FocusStackTests testFocusFusionBandWorkingSetIsConstant]' started.
+Test Case '-[LightamerTestsIOP.FocusStackTests testFocusFusionBandWorkingSetIsConstant]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.FocusStackTests testFuseStripIdenticalSourcesReconstructExactly]' started.
+Test Case '-[LightamerTestsIOP.FocusStackTests testFuseStripIdenticalSourcesReconstructExactly]' passed (0.121 seconds).
+Test Case '-[LightamerTestsIOP.FocusStackTests testFuseStripWeightlessRegionGoesBlack]' started.
+Test Case '-[LightamerTestsIOP.FocusStackTests testFuseStripWeightlessRegionGoesBlack]' passed (0.057 seconds).
+Test Case '-[LightamerTestsIOP.FocusStackTests testNCCDetectsScaleDrift]' started.
+Test Case '-[LightamerTestsIOP.FocusStackTests testNCCDetectsScaleDrift]' passed (0.010 seconds).
+Test Case '-[LightamerTestsIOP.FocusStackTests testNoDrainReadDemonstratesStaleRace]' started.
+Test Case '-[LightamerTestsIOP.FocusStackTests testNoDrainReadDemonstratesStaleRace]' passed (0.146 seconds).
+Test Case '-[LightamerTestsIOP.FocusStackTests testSMLConstantFieldIsZeroAndImpulseLocalizes]' started.
+Test Case '-[LightamerTestsIOP.FocusStackTests testSMLConstantFieldIsZeroAndImpulseLocalizes]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.FocusStackTests testSMLMatchesCPUReferenceWithinHalfTolerance]' started.
+Test Case '-[LightamerTestsIOP.FocusStackTests testSMLMatchesCPUReferenceWithinHalfTolerance]' passed (0.019 seconds).
+Test Case '-[LightamerTestsIOP.FocusStackTests testSMLSeparationSharpVersusBlurred]' started.
+Test Case '-[LightamerTestsIOP.FocusStackTests testSMLSeparationSharpVersusBlurred]' passed (0.306 seconds).
+Test Case '-[LightamerTestsIOP.FocusStackTests testSMLTimingProbe]' started.
+Test Case '-[LightamerTestsIOP.FocusStackTests testSMLTimingProbe]' passed (0.039 seconds).
+Test Case '-[LightamerTestsIOP.FocusStackTests testSoftenQualityBoxShape]' started.
+Test Case '-[LightamerTestsIOP.FocusStackTests testSoftenQualityBoxShape]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.FocusStackTests testTenengradSlotThrowsNotImplemented]' started.
+Test Case '-[LightamerTestsIOP.FocusStackTests testTenengradSlotThrowsNotImplemented]' passed (0.001 seconds).
+Test Suite 'FocusStackTests' passed at 2026-10-31 07:38:44.496.
+	 Executed 13 tests, with 0 failures (0 unexpected) in 1.749 (1.750) seconds
+Test Suite 'FullRenderBenchmarkTests' started at 2026-10-31 07:38:44.496.
+Test Case '-[LightamerTestsIOP.FullRenderBenchmarkTests testFullRenderWarmGate]' started.
+Test Case '-[LightamerTestsIOP.FullRenderBenchmarkTests testFullRenderWarmGate]' passed (9.754 seconds).
+Test Suite 'FullRenderBenchmarkTests' passed at 2026-10-31 07:38:54.250.
+	 Executed 1 test, with 0 failures (0 unexpected) in 9.754 (9.755) seconds
+Test Suite 'GaussianBlurTests' started at 2026-10-31 07:38:54.251.
+Test Case '-[LightamerTestsIOP.GaussianBlurTests testCoeffsKnownVectors]' started.
+Test Case '-[LightamerTestsIOP.GaussianBlurTests testCoeffsKnownVectors]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.GaussianBlurTests testGPUMatchesFloat64Reference]' started.
+Test Case '-[LightamerTestsIOP.GaussianBlurTests testGPUMatchesFloat64Reference]' passed (0.028 seconds).
+Test Case '-[LightamerTestsIOP.GaussianBlurTests testImpulseResponseApproximatesAnalyticGaussian]' started.
+Test Case '-[LightamerTestsIOP.GaussianBlurTests testImpulseResponseApproximatesAnalyticGaussian]' passed (0.011 seconds).
+Test Case '-[LightamerTestsIOP.GaussianBlurTests testLargeSigmaFlatFieldEdgeConservation]' started.
+Test Case '-[LightamerTestsIOP.GaussianBlurTests testLargeSigmaFlatFieldEdgeConservation]' passed (0.007 seconds).
+Test Case '-[LightamerTestsIOP.GaussianBlurTests testZeroSigmaIdentityPassthrough]' started.
+Test Case '-[LightamerTestsIOP.GaussianBlurTests testZeroSigmaIdentityPassthrough]' passed (0.004 seconds).
+Test Suite 'GaussianBlurTests' passed at 2026-10-31 07:38:54.304.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.053 (0.053) seconds
+Test Suite 'GeometryPointMapperTests' started at 2026-10-31 07:38:54.304.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testAshiftSegmentRoundtripAndModuleAgreement]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testAshiftSegmentRoundtripAndModuleAgreement]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testCompositeChainRoundtrip]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testCompositeChainRoundtrip]' passed (0.153 seconds).
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testCropSegmentRoundtripAndCenterInvariance]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testCropSegmentRoundtripAndCenterInvariance]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testDisabledModulesContributeNothing]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testDisabledModulesContributeNothing]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testEmptyChainIsIdentity]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testEmptyChainIsIdentity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testEmptyLiquifyIsNoSegment]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testEmptyLiquifyIsNoSegment]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testFlipRot180Roundtrip]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testFlipRot180Roundtrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testFlipSegmentMatchesModuleRemap]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testFlipSegmentMatchesModuleRemap]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testLensExtremeDistortionRoundtripRecorded]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testLensExtremeDistortionRoundtripRecorded]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testLensSegmentRoundtripManualCoefficients]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testLensSegmentRoundtripManualCoefficients]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testLiquifyChainRoundtrip]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testLiquifyChainRoundtrip]' passed (0.070 seconds).
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testLiquifyMaskContentAnchorEndToEnd]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testLiquifyMaskContentAnchorEndToEnd]' passed (0.018 seconds).
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testLiquifySegmentRoundtrip]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testLiquifySegmentRoundtrip]' passed (0.059 seconds).
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testNeutralChainIsIdentity]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testNeutralChainIsIdentity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testProjectiveCompositeMatchesSegmentWalk]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testProjectiveCompositeMatchesSegmentWalk]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testStagedDecompositionMatchesSegmentWalk]' started.
+Test Case '-[LightamerTestsIOP.GeometryPointMapperTests testStagedDecompositionMatchesSegmentWalk]' passed (1.014 seconds).
+Test Suite 'GeometryPointMapperTests' passed at 2026-10-31 07:38:55.624.
+	 Executed 16 tests, with 0 failures (0 unexpected) in 1.319 (1.320) seconds
+Test Suite 'GradeParamsCodingTests' started at 2026-10-31 07:38:55.624.
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testCat02ClampRanges]' started.
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testCat02ClampRanges]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testCat02CodingRoundTripAtCorners]' started.
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testCat02CodingRoundTripAtCorners]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testCat02JSONKeysAndDefaults]' started.
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testCat02JSONKeysAndDefaults]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testColorWheelsIsIdentityJudgment]' started.
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testColorWheelsIsIdentityJudgment]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testColorWheelsJSONKeysAndRoundTrip]' started.
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testColorWheelsJSONKeysAndRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testContrastJSONKeyAndClamp]' started.
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testContrastJSONKeyAndClamp]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testHlsJSONKeysAndArrayRoundTrip]' started.
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testHlsJSONKeysAndArrayRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testSaturationJSONKeyAndClamp]' started.
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testSaturationJSONKeyAndClamp]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testTintJSONKeyAndClamp]' started.
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testTintJSONKeyAndClamp]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testWhiteBlackJSONKeysAndClamps]' started.
+Test Case '-[LightamerTestsIOP.GradeParamsCodingTests testWhiteBlackJSONKeysAndClamps]' passed (0.000 seconds).
+Test Suite 'GradeParamsCodingTests' passed at 2026-10-31 07:38:55.629.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.004 (0.005) seconds
+Test Suite 'GrainCalibrationTests' started at 2026-10-31 07:38:55.629.
+Test Case '-[LightamerTestsIOP.GrainCalibrationTests testMappingIsPureDeterministicAndTypedDegrading]' started.
+Test Case '-[LightamerTestsIOP.GrainCalibrationTests testMappingIsPureDeterministicAndTypedDegrading]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOP.GrainCalibrationTests testTableRoundTripsWithVerifiedRmsFinals]' started.
+Test Case '-[LightamerTestsIOP.GrainCalibrationTests testTableRoundTripsWithVerifiedRmsFinals]' passed (0.000 seconds).
+Test Suite 'GrainCalibrationTests' passed at 2026-10-31 07:38:55.637.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.008 (0.008) seconds
+Test Suite 'GrainTests' started at 2026-10-31 07:38:55.638.
+Test Case '-[LightamerTestsIOP.GrainTests testKernelVsFloat64ReferenceParity]' started.
+Test Case '-[LightamerTestsIOP.GrainTests testKernelVsFloat64ReferenceParity]' passed (0.010 seconds).
+Test Case '-[LightamerTestsIOP.GrainTests testLumaInjectionPreservesChannelDifferences]' started.
+Test Case '-[LightamerTestsIOP.GrainTests testLumaInjectionPreservesChannelDifferences]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.GrainTests testNeutralStrengthZeroByteIdentity]' started.
+Test Case '-[LightamerTestsIOP.GrainTests testNeutralStrengthZeroByteIdentity]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.GrainTests testRegistrationAndLayerEligibility]' started.
+Test Case '-[LightamerTestsIOP.GrainTests testRegistrationAndLayerEligibility]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.GrainTests testSameImageSameParamsByteEqual]' started.
+Test Case '-[LightamerTestsIOP.GrainTests testSameImageSameParamsByteEqual]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.GrainTests testSameParamsDifferentImagesDiffer]' started.
+Test Case '-[LightamerTestsIOP.GrainTests testSameParamsDifferentImagesDiffer]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.GrainTests testSeedPureFunctionAndImageSensitivity]' started.
+Test Case '-[LightamerTestsIOP.GrainTests testSeedPureFunctionAndImageSensitivity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.GrainTests testSpectrumThreeOctaveAnchor]' started.
+Test Case '-[LightamerTestsIOP.GrainTests testSpectrumThreeOctaveAnchor]' passed (0.027 seconds).
+Test Suite 'GrainTests' passed at 2026-10-31 07:38:55.689.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.051 (0.051) seconds
+Test Suite 'HDRMergeMathTests' started at 2026-10-31 07:38:55.689.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testAccumulatorFootprintIndependentOfSourceCount]' started.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testAccumulatorFootprintIndependentOfSourceCount]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testAllClippedPatchIsHOLE]' started.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testAllClippedPatchIsHOLE]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testBandGeometryCoversPlaneExactly]' started.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testBandGeometryCoversPlaneExactly]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testDeGhostOffKeepsGhostContamination]' started.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testDeGhostOffKeepsGhostContamination]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testDilationShapeGolden]' started.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testDilationShapeGolden]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testFloatTIFFRefusesOverwrite]' started.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testFloatTIFFRefusesOverwrite]' passed (0.026 seconds).
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testFloatTIFFWriteRoundTripPreservesDepth]' started.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testFloatTIFFWriteRoundTripPreservesDepth]' passed (0.049 seconds).
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testGhostMaskLandRoundTrip]' started.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testGhostMaskLandRoundTrip]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testGhostRejectedWithinTolerance]' started.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testGhostRejectedWithinTolerance]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testGhostSuppressionLayerStackShape]' started.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testGhostSuppressionLayerStackShape]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testRecoveryWithinOnePercent]' started.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testRecoveryWithinOnePercent]' passed (0.022 seconds).
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testSigmaHatAndResidualShapes]' started.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testSigmaHatAndResidualShapes]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testSigmaParameterizationIdentities]' started.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testSigmaParameterizationIdentities]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testWeightDualGateBoundaries]' started.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testWeightDualGateBoundaries]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testWeightNoiseFloorKnobDefaultsOff]' started.
+Test Case '-[LightamerTestsIOP.HDRMergeMathTests testWeightNoiseFloorKnobDefaultsOff]' passed (0.000 seconds).
+Test Suite 'HDRMergeMathTests' passed at 2026-10-31 07:38:55.800.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 0.111 (0.111) seconds
+Test Suite 'HomographyTests' started at 2026-10-31 07:38:55.800.
+Test Case '-[LightamerTestsIOP.HomographyTests testDLTRecoversKnownHomography]' started.
+Test Case '-[LightamerTestsIOP.HomographyTests testDLTRecoversKnownHomography]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.HomographyTests testDLTRejectsDegenerateQuad]' started.
+Test Case '-[LightamerTestsIOP.HomographyTests testDLTRejectsDegenerateQuad]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.HomographyTests testFitParamsConvergesOnSyntheticTrapezoid]' started.
+Test Case '-[LightamerTestsIOP.HomographyTests testFitParamsConvergesOnSyntheticTrapezoid]' passed (0.013 seconds).
+Test Case '-[LightamerTestsIOP.HomographyTests testInverseTimesForwardIsIdentity]' started.
+Test Case '-[LightamerTestsIOP.HomographyTests testInverseTimesForwardIsIdentity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.HomographyTests testNeutralComposeIsPureTranslation]' started.
+Test Case '-[LightamerTestsIOP.HomographyTests testNeutralComposeIsPureTranslation]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.HomographyTests testPureRotation30MatchesClosedForm]' started.
+Test Case '-[LightamerTestsIOP.HomographyTests testPureRotation30MatchesClosedForm]' passed (0.000 seconds).
+Test Suite 'HomographyTests' passed at 2026-10-31 07:38:55.815.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.014 (0.014) seconds
+Test Suite 'IOPModuleTests' started at 2026-10-31 07:38:55.815.
+Test Case '-[LightamerTestsIOP.IOPModuleTests testDefaultIdentityBoxErasedIsNoOp]' started.
+Test Case '-[LightamerTestsIOP.IOPModuleTests testDefaultIdentityBoxErasedIsNoOp]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.IOPModuleTests testModifyROIInErasedForwards]' started.
+Test Case '-[LightamerTestsIOP.IOPModuleTests testModifyROIInErasedForwards]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.IOPModuleTests testModifyROIOutErasedForwards]' started.
+Test Case '-[LightamerTestsIOP.IOPModuleTests testModifyROIOutErasedForwards]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.IOPModuleTests testPassthroughModuleConforms]' started.
+Test Case '-[LightamerTestsIOP.IOPModuleTests testPassthroughModuleConforms]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.IOPModuleTests testPassthroughParamsCodableAndHashable]' started.
+Test Case '-[LightamerTestsIOP.IOPModuleTests testPassthroughParamsCodableAndHashable]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.IOPModuleTests testPassthroughProcessIsNoOp]' started.
+Test Case '-[LightamerTestsIOP.IOPModuleTests testPassthroughProcessIsNoOp]' passed (0.004 seconds).
+Test Suite 'IOPModuleTests' passed at 2026-10-31 07:38:55.820.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.005 (0.006) seconds
+Test Suite 'IOPieceIscaleTests' started at 2026-10-31 07:38:55.820.
+Test Case '-[LightamerTestsIOP.IOPieceIscaleTests testForcedTilingPreservesIscale]' started.
+Test Case '-[LightamerTestsIOP.IOPieceIscaleTests testForcedTilingPreservesIscale]' passed (0.078 seconds).
+Test Case '-[LightamerTestsIOP.IOPieceIscaleTests testIscaleConstantAcrossPiecesInOneRun]' started.
+Test Case '-[LightamerTestsIOP.IOPieceIscaleTests testIscaleConstantAcrossPiecesInOneRun]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.IOPieceIscaleTests testThreeTiersStampEntryScale]' started.
+Test Case '-[LightamerTestsIOP.IOPieceIscaleTests testThreeTiersStampEntryScale]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.IOPieceIscaleTests testThreeTiersStampPipeType]' started.
+Test Case '-[LightamerTestsIOP.IOPieceIscaleTests testThreeTiersStampPipeType]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.IOPieceIscaleTests testUnscaledPreviewStampsOne]' started.
+Test Case '-[LightamerTestsIOP.IOPieceIscaleTests testUnscaledPreviewStampsOne]' passed (0.005 seconds).
+Test Suite 'IOPieceIscaleTests' passed at 2026-10-31 07:38:55.921.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.101 (0.101) seconds
+Test Suite 'L021DoubleScaleAuditTests' started at 2026-10-31 07:38:55.921.
+Test Case '-[LightamerTestsIOP.L021DoubleScaleAuditTests testFlipHPartialWindowMirrorsAboutUnscaledWidth]' started.
+Test Case '-[LightamerTestsIOP.L021DoubleScaleAuditTests testFlipHPartialWindowMirrorsAboutUnscaledWidth]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.L021DoubleScaleAuditTests testFlipScaledPreviewPreservesConstantImage]' started.
+Test Case '-[LightamerTestsIOP.L021DoubleScaleAuditTests testFlipScaledPreviewPreservesConstantImage]' passed (0.018 seconds).
+Test Case '-[LightamerTestsIOP.L021DoubleScaleAuditTests testFlipSwapModifyROIInFullFrameAtPreviewScale]' started.
+Test Case '-[LightamerTestsIOP.L021DoubleScaleAuditTests testFlipSwapModifyROIInFullFrameAtPreviewScale]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.L021DoubleScaleAuditTests testToneequalModifyROIInIsIdentity]' started.
+Test Case '-[LightamerTestsIOP.L021DoubleScaleAuditTests testToneequalModifyROIInIsIdentity]' passed (0.064 seconds).
+Test Case '-[LightamerTestsIOP.L021DoubleScaleAuditTests testToneequalPreviewHaloMatchesDtDiameter]' started.
+Test Case '-[LightamerTestsIOP.L021DoubleScaleAuditTests testToneequalPreviewHaloMatchesDtDiameter]' passed (0.248 seconds).
+Test Case '-[LightamerTestsIOP.L021DoubleScaleAuditTests testTrioPlusFlipNoneMatchesTrioOnlyAtPreviewScale]' started.
+Test Case '-[LightamerTestsIOP.L021DoubleScaleAuditTests testTrioPlusFlipNoneMatchesTrioOnlyAtPreviewScale]' passed (0.014 seconds).
+Test Suite 'L021DoubleScaleAuditTests' passed at 2026-10-31 07:38:56.266.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.344 (0.344) seconds
+Test Suite 'LabRoundTripTests' started at 2026-10-31 07:38:56.266.
+Test Case '-[LightamerTestsIOP.LabRoundTripTests testGPULabConversionMatchesCPU]' started.
+Test Case '-[LightamerTestsIOP.LabRoundTripTests testGPULabConversionMatchesCPU]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.LabRoundTripTests testKnownVectorsPrimaries]' started.
+Test Case '-[LightamerTestsIOP.LabRoundTripTests testKnownVectorsPrimaries]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LabRoundTripTests testKnownVectorsWhiteAndGrays]' started.
+Test Case '-[LightamerTestsIOP.LabRoundTripTests testKnownVectorsWhiteAndGrays]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LabRoundTripTests testRoundTripIdentityDouble]' started.
+Test Case '-[LightamerTestsIOP.LabRoundTripTests testRoundTripIdentityDouble]' passed (0.014 seconds).
+Test Case '-[LightamerTestsIOP.LabRoundTripTests testTrackBLabPairInsertionKeepsOutput]' started.
+Test Case '-[LightamerTestsIOP.LabRoundTripTests testTrackBLabPairInsertionKeepsOutput]' passed (0.404 seconds).
+Test Case '-[LightamerTestsIOP.LabRoundTripTests testUnboundedSemanticsNoNaN]' started.
+Test Case '-[LightamerTestsIOP.LabRoundTripTests testUnboundedSemanticsNoNaN]' passed (0.000 seconds).
+Test Suite 'LabRoundTripTests' passed at 2026-10-31 07:38:56.685.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.419 (0.420) seconds
+Test Suite 'LensAutoApplyTests' started at 2026-10-31 07:38:56.685.
+Test Case '-[LightamerTestsIOP.LensAutoApplyTests testDefaultsKeyRegisteredSpelling]' started.
+Test Case '-[LightamerTestsIOP.LensAutoApplyTests testDefaultsKeyRegisteredSpelling]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.LensAutoApplyTests testEffectiveDomainTable]' started.
+Test Case '-[LightamerTestsIOP.LensAutoApplyTests testEffectiveDomainTable]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensAutoApplyTests testInjectedReaderConsumedOncePerReload]' started.
+Test Case '-[LightamerTestsIOP.LensAutoApplyTests testInjectedReaderConsumedOncePerReload]' passed (0.102 seconds).
+Test Case '-[LightamerTestsIOP.LensAutoApplyTests testUserDefaultsFaceDefaultsFalse]' started.
+Test Case '-[LightamerTestsIOP.LensAutoApplyTests testUserDefaultsFaceDefaultsFalse]' passed (0.006 seconds).
+Test Suite 'LensAutoApplyTests' passed at 2026-10-31 07:38:56.797.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.111 (0.112) seconds
+Test Suite 'LensAutoCropTests' started at 2026-10-31 07:38:56.797.
+Test Case '-[LightamerTestsIOP.LensAutoCropTests testBeyondZoomCapReadsNil]' started.
+Test Case '-[LightamerTestsIOP.LensAutoCropTests testBeyondZoomCapReadsNil]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensAutoCropTests testClosedFormFactorThree]' started.
+Test Case '-[LightamerTestsIOP.LensAutoCropTests testClosedFormFactorThree]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.LensAutoCropTests testClosedFormFactorTwo]' started.
+Test Case '-[LightamerTestsIOP.LensAutoCropTests testClosedFormFactorTwo]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.LensAutoCropTests testDegenerateFramesReadNil]' started.
+Test Case '-[LightamerTestsIOP.LensAutoCropTests testDegenerateFramesReadNil]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensAutoCropTests testInsideAtOneReturnsExactOne]' started.
+Test Case '-[LightamerTestsIOP.LensAutoCropTests testInsideAtOneReturnsExactOne]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensAutoCropTests testInsideWithBarrelMap]' started.
+Test Case '-[LightamerTestsIOP.LensAutoCropTests testInsideWithBarrelMap]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensAutoCropTests testNonFiniteChannelFootprintFailsInside]' started.
+Test Case '-[LightamerTestsIOP.LensAutoCropTests testNonFiniteChannelFootprintFailsInside]' passed (0.000 seconds).
+Test Suite 'LensAutoCropTests' passed at 2026-10-31 07:38:56.800.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'LensCacheIsolationTests' started at 2026-10-31 07:38:56.800.
+Test Case '-[LightamerTestsIOP.LensCacheIsolationTests testDBTagAloneDoesNotInvalidate]' started.
+Test Case '-[LightamerTestsIOP.LensCacheIsolationTests testDBTagAloneDoesNotInvalidate]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensCacheIsolationTests testOnOffFlipsParamsHash]' started.
+Test Case '-[LightamerTestsIOP.LensCacheIsolationTests testOnOffFlipsParamsHash]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensCacheIsolationTests testSliderNudgeFlipsParamsHash]' started.
+Test Case '-[LightamerTestsIOP.LensCacheIsolationTests testSliderNudgeFlipsParamsHash]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensCacheIsolationTests testUnrelatedIOPDoesNotTouchLensFace]' started.
+Test Case '-[LightamerTestsIOP.LensCacheIsolationTests testUnrelatedIOPDoesNotTouchLensFace]' passed (0.000 seconds).
+Test Suite 'LensCacheIsolationTests' passed at 2026-10-31 07:38:56.801.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'LensMatchHardeningTests' started at 2026-10-31 07:38:56.801.
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testCropGateRejectsFullFrameAgainstAPSCSet]' started.
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testCropGateRejectsFullFrameAgainstAPSCSet]' passed (0.004 seconds).
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testDefaultParamsEncodeStaysByteIdentical]' started.
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testDefaultParamsEncodeStaysByteIdentical]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testMissingLensStringReadsMissingFocal]' started.
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testMissingLensStringReadsMissingFocal]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testReloadDefaultsFallsToCameraHitThenNil]' started.
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testReloadDefaultsFallsToCameraHitThenNil]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testReloadDefaultsPrefers35mmDerivation]' started.
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testReloadDefaultsPrefers35mmDerivation]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testResolveCommittedUsesCameraCropNotEntryCrop]' started.
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testResolveCommittedUsesCameraCropNotEntryCrop]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testThresholdTierFortyRejectedSixtyAccepted]' started.
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testThresholdTierFortyRejectedSixtyAccepted]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testTopScoreTiesRejectedAsAmbiguous]' started.
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testTopScoreTiesRejectedAsAmbiguous]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testUniqueCameraCropSingleHitAndMultiHitRejection]' started.
+Test Case '-[LightamerTestsIOP.LensMatchHardeningTests testUniqueCameraCropSingleHitAndMultiHitRejection]' passed (0.000 seconds).
+Test Suite 'LensMatchHardeningTests' passed at 2026-10-31 07:38:56.807.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.006 (0.006) seconds
+Test Suite 'LensPerCorrectionTests' started at 2026-10-31 07:38:56.807.
+Test Case '-[LightamerTestsIOP.LensPerCorrectionTests testAllNilTogglesPassThrough]' started.
+Test Case '-[LightamerTestsIOP.LensPerCorrectionTests testAllNilTogglesPassThrough]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensPerCorrectionTests testDefaultParamsEncodeStaysByteIdentical]' started.
+Test Case '-[LightamerTestsIOP.LensPerCorrectionTests testDefaultParamsEncodeStaysByteIdentical]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensPerCorrectionTests testEnabledFalseZeroesEverythingRegardlessOfToggles]' started.
+Test Case '-[LightamerTestsIOP.LensPerCorrectionTests testEnabledFalseZeroesEverythingRegardlessOfToggles]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensPerCorrectionTests testFamilyGateTable]' started.
+Test Case '-[LightamerTestsIOP.LensPerCorrectionTests testFamilyGateTable]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensPerCorrectionTests testGateDoesNotTouchManualStorage]' started.
+Test Case '-[LightamerTestsIOP.LensPerCorrectionTests testGateDoesNotTouchManualStorage]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensPerCorrectionTests testNeutralPredicateReadsActivatedLensfun]' started.
+Test Case '-[LightamerTestsIOP.LensPerCorrectionTests testNeutralPredicateReadsActivatedLensfun]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.LensPerCorrectionTests testNeutralPredicateReadsEnable]' started.
+Test Case '-[LightamerTestsIOP.LensPerCorrectionTests testNeutralPredicateReadsEnable]' passed (0.000 seconds).
+Test Suite 'LensPerCorrectionTests' passed at 2026-10-31 07:38:56.808.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'LensProjectionResolveTests' started at 2026-10-31 07:38:56.808.
+Test Case '-[LightamerTestsIOP.LensProjectionResolveTests testEnumSlotsAndReservedFaces]' started.
+Test Case '-[LightamerTestsIOP.LensProjectionResolveTests testEnumSlotsAndReservedFaces]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensProjectionResolveTests testFisheyeToRectilinearFoldDirection]' started.
+Test Case '-[LightamerTestsIOP.LensProjectionResolveTests testFisheyeToRectilinearFoldDirection]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensProjectionResolveTests testFoldIdentityWhenProjectionsCoincide]' started.
+Test Case '-[LightamerTestsIOP.LensProjectionResolveTests testFoldIdentityWhenProjectionsCoincide]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensProjectionResolveTests testLenientDecode]' started.
+Test Case '-[LightamerTestsIOP.LensProjectionResolveTests testLenientDecode]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensProjectionResolveTests testNonRectilinearResolvesWhenTargetSet]' started.
+Test Case '-[LightamerTestsIOP.LensProjectionResolveTests testNonRectilinearResolvesWhenTargetSet]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensProjectionResolveTests testParamsProjectionFieldsZeroDrift]' started.
+Test Case '-[LightamerTestsIOP.LensProjectionResolveTests testParamsProjectionFieldsZeroDrift]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensProjectionResolveTests testRectilinearEntryUnaffected]' started.
+Test Case '-[LightamerTestsIOP.LensProjectionResolveTests testRectilinearEntryUnaffected]' passed (0.000 seconds).
+Test Suite 'LensProjectionResolveTests' passed at 2026-10-31 07:38:56.809.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'LensSnapshotTests' started at 2026-10-31 07:38:56.809.
+Test Case '-[LightamerTestsIOP.LensSnapshotTests testBakeStampsSnapshotAndRoundTrips]' started.
+Test Case '-[LightamerTestsIOP.LensSnapshotTests testBakeStampsSnapshotAndRoundTrips]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensSnapshotTests testDBTagNeverShiftsParamsHash]' started.
+Test Case '-[LightamerTestsIOP.LensSnapshotTests testDBTagNeverShiftsParamsHash]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensSnapshotTests testRematchMissAndClear]' started.
+Test Case '-[LightamerTestsIOP.LensSnapshotTests testRematchMissAndClear]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensSnapshotTests testSnapshotNilEncodeStaysByteIdentical]' started.
+Test Case '-[LightamerTestsIOP.LensSnapshotTests testSnapshotNilEncodeStaysByteIdentical]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensSnapshotTests testSnapshottedRenderSurvivesDatabaseUninstall]' started.
+Test Case '-[LightamerTestsIOP.LensSnapshotTests testSnapshottedRenderSurvivesDatabaseUninstall]' passed (0.000 seconds).
+Test Suite 'LensSnapshotTests' passed at 2026-10-31 07:38:56.810.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'LensfunDBTests' started at 2026-10-31 07:38:56.810.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testFixtureSubsetParses]' started.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testFixtureSubsetParses]' passed (0.045 seconds).
+Test Case '-[LightamerTestsIOP.LensfunDBTests testHermiteEndpointsAndMidpoint]' started.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testHermiteEndpointsAndMidpoint]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunDBTests testMatchSonyE16]' started.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testMatchSonyE16]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.LensfunDBTests testNormalizeModel]' started.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testNormalizeModel]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunDBTests testParseSonyE16CountsAndFields]' started.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testParseSonyE16CountsAndFields]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunDBTests testParseSparseTCAAndPoly5]' started.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testParseSparseTCAAndPoly5]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunDBTests testRefuseFisheyeType]' started.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testRefuseFisheyeType]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunDBTests testResolveCanonPoly3DFactor]' started.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testResolveCanonPoly3DFactor]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunDBTests testResolveEmptyCalibrationsNil]' started.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testResolveEmptyCalibrationsNil]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunDBTests testResolvePoly5ExactTake]' started.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testResolvePoly5ExactTake]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunDBTests testResolvePoly5SplineMidpoint]' started.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testResolvePoly5SplineMidpoint]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunDBTests testResolveSonyE16Distortion]' started.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testResolveSonyE16Distortion]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunDBTests testResolveTCAPoly3Sparse]' started.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testResolveTCAPoly3Sparse]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunDBTests testVignetteExactTake]' started.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testVignetteExactTake]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunDBTests testVignetteIDWMidpointAndClamp]' started.
+Test Case '-[LightamerTestsIOP.LensfunDBTests testVignetteIDWMidpointAndClamp]' passed (0.000 seconds).
+Test Suite 'LensfunDBTests' passed at 2026-10-31 07:38:56.857.
+	 Executed 15 tests, with 0 failures (0 unexpected) in 0.047 (0.047) seconds
+Test Suite 'LensfunMemoTests' started at 2026-10-31 07:38:56.857.
+Test Case '-[LightamerTestsIOP.LensfunMemoTests testLRUCapacityEvictsOldest]' started.
+Test Case '-[LightamerTestsIOP.LensfunMemoTests testLRUCapacityEvictsOldest]' passed (0.015 seconds).
+Test Case '-[LightamerTestsIOP.LensfunMemoTests testMemoIsSizeIndependent]' started.
+Test Case '-[LightamerTestsIOP.LensfunMemoTests testMemoIsSizeIndependent]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunMemoTests testParameterChangeMissesMemo]' started.
+Test Case '-[LightamerTestsIOP.LensfunMemoTests testParameterChangeMissesMemo]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunMemoTests testReinstallInvalidatesWholeTable]' started.
+Test Case '-[LightamerTestsIOP.LensfunMemoTests testReinstallInvalidatesWholeTable]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunMemoTests testSecondSameParamsCallHitsMemoWithoutRescan]' started.
+Test Case '-[LightamerTestsIOP.LensfunMemoTests testSecondSameParamsCallHitsMemoWithoutRescan]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.LensfunMemoTests testUninstallClearsStoreFace]' started.
+Test Case '-[LightamerTestsIOP.LensfunMemoTests testUninstallClearsStoreFace]' passed (0.000 seconds).
+Test Suite 'LensfunMemoTests' passed at 2026-10-31 07:38:56.874.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.016 (0.016) seconds
+Test Suite 'M2DefaultChainPerfTests' started at 2026-10-31 07:38:56.874.
+Test Case '-[LightamerTestsIOP.M2DefaultChainPerfTests testM2DefaultChainPreviewWarm]' started.
+Test Case '-[LightamerTestsIOP.M2DefaultChainPerfTests testM2DefaultChainPreviewWarm]' passed (3.147 seconds).
+Test Case '-[LightamerTestsIOP.M2DefaultChainPerfTests testM2DragGateTwoChains]' started.
+Test Case '-[LightamerTestsIOP.M2DefaultChainPerfTests testM2DragGateTwoChains]' passed (4.115 seconds).
+Test Suite 'M2DefaultChainPerfTests' passed at 2026-10-31 07:39:04.136.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 7.262 (7.262) seconds
+Test Suite 'MTBAlignTests' started at 2026-10-31 07:39:04.136.
+Test Case '-[LightamerTestsIOP.MTBAlignTests testExactHitNoExposureDelta]' started.
+Test Case '-[LightamerTestsIOP.MTBAlignTests testExactHitNoExposureDelta]' passed (1.044 seconds).
+Test Case '-[LightamerTestsIOP.MTBAlignTests testExactHitWithExposureDeltas]' started.
+Test Case '-[LightamerTestsIOP.MTBAlignTests testExactHitWithExposureDeltas]' passed (0.461 seconds).
+Test Case '-[LightamerTestsIOP.MTBAlignTests testExposureRatioCheckFailsBeyondFivePercent]' started.
+Test Case '-[LightamerTestsIOP.MTBAlignTests testExposureRatioCheckFailsBeyondFivePercent]' passed (0.022 seconds).
+Test Case '-[LightamerTestsIOP.MTBAlignTests testExposureRatioCheckPassesWithinTolerance]' started.
+Test Case '-[LightamerTestsIOP.MTBAlignTests testExposureRatioCheckPassesWithinTolerance]' passed (0.024 seconds).
+Test Case '-[LightamerTestsIOP.MTBAlignTests testLowTextureFrameSkipsAlignment]' started.
+Test Case '-[LightamerTestsIOP.MTBAlignTests testLowTextureFrameSkipsAlignment]' passed (0.011 seconds).
+Test Case '-[LightamerTestsIOP.MTBAlignTests testPrecheckOverrideAdmitsApertureMismatchWithWarning]' started.
+Test Case '-[LightamerTestsIOP.MTBAlignTests testPrecheckOverrideAdmitsApertureMismatchWithWarning]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MTBAlignTests testPrecheckOverrideAdmitsISOMismatchAndFoldsISOIntoEV]' started.
+Test Case '-[LightamerTestsIOP.MTBAlignTests testPrecheckOverrideAdmitsISOMismatchAndFoldsISOIntoEV]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MTBAlignTests testPrecheckPassesCanonicalBracket]' started.
+Test Case '-[LightamerTestsIOP.MTBAlignTests testPrecheckPassesCanonicalBracket]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MTBAlignTests testPrecheckRejectsApertureMismatchWithoutOverride]' started.
+Test Case '-[LightamerTestsIOP.MTBAlignTests testPrecheckRejectsApertureMismatchWithoutOverride]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MTBAlignTests testPrecheckRejectsCameraMismatch]' started.
+Test Case '-[LightamerTestsIOP.MTBAlignTests testPrecheckRejectsCameraMismatch]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MTBAlignTests testPrecheckRejectsIdenticalShutter]' started.
+Test Case '-[LightamerTestsIOP.MTBAlignTests testPrecheckRejectsIdenticalShutter]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MTBAlignTests testPrecheckRejectsISOMismatchWithoutOverride]' started.
+Test Case '-[LightamerTestsIOP.MTBAlignTests testPrecheckRejectsISOMismatchWithoutOverride]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MTBAlignTests testShiftBeyondSearchCoverageDegrades]' started.
+Test Case '-[LightamerTestsIOP.MTBAlignTests testShiftBeyondSearchCoverageDegrades]' passed (0.259 seconds).
+Test Case '-[LightamerTestsIOP.MTBAlignTests testXorDistanceZeroAtPerfectAndPositiveOff]' started.
+Test Case '-[LightamerTestsIOP.MTBAlignTests testXorDistanceZeroAtPerfectAndPositiveOff]' passed (0.011 seconds).
+Test Suite 'MTBAlignTests' passed at 2026-10-31 07:39:05.969.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 1.832 (1.833) seconds
+Test Suite 'MemoryBudgetTests' started at 2026-10-31 07:39:05.969.
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testClearCICachesCallableWithoutCorruption]' started.
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testClearCICachesCallableWithoutCorruption]' passed (0.009 seconds).
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testCompositeFullWindowedPlaneSizes]' started.
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testCompositeFullWindowedPlaneSizes]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testCompositeLayeredPreviewFootprintBounded]' started.
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testCompositeLayeredPreviewFootprintBounded]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testCropHalvesMemoryAccounting]' started.
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testCropHalvesMemoryAccounting]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testCullingDualPaneLedgerStaysOnTheBudgetFace]' started.
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testCullingDualPaneLedgerStaysOnTheBudgetFace]' passed (0.064 seconds).
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testEnforceBudgetEvictionOrderWithinTiers]' started.
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testEnforceBudgetEvictionOrderWithinTiers]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testEnforceBudgetEvictsCurrentInactiveResolutions]' started.
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testEnforceBudgetEvictsCurrentInactiveResolutions]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testEnforceBudgetEvictsOtherImagePreviewsButKeepsPrevious]' started.
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testEnforceBudgetEvictsOtherImagePreviewsButKeepsPrevious]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testEnforceBudgetKeepEvictMatrix]' started.
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testEnforceBudgetKeepEvictMatrix]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testEnforceBudgetNoOpUnderThreshold]' started.
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testEnforceBudgetNoOpUnderThreshold]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testHaloExpansionStaysBelowFullFrame]' started.
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testHaloExpansionStaysBelowFullFrame]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testNLMeansFullFootprintBudget]' started.
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testNLMeansFullFootprintBudget]' passed (1.938 seconds).
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testPreviewWorkingSetBoundedByInjectedBudget]' started.
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testPreviewWorkingSetBoundedByInjectedBudget]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testSequentialLoadLoopStaysUnderBudget]' started.
+Test Case '-[LightamerTestsIOP.MemoryBudgetTests testSequentialLoadLoopStaysUnderBudget]' passed (0.001 seconds).
+Test Suite 'MemoryBudgetTests' passed at 2026-10-31 07:39:08.017.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 2.047 (2.048) seconds
+Test Suite 'MertensFusionTests' started at 2026-10-31 07:39:08.017.
+Test Case '-[LightamerTestsIOP.MertensFusionTests testAdaptiveLevelsTruthTable]' started.
+Test Case '-[LightamerTestsIOP.MertensFusionTests testAdaptiveLevelsTruthTable]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.MertensFusionTests testDecimationStepAndLinspaceAnchors]' started.
+Test Case '-[LightamerTestsIOP.MertensFusionTests testDecimationStepAndLinspaceAnchors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensFusionTests testDeghostTierTableAndUsableGate]' started.
+Test Case '-[LightamerTestsIOP.MertensFusionTests testDeghostTierTableAndUsableGate]' passed (0.039 seconds).
+Test Case '-[LightamerTestsIOP.MertensFusionTests testDisplayEncodeJunctionHairlineDocumented]' started.
+Test Case '-[LightamerTestsIOP.MertensFusionTests testDisplayEncodeJunctionHairlineDocumented]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensFusionTests testDisplayEncodeRoundTripWithinBandAndClamps]' started.
+Test Case '-[LightamerTestsIOP.MertensFusionTests testDisplayEncodeRoundTripWithinBandAndClamps]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensFusionTests testFuseStripSmallFaceRunsFiniteAndHullBounded]' started.
+Test Case '-[LightamerTestsIOP.MertensFusionTests testFuseStripSmallFaceRunsFiniteAndHullBounded]' passed (0.018 seconds).
+Test Case '-[LightamerTestsIOP.MertensFusionTests testFuseWholeFrameDeghostMediumSmokeGreen]' started.
+Test Case '-[LightamerTestsIOP.MertensFusionTests testFuseWholeFrameDeghostMediumSmokeGreen]' passed (0.032 seconds).
+Test Case '-[LightamerTestsIOP.MertensFusionTests testGaussianBlurConstantFieldFixedPointAndNormalization]' started.
+Test Case '-[LightamerTestsIOP.MertensFusionTests testGaussianBlurConstantFieldFixedPointAndNormalization]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.MertensFusionTests testHaloRowsTruthTableWithFocusStackAnchor]' started.
+Test Case '-[LightamerTestsIOP.MertensFusionTests testHaloRowsTruthTableWithFocusStackAnchor]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensFusionTests testQuantileBrightnessMappingMonotoneAndClamps]' started.
+Test Case '-[LightamerTestsIOP.MertensFusionTests testQuantileBrightnessMappingMonotoneAndClamps]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.MertensFusionTests testStaticSampleFallbackCoversAllMotionDegenerate]' started.
+Test Case '-[LightamerTestsIOP.MertensFusionTests testStaticSampleFallbackCoversAllMotionDegenerate]' passed (0.010 seconds).
+Test Case '-[LightamerTestsIOP.MertensFusionTests testSubstituteLUTIdentityWhenFramesMatch]' started.
+Test Case '-[LightamerTestsIOP.MertensFusionTests testSubstituteLUTIdentityWhenFramesMatch]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.MertensFusionTests testWeightFamilyGeometricProductAnchorsAndSymmetry]' started.
+Test Case '-[LightamerTestsIOP.MertensFusionTests testWeightFamilyGeometricProductAnchorsAndSymmetry]' passed (0.001 seconds).
+Test Suite 'MertensFusionTests' passed at 2026-10-31 07:39:08.129.
+	 Executed 13 tests, with 0 failures (0 unexpected) in 0.112 (0.112) seconds
+Test Suite 'MertensLegTests' started at 2026-10-31 07:39:08.129.
+Test Case '-[LightamerTestsIOP.MertensLegTests testAlignedBandStartsDivisibleByDeepestReduceGrid]' started.
+Test Case '-[LightamerTestsIOP.MertensLegTests testAlignedBandStartsDivisibleByDeepestReduceGrid]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.MertensLegTests testAlignmentLabelsVocabularyPassesThrough]' started.
+Test Case '-[LightamerTestsIOP.MertensLegTests testAlignmentLabelsVocabularyPassesThrough]' passed (0.050 seconds).
+Test Case '-[LightamerTestsIOP.MertensLegTests testBandOuterFuseMatchesWholeFrameGolden]' started.
+Test Case '-[LightamerTestsIOP.MertensLegTests testBandOuterFuseMatchesWholeFrameGolden]' passed (0.944 seconds).
+Test Case '-[LightamerTestsIOP.MertensLegTests testCancelMidFlightSettlesCancelled]' started.
+Test Case '-[LightamerTestsIOP.MertensLegTests testCancelMidFlightSettlesCancelled]' passed (0.235 seconds).
+Test Case '-[LightamerTestsIOP.MertensLegTests testDeghostOffLandsWithoutMaskOrLayerStack]' started.
+Test Case '-[LightamerTestsIOP.MertensLegTests testDeghostOffLandsWithoutMaskOrLayerStack]' passed (0.081 seconds).
+Test Case '-[LightamerTestsIOP.MertensLegTests testDoubleRunProductBitIdentity]' started.
+Test Case '-[LightamerTestsIOP.MertensLegTests testDoubleRunProductBitIdentity]' passed (0.227 seconds).
+Test Case '-[LightamerTestsIOP.MertensLegTests testExistingKindLandingByteZeroDriftWithDefaults]' started.
+Test Case '-[LightamerTestsIOP.MertensLegTests testExistingKindLandingByteZeroDriftWithDefaults]' passed (0.028 seconds).
+Test Case '-[LightamerTestsIOP.MertensLegTests testExtentMismatchTypedFailure]' started.
+Test Case '-[LightamerTestsIOP.MertensLegTests testExtentMismatchTypedFailure]' passed (0.028 seconds).
+Test Case '-[LightamerTestsIOP.MertensLegTests testGridRowSubstituteLUTsMatchWholeFrameFace]' started.
+Test Case '-[LightamerTestsIOP.MertensLegTests testGridRowSubstituteLUTsMatchWholeFrameFace]' passed (0.092 seconds).
+Test Case '-[LightamerTestsIOP.MertensLegTests testHappyPathLandsMertensProductWithProvenance]' started.
+Test Case '-[LightamerTestsIOP.MertensLegTests testHappyPathLandsMertensProductWithProvenance]' passed (0.117 seconds).
+Test Case '-[LightamerTestsIOP.MertensLegTests testProgressConstantDoneEqualsTotalThroughRealLeg]' started.
+Test Case '-[LightamerTestsIOP.MertensLegTests testProgressConstantDoneEqualsTotalThroughRealLeg]' passed (0.165 seconds).
+Test Case '-[LightamerTestsIOP.MertensLegTests testSeparableDilateMatchesGoldenNaive]' started.
+Test Case '-[LightamerTestsIOP.MertensLegTests testSeparableDilateMatchesGoldenNaive]' passed (0.094 seconds).
+Test Case '-[LightamerTestsIOP.MertensLegTests testShiftedStagedSourceStaysFinite]' started.
+Test Case '-[LightamerTestsIOP.MertensLegTests testShiftedStagedSourceStaysFinite]' passed (0.018 seconds).
+Test Case '-[LightamerTestsIOP.MertensLegTests testStageLUTsFallBackOnAllMotionMask]' started.
+Test Case '-[LightamerTestsIOP.MertensLegTests testStageLUTsFallBackOnAllMotionMask]' passed (0.224 seconds).
+Test Suite 'MertensLegTests' passed at 2026-10-31 07:39:10.432.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 2.302 (2.303) seconds
+Test Suite 'MertensMergeKindTests' started at 2026-10-31 07:39:10.432.
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testDefaultTagVocabularyIncludingMertens]' started.
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testDefaultTagVocabularyIncludingMertens]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMergeParamsMertensFieldsNilByDefaultAndRoundTrip]' started.
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMergeParamsMertensFieldsNilByDefaultAndRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensKindRawValueAndCaseCount]' started.
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensKindRawValueAndCaseCount]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensLegDoneEqualsTotalExactly]' started.
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensLegDoneEqualsTotalExactly]' passed (0.028 seconds).
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensVerdictsAllMetadataMissingYieldsZeroEVWithWarnings]' started.
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensVerdictsAllMetadataMissingYieldsZeroEVWithWarnings]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensVerdictsApertureAndISODifferencesWarnNotReject]' started.
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensVerdictsApertureAndISODifferencesWarnNotReject]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensVerdictsBodyMismatchWarns]' started.
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensVerdictsBodyMismatchWarns]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensVerdictsEVCompositionTable]' started.
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensVerdictsEVCompositionTable]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensVerdictsNeverRejectsWhereStrictPrecheckDoes]' started.
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensVerdictsNeverRejectsWhereStrictPrecheckDoes]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensVerdictsSameExposurePackAdmitsCleanly]' started.
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testMertensVerdictsSameExposurePackAdmitsCleanly]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testProductionLegLandsAfterM5_2_02]' started.
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testProductionLegLandsAfterM5_2_02]' passed (0.027 seconds).
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testProvenanceKindMirrorAcrossAllCases]' started.
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testProvenanceKindMirrorAcrossAllCases]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testResolvedDeghostNilAndUnknownFallBackToMedium]' started.
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testResolvedDeghostNilAndUnknownFallBackToMedium]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testStepTotalMertensFourNPlusThreeAndExistingSnapshots]' started.
+Test Case '-[LightamerTestsIOP.MertensMergeKindTests testStepTotalMertensFourNPlusThreeAndExistingSnapshots]' passed (0.000 seconds).
+Test Suite 'MertensMergeKindTests' passed at 2026-10-31 07:39:10.489.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 0.056 (0.057) seconds
+Test Suite 'MertensRasterDomainTests' started at 2026-10-31 07:39:10.489.
+Test Case '-[LightamerTestsIOP.MertensRasterDomainTests testMertensLegProductResolvesSrgbEndToEnd]' started.
+Test Case '-[LightamerTestsIOP.MertensRasterDomainTests testMertensLegProductResolvesSrgbEndToEnd]' passed (0.031 seconds).
+Test Case '-[LightamerTestsIOP.MertensRasterDomainTests testMertensProductResolvesSrgbDisplayReferred]' started.
+Test Case '-[LightamerTestsIOP.MertensRasterDomainTests testMertensProductResolvesSrgbDisplayReferred]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.MertensRasterDomainTests testNoIccFloat32RuleUnregressed]' started.
+Test Case '-[LightamerTestsIOP.MertensRasterDomainTests testNoIccFloat32RuleUnregressed]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MertensRasterDomainTests testRobertsonProductResolvesSceneLinearViaPrime]' started.
+Test Case '-[LightamerTestsIOP.MertensRasterDomainTests testRobertsonProductResolvesSceneLinearViaPrime]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.MertensRasterDomainTests testWriteFloatTIFFDefaultParameterZeroDrift]' started.
+Test Case '-[LightamerTestsIOP.MertensRasterDomainTests testWriteFloatTIFFDefaultParameterZeroDrift]' passed (0.001 seconds).
+Test Suite 'MertensRasterDomainTests' passed at 2026-10-31 07:39:10.526.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.036 (0.037) seconds
+Test Suite 'MetalContextTests' started at 2026-10-31 07:39:10.526.
+Test Case '-[LightamerTestsIOP.MetalContextTests testFunctionConstantsSpecialization]' started.
+Test Case '-[LightamerTestsIOP.MetalContextTests testFunctionConstantsSpecialization]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.MetalContextTests testMetalContextInit]' started.
+Test Case '-[LightamerTestsIOP.MetalContextTests testMetalContextInit]' passed (0.020 seconds).
+Test Case '-[LightamerTestsIOP.MetalContextTests testPassThroughKernelBitExact]' started.
+Test Case '-[LightamerTestsIOP.MetalContextTests testPassThroughKernelBitExact]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.MetalContextTests testPSOCacheHit]' started.
+Test Case '-[LightamerTestsIOP.MetalContextTests testPSOCacheHit]' passed (0.001 seconds).
+Test Suite 'MetalContextTests' passed at 2026-10-31 07:39:10.549.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.023 (0.023) seconds
+Test Suite 'ModuleBoundaryTests' started at 2026-10-31 07:39:10.549.
+Test Case '-[LightamerTestsIOP.ModuleBoundaryTests testCorePublicSurfaceAccessible]' started.
+Test Case '-[LightamerTestsIOP.ModuleBoundaryTests testCorePublicSurfaceAccessible]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ModuleBoundaryTests testInternalSymbolsNotAccessible]' started.
+Test Case '-[LightamerTestsIOP.ModuleBoundaryTests testInternalSymbolsNotAccessible]' passed (0.000 seconds).
+Test Suite 'ModuleBoundaryTests' passed at 2026-10-31 07:39:10.550.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'MonochromeCommitTests' started at 2026-10-31 07:39:10.550.
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testApplySpotValue]' started.
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testApplySpotValue]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testBlueFilterDirectionFavorsBlue]' started.
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testBlueFilterDirectionFavorsBlue]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testColorFilterCenterIsOne]' started.
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testColorFilterCenterIsOne]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testColorFilterClampsAtOne]' started.
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testColorFilterClampsAtOne]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testColorFilterSpotValue]' started.
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testColorFilterSpotValue]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testCommitWritesCPUUniforms]' started.
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testCommitWritesCPUUniforms]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testEffectiveSigmaSFoldsScale]' started.
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testEffectiveSigmaSFoldsScale]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testEnvelopeSpotValues]' started.
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testEnvelopeSpotValues]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testGridLegSigmasCPUvsCL]' started.
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testGridLegSigmasCPUvsCL]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testMonochromeSlotOrderConstraint]' started.
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testMonochromeSlotOrderConstraint]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testSigma2CLDivergencePinned]' started.
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testSigma2CLDivergencePinned]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testSigma2CPUMatchesDtCPUFormula]' started.
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testSigma2CPUMatchesDtCPUFormula]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testSizeInfinityFilterIdentity]' started.
+Test Case '-[LightamerTestsIOP.MonochromeCommitTests testSizeInfinityFilterIdentity]' passed (0.000 seconds).
+Test Suite 'MonochromeCommitTests' passed at 2026-10-31 07:39:10.552.
+	 Executed 13 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'MonochromeGridTests' started at 2026-10-31 07:39:10.552.
+Test Case '-[LightamerTestsIOP.MonochromeGridTests testForcedTilingMatchesWholePlane]' started.
+Test Case '-[LightamerTestsIOP.MonochromeGridTests testForcedTilingMatchesWholePlane]' passed (0.187 seconds).
+Test Case '-[LightamerTestsIOP.MonochromeGridTests testGPUGridPathActuallyEngages]' started.
+Test Case '-[LightamerTestsIOP.MonochromeGridTests testGPUGridPathActuallyEngages]' passed (0.204 seconds).
+Test Case '-[LightamerTestsIOP.MonochromeGridTests testGridVsDirectWindowSmallRadiusCrossing]' started.
+Test Case '-[LightamerTestsIOP.MonochromeGridTests testGridVsDirectWindowSmallRadiusCrossing]' passed (0.012 seconds).
+Test Suite 'MonochromeGridTests' passed at 2026-10-31 07:39:10.954.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.402 (0.402) seconds
+Test Suite 'MultiDisplayProfileTests' started at 2026-10-31 07:39:10.954.
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testDualCoordinatorSoftProofIndependence]' started.
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testDualCoordinatorSoftProofIndependence]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testDualWindowDualProfileIndependence]' started.
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testDualWindowDualProfileIndependence]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testExactTRCLinearVariantFromMatrixShaperICC]' started.
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testExactTRCLinearVariantFromMatrixShaperICC]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testManualOverrideCarriesExactICCBytes]' started.
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testManualOverrideCarriesExactICCBytes]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testManualOverrideFallbackLegIsByteExact]' started.
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testManualOverrideFallbackLegIsByteExact]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testOverrideGracefulDegradationOnMissingFile]' started.
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testOverrideGracefulDegradationOnMissingFile]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testOverrideStorePrecedenceAndClear]' started.
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testOverrideStorePrecedenceAndClear]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testProfileSwitchFlipsOnlyTerminalKeys]' started.
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testProfileSwitchFlipsOnlyTerminalKeys]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testScreenEventNotificationsWired]' started.
+Test Case '-[LightamerTestsIOP.MultiDisplayProfileTests testScreenEventNotificationsWired]' passed (0.017 seconds).
+Test Suite 'MultiDisplayProfileTests' passed at 2026-10-31 07:39:10.996.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.041 (0.042) seconds
+Test Suite 'MultiResolutionTests' started at 2026-10-31 07:39:10.996.
+Test Case '-[LightamerTestsIOP.MultiResolutionTests testExportRunsActivatedAndCachesNothing]' started.
+Test Case '-[LightamerTestsIOP.MultiResolutionTests testExportRunsActivatedAndCachesNothing]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOP.MultiResolutionTests testFullRunIsScaleOne]' started.
+Test Case '-[LightamerTestsIOP.MultiResolutionTests testFullRunIsScaleOne]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOP.MultiResolutionTests testPreviewAndThumbnailKeysDoNotCollide]' started.
+Test Case '-[LightamerTestsIOP.MultiResolutionTests testPreviewAndThumbnailKeysDoNotCollide]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.MultiResolutionTests testPreviewPipeRunsAtSubUnitScale]' started.
+Test Case '-[LightamerTestsIOP.MultiResolutionTests testPreviewPipeRunsAtSubUnitScale]' passed (0.018 seconds).
+Test Case '-[LightamerTestsIOP.MultiResolutionTests testScaledInputPlaneLongEdge]' started.
+Test Case '-[LightamerTestsIOP.MultiResolutionTests testScaledInputPlaneLongEdge]' passed (0.031 seconds).
+Test Case '-[LightamerTestsIOP.MultiResolutionTests testThumbnailLazyLifecycle]' started.
+Test Case '-[LightamerTestsIOP.MultiResolutionTests testThumbnailLazyLifecycle]' passed (0.012 seconds).
+Test Suite 'MultiResolutionTests' passed at 2026-10-31 07:39:11.077.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.080 (0.080) seconds
+Test Suite 'NoiseProfileStoreTests' started at 2026-10-31 07:39:11.077.
+Test Case '-[LightamerTestsIOP.NoiseProfileStoreTests testExactHitAndOutOfRangeClamp]' started.
+Test Case '-[LightamerTestsIOP.NoiseProfileStoreTests testExactHitAndOutOfRangeClamp]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.NoiseProfileStoreTests testMakerSubstringAndModelExact]' started.
+Test Case '-[LightamerTestsIOP.NoiseProfileStoreTests testMakerSubstringAndModelExact]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.NoiseProfileStoreTests testMidISOInterpolatesHandComputedVector]' started.
+Test Case '-[LightamerTestsIOP.NoiseProfileStoreTests testMidISOInterpolatesHandComputedVector]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.NoiseProfileStoreTests testRealBundleLoadsUnderOneSecond]' started.
+Test Case '-[LightamerTestsIOP.NoiseProfileStoreTests testRealBundleLoadsUnderOneSecond]' passed (0.027 seconds).
+Test Case '-[LightamerTestsIOP.NoiseProfileStoreTests testUnknownMakerModelFallsBackToGeneric]' started.
+Test Case '-[LightamerTestsIOP.NoiseProfileStoreTests testUnknownMakerModelFallsBackToGeneric]' passed (0.000 seconds).
+Test Suite 'NoiseProfileStoreTests' passed at 2026-10-31 07:39:11.105.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.028 (0.029) seconds
+Test Suite 'PanoCameraTests' started at 2026-10-31 07:39:11.105.
+Test Case '-[LightamerTestsIOP.PanoCameraTests testFocalFromHomographyKnownFocal]' started.
+Test Case '-[LightamerTestsIOP.PanoCameraTests testFocalFromHomographyKnownFocal]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoCameraTests testFocalFromHomographyPureRotationNil]' started.
+Test Case '-[LightamerTestsIOP.PanoCameraTests testFocalFromHomographyPureRotationNil]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoCameraTests testLMBundleN2DegenerateConverges]' started.
+Test Case '-[LightamerTestsIOP.PanoCameraTests testLMBundleN2DegenerateConverges]' passed (0.035 seconds).
+Test Case '-[LightamerTestsIOP.PanoCameraTests testLMBundleRecoversKnownCameras]' started.
+Test Case '-[LightamerTestsIOP.PanoCameraTests testLMBundleRecoversKnownCameras]' passed (0.252 seconds).
+Test Case '-[LightamerTestsIOP.PanoCameraTests testLMBundleTypedFailureGates]' started.
+Test Case '-[LightamerTestsIOP.PanoCameraTests testLMBundleTypedFailureGates]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoCameraTests testWaveCorrectIdempotentBitwise]' started.
+Test Case '-[LightamerTestsIOP.PanoCameraTests testWaveCorrectIdempotentBitwise]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoCameraTests testWaveCorrectStraightensAndSignOrients]' started.
+Test Case '-[LightamerTestsIOP.PanoCameraTests testWaveCorrectStraightensAndSignOrients]' passed (0.000 seconds).
+Test Suite 'PanoCameraTests' passed at 2026-10-31 07:39:11.394.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.288 (0.288) seconds
+Test Suite 'PanoCropTests' started at 2026-10-31 07:39:11.394.
+Test Case '-[LightamerTestsIOP.PanoCropTests testAllInvalidTypedOnBothPaths]' started.
+Test Case '-[LightamerTestsIOP.PanoCropTests testAllInvalidTypedOnBothPaths]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.PanoCropTests testDoubleIslandMatchesNaiveBitIdentical]' started.
+Test Case '-[LightamerTestsIOP.PanoCropTests testDoubleIslandMatchesNaiveBitIdentical]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoCropTests testFullGridMatchesNaiveBitIdentical]' started.
+Test Case '-[LightamerTestsIOP.PanoCropTests testFullGridMatchesNaiveBitIdentical]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoCropTests testLShapeMatchesNaiveBitIdentical]' started.
+Test Case '-[LightamerTestsIOP.PanoCropTests testLShapeMatchesNaiveBitIdentical]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoCropTests testMinPoolOneInvalidPixelPoisonsItsCell]' started.
+Test Case '-[LightamerTestsIOP.PanoCropTests testMinPoolOneInvalidPixelPoisonsItsCell]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOP.PanoCropTests testNotchedBandMatchesNaiveBitIdentical]' started.
+Test Case '-[LightamerTestsIOP.PanoCropTests testNotchedBandMatchesNaiveBitIdentical]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoCropTests testPooledRowsShareTheCellBudget]' started.
+Test Case '-[LightamerTestsIOP.PanoCropTests testPooledRowsShareTheCellBudget]' passed (0.004 seconds).
+Test Case '-[LightamerTestsIOP.PanoCropTests testRandomGridsAgreeOnMaxArea]' started.
+Test Case '-[LightamerTestsIOP.PanoCropTests testRandomGridsAgreeOnMaxArea]' passed (0.143 seconds).
+Test Case '-[LightamerTestsIOP.PanoCropTests testRescaleClampsToPixelBounds]' started.
+Test Case '-[LightamerTestsIOP.PanoCropTests testRescaleClampsToPixelBounds]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.PanoCropTests testSingleRowMatchesNaiveBitIdentical]' started.
+Test Case '-[LightamerTestsIOP.PanoCropTests testSingleRowMatchesNaiveBitIdentical]' passed (0.000 seconds).
+Test Suite 'PanoCropTests' passed at 2026-10-31 07:39:11.550.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.155 (0.156) seconds
+Test Suite 'PanoFeatureTests' started at 2026-10-31 07:39:11.550.
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testDescriptorDiscriminativeAcrossShiftedViews]' started.
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testDescriptorDiscriminativeAcrossShiftedViews]' passed (1.567 seconds).
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testDoGDetectsSyntheticDotLattice]' started.
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testDoGDetectsSyntheticDotLattice]' passed (0.279 seconds).
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testEncodedSeamSkipsReencode]' started.
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testEncodedSeamSkipsReencode]' passed (0.004 seconds).
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testFeatureCapTruncation]' started.
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testFeatureCapTruncation]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testOctaveCountTable]' started.
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testOctaveCountTable]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testOrientationFollowsBlockRotation]' started.
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testOrientationFollowsBlockRotation]' passed (0.531 seconds).
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testPrepareDoubleRunBitIdentity]' started.
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testPrepareDoubleRunBitIdentity]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testPreviewDownsampleSizeTable]' started.
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testPreviewDownsampleSizeTable]' passed (3.290 seconds).
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testRootNormalizationUnitNorm]' started.
+Test Case '-[LightamerTestsIOP.PanoFeatureTests testRootNormalizationUnitNorm]' passed (0.283 seconds).
+Test Suite 'PanoFeatureTests' passed at 2026-10-31 07:39:17.512.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 5.961 (5.962) seconds
+Test Suite 'PanoGainTests' started at 2026-10-31 07:39:17.512.
+Test Case '-[LightamerTestsIOP.PanoGainTests testAtSampleFloorYieldsEquation]' started.
+Test Case '-[LightamerTestsIOP.PanoGainTests testAtSampleFloorYieldsEquation]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.PanoGainTests testBelowSampleFloorYieldsNoEquation]' started.
+Test Case '-[LightamerTestsIOP.PanoGainTests testBelowSampleFloorYieldsNoEquation]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.PanoGainTests testClipCeilingAndWarningFlag]' started.
+Test Case '-[LightamerTestsIOP.PanoGainTests testClipCeilingAndWarningFlag]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.PanoGainTests testDisconnectedImageKeepsIdentityGain]' started.
+Test Case '-[LightamerTestsIOP.PanoGainTests testDisconnectedImageKeepsIdentityGain]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.PanoGainTests testNegativeSideClipCeiling]' started.
+Test Case '-[LightamerTestsIOP.PanoGainTests testNegativeSideClipCeiling]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.PanoGainTests testReferenceAnchorPin]' started.
+Test Case '-[LightamerTestsIOP.PanoGainTests testReferenceAnchorPin]' passed (0.004 seconds).
+Test Case '-[LightamerTestsIOP.PanoGainTests testSampleCanvasSizeCappedAt900]' started.
+Test Case '-[LightamerTestsIOP.PanoGainTests testSampleCanvasSizeCappedAt900]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoGainTests testSamplePlaneGatherMatchesManualBilinear]' started.
+Test Case '-[LightamerTestsIOP.PanoGainTests testSamplePlaneGatherMatchesManualBilinear]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoGainTests testSamplePlaneRunsBitIdenticalTwice]' started.
+Test Case '-[LightamerTestsIOP.PanoGainTests testSamplePlaneRunsBitIdenticalTwice]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.PanoGainTests testSolveRunsBitIdenticalTwice]' started.
+Test Case '-[LightamerTestsIOP.PanoGainTests testSolveRunsBitIdenticalTwice]' passed (0.015 seconds).
+Test Case '-[LightamerTestsIOP.PanoGainTests testStrictGateBoundariesExcluded]' started.
+Test Case '-[LightamerTestsIOP.PanoGainTests testStrictGateBoundariesExcluded]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoGainTests testSyntheticEquationSystemRecovery]' started.
+Test Case '-[LightamerTestsIOP.PanoGainTests testSyntheticEquationSystemRecovery]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOP.PanoGainTests testValueGatesExcludeOutOfBandSamples]' started.
+Test Case '-[LightamerTestsIOP.PanoGainTests testValueGatesExcludeOutOfBandSamples]' passed (0.001 seconds).
+Test Suite 'PanoGainTests' passed at 2026-10-31 07:39:17.551.
+	 Executed 13 tests, with 0 failures (0 unexpected) in 0.039 (0.039) seconds
+Test Suite 'PanoLegTests' started at 2026-10-31 07:39:17.551.
+Test Case '-[LightamerTestsIOP.PanoLegTests testDisconnectedTypedFailure]' started.
+Test Case '-[LightamerTestsIOP.PanoLegTests testDisconnectedTypedFailure]' passed (51.137 seconds).
+Test Case '-[LightamerTestsIOP.PanoLegTests testDoubleRunProductsBitIdentical]' started.
+Test Case '-[LightamerTestsIOP.PanoLegTests testDoubleRunProductsBitIdentical]' passed (91.737 seconds).
+Test Case '-[LightamerTestsIOP.PanoLegTests testFeatherAlphaBandProfile]' started.
+Test Case '-[LightamerTestsIOP.PanoLegTests testFeatherAlphaBandProfile]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoLegTests testFeatureFloorTypedFailure]' started.
+Test Case '-[LightamerTestsIOP.PanoLegTests testFeatureFloorTypedFailure]' passed (36.005 seconds).
+Test Case '-[LightamerTestsIOP.PanoLegTests testFloatTIFFWriterRowBandsRoundTripThroughImageIO]' started.
+Test Case '-[LightamerTestsIOP.PanoLegTests testFloatTIFFWriterRowBandsRoundTripThroughImageIO]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.PanoLegTests testFusedRowsWeightNormalizationProfile]' started.
+Test Case '-[LightamerTestsIOP.PanoLegTests testFusedRowsWeightNormalizationProfile]' passed (0.023 seconds).
+Test Case '-[LightamerTestsIOP.PanoLegTests testFuseRowsBandSpanGuardAsymmetricOriginX]' started.
+Test Case '-[LightamerTestsIOP.PanoLegTests testFuseRowsBandSpanGuardAsymmetricOriginX]' passed (0.048 seconds).
+Test Case '-[LightamerTestsIOP.PanoLegTests testHappyPathLandsSrgbPanoProduct]' started.
+Test Case '-[LightamerTestsIOP.PanoLegTests testHappyPathLandsSrgbPanoProduct]' passed (46.331 seconds).
+Test Case '-[LightamerTestsIOP.PanoLegTests testPreviewGrayDownsampleArmMatchesPanoFeatureSeam]' started.
+Test Case '-[LightamerTestsIOP.PanoLegTests testPreviewGrayDownsampleArmMatchesPanoFeatureSeam]' passed (0.195 seconds).
+Test Case '-[LightamerTestsIOP.PanoLegTests testPreviewGrayFromEncodedMatchesPanoFeatureSeam]' started.
+Test Case '-[LightamerTestsIOP.PanoLegTests testPreviewGrayFromEncodedMatchesPanoFeatureSeam]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.PanoLegTests testProgressDoneEqualsTotal]' started.
+Test Case '-[LightamerTestsIOP.PanoLegTests testProgressDoneEqualsTotal]' passed (45.937 seconds).
+Test Case '-[LightamerTestsIOP.PanoLegTests testTwoPassCropEqualsNaiveFullCanvasFusion]' started.
+Test Case '-[LightamerTestsIOP.PanoLegTests testTwoPassCropEqualsNaiveFullCanvasFusion]' passed (0.117 seconds).
+Test Suite 'PanoLegTests' passed at 2026-10-31 07:43:49.087.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 271.535 (271.536) seconds
+Test Suite 'PanoMatchTests' started at 2026-10-31 07:43:49.087.
+Test Case '-[LightamerTestsIOP.PanoMatchTests testBFSComponentAndTypedPrefixes]' started.
+Test Case '-[LightamerTestsIOP.PanoMatchTests testBFSComponentAndTypedPrefixes]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoMatchTests testConfidenceFormulaTruthTable]' started.
+Test Case '-[LightamerTestsIOP.PanoMatchTests testConfidenceFormulaTruthTable]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoMatchTests testDLTRecoversKnownHomography]' started.
+Test Case '-[LightamerTestsIOP.PanoMatchTests testDLTRecoversKnownHomography]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.PanoMatchTests testEdgeGatePositiveNegative]' started.
+Test Case '-[LightamerTestsIOP.PanoMatchTests testEdgeGatePositiveNegative]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoMatchTests testKnn2Top2AndIndexTieBreak]' started.
+Test Case '-[LightamerTestsIOP.PanoMatchTests testKnn2Top2AndIndexTieBreak]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.PanoMatchTests testLoweRatioGateBoundary]' started.
+Test Case '-[LightamerTestsIOP.PanoMatchTests testLoweRatioGateBoundary]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoMatchTests testRANSACDoubleRunBitIdentity]' started.
+Test Case '-[LightamerTestsIOP.PanoMatchTests testRANSACDoubleRunBitIdentity]' passed (0.109 seconds).
+Test Case '-[LightamerTestsIOP.PanoMatchTests testRANSACRecoversUnderNoise]' started.
+Test Case '-[LightamerTestsIOP.PanoMatchTests testRANSACRecoversUnderNoise]' passed (0.055 seconds).
+Test Case '-[LightamerTestsIOP.PanoMatchTests testRNGSeedAnchorAndDeterministicStream]' started.
+Test Case '-[LightamerTestsIOP.PanoMatchTests testRNGSeedAnchorAndDeterministicStream]' passed (0.000 seconds).
+Test Suite 'PanoMatchTests' passed at 2026-10-31 07:43:49.257.
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.169 (0.170) seconds
+Test Suite 'PanoMergeKindTests' started at 2026-10-31 07:43:49.257.
+Test Case '-[LightamerTestsIOP.PanoMergeKindTests testDefaultTagVocabularyIncludingPano]' started.
+Test Case '-[LightamerTestsIOP.PanoMergeKindTests testDefaultTagVocabularyIncludingPano]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoMergeKindTests testMergeParamsPanoFieldsNilByDefaultAndRoundTrip]' started.
+Test Case '-[LightamerTestsIOP.PanoMergeKindTests testMergeParamsPanoFieldsNilByDefaultAndRoundTrip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoMergeKindTests testPano32SourceGateKindConditional]' started.
+Test Case '-[LightamerTestsIOP.PanoMergeKindTests testPano32SourceGateKindConditional]' passed (0.014 seconds).
+Test Case '-[LightamerTestsIOP.PanoMergeKindTests testPanoDoneEqualsTotalUpToTypedFailure]' started.
+Test Case '-[LightamerTestsIOP.PanoMergeKindTests testPanoDoneEqualsTotalUpToTypedFailure]' passed (0.027 seconds).
+Test Case '-[LightamerTestsIOP.PanoMergeKindTests testPanoKindRawValueAndCaseCount]' started.
+Test Case '-[LightamerTestsIOP.PanoMergeKindTests testPanoKindRawValueAndCaseCount]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoMergeKindTests testProvenanceKindMirrorAcrossAllCases]' started.
+Test Case '-[LightamerTestsIOP.PanoMergeKindTests testProvenanceKindMirrorAcrossAllCases]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoMergeKindTests testStepTotalPanoThreeNPlusSixAndExistingSnapshots]' started.
+Test Case '-[LightamerTestsIOP.PanoMergeKindTests testStepTotalPanoThreeNPlusSixAndExistingSnapshots]' passed (0.000 seconds).
+Test Suite 'PanoMergeKindTests' passed at 2026-10-31 07:43:49.298.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.041 (0.042) seconds
+Test Suite 'PanoWarpTests' started at 2026-10-31 07:43:49.298.
+Test Case '-[LightamerTestsIOP.PanoWarpTests testBoundedCanvasInvariants]' started.
+Test Case '-[LightamerTestsIOP.PanoWarpTests testBoundedCanvasInvariants]' passed (0.142 seconds).
+Test Case '-[LightamerTestsIOP.PanoWarpTests testBoundedCanvasTypedFailureOnDegenerateFocal]' started.
+Test Case '-[LightamerTestsIOP.PanoWarpTests testBoundedCanvasTypedFailureOnDegenerateFocal]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoWarpTests testBoundedCanvasUnderCapAcceptsImmediately]' started.
+Test Case '-[LightamerTestsIOP.PanoWarpTests testBoundedCanvasUnderCapAcceptsImmediately]' passed (0.073 seconds).
+Test Case '-[LightamerTestsIOP.PanoWarpTests testForwardBackwardAreExactInverses]' started.
+Test Case '-[LightamerTestsIOP.PanoWarpTests testForwardBackwardAreExactInverses]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoWarpTests testFullResolutionFocalBackProjection]' started.
+Test Case '-[LightamerTestsIOP.PanoWarpTests testFullResolutionFocalBackProjection]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoWarpTests testGlobalScaleIsMedianOfFocals]' started.
+Test Case '-[LightamerTestsIOP.PanoWarpTests testGlobalScaleIsMedianOfFocals]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoWarpTests testSphericalMapInvalidMarkerBehindCamera]' started.
+Test Case '-[LightamerTestsIOP.PanoWarpTests testSphericalMapInvalidMarkerBehindCamera]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PanoWarpTests testSphericalMapMatchesClosedFormPointWise]' started.
+Test Case '-[LightamerTestsIOP.PanoWarpTests testSphericalMapMatchesClosedFormPointWise]' passed (0.027 seconds).
+Test Suite 'PanoWarpTests' passed at 2026-10-31 07:43:49.541.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.242 (0.243) seconds
+Test Suite 'PaperGradeTableTests' started at 2026-10-31 07:43:49.541.
+Test Case '-[LightamerTestsIOP.PaperGradeTableTests testDialsMonotoneAndCalibratedTargetsHit]' started.
+Test Case '-[LightamerTestsIOP.PaperGradeTableTests testDialsMonotoneAndCalibratedTargetsHit]' passed (0.108 seconds).
+Test Case '-[LightamerTestsIOP.PaperGradeTableTests testExposureTrimsHoldMidgrayLight]' started.
+Test Case '-[LightamerTestsIOP.PaperGradeTableTests testExposureTrimsHoldMidgrayLight]' passed (0.092 seconds).
+Test Case '-[LightamerTestsIOP.PaperGradeTableTests testFitProducesDialFamiliesWithMonotoneTrims]' started.
+Test Case '-[LightamerTestsIOP.PaperGradeTableTests testFitProducesDialFamiliesWithMonotoneTrims]' passed (0.092 seconds).
+Test Case '-[LightamerTestsIOP.PaperGradeTableTests testPersistedTableMatchesLiveFit]' started.
+Test Case '-[LightamerTestsIOP.PaperGradeTableTests testPersistedTableMatchesLiveFit]' passed (0.100 seconds).
+Test Suite 'PaperGradeTableTests' passed at 2026-10-31 07:43:49.933.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.392 (0.392) seconds
+Test Suite 'PipeCacheTests' started at 2026-10-31 07:43:49.933.
+Test Case '-[LightamerTestsIOP.PipeCacheTests testDecodeParamsChangeInvalidatesAll]' started.
+Test Case '-[LightamerTestsIOP.PipeCacheTests testDecodeParamsChangeInvalidatesAll]' passed (0.009 seconds).
+Test Case '-[LightamerTestsIOP.PipeCacheTests testDisabledPieceBehavesAsRemoved]' started.
+Test Case '-[LightamerTestsIOP.PipeCacheTests testDisabledPieceBehavesAsRemoved]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.PipeCacheTests testFullPipeSkipsIntermediateCaching]' started.
+Test Case '-[LightamerTestsIOP.PipeCacheTests testFullPipeSkipsIntermediateCaching]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.PipeCacheTests testHitPathSkipsMakeAndCountsExactlyOnce]' started.
+Test Case '-[LightamerTestsIOP.PipeCacheTests testHitPathSkipsMakeAndCountsExactlyOnce]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.PipeCacheTests testInvalidateImageIDSweepsOnlyThatImage]' started.
+Test Case '-[LightamerTestsIOP.PipeCacheTests testInvalidateImageIDSweepsOnlyThatImage]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.PipeCacheTests testLRUEvictionKeepsRecentlyTouchedPlanes]' started.
+Test Case '-[LightamerTestsIOP.PipeCacheTests testLRUEvictionKeepsRecentlyTouchedPlanes]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.PipeCacheTests testLRUEvictionRespectsBudget]' started.
+Test Case '-[LightamerTestsIOP.PipeCacheTests testLRUEvictionRespectsBudget]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.PipeCacheTests testParamChangeInvalidatesOnlyDownstream]' started.
+Test Case '-[LightamerTestsIOP.PipeCacheTests testParamChangeInvalidatesOnlyDownstream]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.PipeCacheTests testPipeHashChainComposition]' started.
+Test Case '-[LightamerTestsIOP.PipeCacheTests testPipeHashChainComposition]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PipeCacheTests testSameParamsDifferentEntryScaleMiss]' started.
+Test Case '-[LightamerTestsIOP.PipeCacheTests testSameParamsDifferentEntryScaleMiss]' passed (0.007 seconds).
+Test Suite 'PipeCacheTests' passed at 2026-10-31 07:43:49.970.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.036 (0.037) seconds
+Test Suite 'PreviewBucketTests' started at 2026-10-31 07:43:49.970.
+Test Case '-[LightamerTestsIOP.PreviewBucketTests testDefaultPixelScaleBoundaries]' started.
+Test Case '-[LightamerTestsIOP.PreviewBucketTests testDefaultPixelScaleBoundaries]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PreviewBucketTests testDegenerateInputsFloorAt360]' started.
+Test Case '-[LightamerTestsIOP.PreviewBucketTests testDegenerateInputsFloorAt360]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PreviewBucketTests testPixelScaleOverrideHonored]' started.
+Test Case '-[LightamerTestsIOP.PreviewBucketTests testPixelScaleOverrideHonored]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PreviewBucketTests testPublishedConstantsMatchDC3]' started.
+Test Case '-[LightamerTestsIOP.PreviewBucketTests testPublishedConstantsMatchDC3]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.PreviewBucketTests testRawTargetBoundaries]' started.
+Test Case '-[LightamerTestsIOP.PreviewBucketTests testRawTargetBoundaries]' passed (0.000 seconds).
+Test Suite 'PreviewBucketTests' passed at 2026-10-31 07:43:49.970.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'PreviewChainPerfTests' started at 2026-10-31 07:43:49.970.
+Test Case '-[LightamerTestsIOP.PreviewChainPerfTests testFullToneEqualMemoryBudget]' started.
+Test Case '-[LightamerTestsIOP.PreviewChainPerfTests testFullToneEqualMemoryBudget]' passed (1.616 seconds).
+Test Case '-[LightamerTestsIOP.PreviewChainPerfTests testNLMeansPreviewDowngradeTiers]' started.
+Test Case '-[LightamerTestsIOP.PreviewChainPerfTests testNLMeansPreviewDowngradeTiers]' passed (4.241 seconds).
+Test Case '-[LightamerTestsIOP.PreviewChainPerfTests testPhase5DragGateTwoChains]' started.
+M9-4 convert anchor: common-domain parity = 0.0313 stops
+M9-4 semantic regression [gamma-bright]: migration delta = 0.0253 stops, direction preserved
+M9-4 semantic regression [gamma-dark]: migration delta = 0.0285 stops, direction preserved
+M9-4 semantic regression [gamma+gain]: migration delta = 0.0196 stops, direction preserved
+DEHAZE-PARITY-PROBE: module A0=SIMD3<Double>(0.6972500085830688, 0.7470000386238098, 0.796750009059906) dmax=0.49458102201916376 ref A0=SIMD3<Double>(0.6972500085830688, 0.7470000386238098, 0.796750009059906) dmax=0.49458102201916376
+DEHAZE-PARITY-PROBE: center got=0.37163952 ref=0.37163952 input=0.4429763
+DEHAZE-STAGE-PROBE (68,20): kernel tmap=0.7202218 sA=0.682819 sB=0.6840473 | ref t0=0.7202218 maxX=0.7202218 maxY=0.7202218 minX=0.7202218 minY=0.7202218 meanX=0.68281895 meanY=0.68404716
+DEHAZE-PARITY-PROBE: worstRel=0.00023283063 at [4944] got=0.00076722016 ref=0.000767453 maxAbs=2.682209e-07
+LA-PERF SML 512x384: 0.0007s, 3.40 ns/px (upload + kernel + drain)
+PERF| full-render 60MP A7R V ARW same-record FULL re-render: hits=2 misses=0 (observation only — FULL caches input+final only)
+PERF| full-render 60MP A7R V ARW (Debug): cold 10.6 ms, warm 176.3/175.4/180.7 ms, warm median 176.3 ms | decode cold 0.287 s warm 0.103 s | sdrGamma control median 159.7 ms | same-record FULL re-render median 0.1 ms | footprint-now 5720 MB
+PERF| full-render 100MP GFX100S RAF same-record FULL re-render: hits=2 misses=0 (observation only — FULL caches input+final only)
+PERF| full-render 100MP GFX100S RAF (Debug): cold 862.4 ms, warm 329.3/309.1/294.6 ms, warm median 309.1 ms | decode cold 0.114 s warm 0.079 s | sdrGamma control median 252.3 ms | same-record FULL re-render median 0.1 ms | footprint-now 6781 MB
+[06-03 T2] ashift 5° + shear: roundtrip max 1.2862197421537486e-12 px over 81 pts
+[06-03 T2] chain lens→ashift→flip→crop (50% + 5° + rot90 + lens): roundtrip max 1.9426815345735873e-12 px over 81 pts
+[06-03 T2] crop 55%x70%: roundtrip max 0.0 px over 81 pts
+[06-03 T2] flip rot180: roundtrip max 0.0 px over 81 pts
+[06-03 T2] flip transpose: roundtrip max 0.0 px over 81 pts
+[06-03 T2] lens EXTREME k1=−0.35 k2=0.10: roundtrip max 1.016845989170083e-12 px over 81 pts (evidence recorded)
+[06-03 T2] lens k1=−0.2 k2=0.05: roundtrip max 1.016845989170083e-12 px over 81 pts
+[06-06 T3] chain roundtrip: max 2.53749021794647e-10 px over 225 pts
+[06-06 T3] content anchor: maxDrift=0.03860360383987427 over 45 pts, maxPlaneDiff=0.41921019554138184
+[06-06 T3] liquify roundtrip: max 8.44924983453496e-11 px over 441 pts (gate 0.5)
+PERF| m2-default-chain preview-2560 100MP GFX100S RAF (Debug): cold 258.8 ms, warm 13.9/14.0/13.8 ms, warm median 13.9 ms | decode cold 0.108 s warm 0.074 s
+PERF| m2-default-chain preview-2560 60MP A7R V ARW (Debug): cold 328.4 ms, warm 13.1/12.7/13.2 ms, warm median 13.1 ms | decode cold 0.119 s warm 0.102 s
+PERF| m2-drag color7-enabled drag vibrance @100MP GFX100S RAF (Debug): median 9.4 ms  all: 9.9,9.6,9.2,9.1,9.4,12.0,9.3,9.3,9.3,11.5
+PERF| m2-drag nlmeans-enabled(57-pass) drag strength @100MP GFX100S RAF (Debug): median 68.4 ms  all: 71.1,71.1,68.6,66.2,68.0,68.4,67.4,66.3,67.1,68.4
+PERF| m2-drag color7-enabled drag vibrance @60MP A7R V ARW (Debug): median 8.3 ms  all: 8.4,8.3,8.3,8.6,7.9,8.1,8.0,10.8,8.8,8.2
+PERF| m2-drag nlmeans-enabled(57-pass) drag strength @60MP A7R V ARW (Debug): median 59.6 ms  all: 58.6,59.8,58.6,58.5,59.9,59.6,61.5,59.8,59.0,59.5
+MEMORY nlmeans FULL tiled footprint delta: 357 MB
+LA-MEASURE mertens display round-trip worst 6.360626181312057e-08
+G3① worst |Δ| = 0.00024384152129641734 over 12288 points
+PERF5 FULL toneequal footprint delta: 284 MB
+PERF5 nlmeans PREVIEW chain (2048×1536, downgrade K=3+decimate): median 94.9 ms — 93.7, 96.6, 95.5, 93.0, 92.6, 93.4, 94.9, 95.6
+PERF5 nlmeans engine 2048×1536: downgraded(57 passes) 49.7 ms, full(481 passes) 384.5 ms, ratio 7.7x
+PERF8 SC#4 color7-enabled drag vibrance (Debug): median 10.0 ms  all: 11.3,9.9,12.2,9.9,9.7,9.5,12.3,9.8,10.0,10.0
+PERF8 SC#4 nlmeans-enabled drag strength (Debug): median 84.9 ms Test Case '-[LightamerTestsIOP.PreviewChainPerfTests testPhase5DragGateTwoChains]' passed (3.179 seconds).
+Test Case '-[LightamerTestsIOP.PreviewChainPerfTests testPreviewFullChainFrameTime]' started.
+Test Case '-[LightamerTestsIOP.PreviewChainPerfTests testPreviewFullChainFrameTime]' passed (2.557 seconds).
+Test Case '-[LightamerTestsIOP.PreviewChainPerfTests testWaveletsEnginePassBudget]' started.
+Test Case '-[LightamerTestsIOP.PreviewChainPerfTests testWaveletsEnginePassBudget]' passed (1.979 seconds).
+Test Suite 'PreviewChainPerfTests' passed at 2026-10-31 07:44:03.542.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 13.571 (13.572) seconds
+Test Suite 'RAW03Tests' started at 2026-10-31 07:44:03.542.
+Test Case '-[LightamerTestsIOP.RAW03Tests testFloatEXRDecodesWithFullBitDepth]' started.
+Test Case '-[LightamerTestsIOP.RAW03Tests testFloatEXRDecodesWithFullBitDepth]' passed (0.004 seconds).
+Test Case '-[LightamerTestsIOP.RAW03Tests testFloatTIFFDecodesWithFullBitDepth]' started.
+Test Case '-[LightamerTestsIOP.RAW03Tests testFloatTIFFDecodesWithFullBitDepth]' passed (0.009 seconds).
+Test Case '-[LightamerTestsIOP.RAW03Tests testGammaTailClampsAboveOne]' started.
+Test Case '-[LightamerTestsIOP.RAW03Tests testGammaTailClampsAboveOne]' passed (0.042 seconds).
+Test Case '-[LightamerTestsIOP.RAW03Tests testHEICSixteenBitDecodesThroughRasterPath]' started.
+Test Case '-[LightamerTestsIOP.RAW03Tests testHEICSixteenBitDecodesThroughRasterPath]' passed (0.076 seconds).
+Test Case '-[LightamerTestsIOP.RAW03Tests testInteriorStagesDoNotClampAboveOne]' started.
+Test Case '-[LightamerTestsIOP.RAW03Tests testInteriorStagesDoNotClampAboveOne]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOP.RAW03Tests testJPEGOpenReopenSmoke]' started.
+Test Case '-[LightamerTestsIOP.RAW03Tests testJPEGOpenReopenSmoke]' passed (0.009 seconds).
+Test Case '-[LightamerTestsIOP.RAW03Tests testPipeInputPlanePreservesExtremeValuesEXR]' started.
+Test Case '-[LightamerTestsIOP.RAW03Tests testPipeInputPlanePreservesExtremeValuesEXR]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOP.RAW03Tests testPipeInputPlanePreservesExtremeValuesTIFF]' started.
+Test Case '-[LightamerTestsIOP.RAW03Tests testPipeInputPlanePreservesExtremeValuesTIFF]' passed (0.025 seconds).
+Test Suite 'RAW03Tests' passed at 2026-10-31 07:44:03.723.
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.180 (0.181) seconds
+Test Suite 'RAWDecoderTests' started at 2026-10-31 07:44:03.723.
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testCorruptRAWThrowsTypedError]' started.
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testCorruptRAWThrowsTypedError]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testDecodeARW]' started.
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testDecodeARW]' passed (0.103 seconds).
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testDecodeCR3]' started.
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testDecodeCR3]' passed (0.089 seconds).
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testDecodeDNG]' started.
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testDecodeDNG]' passed (0.074 seconds).
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testDecodeIsCancellable]' started.
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testDecodeIsCancellable]' passed (0.097 seconds).
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testDecodeNEF]' started.
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testDecodeNEF]' passed (0.121 seconds).
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testDecodeRAF]' started.
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testDecodeRAF]' passed (0.080 seconds).
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testDecodeRaster_JPEG_HEIC_PNG_WebP_TIFF]' started.
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testDecodeRaster_JPEG_HEIC_PNG_WebP_TIFF]' passed (0.013 seconds).
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testMetadataExtraction]' started.
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testMetadataExtraction]' passed (0.184 seconds).
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testRAW9FallbackForUnsupportedCamera]' started.
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testRAW9FallbackForUnsupportedCamera]' passed (0.105 seconds).
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testRAW9OptIn]' started.
+Test Case '-[LightamerTestsIOP.RAWDecoderTests testRAW9OptIn]' passed (2.450 seconds).
+Test Suite 'RAWDecoderTests' passed at 2026-10-31 07:44:07.042.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 3.318 (3.319) seconds
+Test Suite 'ROINegotiationTests' started at 2026-10-31 07:44:07.042.
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testAshiftWarpAABBGrowsOutputAndBoundsInput]' started.
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testAshiftWarpAABBGrowsOutputAndBoundsInput]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testCropDragKeepsOldKeys]' started.
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testCropDragKeepsOldKeys]' passed (0.007 seconds).
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testCropForwardShrinkDownstream]' started.
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testCropForwardShrinkDownstream]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testCropStubShrinksOutputToWindow]' started.
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testCropStubShrinksOutputToWindow]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testDisabledCropPassesThrough]' started.
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testDisabledCropPassesThrough]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testHaloBackwardExpandsUpstream]' started.
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testHaloBackwardExpandsUpstream]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testHaloStubExpandsInputByHalo]' started.
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testHaloStubExpandsInputByHalo]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testLensResolvedTCAUnionWidensROI]' started.
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testLensResolvedTCAUnionWidensROI]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testLensShrinkNegotiationBoundsInput]' started.
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testLensShrinkNegotiationBoundsInput]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testROIAABBOfCorners]' started.
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testROIAABBOfCorners]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testROIClampedToBounds]' started.
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testROIClampedToBounds]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testSharpenBackwardExpandsUpstream]' started.
+Test Case '-[LightamerTestsIOP.ROINegotiationTests testSharpenBackwardExpandsUpstream]' passed (0.005 seconds).
+Test Suite 'ROINegotiationTests' passed at 2026-10-31 07:44:07.085.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.042 (0.043) seconds
+Test Suite 'RasterColorDescriptionTests' started at 2026-10-31 07:44:07.085.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizeHLGBeyondGateStaysSampled]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizeHLGBeyondGateStaysSampled]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizeHLGTableWithinGate]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizeHLGTableWithinGate]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizeIdentityTableBecomesLinear]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizeIdentityTableBecomesLinear]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizePQTableBeyondGateStaysSampled]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizePQTableBeyondGateStaysSampled]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizePQTableWithinGate]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizePQTableWithinGate]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizePureGammaWithinGate]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizePureGammaWithinGate]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizeSrgbBeyondGateStaysSampled]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizeSrgbBeyondGateStaysSampled]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizeSrgbPiecewiseWithinGate]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCanonicalizeSrgbPiecewiseWithinGate]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCicpTagOverridesTransferAndPrimaries]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testCicpTagOverridesTransferAndPrimaries]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testDegeneratePrimariesFallToDefaultWithReason]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testDegeneratePrimariesFallToDefaultWithReason]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testDualTagMatrixShaperBeatsA2B0]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testDualTagMatrixShaperBeatsA2B0]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testEmbeddedICCMatrixShaperParsesPrimariesAndGamma]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testEmbeddedICCMatrixShaperParsesPrimariesAndGamma]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testFingerprintFieldExplicit]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testFingerprintFieldExplicit]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testHLGPeakIsFixed1000]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testHLGPeakIsFixed1000]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testLinearICCFloat32BecomesSceneLinear]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testLinearICCFloat32BecomesSceneLinear]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testLinearICCNonFloatStaysDisplayReferred]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testLinearICCNonFloatStaysDisplayReferred]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testLutOnlyProfileBecomesIccLutConverted]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testLutOnlyProfileBecomesIccLutConverted]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testMismatchedChannelTRCsFallToDefault]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testMismatchedChannelTRCsFallToDefault]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testNamedSpaceFastPathPQ]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testNamedSpaceFastPathPQ]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testNoICCDefaultsToSrgb]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testNoICCDefaultsToSrgb]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testNoICCFloat32DefaultsToSceneLinearRec2020]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testNoICCFloat32DefaultsToSceneLinearRec2020]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testNonMonotonicCurveFallsToDefault]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testNonMonotonicCurveFallsToDefault]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testParametricTRCKeepsTypeAndParams]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testParametricTRCKeepsTypeAndParams]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testPeakLadderClampBounds]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testPeakLadderClampBounds]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testPeakLadderMdcvOverCcllOverDefault]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testPeakLadderMdcvOverCcllOverDefault]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testPQShapedSampledProfileCanonicalizesWithMdcvPeak]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testPQShapedSampledProfileCanonicalizesWithMdcvPeak]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testProfileHashIsTruncatedSHA256]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testProfileHashIsTruncatedSHA256]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testWhiteOutsideTriangleFallsToDefault]' started.
+Test Case '-[LightamerTestsIOP.RasterColorDescriptionTests testWhiteOutsideTriangleFallsToDefault]' passed (0.000 seconds).
+Test Suite 'RasterColorDescriptionTests' passed at 2026-10-31 07:44:07.093.
+	 Executed 28 tests, with 0 failures (0 unexpected) in 0.007 (0.008) seconds
+Test Suite 'RasterDecodeLegTests' started at 2026-10-31 07:44:07.093.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testAdditiveFieldsDefaultNilOnExistingInit]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testAdditiveFieldsDefaultNilOnExistingInit]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testAlphaDroppedWithStoredColorKept]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testAlphaDroppedWithStoredColorKept]' passed (0.021 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testCMYKIsTypedRejected]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testCMYKIsTypedRejected]' passed (0.009 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testContentProbeMaxFloat32]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testContentProbeMaxFloat32]' passed (0.015 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testContentProbeMaxSDRStaysWithinUnit]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testContentProbeMaxSDRStaysWithinUnit]' passed (0.021 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testDescriptionPairsWithPixels]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testDescriptionPairsWithPixels]' passed (0.029 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testEightBitFidelity]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testEightBitFidelity]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testFloat32Fidelity]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testFloat32Fidelity]' passed (0.021 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testGrayExpandsToChannelEqualRGB]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testGrayExpandsToChannelEqualRGB]' passed (0.021 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testLutICCFormSplitsToCILeg]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testLutICCFormSplitsToCILeg]' passed (0.009 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testMultiPageTakesPageZero]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testMultiPageTakesPageZero]' passed (0.021 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testProductionDecodeRoutingRetiredArmStaysReachable]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testProductionDecodeRoutingRetiredArmStaysReachable]' passed (0.014 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testProductionDecodeRoutingTakesTheNativeLeg]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testProductionDecodeRoutingTakesTheNativeLeg]' passed (0.010 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testSixteenBitFidelity]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testSixteenBitFidelity]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testWindowedPayloadBoxAverageDownsample]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testWindowedPayloadBoxAverageDownsample]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testWindowedPayloadDeterministic]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testWindowedPayloadDeterministic]' passed (0.004 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testWindowedPayloadEmptyWindowTypedReject]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testWindowedPayloadEmptyWindowTypedReject]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testWindowedPayloadIdentityCopyTopFirst]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testWindowedPayloadIdentityCopyTopFirst]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testWindowedPayloadSubWindowCopy]' started.
+Test Case '-[LightamerTestsIOP.RasterDecodeLegTests testWindowedPayloadSubWindowCopy]' passed (0.008 seconds).
+Test Suite 'RasterDecodeLegTests' passed at 2026-10-31 07:44:07.311.
+	 Executed 19 tests, with 0 failures (0 unexpected) in 0.218 (0.218) seconds
+Test Suite 'RasterIccSemanticsTests' started at 2026-10-31 07:44:07.311.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testCicpFixtures]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testCicpFixtures]' passed (0.022 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testCMYKFixturePresentsCMYKModel]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testCMYKFixturePresentsCMYKModel]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testDegeneratePrimariesFixtureFallsToDefault]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testDegeneratePrimariesFixtureFallsToDefault]' passed (0.011 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testDualTagFixturePrefersMatrixShaper]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testDualTagFixturePrefersMatrixShaper]' passed (0.007 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testGamutMatrixFixtures]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testGamutMatrixFixtures]' passed (0.022 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testGrayICCFixtureCarriesSRGBPrimaries]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testGrayICCFixtureCarriesSRGBPrimaries]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testHLGDisplayShapeAnchors]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testHLGDisplayShapeAnchors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testLinearICCFloat32FixtureIsSceneLinear]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testLinearICCFloat32FixtureIsSceneLinear]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testLutOnlyFixtureBecomesIccLutConverted]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testLutOnlyFixtureBecomesIccLutConverted]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testMultipageFixtureReportsTwoPages]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testMultipageFixtureReportsTwoPages]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testNoICCFixturePresentsSynthesizedSystemSRGB]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testNoICCFixturePresentsSynthesizedSystemSRGB]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testNoICCFixturesDefaultByStorage]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testNoICCFixturesDefaultByStorage]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testNoICCFloat32FixtureIsSceneLinear]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testNoICCFloat32FixtureIsSceneLinear]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testPQRelativeShapeAnchors]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testPQRelativeShapeAnchors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testPQSampledTableFixtureCanonicalizesWithMdcvPeak]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testPQSampledTableFixtureCanonicalizesWithMdcvPeak]' passed (0.014 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testSrgbFloat32StaysDisplayReferred]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testSrgbFloat32StaysDisplayReferred]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testSrgbMatrixFixturesAcrossBitDepths]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testSrgbMatrixFixturesAcrossBitDepths]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testSRGBPiecewiseAnchors]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testSRGBPiecewiseAnchors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testUntaggedFloat32PresentsExtendedLinearSRGB]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testUntaggedFloat32PresentsExtendedLinearSRGB]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testUsableCheckGatesDirect]' started.
+Test Case '-[LightamerTestsIOP.RasterIccSemanticsTests testUsableCheckGatesDirect]' passed (0.000 seconds).
+Test Suite 'RasterIccSemanticsTests' passed at 2026-10-31 07:44:07.404.
+	 Executed 20 tests, with 0 failures (0 unexpected) in 0.092 (0.093) seconds
+Test Suite 'RasterRoutingTests' started at 2026-10-31 07:44:07.404.
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testCmykTiffTypedRejectSurfacesThroughDecode]' started.
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testCmykTiffTypedRejectSurfacesThroughDecode]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testFoldedDedupeKeyFlipsOnDescriptionFingerprint]' started.
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testFoldedDedupeKeyFlipsOnDescriptionFingerprint]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testFoldedDedupeKeyZeroDriftWithoutDescription]' started.
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testFoldedDedupeKeyZeroDriftWithoutDescription]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testHeicRoutesToTheCIArm]' started.
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testHeicRoutesToTheCIArm]' passed (0.034 seconds).
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testJpegRoutesToTheCIArm]' started.
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testJpegRoutesToTheCIArm]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testLinearICCFloat32ProductReentersSceneLinear]' started.
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testLinearICCFloat32ProductReentersSceneLinear]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testLutIccTiffRoutesToTheRasterCIArm]' started.
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testLutIccTiffRoutesToTheRasterCIArm]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testMultipageTiffTakesPageZeroThroughDecode]' started.
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testMultipageTiffTakesPageZeroThroughDecode]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testPipeDispatchRidesTheRasterLeg]' started.
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testPipeDispatchRidesTheRasterLeg]' passed (0.027 seconds).
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testPngRoutesToTheCIArm]' started.
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testPngRoutesToTheCIArm]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testTiffFamilyPredicateForms]' started.
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testTiffFamilyPredicateForms]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testTiffRoutesToTheNativeLeg]' started.
+Test Case '-[LightamerTestsIOP.RasterRoutingTests testTiffRoutesToTheNativeLeg]' passed (0.006 seconds).
+Test Suite 'RasterRoutingTests' passed at 2026-10-31 07:44:07.480.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.076 (0.076) seconds
+Test Suite 'RawDecodeOverridesTests' started at 2026-10-31 07:44:07.480.
+Test Case '-[LightamerTestsIOP.RawDecodeOverridesTests testAutomaticDecodeStaysChannelNeutralInTheWorkingSpace]' started.
+Test Case '-[LightamerTestsIOP.RawDecodeOverridesTests testAutomaticDecodeStaysChannelNeutralInTheWorkingSpace]' passed (0.221 seconds).
+Test Case '-[LightamerTestsIOP.RawDecodeOverridesTests testIdentityDecodeIsByteIdenticalToTheDefaultPath]' started.
+Test Case '-[LightamerTestsIOP.RawDecodeOverridesTests testIdentityDecodeIsByteIdenticalToTheDefaultPath]' passed (0.211 seconds).
+Test Case '-[LightamerTestsIOP.RawDecodeOverridesTests testNilLegsLeaveTheHashUntouched]' started.
+Test Case '-[LightamerTestsIOP.RawDecodeOverridesTests testNilLegsLeaveTheHashUntouched]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RawDecodeOverridesTests testOverridesApplyAndDriftTheCacheKey]' started.
+Test Case '-[LightamerTestsIOP.RawDecodeOverridesTests testOverridesApplyAndDriftTheCacheKey]' passed (0.720 seconds).
+Test Case '-[LightamerTestsIOP.RawDecodeOverridesTests testOverridesClampToTheSliderDomain]' started.
+Test Case '-[LightamerTestsIOP.RawDecodeOverridesTests testOverridesClampToTheSliderDomain]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.RawDecodeOverridesTests testResolveDecoderVersionMatrix]' started.
+Test Case '-[LightamerTestsIOP.RawDecodeOverridesTests testResolveDecoderVersionMatrix]' passed (0.000 seconds).
+Test Suite 'RawDecodeOverridesTests' passed at 2026-10-31 07:44:08.633.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 1.153 (1.153) seconds
+Test Suite 'ScopeReduceTests' started at 2026-10-31 07:44:08.633.
+Test Case '-[LightamerTestsIOP.ScopeReduceTests testDegenerateTexturesDontCrash]' started.
+Test Case '-[LightamerTestsIOP.ScopeReduceTests testDegenerateTexturesDontCrash]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.ScopeReduceTests testHistogramBimodalPerBinParity]' started.
+Test Case '-[LightamerTestsIOP.ScopeReduceTests testHistogramBimodalPerBinParity]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.ScopeReduceTests testHistogramGradientPerBinParity]' started.
+Test Case '-[LightamerTestsIOP.ScopeReduceTests testHistogramGradientPerBinParity]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.ScopeReduceTests testHistogramSolidColorPerBinParity]' started.
+Test Case '-[LightamerTestsIOP.ScopeReduceTests testHistogramSolidColorPerBinParity]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.ScopeReduceTests testThrottleDisabledMeansZeroTap]' started.
+Test Case '-[LightamerTestsIOP.ScopeReduceTests testThrottleDisabledMeansZeroTap]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ScopeReduceTests testThrottleStreamsAtMostMinIntervalAndSettlesIdle]' started.
+Test Case '-[LightamerTestsIOP.ScopeReduceTests testThrottleStreamsAtMostMinIntervalAndSettlesIdle]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.ScopeReduceTests testWaveformColumnParityAndDeterminism]' started.
+Test Case '-[LightamerTestsIOP.ScopeReduceTests testWaveformColumnParityAndDeterminism]' passed (0.007 seconds).
+Test Suite 'ScopeReduceTests' passed at 2026-10-31 07:44:08.650.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.016 (0.017) seconds
+Test Suite 'SkinRegionGeometryTests' started at 2026-10-31 07:44:08.650.
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testConvexHullAndPointInPolygon]' started.
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testConvexHullAndPointInPolygon]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testEmptyLandmarksAndNoFacesTypedErrors]' started.
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testEmptyLandmarksAndNoFacesTypedErrors]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testFrontalFaceMaskDirections]' started.
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testFrontalFaceMaskDirections]' passed (0.072 seconds).
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testLandmarkCoordinateConversion]' started.
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testLandmarkCoordinateConversion]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testMultiFaceUnion]' started.
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testMultiFaceUnion]' passed (0.119 seconds).
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testPersonMatteIntersectionWithResample]' started.
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testPersonMatteIntersectionWithResample]' passed (0.079 seconds).
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testVisionProviderOnSynthesizedFaceDrawing]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/SkinRegionGeometryTests.swift:333: -[LightamerTestsIOP.SkinRegionGeometryTests testVisionProviderOnSynthesizedFaceDrawing] : Test skipped - no face detected in the cartoon drawing (host Vision state)
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testVisionProviderOnSynthesizedFaceDrawing]' skipped (4.010 seconds).
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testYawGateExcludesAndWarns]' started.
+Test Case '-[LightamerTestsIOP.SkinRegionGeometryTests testYawGateExcludesAndWarns]' passed (0.130 seconds).
+Test Suite 'SkinRegionGeometryTests' passed at 2026-10-31 07:44:13.061.
+	 Executed 8 tests, with 1 test skipped and 0 failures (0 unexpected) in 4.411 (4.411) seconds
+Test Suite 'SmartPreviewStoreTests' started at 2026-10-31 07:44:13.061.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testCacheDisabledNeutralGolden]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testCacheDisabledNeutralGolden]' passed (0.019 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testCacheHitAndMissServeBitIdenticalPlanes]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testCacheHitAndMissServeBitIdenticalPlanes]' passed (0.078 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testCacheKeyInvalidatesOnStampAndProcessVersionChange]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testCacheKeyInvalidatesOnStampAndProcessVersionChange]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testDamagedIndexRebuildsCleanly]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testDamagedIndexRebuildsCleanly]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testDamagedPlaneEntryIsDroppedAndRebuilt]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testDamagedPlaneEntryIsDroppedAndRebuilt]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testDisabledBudgetReturnsRawDecodeUnquantized]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testDisabledBudgetReturnsRawDecodeUnquantized]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testInflightRequestsMergeThroughSharedHolder]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testInflightRequestsMergeThroughSharedHolder]' passed (0.160 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testPlanarRearrangementCompressesBetterThanInterleaved]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testPlanarRearrangementCompressesBetterThanInterleaved]' passed (0.157 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testQuantizeIsIdempotentAndMatchesPackPath]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testQuantizeIsIdempotentAndMatchesPackPath]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testRenderPlaneLegCapsAtTierEdge]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testRenderPlaneLegCapsAtTierEdge]' passed (0.022 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testRoundTripQuantizedPlaneIsBitIdentical]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testRoundTripQuantizedPlaneIsBitIdentical]' passed (0.030 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testRoundTripRawPlaneErrorBelow0Point05Percent]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testRoundTripRawPlaneErrorBelow0Point05Percent]' passed (0.079 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testTrimEvictsOldestUsedFirst]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testTrimEvictsOldestUsedFirst]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testUnpackRejectsLyingHeaderLength]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testUnpackRejectsLyingHeaderLength]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testUnpackRejectsTruncatedEnvelope]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testUnpackRejectsTruncatedEnvelope]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testUnpackRejectsTruncatedPlanes]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testUnpackRejectsTruncatedPlanes]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testUnpackRejectsWrongMagic]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testUnpackRejectsWrongMagic]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testUnwritableRootDegradesToDirectDecode]' started.
+Test Case '-[LightamerTestsIOP.SmartPreviewStoreTests testUnwritableRootDegradesToDirectDecode]' passed (0.001 seconds).
+Test Suite 'SmartPreviewStoreTests' passed at 2026-10-31 07:44:13.624.
+	 Executed 18 tests, with 0 failures (0 unexpected) in 0.562 (0.563) seconds
+Test Suite 'SoftProofStageTests' started at 2026-10-31 07:44:13.624.
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testBPCAnchorBlackPointZeroInvariant]' started.
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testBPCAnchorBlackPointZeroInvariant]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testCatalogListsAdobeRGBAndConstructsProfiles]' started.
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testCatalogListsAdobeRGBAndConstructsProfiles]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testCommitParamsFoldsProfileIdentity]' started.
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testCommitParamsFoldsProfileIdentity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testGamutCheckBlackClipsOutOfGamut]' started.
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testGamutCheckBlackClipsOutOfGamut]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testGamutCheckOffPassesProofValues]' started.
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testGamutCheckOffPassesProofValues]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testInGamutRoundTripExact]' started.
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testInGamutRoundTripExact]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testOutOfGamutClipped]' started.
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testOutOfGamutClipped]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testProfileRejectsCMYKPrinterICC]' started.
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testProfileRejectsCMYKPrinterICC]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testProfileRejectsNonRelativeIntent]' started.
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testProfileRejectsNonRelativeIntent]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testProofOffIdentityCopy]' started.
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testProofOffIdentityCopy]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testStableIDStableAndDistinct]' started.
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testStableIDStableAndDistinct]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testStageIsNotARegistryModule]' started.
+Test Case '-[LightamerTestsIOP.SoftProofStageTests testStageIsNotARegistryModule]' passed (0.000 seconds).
+Test Suite 'SoftProofStageTests' passed at 2026-10-31 07:44:13.637.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.013 (0.013) seconds
+Test Suite 'SpectralConstantsSanityTests' started at 2026-10-31 07:44:13.638.
+Test Case '-[LightamerTestsIOP.SpectralConstantsSanityTests testD65WhitePointIntegrationReproducesTheSentinel]' started.
+Test Case '-[LightamerTestsIOP.SpectralConstantsSanityTests testD65WhitePointIntegrationReproducesTheSentinel]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.SpectralConstantsSanityTests testDichroicTransmissionsUnitDomainWithComplementaryShapes]' started.
+Test Case '-[LightamerTestsIOP.SpectralConstantsSanityTests testDichroicTransmissionsUnitDomainWithComplementaryShapes]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.SpectralConstantsSanityTests testIlluminantSPDsNonNegativeWithCanonicalWhitePoints]' started.
+Test Case '-[LightamerTestsIOP.SpectralConstantsSanityTests testIlluminantSPDsNonNegativeWithCanonicalWhitePoints]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.SpectralConstantsSanityTests testSpectralLocusPolygonClosedOrientedAndCompressing]' started.
+Test Case '-[LightamerTestsIOP.SpectralConstantsSanityTests testSpectralLocusPolygonClosedOrientedAndCompressing]' passed (0.000 seconds).
+Test Suite 'SpectralConstantsSanityTests' passed at 2026-10-31 07:44:13.639.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'SpectralProfileDecodeTests' started at 2026-10-31 07:44:13.639.
+Test Case '-[LightamerTestsIOP.SpectralProfileDecodeTests testAll28ProfilesDecodeTheSpectralFaceWithinTheMeasuredBands]' started.
+Test Case '-[LightamerTestsIOP.SpectralProfileDecodeTests testAll28ProfilesDecodeTheSpectralFaceWithinTheMeasuredBands]' passed (0.321 seconds).
+Test Case '-[LightamerTestsIOP.SpectralProfileDecodeTests testOldFormProfileDecodesNilSpectralFaceAndReencodesByteIdentical]' started.
+Test Case '-[LightamerTestsIOP.SpectralProfileDecodeTests testOldFormProfileDecodesNilSpectralFaceAndReencodesByteIdentical]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.SpectralProfileDecodeTests testSixSpectralFieldsDecodeFromRealAssetsWithNullsPreserved]' started.
+Test Case '-[LightamerTestsIOP.SpectralProfileDecodeTests testSixSpectralFieldsDecodeFromRealAssetsWithNullsPreserved]' passed (0.002 seconds).
+Test Suite 'SpectralProfileDecodeTests' passed at 2026-10-31 07:44:13.963.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.323 (0.323) seconds
+Test Suite 'SpectralSolveTests' started at 2026-10-31 07:44:13.963.
+Test Case '-[LightamerTestsIOP.SpectralSolveTests testExposureEvFoldsIntoTheGainAndNeverTheCache]' started.
+Test Case '-[LightamerTestsIOP.SpectralSolveTests testExposureEvFoldsIntoTheGainAndNeverTheCache]' passed (1.249 seconds).
+Test Case '-[LightamerTestsIOP.SpectralSolveTests testSessionOperatingPointCarriesGrayErrorZero]' started.
+Test Case '-[LightamerTestsIOP.SpectralSolveTests testSessionOperatingPointCarriesGrayErrorZero]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.SpectralSolveTests testSpectralCacheKeyIsCanonicalFNVAndCrossCoreIsolated]' started.
+Test Case '-[LightamerTestsIOP.SpectralSolveTests testSpectralCacheKeyIsCanonicalFNVAndCrossCoreIsolated]' passed (0.036 seconds).
+Test Case '-[LightamerTestsIOP.SpectralSolveTests testSpectralNeutralPairHoldsTheRegisteredOffsetFromTheAnchor]' started.
+Test Case '-[LightamerTestsIOP.SpectralSolveTests testSpectralNeutralPairHoldsTheRegisteredOffsetFromTheAnchor]' passed (0.055 seconds).
+Test Case '-[LightamerTestsIOP.SpectralSolveTests testSpectralSolveIsBitIdenticalAcrossCalls]' started.
+Test Case '-[LightamerTestsIOP.SpectralSolveTests testSpectralSolveIsBitIdenticalAcrossCalls]' passed (0.036 seconds).
+Test Suite 'SpectralSolveTests' passed at 2026-10-31 07:44:15.338.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 1.375 (1.376) seconds
+Test Suite 'SpectralTcFitTests' started at 2026-10-31 07:44:15.338.
+Test Case '-[LightamerTestsIOP.SpectralTcFitTests testDualRunBitIdentity]' started.
+Test Case '-[LightamerTestsIOP.SpectralTcFitTests testDualRunBitIdentity]' passed (3.371 seconds).
+Test Case '-[LightamerTestsIOP.SpectralTcFitTests testFitReproducesTargetChromaticityOnSampledCells]' started.
+Test Case '-[LightamerTestsIOP.SpectralTcFitTests testFitReproducesTargetChromaticityOnSampledCells]' passed (1.331 seconds).
+Test Case '-[LightamerTestsIOP.SpectralTcFitTests testFullGridQualityGates]' started.
+Test Case '-[LightamerTestsIOP.SpectralTcFitTests testFullGridQualityGates]' passed (245.318 seconds).
+Test Case '-[LightamerTestsIOP.SpectralTcFitTests testNeutralCellRebuiltChromaticityAtTheTableWhite]' started.
+Test Case '-[LightamerTestsIOP.SpectralTcFitTests testNeutralCellRebuiltChromaticityAtTheTableWhite]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.SpectralTcFitTests testSigmoidModelShapeFamiliesAndNeutralSnap]' started.
+Test Case '-[LightamerTestsIOP.SpectralTcFitTests testSigmoidModelShapeFamiliesAndNeutralSnap]' passed (0.000 seconds).
+Test Suite 'SpectralTcFitTests' passed at 2026-10-31 07:48:25.361.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 250.022 (250.023) seconds
+Test Suite 'StackAggregateTests' started at 2026-10-31 07:48:25.361.
+Test Case '-[LightamerTestsIOP.StackAggregateTests testAggregateBandStackAndConstantMemory]' started.
+Test Case '-[LightamerTestsIOP.StackAggregateTests testAggregateBandStackAndConstantMemory]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.StackAggregateTests testAnalyticGoldenAverage]' started.
+Test Case '-[LightamerTestsIOP.StackAggregateTests testAnalyticGoldenAverage]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.StackAggregateTests testAnalyticGoldenMedian]' started.
+Test Case '-[LightamerTestsIOP.StackAggregateTests testAnalyticGoldenMedian]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.StackAggregateTests testAnalyticGoldenSigmaClip]' started.
+Test Case '-[LightamerTestsIOP.StackAggregateTests testAnalyticGoldenSigmaClip]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.StackAggregateTests testCoordinatorStackSeamsReachService]' started.
+Test Case '-[LightamerTestsIOP.StackAggregateTests testCoordinatorStackSeamsReachService]' passed (0.279 seconds).
+Test Case '-[LightamerTestsIOP.StackAggregateTests testDisplacedFocusRailAlignsAndFuses]' started.
+Test Case '-[LightamerTestsIOP.StackAggregateTests testDisplacedFocusRailAlignsAndFuses]' passed (0.183 seconds).
+Test Case '-[LightamerTestsIOP.StackAggregateTests testPrecheckStackVariantMatrix]' started.
+Test Case '-[LightamerTestsIOP.StackAggregateTests testPrecheckStackVariantMatrix]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.StackAggregateTests testSigmaClipN3DegeneratesToAverage]' started.
+Test Case '-[LightamerTestsIOP.StackAggregateTests testSigmaClipN3DegeneratesToAverage]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.StackAggregateTests testSigmaClipStarFieldRejectsSatelliteTrail]' started.
+Test Case '-[LightamerTestsIOP.StackAggregateTests testSigmaClipStarFieldRejectsSatelliteTrail]' passed (0.023 seconds).
+Test Case '-[LightamerTestsIOP.StackAggregateTests testStackAndFocusKindsEndToEnd]' started.
+Test Case '-[LightamerTestsIOP.StackAggregateTests testStackAndFocusKindsEndToEnd]' passed (0.597 seconds).
+Test Case '-[LightamerTestsIOP.StackAggregateTests testStackingE2ETimingProbe]' started.
+Test Case '-[LightamerTestsIOP.StackAggregateTests testStackingE2ETimingProbe]' passed (0.233 seconds).
+Test Suite 'StackAggregateTests' passed at 2026-10-31 07:48:26.678.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 1.316 (1.317) seconds
+Test Suite 'StackMergeServiceTests' started at 2026-10-31 07:48:26.678.
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testCancelAfterWriteBoundaryCompletesDone]' started.
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testCancelAfterWriteBoundaryCompletesDone]' passed (0.028 seconds).
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testCancelAllCancelsWithoutMerging]' started.
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testCancelAllCancelsWithoutMerging]' passed (0.027 seconds).
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testCancelDuringDecodeStopsAtNextGate]' started.
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testCancelDuringDecodeStopsAtNextGate]' passed (0.027 seconds).
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testCIRAW100MPDecodeTimingProbe]' started.
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testCIRAW100MPDecodeTimingProbe]' passed (2.458 seconds).
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testCoordinatorHDRMergeSeamReachesService]' started.
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testCoordinatorHDRMergeSeamReachesService]' passed (0.071 seconds).
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testDecodeFailureIsHardAndRetryable]' started.
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testDecodeFailureIsHardAndRetryable]' passed (0.049 seconds).
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testEnqueueNeedsTwoSources]' started.
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testEnqueueNeedsTwoSources]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testHappyPathProgressWindowAndDone]' started.
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testHappyPathProgressWindowAndDone]' passed (0.028 seconds).
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testHDRLegBirthSidecarStampsCurrentProcess]' started.
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testHDRLegBirthSidecarStampsCurrentProcess]' passed (0.028 seconds).
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testMertensLegBirthSidecarStampsCurrentProcess]' started.
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testMertensLegBirthSidecarStampsCurrentProcess]' passed (0.092 seconds).
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testRetryNonFailedThrows]' started.
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testRetryNonFailedThrows]' passed (0.004 seconds).
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testSourcesRemainUnmodified]' started.
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testSourcesRemainUnmodified]' passed (0.027 seconds).
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testWriteFailureIsHardWithEncodeTyping]' started.
+Test Case '-[LightamerTestsIOP.StackMergeServiceTests testWriteFailureIsHardWithEncodeTyping]' passed (0.027 seconds).
+Test Suite 'StackMergeServiceTests' passed at 2026-10-31 07:48:29.552.
+	 Executed 13 tests, with 0 failures (0 unexpected) in 2.873 (2.875) seconds
+Test Suite 'StraightenDetectTests' started at 2026-10-31 07:48:29.552.
+Test Case '-[LightamerTestsIOP.StraightenDetectTests testSegmentDetectorFindsKnownLines]' started.
+Test Case '-[LightamerTestsIOP.StraightenDetectTests testSegmentDetectorFindsKnownLines]' passed (0.428 seconds).
+Test Case '-[LightamerTestsIOP.StraightenDetectTests testStraightenGuardGates]' started.
+Test Case '-[LightamerTestsIOP.StraightenDetectTests testStraightenGuardGates]' passed (1.164 seconds).
+Test Suite 'StraightenDetectTests' passed at 2026-10-31 07:48:31.144.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 1.592 (1.592) seconds
+Test Suite 'TerminalTrioTests' started at 2026-10-31 07:48:31.144.
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testColorInIdentityParamsHashIsStable]' started.
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testColorInIdentityParamsHashIsStable]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testColorOutCommitFoldsDisplayStableID]' started.
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testColorOutCommitFoldsDisplayStableID]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testColorOutMatrixKnownPointsP3]' started.
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testColorOutMatrixKnownPointsP3]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testColorOutMatrixKnownPointsSRGB]' started.
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testColorOutMatrixKnownPointsSRGB]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testColorOutPreservesGrayExactly]' started.
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testColorOutPreservesGrayExactly]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testDefaultChainIsTerminalTrioInV50Order]' started.
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testDefaultChainIsTerminalTrioInV50Order]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testDisplayProfileCurrentOnThisHost]' started.
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testDisplayProfileCurrentOnThisHost]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testDisplayProfileKnownSpaces]' started.
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testDisplayProfileKnownSpaces]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testGammaTRCTable]' started.
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testGammaTRCTable]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testIOPPopulateRegistersTestGainInDebug]' started.
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testIOPPopulateRegistersTestGainInDebug]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testMakeBoxInjectsPersistedInstanceID]' started.
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testMakeBoxInjectsPersistedInstanceID]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testPipeTailProducesBgra8Unorm]' started.
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testPipeTailProducesBgra8Unorm]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testTerminalCopyBitIdentity]' started.
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testTerminalCopyBitIdentity]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testUnknownOpReturnsNil]' started.
+Test Case '-[LightamerTestsIOP.TerminalTrioTests testUnknownOpReturnsNil]' passed (0.102 seconds).
+Test Suite 'TerminalTrioTests' passed at 2026-10-31 07:48:31.262.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 0.117 (0.118) seconds
+Test Suite 'TextOverlayTests' started at 2026-10-31 07:48:31.262.
+Test Case '-[LightamerTestsIOP.TextOverlayTests testCoverageCacheMissHit]' started.
+Test Case '-[LightamerTestsIOP.TextOverlayTests testCoverageCacheMissHit]' passed (0.016 seconds).
+Test Case '-[LightamerTestsIOP.TextOverlayTests testEmptyContentIsByteIdentity]' started.
+Test Case '-[LightamerTestsIOP.TextOverlayTests testEmptyContentIsByteIdentity]' passed (0.008 seconds).
+Test Case '-[LightamerTestsIOP.TextOverlayTests testLayerMaskLocalization]' started.
+Test Case '-[LightamerTestsIOP.TextOverlayTests testLayerMaskLocalization]' passed (0.011 seconds).
+Test Case '-[LightamerTestsIOP.TextOverlayTests testMultiLineBlockExtentGrowsWithLines]' started.
+Test Case '-[LightamerTestsIOP.TextOverlayTests testMultiLineBlockExtentGrowsWithLines]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.TextOverlayTests testPositionRotationOpacityAnalytic]' started.
+Test Case '-[LightamerTestsIOP.TextOverlayTests testPositionRotationOpacityAnalytic]' passed (0.013 seconds).
+Test Case '-[LightamerTestsIOP.TextOverlayTests testYiyinCoexistenceAndZeroChangeBoundary]' started.
+Test Case '-[LightamerTestsIOP.TextOverlayTests testYiyinCoexistenceAndZeroChangeBoundary]' passed (0.010 seconds).
+Test Suite 'TextOverlayTests' passed at 2026-10-31 07:48:31.320.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.058 (0.058) seconds
+Test Suite 'TileNegotiationRegressionTests' started at 2026-10-31 07:48:31.320.
+Test Case '-[LightamerTestsIOP.TileNegotiationRegressionTests testForcedTilingMatchesWholePlane]' started.
+Test Case '-[LightamerTestsIOP.TileNegotiationRegressionTests testForcedTilingMatchesWholePlane]' passed (0.345 seconds).
+Test Case '-[LightamerTestsIOP.TileNegotiationRegressionTests testFourConsumerGridPreview]' started.
+Test Case '-[LightamerTestsIOP.TileNegotiationRegressionTests testFourConsumerGridPreview]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.TileNegotiationRegressionTests testSingleAndTinyTileExtremes]' started.
+Test Case '-[LightamerTestsIOP.TileNegotiationRegressionTests testSingleAndTinyTileExtremes]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.TileNegotiationRegressionTests testTileDriverPreservesGeometryStamps]' started.
+Test Case '-[LightamerTestsIOP.TileNegotiationRegressionTests testTileDriverPreservesGeometryStamps]' passed (0.258 seconds).
+Test Case '-[LightamerTestsIOP.TileNegotiationRegressionTests testTileReadWriteAccountingMatchesHaloContract]' started.
+Test Case '-[LightamerTestsIOP.TileNegotiationRegressionTests testTileReadWriteAccountingMatchesHaloContract]' passed (0.061 seconds).
+Test Suite 'TileNegotiationRegressionTests' passed at 2026-10-31 07:48:31.985.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.665 (0.665) seconds
+Test Suite 'TilingOverlapTests' started at 2026-10-31 07:48:31.985.
+Test Case '-[LightamerTestsIOP.TilingOverlapTests testForcedTilingMatchesWholePlane]' started.
+Test Case '-[LightamerTestsIOP.TilingOverlapTests testForcedTilingMatchesWholePlane]' passed (0.339 seconds).
+Test Case '-[LightamerTestsIOP.TilingOverlapTests testFULLToneEqual100MPMemoryUnder3GB]' started.
+Test Case '-[LightamerTestsIOP.TilingOverlapTests testFULLToneEqual100MPMemoryUnder3GB]' passed (76.821 seconds).
+Test Suite 'TilingOverlapTests' passed at 2026-10-31 07:49:49.218.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 77.160 (77.233) seconds
+Test Suite 'TilingPlanTests' started at 2026-10-31 07:49:49.218.
+Test Case '-[LightamerTestsIOP.TilingPlanTests testDefaultBytesPerPixelIsWorkingSpace]' started.
+Test Case '-[LightamerTestsIOP.TilingPlanTests testDefaultBytesPerPixelIsWorkingSpace]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.TilingPlanTests testDegenerateInputsProduceNoTiles]' started.
+Test Case '-[LightamerTestsIOP.TilingPlanTests testDegenerateInputsProduceNoTiles]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.TilingPlanTests testOverlapShrinksInteriorEdgesOnly]' started.
+Test Case '-[LightamerTestsIOP.TilingPlanTests testOverlapShrinksInteriorEdgesOnly]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.TilingPlanTests testSingleTileWhenBudgetCoversPlane]' started.
+Test Case '-[LightamerTestsIOP.TilingPlanTests testSingleTileWhenBudgetCoversPlane]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.TilingPlanTests testThreeByThreeGridForHundredSquare]' started.
+Test Case '-[LightamerTestsIOP.TilingPlanTests testThreeByThreeGridForHundredSquare]' passed (0.000 seconds).
+Test Suite 'TilingPlanTests' passed at 2026-10-31 07:49:49.222.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.004 (0.004) seconds
+Test Suite 'UprightMathTests' started at 2026-10-31 07:49:49.222.
+Test Case '-[LightamerTestsIOP.UprightMathTests testPathologicalGuidesDegradeWithoutCrashing]' started.
+Test Case '-[LightamerTestsIOP.UprightMathTests testPathologicalGuidesDegradeWithoutCrashing]' passed (0.005 seconds).
+Test Case '-[LightamerTestsIOP.UprightMathTests testRightDroopingHorizonReadsNegativeDegrees]' started.
+Test Case '-[LightamerTestsIOP.UprightMathTests testRightDroopingHorizonReadsNegativeDegrees]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.UprightMathTests testSingleVerticalGuideIsPureRotationExactTo1e9]' started.
+Test Case '-[LightamerTestsIOP.UprightMathTests testSingleVerticalGuideIsPureRotationExactTo1e9]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.UprightMathTests testSolutionIsResolutionIndependent]' started.
+Test Case '-[LightamerTestsIOP.UprightMathTests testSolutionIsResolutionIndependent]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.UprightMathTests testSyntheticKeystoneRecoveryMatchesShotHomography]' started.
+Test Case '-[LightamerTestsIOP.UprightMathTests testSyntheticKeystoneRecoveryMatchesShotHomography]' passed (0.000 seconds).
+Test Suite 'UprightMathTests' passed at 2026-10-31 07:49:49.228.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.006 (0.006) seconds
+Test Suite 'V50OrderTests' started at 2026-10-31 07:49:49.228.
+Test Case '-[LightamerTestsIOP.V50OrderTests testBilateralSlotOrderConstraint]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testBilateralSlotOrderConstraint]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testChannelMixerRGBSlotOrderConstraint]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testChannelMixerRGBSlotOrderConstraint]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testColorBalanceRGBSlotOrderConstraint]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testColorBalanceRGBSlotOrderConstraint]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testColormatchSlotOrderConstraint]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testColormatchSlotOrderConstraint]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testDetailSlotOrderConstraints]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testDetailSlotOrderConstraints]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testEntriesCountApproximately76]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testEntriesCountApproximately76]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testFilmPlacementSlotOrderConstraint]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testFilmPlacementSlotOrderConstraint]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testFlipBeforeCropOrderConstraint]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testFlipBeforeCropOrderConstraint]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testLensSlotOrderConstraint]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testLensSlotOrderConstraint]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testLiquifySlotNeighborhood]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testLiquifySlotNeighborhood]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testNLMeansSlotOrderConstraint]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testNLMeansSlotOrderConstraint]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testNoDuplicateOpNameExceptDeliberateCollisions]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testNoDuplicateOpNameExceptDeliberateCollisions]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testOrderForKnownModules]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testOrderForKnownModules]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testSkinSmoothInsertionMovesNoVerbatimRow]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testSkinSmoothInsertionMovesNoVerbatimRow]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testSkinSmoothSlotOrderConstraint]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testSkinSmoothSlotOrderConstraint]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testTextOverlaySlotOrderConstraint]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testTextOverlaySlotOrderConstraint]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.V50OrderTests testVelviaVibranceColorZonesSlotOrderConstraint]' started.
+Test Case '-[LightamerTestsIOP.V50OrderTests testVelviaVibranceColorZonesSlotOrderConstraint]' passed (0.001 seconds).
+Test Suite 'V50OrderTests' passed at 2026-10-31 07:49:49.236.
+	 Executed 17 tests, with 0 failures (0 unexpected) in 0.008 (0.008) seconds
+Test Suite 'VibranceVelviaCommitTests' started at 2026-10-31 07:49:49.236.
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVelviaClampFloor]' started.
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVelviaClampFloor]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVelviaClampTruncatesHDR]' started.
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVelviaClampTruncatesHDR]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVelviaCommitScalesStrength]' started.
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVelviaCommitScalesStrength]' passed (0.001 seconds).
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVelviaNeutralIdentity]' started.
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVelviaNeutralIdentity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVelviaReferenceGrayFixed]' started.
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVelviaReferenceGrayFixed]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVelviaStrengthZeroPassesHDRThroughUnclamped]' started.
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVelviaStrengthZeroPassesHDRThroughUnclamped]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVibranceCommitScalesAmount]' started.
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVibranceCommitScalesAmount]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVibranceLowSaturationDirection]' started.
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVibranceLowSaturationDirection]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVibranceNeutralIdentity]' started.
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVibranceNeutralIdentity]' passed (0.000 seconds).
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVibranceReferenceSpotValue]' started.
+Test Case '-[LightamerTestsIOP.VibranceVelviaCommitTests testVibranceReferenceSpotValue]' passed (0.000 seconds).
+Test Suite 'VibranceVelviaCommitTests' passed at 2026-10-31 07:49:49.238.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'VignetteTests' started at 2026-10-31 07:49:49.238.
+Test Case '-[LightamerTestsIOP.VignetteTests testBrightnessBranchesDiverge]' started.
+Test Case '-[LightamerTestsIOP.VignetteTests testBrightnessBranchesDiverge]' passed (0.006 seconds).
+Test Case '-[LightamerTestsIOP.VignetteTests testFalloffAnalyticAnchors]' started.
+Test Case '-[LightamerTestsIOP.VignetteTests testFalloffAnalyticAnchors]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.VignetteTests testFalloffCurveFloat64Parity]' started.
+Test Case '-[LightamerTestsIOP.VignetteTests testFalloffCurveFloat64Parity]' passed (0.003 seconds).
+Test Case '-[LightamerTestsIOP.VignetteTests testNeutralBlitByteIdentity]' started.
+Test Case '-[LightamerTestsIOP.VignetteTests testNeutralBlitByteIdentity]' passed (0.002 seconds).
+Test Case '-[LightamerTestsIOP.VignetteTests testRegistrationAndLayerEligibility]' started.
+Test Case '-[LightamerTestsIOP.VignetteTests testRegistrationAndLayerEligibility]' passed (0.352 seconds).
+Test Case '-[LightamerTestsIOP.VignetteTests testUnboundClippingSemantics]' started.
+Test Case '-[LightamerTestsIOP.VignetteTests testUnboundClippingSemantics]' passed (0.004 seconds).
+Test Suite 'VignetteTests' passed at 2026-10-31 07:49:49.608.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.369 (0.369) seconds
+Test Suite 'VisionDetectTests' started at 2026-10-31 07:49:49.608.
+Test Case '-[LightamerTestsIOP.VisionDetectTests testBlankImageYieldsNoDetection]' started.
+Test Case '-[LightamerTestsIOP.VisionDetectTests testBlankImageYieldsNoDetection]' passed (0.055 seconds).
+Test Case '-[LightamerTestsIOP.VisionDetectTests testHorizonAnglesDetectWithinPointTwoDegrees]' started.
+Test Case '-[LightamerTestsIOP.VisionDetectTests testHorizonAnglesDetectWithinPointTwoDegrees]' passed (0.366 seconds).
+Test Case '-[LightamerTestsIOP.VisionDetectTests testHorizonSignConventionIsClockwisePositive]' started.
+Test Case '-[LightamerTestsIOP.VisionDetectTests testHorizonSignConventionIsClockwisePositive]' passed (0.125 seconds).
+Test Case '-[LightamerTestsIOP.VisionDetectTests testRectangleCornersRecoverWithinHalfPercent]' started.
+Test Case '-[LightamerTestsIOP.VisionDetectTests testRectangleCornersRecoverWithinHalfPercent]' passed (0.221 seconds).
+Test Suite 'VisionDetectTests' passed at 2026-10-31 07:49:50.374.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.766 (0.766) seconds
+Test Suite 'LightamerTestsIOP.xctest' passed at 2026-10-31 07:49:50.374.
+	 Executed 814 tests, with 1 test skipped and 0 failures (0 unexpected) in 930.256 (930.379) seconds
+Test Suite 'All tests' passed at 2026-10-31 07:49:50.375.
+	 Executed 814 tests, with 1 test skipped and 0 failures (0 unexpected) in 930.256 (930.380) seconds
+ all: 85.0,84.9,85.7,87.4,84.2,83.4,84.5,85.4,84.4,83.4
+PERF5 PREVIEW full-chain frame ms (Debug): 49.2, 49.4, 48.7, 48.2, 48.3, 48.6, 48.8, 50.6, 47.4, 48.8, 48.3, 47.3 — median 48.72, warm median 48.75
+PERF7 denoiseprofile wavelets engine 2048x1536: max_scale 7, 31 passes, median 37.5 ms — 37.1, 37.3, 37.5, 37.1, 37.8, 37.7, 37.7, 37.4
+LA-PERF sigma N=8 512x384 E2E: 0.214s
+CIRAW-DECODE-PROBE: 11648x8736 (101.8MP) RAW v8 — align-pass render 1.46s, merge-pass full float render 0.99s
+nlmeans: tiles=20 maxTileBytes=532924880 halo=9
+denoiseprofile-wavelets: tiles=24 maxTileBytes=533072384 halo=8
+monochrome-grid: tiles=6 maxTileBytes=527681304 halo=40
+bilateral: tiles=9 maxTileBytes=535299200 halo=6
+      933.15 real      5051.70 user        25.09 sys
+          6439993344  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             1870376  page reclaims
+               69931  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   1  messages sent
+                   0  messages received
+                   0  signals received
+                9818  voluntary context switches
+             3055627  involuntary context switches
+      76754351069170  instructions retired
+      16956779108135  cycles elapsed
+         10775959144  peak memory footprint
