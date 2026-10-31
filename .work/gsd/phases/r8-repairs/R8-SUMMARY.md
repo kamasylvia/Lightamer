@@ -6,7 +6,7 @@
 - **根因**:`forwardWalk` 种下 `roi = entry` 后不再写,composite 的
   `window = basePipe.roi` 取到 entry 帧;激活几何模块(SWAP_XY flip / crop)下
   base 平面 = walked 形、window = entry 形 → terminal sub-run 协商错帧 →
-  pos 0 逐像素断言双值不匹配。潜伏引入 = `9d1f4fa9`(06-01 T4 composite 骨架),
+  pos 0 逐像素断言双值不匹配。潜伏引入 = `9d1f4fa9`(09-23 T4 composite 骨架),
   用户可达化 = M9-3 crop tool strip(M9-3/M9-4 嫌疑线均排除,见 DECISIONS §D-R8-1)。
 - **修法**:`forwardWalk` 末行 `roi = roiWalk`(发布协商终帧);恒等链零漂移。
   封存面豁免:PixelPipe 仅 2 hunk(属性 doc + walk 尾同步),M9-4 prepareChain
