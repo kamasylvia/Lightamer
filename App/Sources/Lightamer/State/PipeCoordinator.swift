@@ -833,8 +833,12 @@ final class PipeCoordinator {
     func filmRecordDidChange(_ record: FilmRecord) async {
         guard decoded != nil else { return }
         syncFilmCarrierWithHistory()
-        await historyDidChange()
+        // M8-3+ T6 (R-M83P-7): the sidecar write schedules BEFORE the
+        // re-render (a cold tc build's 4-5 min MainActor await no longer
+        // starves the write — the 2s-debounce LAST-write-wins semantic
+        // is unchanged: the store merges, it never assumed "rendered").
         scheduleSidecarWrite()
+        await historyDidChange()
     }
 
     /// ④ RUN pass-through (KD-6): the film-tail policy for a render at
