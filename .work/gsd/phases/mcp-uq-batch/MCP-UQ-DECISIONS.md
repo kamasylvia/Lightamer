@@ -83,3 +83,27 @@ e2e 子进程测试经 env 注入测试域（L036）。
   硬化属二级 CLI 立项面。
 - M-13（`mcp call render_preview` MB 级 stdout）：挂账——pipe-safe 但笨重，
   二级立项 `--out` 文件臂时消解。
+
+## zcode review 修复轮（E-3 + B-2）
+
+- E-3（error）：`jsonValue` 的 `value as? Bool` 首检被 Foundation
+  NSNumber 桥接污染——`__NSCFNumber(0/1) as? Bool` 成功（0/1 数字
+  默认值输出 false/true：temperature gains 1.0 / colisa 0 /
+  exposure 0 / toneequal 十 band / equalizer g0-g5 全污染）。
+  修 = 删首检，NSNumber 分支内 `CFGetTypeID(n) ==
+  CFBooleanGetTypeID()` 判真布尔（Swift Bool 桥接后同属
+  kCFBoolean，无需单独分支）。
+- E-3 测试机理（镜像自洽教训）：旧 M-6「独立解码」把 wire 值再过
+  同一污染函数自我镜像（`bool(false) == bool(false)`）——zcode
+  review 指出后重写为五模块 Params init 转录的独立字面量断言
+  （模块默认值改动则测试诚实变红）+ `testJsonValueTreatsZero-
+  AndOneAsNumbers` 直测（0/1 六种数字装 + JSON 真布尔两枚）。
+  「独立断言不得经过被测函数」入 L 教训候选。
+- 旧/新双向亲证：新回归在旧 jsonValue 下 30 failures（红），修后
+  绿——断言独立性实证非宣称。
+- B-2（minor）：usage `list [--list]` 改 `list, --list`（旧写法暗示
+  `mcp list --list` 合法而 parse 拒收）+ `usage.contains("--list")`
+  注记断言。
+- 封存面 17 件零 diff；G4 贴线透明越门（15.8G，§9 先例）；zh-audit
+  --check PASS（1783/2116/10）；App Mcp 族 19 类定向全绿（250/0/0）+
+  IOPP McpRenderParityTests 9/0/0（该类归 IOPP bundle，BUNDLE-MAP#107）。

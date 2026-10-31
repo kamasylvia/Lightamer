@@ -85,37 +85,107 @@ final class McpGetSchemaTests: XCTestCase {
             "ops without encoded defaults: \(missing)")
     }
 
+    /// E-3 (zcode MCP-UQ review): the OLD M-6 "independent decode" passed
+    /// the wire value back through the SAME polluted jsonValue() and
+    /// mirrored itself green (`bool(false) == bool(false)`). The defaults
+    /// below are INDEPENDENT literals transcribed from the five modules'
+    /// Params inits — if a module default ever changes, this test must go
+    /// red and the literal updated (honest coupling, not a mirror).
     func testDefaultsEqualTheEncodedDefaults() async throws {
         let seed = await populatedSeed()
         let schemas = McpSchemaCatalog.synthesize(
             ops: IopCatalog.ops, seed: seed)
-        // Spot faces: a ranged scalar, an enum, a boolean, a null optional.
         let byPath = Dictionary(
             uniqueKeysWithValues: schemas.flatMap(\.fields).map {
                 ($0.path, $0)
             })
+        // temperature: 1.0 gains are NUMBERS, preset .user is 2.
+        let red = try XCTUnwrap(byPath["temperature.red"])
+        XCTAssertEqual(red.type, "range:[0,8]")
+        XCTAssertEqual(red.defaultValue, .int(1))
+        XCTAssertEqual(
+            try XCTUnwrap(byPath["temperature.green"]).defaultValue, .int(1))
+        XCTAssertEqual(
+            try XCTUnwrap(byPath["temperature.blue"]).defaultValue, .int(1))
+        XCTAssertEqual(
+            try XCTUnwrap(byPath["temperature.preset"]).defaultValue, .int(2))
+        // exposure: 0.0 scalars are NUMBERS (not false); the two real
+        // booleans stay booleans.
         let exposure = try XCTUnwrap(byPath["exposure.exposure"])
         XCTAssertEqual(exposure.type, "range:[-18,18] (EV)")
         XCTAssertEqual(exposure.range, "[-18,18] EV")
-        // M-6: the default face is pinned against an INDEPENDENT decode
-        // of the seed record (not the synthesis input itself).
-        let record = try XCTUnwrap(seed.first {
-            $0.opName == "exposure" && $0.multiPriority == 0
-        })
-        let wire = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: record.paramsData, options: [])
-                as? [String: Any])
-        let wireExposure = try XCTUnwrap(wire["exposure"] as? NSNumber)
+        XCTAssertEqual(exposure.defaultValue, .int(0))
         XCTAssertEqual(
-            exposure.defaultValue,
-            McpSchemaCatalog.jsonValue(wireExposure))
-        XCTAssertNotEqual(exposure.defaultValue, .null)
+            try XCTUnwrap(byPath["exposure.black"]).defaultValue, .int(0))
+        XCTAssertEqual(
+            try XCTUnwrap(byPath["exposure.mode"]).defaultValue, .int(0))
+        XCTAssertEqual(
+            try XCTUnwrap(byPath["exposure.compensateExposureBias"]).defaultValue,
+            .bool(false))
+        XCTAssertEqual(
+            try XCTUnwrap(byPath["exposure.compensateHilitePres"]).defaultValue,
+            .bool(true))
+        // colisa: 0.0 is a NUMBER (not false).
         let colisa = try XCTUnwrap(byPath["colisa.contrast"])
         XCTAssertEqual(colisa.range, "[-1,1]")
+        XCTAssertEqual(colisa.defaultValue, .int(0))
+        XCTAssertEqual(
+            try XCTUnwrap(byPath["colisa.brightness"]).defaultValue, .int(0))
+        XCTAssertEqual(
+            try XCTUnwrap(byPath["colisa.saturation"]).defaultValue, .int(0))
+        // toneequal: ten 0.0 bands are NUMBERS; non-0/1 neighbors pin the
+        // shape (blending 5 / smoothing √2 / method .norm2=4 / details
+        // .eigf=4 / iterations 1).
+        for band in [
+            "ultraDeepBlacks", "deepBlacks", "blacks", "shadows",
+            "midtones", "highlights", "whites", "speculars",
+            "contrastBoost", "exposureBoost",
+        ] {
+            XCTAssertEqual(
+                try XCTUnwrap(byPath["toneequal.\(band)"]).defaultValue,
+                .int(0), "toneequal.\(band)")
+        }
+        XCTAssertEqual(
+            try XCTUnwrap(byPath["toneequal.blending"]).defaultValue, .int(5))
+        XCTAssertEqual(
+            try XCTUnwrap(byPath["toneequal.method"]).defaultValue, .int(4))
+        XCTAssertEqual(
+            try XCTUnwrap(byPath["toneequal.details"]).defaultValue, .int(4))
+        XCTAssertEqual(
+            try XCTUnwrap(byPath["toneequal.iterations"]).defaultValue, .int(1))
+        // equalizer: g0-g5 are 0.0 NUMBERS (not false).
+        for index in 0...5 {
+            XCTAssertEqual(
+                try XCTUnwrap(byPath["equalizer.g\(index)"]).defaultValue,
+                .int(0), "equalizer.g\(index)")
+        }
+        // Unrelated faces keep their shape (enum range, null optional).
         let matchStrength = try XCTUnwrap(byPath["colormatch.strength"])
         XCTAssertEqual(matchStrength.range, "[0,1]")
         let matchNull = try XCTUnwrap(byPath["colormatch.sourceStatsHash"])
         XCTAssertEqual(matchNull.defaultValue, .null)
+    }
+
+    /// E-3 direct: jsonValue discriminates by CFBoolean identity — 0/1 in
+    /// every numeric dress stay numbers, JSON true/false stay booleans.
+    func testJsonValueTreatsZeroAndOneAsNumbers() throws {
+        for value: Any in [
+            NSNumber(value: 0), NSNumber(value: 1),
+            NSNumber(value: 0.0), NSNumber(value: 1.0),
+            0, 1,
+        ] {
+            let got = McpSchemaCatalog.jsonValue(value)
+            XCTAssertTrue(
+                got == .int(0) || got == .int(1),
+                "\(type(of: value)) \(value) must be numeric, got \(got)")
+        }
+        // Genuine JSON booleans (the kCFBoolean face) still land boolean.
+        let bools = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: Data(#"{"t":true,"f":false}"#.utf8), options: [])
+                as? [String: Any])
+        XCTAssertEqual(McpSchemaCatalog.jsonValue(bools["t"]), .bool(true))
+        XCTAssertEqual(McpSchemaCatalog.jsonValue(bools["f"]), .bool(false))
     }
 
     // MARK: - 4: the tool answers through the registry seam

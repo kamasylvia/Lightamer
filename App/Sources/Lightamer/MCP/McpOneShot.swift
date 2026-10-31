@@ -43,7 +43,7 @@ enum McpOneShot {
     static let usage = """
     usage: Lightamer mcp <command>
 
-      list [--list]             list the MCP tools of the running app
+      list, --list              list the MCP tools of the running app
       call <tool> '<json>'    call one tool (args default '{}'), print the result JSON
 
     Reads the MCP discovery file, handshakes the app's HTTP endpoint, runs
