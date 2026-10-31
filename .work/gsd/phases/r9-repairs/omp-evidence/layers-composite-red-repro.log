@@ -1,0 +1,57 @@
+sandbox_extension_issue_file_to_process failed for /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug//Lightamer.app: 1 (Operation not permitted)
+Test Suite 'Selected tests' started at 2026-10-31 10:26:41.177.
+Test Suite 'LightamerTestsLayers.xctest' started at 2026-10-31 10:26:41.177.
+Test Suite 'LayerCompositeTests' started at 2026-10-31 10:26:41.177.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testCompositeFilmTransposedFrameMatchesTheUntransposedLookup]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/LayerCompositeTests.swift:812: error: -[LightamerTestsLayers.LayerCompositeTests testCompositeFilmTransposedFrameMatchesTheUntransposedLookup] : XCTAssertLessThan failed: ("0.7254902") is not less than ("0.02") - composite transposed film output must match the pointwise lookup (max Δ 0.7254902)
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testCompositeFilmTransposedFrameMatchesTheUntransposedLookup]' failed (14.768 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testCompositeSurvivesActivatedRotationAndCrop]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testCompositeSurvivesActivatedRotationAndCrop]' passed (0.010 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testDriverMultiplyCompositeClosedForm]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testDriverMultiplyCompositeClosedForm]' passed (0.009 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testEmptyDisabledHiddenLayersAreNoOps]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testEmptyDisabledHiddenLayersAreNoOps]' passed (0.011 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testLayerGeometryDetectorCatchesAllForbiddenSlots]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testLayerGeometryDetectorCatchesAllForbiddenSlots]' passed (0.000 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testLayerParamsChangeTheComposite]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testLayerParamsChangeTheComposite]' passed (0.011 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testOpacityOneEqualsFlatMergedChain]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testOpacityOneEqualsFlatMergedChain]' passed (0.010 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testOpacityZeroEqualsBaseOnly]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testOpacityZeroEqualsBaseOnly]' passed (0.009 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testPerceptualModesOnNeutralStayNeutral]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testPerceptualModesOnNeutralStayNeutral]' passed (0.009 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testPipeROIReportsNegotiatedFinalFrameAfterCrop]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testPipeROIReportsNegotiatedFinalFrameAfterCrop]' passed (0.007 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testPipeROIReportsNegotiatedFinalFrameAfterSwapXY]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testPipeROIReportsNegotiatedFinalFrameAfterSwapXY]' passed (0.007 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testReverseFlagSwapsAB]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testReverseFlagSwapsAB]' passed (0.008 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testTrackBFullChainWithIdentityLayerIsZeroIncrement]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testTrackBFullChainWithIdentityLayerIsZeroIncrement]' passed (0.416 seconds).
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testWindowedCompositeMatchesFlatRunAtSameWindow]' started.
+Test Case '-[LightamerTestsLayers.LayerCompositeTests testWindowedCompositeMatchesFlatRunAtSameWindow]' passed (0.010 seconds).
+Test Suite 'LayerCompositeTests' failed at 2026-10-31 10:26:56.463.
+	 Executed 14 tests, with 1 failure (0 unexpected) in 15.284 (15.285) seconds
+Test Suite 'LightamerTestsLayers.xctest' failed at 2026-10-31 10:26:56.463.
+	 Executed 14 tests, with 1 failure (0 unexpected) in 15.284 (15.285) seconds
+Test Suite 'Selected tests' failed at 2026-10-31 10:26:56.463.
+	 Executed 14 tests, with 1 failure (0 unexpected) in 15.284 (15.286) seconds
+       16.01 real       127.72 user         0.53 sys
+           344637440  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               29210  page reclaims
+                 380  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   1  messages sent
+                   0  messages received
+                   0  signals received
+                 324  voluntary context switches
+               85059  involuntary context switches
+        246573793907  instructions retired
+        421049244793  cycles elapsed
+           315655608  peak memory footprint

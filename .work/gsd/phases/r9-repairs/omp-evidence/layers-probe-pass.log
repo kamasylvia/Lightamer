@@ -1,0 +1,50 @@
+sandbox_extension_issue_file_to_process failed for /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug//Lightamer.app: 1 (Operation not permitted)
+Test Suite 'Selected tests' started at 2026-10-31 09:55:38.414.
+Test Suite 'LightamerTestsLayers.xctest' started at 2026-10-31 09:55:38.414.
+Test Suite 'FilmLegTests' started at 2026-10-31 09:55:38.414.
+Test Case '-[LightamerTestsLayers.FilmLegTests testDisplayReplayResidentsPerMatrixRow]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testDisplayReplayResidentsPerMatrixRow]' passed (0.238 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testDRTFilmStacksAndFeedsTheTailSeed]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testDRTFilmStacksAndFeedsTheTailSeed]' passed (0.016 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testEDRLinearFilmReplaysColoroutOnlyAndNeverGamma]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testEDRLinearFilmReplaysColoroutOnlyAndNeverGamma]' passed (0.012 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmLegDoesNotReenterUnderYiyinTail]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmLegDoesNotReenterUnderYiyinTail]' passed (0.010 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmLegTransposedFrameMatchesTheUntransposedLookupDensity]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmLegTransposedFrameMatchesTheUntransposedLookupDensity]' passed (13.159 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmLegTransposedFrameMatchesTheUntransposedLookupSpectral]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmLegTransposedFrameMatchesTheUntransposedLookupSpectral]' passed (254.971 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmNilIsByteIdenticalToTheLegacyCall]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmNilIsByteIdenticalToTheLegacyCall]' passed (0.008 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testResolvedMaterialsRenderThroughTheFusedKernel]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testResolvedMaterialsRenderThroughTheFusedKernel]' passed (0.374 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testSDRGammaFilmDemotesAndReplaysTheWholeTerminalSet]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testSDRGammaFilmDemotesAndReplaysTheWholeTerminalSet]' passed (0.009 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testSDRGammaFilmHoldsAtFullResolution]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testSDRGammaFilmHoldsAtFullResolution]' passed (0.009 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testSeedFoldIsStableAndDiscriminatesEveryTerm]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testSeedFoldIsStableAndDiscriminatesEveryTerm]' passed (0.000 seconds).
+Test Suite 'FilmLegTests' passed at 2026-10-31 10:00:07.222.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 268.806 (268.807) seconds
+Test Suite 'LightamerTestsLayers.xctest' passed at 2026-10-31 10:00:07.222.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 268.806 (268.807) seconds
+Test Suite 'Selected tests' passed at 2026-10-31 10:00:07.222.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 268.806 (268.808) seconds
+      269.62 real      2471.35 user         6.85 sys
+           240533504  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               23769  page reclaims
+                 289  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   1  messages sent
+                   0  messages received
+                   0  signals received
+                 255  voluntary context switches
+             1654721  involuntary context switches
+      33131814031621  instructions retired
+       8115637038942  cycles elapsed
+           160925040  peak memory footprint

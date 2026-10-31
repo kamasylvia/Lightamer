@@ -1,0 +1,4 @@
+spectral build neutral-CC verdict (M8-2 ladder, 32 iters, seed 50,50):
+  C200 pair:   solvedPrintCC=(0, 108.3, 250.0=CLAMPED) midgrayPrintRaw=(0.983, 0.988, 1.030) midgrayFactor=0.628
+  Portra pair: solvedPrintCC=(0, 33.1, 26.8)           midgrayPrintRaw=(1.000, 1.000, 1.000) midgrayFactor=0.200
+  => C200 Y dial saturates at 250; gray-error 3% (portra exact-0). Same binary, same chain.

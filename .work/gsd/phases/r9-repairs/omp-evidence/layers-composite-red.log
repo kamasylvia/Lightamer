@@ -1,0 +1,53 @@
+sandbox_extension_issue_file_to_process failed for /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug//Lightamer.app: 1 (Operation not permitted)
+Test Suite 'Selected tests' started at 2026-10-31 10:18:54.806.
+Test Suite 'LightamerTestsLayers.xctest' started at 2026-10-31 10:18:54.807.
+Test Suite 'FilmLegTests' started at 2026-10-31 10:18:54.807.
+Test Case '-[LightamerTestsLayers.FilmLegTests testCompositeFilmTransposedFrameMatchesTheUntransposedLookup]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/FilmLegTests.swift:668: error: -[LightamerTestsLayers.FilmLegTests testCompositeFilmTransposedFrameMatchesTheUntransposedLookup] : XCTAssertLessThan failed: ("0.85882354") is not less than ("0.02") - composite transposed film output must match the pointwise lookup (max Δ 0.85882354)
+Test Case '-[LightamerTestsLayers.FilmLegTests testCompositeFilmTransposedFrameMatchesTheUntransposedLookup]' failed (269.167 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testDisplayReplayResidentsPerMatrixRow]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testDisplayReplayResidentsPerMatrixRow]' passed (0.002 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testDRTFilmStacksAndFeedsTheTailSeed]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testDRTFilmStacksAndFeedsTheTailSeed]' passed (0.014 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testEDRLinearFilmReplaysColoroutOnlyAndNeverGamma]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testEDRLinearFilmReplaysColoroutOnlyAndNeverGamma]' passed (0.010 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmLegDoesNotReenterUnderYiyinTail]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmLegDoesNotReenterUnderYiyinTail]' passed (0.011 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmLegTransposedFrameMatchesTheUntransposedLookupDensity]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmLegTransposedFrameMatchesTheUntransposedLookupDensity]' passed (14.173 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmLegTransposedFrameMatchesTheUntransposedLookupSpectral]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmLegTransposedFrameMatchesTheUntransposedLookupSpectral]' passed (0.785 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmNilIsByteIdenticalToTheLegacyCall]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testFilmNilIsByteIdenticalToTheLegacyCall]' passed (0.009 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testResolvedMaterialsRenderThroughTheFusedKernel]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testResolvedMaterialsRenderThroughTheFusedKernel]' passed (0.104 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testSDRGammaFilmDemotesAndReplaysTheWholeTerminalSet]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testSDRGammaFilmDemotesAndReplaysTheWholeTerminalSet]' passed (0.009 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testSDRGammaFilmHoldsAtFullResolution]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testSDRGammaFilmHoldsAtFullResolution]' passed (0.008 seconds).
+Test Case '-[LightamerTestsLayers.FilmLegTests testSeedFoldIsStableAndDiscriminatesEveryTerm]' started.
+Test Case '-[LightamerTestsLayers.FilmLegTests testSeedFoldIsStableAndDiscriminatesEveryTerm]' passed (0.000 seconds).
+Test Suite 'FilmLegTests' failed at 2026-10-31 10:23:39.099.
+	 Executed 12 tests, with 1 failure (0 unexpected) in 284.292 (284.293) seconds
+Test Suite 'LightamerTestsLayers.xctest' failed at 2026-10-31 10:23:39.099.
+	 Executed 12 tests, with 1 failure (0 unexpected) in 284.292 (284.293) seconds
+Test Suite 'Selected tests' failed at 2026-10-31 10:23:39.100.
+	 Executed 12 tests, with 1 failure (0 unexpected) in 284.292 (284.293) seconds
+      285.94 real      2588.88 user         7.53 sys
+           244416512  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               25981  page reclaims
+                1661  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   1  messages sent
+                   0  messages received
+                   0  signals received
+                2660  voluntary context switches
+             1799828  involuntary context switches
+      33496839284697  instructions retired
+       8499688674795  cycles elapsed
+           177472856  peak memory footprint

@@ -1,0 +1,182 @@
+diff --git a/Tests/LightamerTests/FilmLegTests.swift b/Tests/LightamerTests/FilmLegTests.swift
+index 67a86614..3974766f 100644
+--- a/Tests/LightamerTests/FilmLegTests.swift
++++ b/Tests/LightamerTests/FilmLegTests.swift
+@@ -426,6 +426,177 @@ final class FilmLegTests: XCTestCase {
+             "a strength change moves the render (the strength mix)")
+     }
+ 
++    // MARK: - R9 (M-1): composite × film × geometry — the transposed face
++
++    /// A flip box committed at `orientation` (the parity-test face).
++    private func makeFlipBox(
++        registry: ModuleRegistry, orientation: FlipOrientation
++    ) async throws -> any ModuleBoxing {
++        let made = await registry.makeBox(opName: FlipModule.opName)
++        let box = try XCTUnwrap(made as? ModuleBox<FlipModule>)
++        box.setParams(FlipModule.Params(orientation: orientation))
++        return box
++    }
++
++    /// The resolved-materials tail (the portra pair — the T2 leg's fixture).
++    private func makeBoundFilmTail() throws -> FilmTailPolicy {
++        let store = try FilmMaterialStore(
++            profilesDirectory: URL(fileURLWithPath: #filePath)
++                .deletingLastPathComponent()
++                .deletingLastPathComponent()
++                .deletingLastPathComponent()
++                .appendingPathComponent("Resources/FilmProfiles/profiles"))
++        let film = try XCTUnwrap(store.profile(id: "kodak_portra_400"))
++        let paper = try XCTUnwrap(store.profile(id: "kodak_portra_endura"))
++        return FilmTailParams(
++            record: filmRecord, filmProfile: film, paperProfile: paper,
++            materialPairHash: FilmMaterialStore.materialPairHash(film: film, paper: paper))
++    }
++
++    private static func readFloats(_ texture: any MTLTexture) -> [Float] {
++        var floats = [Float](
++            repeating: 0, count: texture.width * texture.height * 4)
++        if texture.pixelFormat == .rgba32Float {
++            floats.withUnsafeMutableBytes {
++                texture.getBytes(
++                    $0.baseAddress!, bytesPerRow: texture.width * 16,
++                    from: MTLRegionMake2D(0, 0, texture.width, texture.height),
++                    mipmapLevel: 0)
++            }
++            return floats
++        }
++        // The bgra8 tail face: expand bytes to [0,1] floats (BGRA → RGB).
++        var bytes = [UInt8](
++            repeating: 0, count: texture.width * texture.height * 4)
++        texture.getBytes(
++            &bytes, bytesPerRow: texture.width * 4,
++            from: MTLRegionMake2D(0, 0, texture.width, texture.height),
++            mipmapLevel: 0)
++        for i in 0..<(texture.width * texture.height) {
++            floats[i * 4 + 0] = Float(bytes[i * 4 + 2]) / 255.0
++            floats[i * 4 + 1] = Float(bytes[i * 4 + 1]) / 255.0
++            floats[i * 4 + 2] = Float(bytes[i * 4 + 0]) / 255.0
++            floats[i * 4 + 3] = 1.0
++        }
++        return floats
++    }
++
++    /// The composite film × transposed frame — pointwise contract. The
++    /// production M-1 face (the walking document carried an adjustment
++    /// layer). `layer` picks the variant: full / identity / none.
++    func runCompositeTransposed(
++        layer: String, processRaw: Int, film: Bool = true
++    ) async throws -> (nanCount: Int, maxDelta: Float) {
++        let metal = try await makeMetal()
++        let registry = try await makeRegistry()
++        let image = makeImage()
++        let tail = try makeBoundFilmTail()
++        let imageID = Self.fixtureImageID
++
++        func makeStack() -> LayerStack {
++            var stack = LayerStack(baseLayer: BackgroundLayer())
++            switch layer {
++            case "full":
++                let exposure = ModuleInstance(
++                    module: ExposureModule.self, multiPriority: 0,
++                    params: ExposureModule.Params(exposure: 1.5))
++                let contrast = ModuleInstance(
++                    module: ContrastModule.self, multiPriority: 0,
++                    params: ContrastModule.Params(contrast: 15))
++                let saturation = ModuleInstance(
++                    module: SaturationModule.self, multiPriority: 0,
++                    params: SaturationModule.Params(saturation: 1.3))
++                stack.addAdjustment(AdjustmentLayer(
++                    name: "调整 1", opacity: 1.0,
++                    chain: [exposure, contrast, saturation]))
++            case "identity":
++                let identity = ModuleInstance(
++                    module: TestGainModule.self, multiPriority: 5,
++                    params: TestGainModule.Params(gain: 1.0))
++                stack.addAdjustment(
++                    AdjustmentLayer(name: "identity", opacity: 1.0, chain: [identity]))
++            default:
++                break
++            }
++            return stack
++        }
++
++        func makeBase(flip: Bool) async throws -> [any ModuleBoxing] {
++            var chain = [any ModuleBoxing]()
++            if flip {
++                chain.append(try await makeFlipBox(
++                    registry: registry, orientation: .rotCW90))
++            }
++            chain.append(contentsOf: try await makeTerminalChain(registry: registry))
++            return chain
++        }
++
++        let version = RenderProcessVersion(rawValue: processRaw)!
++        let usedTail: FilmTailPolicy? = film ? tail : nil
++        let refResult = try await LayerCompositeDriver.composite(
++            image: image, imageID: imageID, baseInstances: await makeBase(flip: false),
++            layerStack: makeStack(), registry: registry, resolution: .preview,
++            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
++            policy: .preview, filmTail: usedTail, renderProcess: version)
++        let outResult = try await LayerCompositeDriver.composite(
++            image: image, imageID: imageID, baseInstances: await makeBase(flip: true),
++            layerStack: makeStack(), registry: registry, resolution: .preview,
++            cache: PipeCache(), metal: metal, longEdge: nil, roiHint: nil,
++            policy: .preview, filmTail: usedTail, renderProcess: version)
++        let refTex = refResult.output
++        let outTex = outResult.output
++        XCTAssertEqual(refTex.width, 48)
++        XCTAssertEqual(outTex.width, 32)
++        XCTAssertEqual(outTex.height, 48)
++        let ref = Self.readFloats(refTex)
++        let out = Self.readFloats(outTex)
++
++        var nanCount = 0
++        var maxDelta: Float = 0
++        for oy in 0..<48 {
++            for ox in 0..<32 {
++                let src = FlipOrientation.inputXY(
++                    x: ox, y: oy, ow: 32, oh: 48, orientation: .rotCW90)
++                for c in 0..<3 {
++                    let refValue = ref[(src.y * 48 + src.x) * 4 + c]
++                    let outValue = out[(oy * 32 + ox) * 4 + c]
++                    if outValue.isNaN { nanCount += 1 }
++                    maxDelta = max(maxDelta, abs(outValue - refValue))
++                }
++            }
++        }
++        return (nanCount, maxDelta)
++    }
++
++    func testCompositeFilmTransposedV1FullLayer() async throws {
++        let r = try await runCompositeTransposed(layer: "full", processRaw: 1)
++        XCTAssertEqual(r.nanCount, 0)
++        XCTAssertLessThan(r.maxDelta, 0.02, "v1 full-layer maxΔ \(r.maxDelta)")
++    }
++
++    /// The decisive fork: composite WITHOUT the film tail, transposed —
++    /// if this is red the hole is the composite's VALUE-level transposition
++    /// itself (R8 proved shape survival, never values); if green the film
++    /// leg is the culprit.
++    func testCompositeFilmOffTransposedValueLevel() async throws {
++        let r = try await runCompositeTransposed(
++            layer: "none", processRaw: 3, film: false)
++        XCTAssertEqual(r.nanCount, 0)
++        XCTAssertLessThan(r.maxDelta, 0.02, "film-off transposed maxΔ \(r.maxDelta)")
++    }
++
++    func testCompositeFilmTransposedV3NoLayer() async throws {
++        let r = try await runCompositeTransposed(layer: "none", processRaw: 3)
++        XCTAssertEqual(r.nanCount, 0)
++        XCTAssertLessThan(r.maxDelta, 0.02, "v3 no-layer maxΔ \(r.maxDelta)")
++    }
++
++    func testCompositeFilmTransposedV3IdentityLayer() async throws {
++        let r = try await runCompositeTransposed(layer: "identity", processRaw: 3)
++        XCTAssertEqual(r.nanCount, 0)
++        XCTAssertLessThan(r.maxDelta, 0.02, "v3 identity-layer maxΔ \(r.maxDelta)")
++    }
++
+     // MARK: - 9: FULL-resolution smoke (the matrix holds at 100% viewing)
+ 
+     func testSDRGammaFilmHoldsAtFullResolution() async throws {

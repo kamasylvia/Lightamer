@@ -1,0 +1,2 @@
+2026-10-31 10:47:08.250 I  Lightamer[32834:105ef63] [com.kamasylvia.lightamer:coordinator] pipe load: rendering preview bucket=1840
+2026-10-31 10:51:20.313 I  Lightamer[32834:105ef63] [com.kamasylvia.lightamer:coordinator] pixelpipe output ready: PREVIEW bucket 1840px (2 hits / 15 misses, 0 planes)

@@ -1,0 +1,25 @@
+sandbox_extension_issue_file_to_process failed for /Users/kamasylvia/Library/Developer/Xcode/DerivedData/Lightamer-dgzsvdwwznxhozhdtijsbcwmglbi/Build/Products/Debug//Lightamer.app: 1 (Operation not permitted)
+Test Suite 'Selected tests' started at 2026-10-31 11:17:50.161.
+Test Suite 'LightamerTestsLayers.xctest' started at 2026-10-31 11:17:50.161.
+Test Suite 'FilmLegM1DissectTests' started at 2026-10-31 11:17:50.161.
+Test Case '-[LightamerTestsLayers.FilmLegM1DissectTests testM1BlackBoxThenDissect]' started.
+Swift/ContiguousArrayBuffer.swift:695: Fatal error: Index out of range
+time: command terminated abnormally
+      253.69 real      2304.62 user         6.10 sys
+           241123328  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               20467  page reclaims
+                 842  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   1  messages sent
+                   0  messages received
+                   0  signals received
+                2416  voluntary context switches
+             1484891  involuntary context switches
+      32965221161049  instructions retired
+       7562901701481  cycles elapsed
+           148309288  peak memory footprint
