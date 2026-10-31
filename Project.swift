@@ -342,6 +342,7 @@ let project = Project(
                 "Tests/LightamerTests/FilmicRGBTests.swift",
                 "Tests/LightamerTests/SpectralBuildGoldenTests.swift",
                 "Tests/LightamerTests/SpectralClampedGoldenTests.swift",
+                "Tests/LightamerTests/SpectralGrainGoldenTests.swift",
                 // M8-3+ fix round (E-acc1): the allocator's production
                 // wiring face (pool/reuse/chain — GPU-backed, Golden-adjacent).
                 "Tests/LightamerTests/SpectralScratchWiringTests.swift",

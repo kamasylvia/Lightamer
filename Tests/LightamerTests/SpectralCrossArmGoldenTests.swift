@@ -35,6 +35,15 @@ import XCTest
 
 final class SpectralCrossArmGoldenTests: XCTestCase {
 
+    // The REGISTERED wide-arm hashes (fix round 2, m-fix-1: without these
+    // the "Golden" in the class name is a lie — the original pair pinned
+    // no constant, monitoring determinism only). Measured on the
+    // 2026-11-01 registration run (M-series GPU, same payload
+    // construction as these tests); the exact twin's hash is expected to
+    // move with the kernel math and stays UNPINNED by design (the
+    // divergence assertion monitors dispatch routing, not bytes).
+    private static let dispatchWideHash: UInt64 = 15571136022812571430
+    private static let transposeWideHash: UInt64 = 12304591439955305968
     // MARK: - Fixtures
 
     private func makeMetal() async throws -> MetalContext {
@@ -223,6 +232,11 @@ final class SpectralCrossArmGoldenTests: XCTestCase {
         XCTAssertEqual(
             Self.hash(Self.readback(widePlane2)), Self.hash(wideFloats),
             "the wide arm re-renders bit-identically")
+        // The PINNED golden: the wide arm's bytes are the registered
+        // constant (drift = the dispatch or the kernel chain moved).
+        XCTAssertEqual(
+            Self.hash(wideFloats), Self.dispatchWideHash,
+            "the dispatch wide hash matches the registered golden")
     }
 
     // MARK: - 2: the transpose face (non-square grid anchor)
@@ -258,6 +272,11 @@ final class SpectralCrossArmGoldenTests: XCTestCase {
         XCTAssertEqual(
             Self.hash(Self.readback(plane2)), Self.hash(floats),
             "the transposed wide arm re-renders bit-identically")
+        // The PINNED golden (transpose grid anchor — the registered
+        // constant from the same registration run).
+        XCTAssertEqual(
+            Self.hash(floats), Self.transposeWideHash,
+            "the transposed wide hash matches the registered golden")
         // The off-twin (all-exact) diverges — the dispatch is live on the
         // transposed grid too.
         SpectralGPUPayloads.wideEffectThreshold = Float.greatestFiniteMagnitude
