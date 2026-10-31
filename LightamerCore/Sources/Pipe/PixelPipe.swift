@@ -1395,10 +1395,13 @@ internal final class PixelPipe: @unchecked Sendable {
             exposureGain: Float(solution.exposureGain))
         // The GPU payload assembly (run-scoped instance over the CACHED
         // tables — the X7 hit face; the tables stay read-only).
+        // M8-3+ T7 self-review E3: the RMS tag rides the payload (the
+        // grain npart's inversion anchor — runtime-only, no key fold).
         let payloads = try? SpectralGPUPayloads(
             device: metal.device, tables: tables,
             couplers: .neutral, decimation: 4,
-            frameWidth: plane.width, frameHeight: plane.height)
+            frameWidth: plane.width, frameHeight: plane.height,
+            publishedRms: SpectralPrintBake.requestTags?.publishedRms)
         return FilmLegAssembly(
             method: solvedMethod, payloads: nil,
             spectralPayloads: payloads, solvedPackHash: solvedPackHash)

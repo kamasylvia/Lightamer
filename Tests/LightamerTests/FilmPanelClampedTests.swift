@@ -124,15 +124,14 @@ final class FilmPanelClampedTests: XCTestCase {
             "the incumbent paper never jumps")
         XCTAssertTrue(converged.contains("kodak_2383"))
         XCTAssertTrue(converged.contains("kodak_2393"))
-        // A record BOUND on print film (hand-set — the picker cannot
-        // bind it): the pair only (the convergence target's own face).
+        // A record BOUND on print film (self-review E2: the reversal
+        // picker now BINDS the converged list — the print pair is
+        // selectable; the render resolves by stock id): the pair only.
         model.setPaperStock("kodak_2383")
         XCTAssertEqual(
             Set(model.convergedPaperStocks.compactMap(\.info.stock)),
             ["kodak_2383", "kodak_2393"],
-            "a print-film-bound record lists the pair only (the store "
-                + "resolves the pair even though the paper roster "
-                + "cannot bind it)")
+            "a print-film-bound record lists the pair only")
         // Negative film: the full list (no convergence).
         model.setFilmStock("kodak_portra_400")
         XCTAssertFalse(model.isReversalFilm)

@@ -115,6 +115,31 @@ final class FilmRecordSpatialTests: XCTestCase {
             solvedPackHash: 0x1234, renderProcess: .legacy)
         XCTAssertNotEqual(familySeed, nilSeed,
                            "diffusionFamily folds the film seed")
+
+        // Self-review m4: the remaining three legs flip each (PLAN T3
+        // A3 wants per-field flips — all five now covered).
+        func seedFor(_ mutate: (inout FilmRecord) -> Void) -> UInt64 {
+            var record = nilRecord
+            mutate(&record)
+            return FilmTailAssembly.seed(
+                upstream: 0xABCD,
+                params: FilmTailParams(
+                    record: record, filmProfile: film, paperProfile: paper,
+                    materialPairHash: pairHash),
+                solvedPackHash: 0x1234, renderProcess: .legacy)
+        }
+        XCTAssertNotEqual(
+            seedFor { $0.halationAmount = 0.5 }, nilSeed,
+            "halationAmount folds the film seed")
+        XCTAssertNotEqual(
+            seedFor { $0.diffusionAmount = 0.5 }, nilSeed,
+            "diffusionAmount folds the film seed")
+        XCTAssertNotEqual(
+            seedFor {
+                $0.reversalPrintMode =
+                    SpectralNeutralSolve.directPositiveMode
+            }, nilSeed,
+            "reversalPrintMode folds the film seed")
     }
 
     // MARK: - 4: the diffusion priority

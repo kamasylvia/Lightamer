@@ -24,7 +24,8 @@ import Foundation
 public enum SpectralWideBlurPlan {
 
     /// Upstream's three thresholds (verbatim — the EFFECT threshold is
-    /// the STARTING value; the T5 Metal re-mark probe法定 the final one,
+    /// the STARTING value held (the T5 re-mark probe is pending — the 100px
+    /// value stands until the T7 evidence leg法定 a re-marked one,
     /// DECISIONS-logged).
     public static let minSigma: Float = 16.0
     public static let lowSigma: Float = 8.0

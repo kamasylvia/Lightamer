@@ -116,10 +116,14 @@ final class SpectralGrainDeriveTests: XCTestCase {
             let sig = 17.0 / 1000.0
             let denom = max(dRef * (ceil - 1.0 * dRef), 1e-6)
             let aGrain = sig * sig * Double.pi * 24.0 * 24.0 / denom
-            let expected = 47.0 * 47.0 / max(aGrain, 1e-4)
+            let expected = SpectralGrainSublayer.referenceUm
+                * SpectralGrainSublayer.referenceUm / max(aGrain, 1e-4)
             XCTAssertEqual(rows[c].npart, expected, accuracy: 1e-6)
             XCTAssertGreaterThan(rows[c].npart, 0)
         }
+        // The reference scale itself (self-review E1: upstream
+        // SF_GRAIN_REF_UM = 10.0 — pinned, never re-transcribed).
+        XCTAssertEqual(SpectralGrainSublayer.referenceUm, 10.0)
     }
 
     func testAllNilRmsDegradesTyped() throws {
@@ -133,7 +137,8 @@ final class SpectralGrainDeriveTests: XCTestCase {
         // A PARTIAL nil degrades only that channel (neutral npart).
         let partial = try SpectralGrainSublayer.derive(
             film: film, publishedRms: [17, nil, 17])
-        XCTAssertEqual(partial[1].npart, 47.0 * 47.0 / 1e-4,
+        XCTAssertEqual(partial[1].npart,
+            SpectralGrainSublayer.referenceUm * SpectralGrainSublayer.referenceUm / 1e-4,
                        accuracy: 1.0,
                        "the nil channel rides the a_grain floor's face")
     }

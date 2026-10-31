@@ -96,7 +96,7 @@ final class SpectralSpatialLegTests: XCTestCase {
     private func makeFilmTail(
         film: FilmProfile, paper: FilmProfile,
         halationAmount: Float? = nil, diffusionFamily: String? = nil,
-        diffusionAmount: Float? = nil
+        diffusionAmount: Float? = nil, grainAmount: Float? = nil
     ) -> FilmTailPolicy {
         var r = FilmRecord()
         r.filmStock = film.info.stock ?? ""
@@ -104,6 +104,7 @@ final class SpectralSpatialLegTests: XCTestCase {
         r.halationAmount = halationAmount
         r.diffusionFamily = diffusionFamily
         r.diffusionAmount = diffusionAmount
+        r.grainAmount = grainAmount
         return FilmTailParams(
             record: r, filmProfile: film, paperProfile: paper,
             materialPairHash: FilmMaterialStore.materialPairHash(film: film, paper: paper))
@@ -282,5 +283,80 @@ final class SpectralSpatialLegTests: XCTestCase {
                 floats[i].isFinite && floats[i + 1].isFinite
                     && floats[i + 2].isFinite, "texel \(i / 4) finite")
         }
+    }
+
+    // MARK: - T7: the end-to-end smoke (the batch closeout face)
+
+    func testAllOffSampleRendersFiniteAcrossPairs() async throws {
+        // 28-pair × all-off sample (4 corners: portra/endura,
+        // C200/crystal, ektar/ultra, velvia/endura) — every render
+        // finite (the batch's breadth smoke).
+        let metal = try await makeMetal()
+        let chain = try await makeColorOut(registry: ModuleRegistry.makeDefault())
+        let image = makeRampImage(width: 24, height: 16)
+        let store = try FilmMaterialStore(
+            profilesDirectory: profilesDirectory())
+        let pairs = [
+            ("kodak_portra_400", "kodak_portra_endura"),
+            ("fujifilm_c200", "fujifilm_crystal_archive_typeii"),
+            ("kodak_ektar_100", "kodak_ultra_endura"),
+            ("fujifilm_velvia_100", "kodak_portra_endura"),
+        ]
+        for (filmId, paperId) in pairs {
+            let film = try XCTUnwrap(store.profile(id: filmId))
+            let paper = try XCTUnwrap(store.profile(id: paperId))
+            let texture = try await render(
+                image, chain: chain,
+                filmTail: makeFilmTail(film: film, paper: paper),
+                renderProcess: RenderProcessVersion(rawValue: 2)!,
+                metal: metal)
+            let floats = Self.readAllBytes(texture).withUnsafeBytes {
+                Array($0.bindMemory(to: Float.self))
+            }
+            for i in stride(from: 0, to: floats.count, by: 4) {
+                XCTAssertTrue(
+                    floats[i].isFinite && floats[i + 1].isFinite
+                        && floats[i + 2].isFinite,
+                    "\(filmId)×\(paperId): texel \(i / 4)")
+            }
+        }
+    }
+
+    func testAllThreeLegsArmedRendersFiniteAndDeterministic() async throws {
+        // All three legs armed at once (grain + halation + diffusion)
+        // + the C200 fallback pair: finite + deterministic (the batch's
+        // combined smoke — NOT a golden: on-semantics冒烟 only).
+        let metal = try await makeMetal()
+        let chain = try await makeColorOut(registry: ModuleRegistry.makeDefault())
+        let image = makeRampImage()
+        let store = try FilmMaterialStore(
+            profilesDirectory: profilesDirectory())
+        let film = try XCTUnwrap(store.profile(id: "fujifilm_c200"))
+        let paper = try XCTUnwrap(
+            store.profile(id: "fujifilm_crystal_archive_typeii"))
+        func armed() async throws -> [UInt8] {
+            let texture = try await render(
+                image, chain: chain,
+                filmTail: makeFilmTail(
+                    film: film, paper: paper, halationAmount: 1.0,
+                    diffusionFamily: "cinebloom", diffusionAmount: 0.5,
+                    grainAmount: 1.0),
+                renderProcess: RenderProcessVersion(rawValue: 2)!,
+                metal: metal)
+            return Self.readAllBytes(texture)
+        }
+        let first = try await armed()
+        let floats = first.withUnsafeBytes {
+            Array($0.bindMemory(to: Float.self))
+        }
+        for i in stride(from: 0, to: floats.count, by: 4) {
+            XCTAssertTrue(
+                floats[i].isFinite && floats[i + 1].isFinite
+                    && floats[i + 2].isFinite, "texel \(i / 4) finite")
+        }
+        let second = try await armed()
+        XCTAssertEqual(
+            second, first,
+            "the fully-armed render re-renders bit-identically")
     }
 }

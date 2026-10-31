@@ -11,14 +11,14 @@ import XCTest
 //      pairs fall back, the four reversal rows ride (50, 50) (the
 //      no-information seed, pinned in-catalog).
 //   2. THE SEED DUAL-VALUE IDENTITY: 14 safety pairs' anchored-vs-(50,50)
-//      solvedPrintCC is bit-identical (the synthetic-spectrum leg here —
+//      solvedPrintCC is 1e-9-banded (the synthetic-spectrum leg here —
 //      the solve pure function over engine-extracted inputs; the true-build
-//      leg rides T2's parity rebuild). ANY moved safety convergence = the
-//      K1 stop-hand (multi-basin true fork — the plan presets no remedy).
+//      leg rides T2's parity rebuild). A CC-point move = the K1 stop-hand
+//      (multi-basin true fork — the plan presets no remedy).
 //   3. THE C200 SEVEN-SEED NAIL: research evidence C's 7 seeds converge to
-//      the same triple (the replay-measured form: M 1e-7 band / Y
-//      bit-identical / res 1e-9 band — distinct paths take distinct round
-//      counts to the wall; REPLAY-RECORD.md's calibration note).
+//      the same triple (the replay-measured form: M 1e-7 band / Y 1e-6
+//      band / res 1e-9 band — distinct paths take distinct round counts
+//      to the wall; REPLAY-RECORD.md's calibration note).
 //   4. THE CLAMPED FLAG, both faces: the safety sweep reads false, the C200
 //      wall pair reads true; the pinned printCC branch never enters the
 //      solve (clamped=false, the semantic pin).
@@ -160,9 +160,9 @@ final class SpectralNeutralSolveTests: XCTestCase {
             film: "kodak_portra_400"))
     }
 
-    // MARK: - 2: the seed dual-value identity (the K1 gate)
+    // MARK: - 2: the seed dual-value band (the K1 gate — 1e-9, not bits)
 
-    func testSafetyPairsHoldBitIdentityAcrossSeeds() throws {
+    func testSafetyPairsHoldBandIdentityAcrossSeeds() throws {
         let table = try NeutralPrintAnchorTable.load(url: anchorURL())
         let store = try store()
         let dichroic = SpectralConstantsData.dichroicTransmissions

@@ -159,6 +159,12 @@ final class FilmPanelSpectralUITests: XCTestCase {
     /// the grade picker (T2), the taking-filter picker (T3), and the
     /// granularity one-click apply (T4) — a declared, diff-reviewed
     /// increment (the suite's own purpose).
+    /// M8-3+ (T2/T4/T5): the disclosed amber row (T2), the reversal
+    /// picker + manual-CC caption (T2), the B-track grain row's three
+    /// (T4), the halation row's three (T5), the diffusion picker (T5) —
+    /// a declared, diff-reviewed increment (the D-M8-7 revision: new
+    /// OPERATORS are new controls; the zero-new-controls invariant
+    /// covered the core UPGRADE, not new legs).
     static let frozenControlInventory: Set<String> = [
         "editor.stack.film.panel",
         "film.close",
@@ -198,6 +204,16 @@ final class FilmPanelSpectralUITests: XCTestCase {
         "film.migrate.sheet",
         "film.migrate.cancel",
         "film.migrate.confirm",
+        "film.disclosed.clamped",
+        "film.reversal.picker",
+        "film.reversal.manualcc",
+        "film.grain.track.toggle",
+        "film.grain.track.value",
+        "film.grain.track.off",
+        "film.halation.toggle",
+        "film.halation.value",
+        "film.halation.off",
+        "film.diffusion.picker",
     ]
 
     /// The identifier literals parsed out of the panel source: the panel's
