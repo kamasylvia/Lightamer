@@ -61,9 +61,11 @@
 | IOPParity | 578/10/0 | 含哨兵/抽稀/腿/冒烟 |
 | App | 1102/6/0 | 冻表扩后复绿（见 §六 T7-F1） |
 
-全套带式对账：基线链 4461/34/0（mcp-uq 收口轮）⊕ 本批 ΔN=+52 = **预期
+- 全套带式对账：基线链 4461/34/0（mcp-uq 收口轮）⊕ 本批 ΔN=+52 = **预期
 4513/34/0**（--all 归 orchestrator 批准轮；Sessions/Export 两 bundle 未跑，
 沿收口轮值）。
+> 验收路 1 独立复跑（M8-3+-ACCEPTANCE.md）：全套 **4514/34/0**（差 1 = mcp-uq
+账面 4461 少记修复轮直测 +1，真基线 4462——o1 勘误已修，见 §八）。
 
 ## 四、封存面声明
 
@@ -96,3 +98,32 @@ D12 B-1 注记 + v4 预留；D13 E2/E3 已修码。
 
 `.work/gui-acceptance/m8-3plus/MANIFEST.md`（配方 6 项——disclosed 行/反转收敛/
 三算子 off 节/portra 对照（m-3③）/C200 前后对照/三戳+m-6①；执行归批准轮）。
+
+## 八、修复轮（E-acc1 + m-A + o1，2026-11-01）
+
+验收正本 = `M8-3+-ACCEPTANCE.md`（PASS / 1 error + 1 minor + 4 obs）。
+
+| 项 | commit | 内容 | ΔN |
+|---|---|---|---|
+| o1 | `ef3e4aff` | mcp-uq SUMMARY 账面勘误：App 1091→1092 / 全套 4461→4462（一手实测） | +0 |
+| E-acc1 | `8fb4291e` | Slot token→资源池；四分配点借还接线；Wiring 4 法 | +4（IOPP） |
+| m-A | `6be1e538` | 跨臂端到端 golden 2 法（分发 wide/exact × 转置） | +2（IOPP） |
+| 收口 | 本 commit | 全套终值 + 本节/DECISIONS 处置节 + zh-audit 双 PASS | +0 |
+
+- **E-acc1**：`dispatchFilmChain` 每 run 唯一 Slot（注入可测）；diffusion 三元/
+  halation 四元+bounce 顺序 `.spatialPre` 借；wide 五 staging 每 pass top-up；
+  stage-B CMY 跨 B1/grain/B2 + grain 工作集/r32 staging 同 `.stageB2` top-up；
+  param/curve/roi/weights 微面直分（DECISIONS 登记）。实测（48×32 三腿全开×2
+  run）：texture 5 面 122880B + buffer 3 面 36864B = peak 159744B；
+  texture 22 借/17 中、buffer 6 借/3 中。
+- **m-A**：阈值替身 16px（defer 还原）；cinebloom bloom 四元 σpx 20–123 走真
+  wide 链、core/halo 守 exact；1024×768 + 转置 768×1024 双 golden（finite/
+  确定性/与全 exact 孪生分叉）。首版 48px 诚实失败（σpx<16 回退 exact——与
+  探针②同根）。
+- **全套终值**：**4516/34/0**（基线 4514 ⊕ ΔN+6；IOPP 578→580，余六 bundle
+  逐位一致；零 MEMFAIL；guard PASS + monitor 零触发；日志
+  `all-runs/fix-all.log`）。zh-audit `--check`（1795/2128）+ `--self-test`
+  （V17）双 PASS。
+- **封存面**：修复轮三 commit 触面 = Slot/Payloads/Box（additive）+ 新测试 2
+  文件 + Project/MAP 登记——17 件零 diff；kernel/双臂/RenderProcess/默认
+  off 全冻结。

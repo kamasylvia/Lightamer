@@ -77,3 +77,30 @@
 - `src/common/spektra_sim.c:100-122`（still 默认）→ 基线值；`:2569-2592`
   （nl==1 臂）→ SpectralGrainSublayer
 - 树号：`4d1fb6a95b`；NOTICE 3b/3c；版权头（metal 全头 + Swift 归属注）。
+
+## 修复轮处置（E-acc1 + m-A，2026-11-01）
+
+- **E-acc1 处置 = 接线（R-M83P-6 兑现）**：Slot 从借还 token 升级为资源池——
+  精确几何停车（rgba32F/r32 纹理按 W×H×format、buffer 按字节长）；同腿
+  top-up 显式允许（段内嵌套），异腿借出中 = typed `BorrowError`；holder
+  随段末面归零；字节水位记账（texture/buffer 双水位 + peakBytes——无 MTL
+  堆内省面）。
+- **接线面**：`dispatchFilmChain` 每 run 唯一 Slot（形参注入可测，默认自建；
+  调用点零改）；`.spatialPre` 段 = diffusion 三元 →（释放）→ halation 四元
+  → bounce 单面 top-up，wide 五 staging 每 pass 借还顶替；`.stageB2` 段 =
+  B1 CMY 跨 B1/grain/B2 + grain 工作集（raw/acc/grain + blur 对）+ 可染 blur
+  r32 staging 同腿 top-up。微面直分纪律：param/curve/roi/weights/inv（≤256
+  float）逐 kernel 直分——池化流量买字节，设计如此。
+- **peak 实测（DECISIONS 数字的回归钉）**：48×32 三腿全开 ×2 run（注入 slot）=
+  texture 水位 5 面/122880B + buffer 水位 3 面/36864B = **peak 159744B**；
+  texture 22 借/17 中、buffer 6 借/3 中。`capacityPlan` 保持冻结双面模型
+  （2 面 3.2GB 门）——纸面预算面不动，实测水位另立回归。
+- **m-A 处置 = 补跨臂 golden**：阈值测试替身（lock-box setter，defer 还原，
+  非产线门改）；1024×768 + 转置 768×1024；cinebloom bloom 四元走真 wide 链、
+  core/halo 守 exact；σ 分裂由 bank()/pixelUm 派生不断言硬值。首版 48px 诚实
+  失败归档（σpx<16 回退 exact——与探针②同根，非测试 bug）。
+- **偏差 D14（修复轮新登记）**：E-acc1 执行形态 vs T5 交付——T5 语义件 + 纸面
+  峰值声明（DECISIONS「分配器峰值」节旧文 `3.2GB（2 rgba32F 平面）` 实为
+  capacityPlan 纯函数输出，未建模独立分配 sum 态）→ 本轮接线后该节读作
+  「纸面预算（冻结）+ 实测水位（回归）」双轨。旧文不改（历史如实），本节
+  为勘误延续。
