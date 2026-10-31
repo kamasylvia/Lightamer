@@ -3840,13 +3840,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Save as Preset…"
+            "value": "Save Preset"
           }
         },
         "zh": {
           "stringUnit": {
             "state": "translated",
-            "value": "存为预设…"
+            "value": "存为预设"
           }
         }
       }
@@ -31047,7 +31047,6 @@
         }
       }
     },
-  
     "rawdecode_raster_trc_bt1886": {
       "extractionState": "manual",
       "localizations": {
@@ -31371,845 +31370,845 @@
         }
       }
     },
-    "module_colormatch" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Color Match"
+    "module_colormatch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color Match"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "追色"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "追色"
           }
         }
       }
     },
-    "history_colormatch" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Color match"
+    "history_colormatch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color match"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "追色"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "追色"
           }
         }
       }
     },
-    "colormatch_solver_label" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Solver"
+    "colormatch_solver_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solver"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "求解器"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "求解器"
           }
         }
       }
     },
-    "colormatch_solver_gaussian_ot" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gaussian OT"
+    "colormatch_solver_gaussian_ot": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gaussian OT"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "高斯最优传输"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高斯最优传输"
           }
         }
       }
     },
-    "colormatch_solver_reinhard" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reinhard"
+    "colormatch_solver_reinhard": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reinhard"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reinhard"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reinhard"
           }
         }
       }
     },
-    "colormatch_solver_cdf" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CDF Match"
+    "colormatch_solver_cdf": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CDF Match"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CDF 匹配"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CDF 匹配"
           }
         }
       }
     },
-    "colormatch_references_label" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "References"
+    "colormatch_references_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "References"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "参考图"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "参考图"
           }
         }
       }
     },
-    "colormatch_references_pick_title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose Reference Images"
+    "colormatch_references_pick_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose Reference Images"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择参考图"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择参考图"
           }
         }
       }
     },
-    "colormatch_references_add" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add reference"
+    "colormatch_references_add": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add reference"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加参考图"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加参考图"
           }
         }
       }
     },
-    "colormatch_references_remove" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Remove reference"
+    "colormatch_references_remove": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove reference"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "移除参考图"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除参考图"
           }
         }
       }
     },
-    "colormatch_references_empty" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No references yet — add one or more images to match against."
+    "colormatch_references_empty": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No references yet — add one or more images to match against."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暂无参考图——添加一张或多张图片作为追色目标。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无参考图——添加一张或多张图片作为追色目标。"
           }
         }
       }
     },
-    "colormatch_solve_label" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Match Color"
+    "colormatch_solve_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Match Color"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "追色"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "追色"
           }
         }
       }
     },
-    "colormatch_strength_label" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Strength"
+    "colormatch_strength_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strength"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "强度"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强度"
           }
         }
       }
     },
-    "colormatch_readout_header" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Readout"
+    "colormatch_readout_header": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Readout"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "读数"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读数"
           }
         }
       }
     },
-    "colormatch_readout_effective" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "effective: %@"
+    "colormatch_readout_effective": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "effective: %@"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "实际求解：%@"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实际求解：%@"
           }
         }
       }
     },
-    "colormatch_readout_stats_hash" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "stats %@"
+    "colormatch_readout_stats_hash": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "stats %@"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "统计哈希 %@"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "统计哈希 %@"
           }
         }
       }
     },
-    "colormatch_readout_support" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "support L ±%@  a ±%@  b ±%@"
+    "colormatch_readout_support": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "support L ±%@  a ±%@  b ±%@"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "支撑域 L ±%@  a ±%@  b ±%@"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支撑域 L ±%@  a ±%@  b ±%@"
           }
         }
       }
     },
-    "colormatch_error_no_reference" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add at least one reference image first."
+    "colormatch_error_no_reference": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add at least one reference image first."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请先添加至少一张参考图。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先添加至少一张参考图。"
           }
         }
       }
     },
-    "colormatch_error_reference_unreadable" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The reference image could not be read."
+    "colormatch_error_reference_unreadable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The reference image could not be read."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "参考图无法读取。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "参考图无法读取。"
           }
         }
       }
     },
-    "colormatch_error_solve_failed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The color match failed — see the toast for details."
+    "colormatch_error_solve_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The color match failed — see the toast for details."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "追色失败——详见提示条。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "追色失败——详见提示条。"
           }
         }
       }
     },
-    "editor_stack_add_module" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add Module"
+    "editor_stack_add_module": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Module"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加模块"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加模块"
           }
         }
       }
     },
-    "mcp_tool_desc_match_color" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "以一张参考图的色彩分布追色一张或多张目标图（TRACK 求解族）：提取参考图 pristine 态与各目标当前编辑链的 Oklab 统计，逐目标独立求解，并为每个目标落位一个 colormatch 模块实例（每目标一次可撤销写盘，工具返回前落盘）。批量语义：各目标对同一参考统计独立求解——解随目标不同是设计行为。reference：库内图片 id（纯数字）或会话内 relPath；每次调用一张参考图。targets：一个 relPath 或数组（最多 30 个）；缺省 = 编辑器当前图。solver：gaussian-ot（缺省）| reinhard | cdf。strength：0...1（缺省 1）——求解/恒等混合。attach：true（缺省）= 落位 colormatch 实例并返回 {instanceId, params 摘要, solveHash}；false = 只返回参数组——由你用 apply_params 自行落位（cdf 解携带 assetRef/assetHash：派生 .cube 资产写在目标图旁，该引用只在该图上有效）。attach 后微调 = apply_params（如 params {\"strength\":0.7}）；目视验收 = render_preview；参数键参考 = list_iops。确定性：相同 reference/target/参数 → 相同 solveHash（十进制字符串）——可重复调用自行比对。错误：notSessionMember（reference/target 不可寻址）、imageLiveInEditor（attach 目标在编辑器中打开）、invalidParams、renderFailed、renderTimeout。"
+    "mcp_tool_desc_match_color": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以一张参考图的色彩分布追色一张或多张目标图（TRACK 求解族）：提取参考图 pristine 态与各目标当前编辑链的 Oklab 统计，逐目标独立求解，并为每个目标落位一个 colormatch 模块实例（每目标一次可撤销写盘，工具返回前落盘）。批量语义：各目标对同一参考统计独立求解——解随目标不同是设计行为。reference：库内图片 id（纯数字）或会话内 relPath；每次调用一张参考图。targets：一个 relPath 或数组（最多 30 个）；缺省 = 编辑器当前图。solver：gaussian-ot（缺省）| reinhard | cdf。strength：0...1（缺省 1）——求解/恒等混合。attach：true（缺省）= 落位 colormatch 实例并返回 {instanceId, params 摘要, solveHash}；false = 只返回参数组——由你用 apply_params 自行落位（cdf 解携带 assetRef/assetHash：派生 .cube 资产写在目标图旁，该引用只在该图上有效）。attach 后微调 = apply_params（如 params {\"strength\":0.7}）；目视验收 = render_preview；参数键参考 = list_iops。确定性：相同 reference/target/参数 → 相同 solveHash（十进制字符串）——可重复调用自行比对。错误：notSessionMember（reference/target 不可寻址）、imageLiveInEditor（attach 目标在编辑器中打开）、invalidParams、renderFailed、renderTimeout。"
           }
         }
       }
     },
-    "browser_menu_hdr_mertens" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "HDR Merge (Mertens Quick)"
+    "browser_menu_hdr_mertens": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR Merge (Mertens Quick)"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "HDR 合并（Mertens 快速）"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR 合并（Mertens 快速）"
           }
         }
       }
     },
-    "hdr_mertens_dialog_body" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Blend the selected exposure bracket into one HDR image without exposure metadata. The default medium de-ghost tier runs (moving objects are replaced from the reference frame)."
+    "hdr_mertens_dialog_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blend the selected exposure bracket into one HDR image without exposure metadata. The default medium de-ghost tier runs (moving objects are replaced from the reference frame)."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "将所选曝光包围照片融合为一张 HDR 图像（无需曝光元数据）。默认运行中档去鬼影（运动物体由参考帧内容替换）。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将所选曝光包围照片融合为一张 HDR 图像（无需曝光元数据）。默认运行中档去鬼影（运动物体由参考帧内容替换）。"
           }
         }
       }
     },
-    "hdr_mertens_dialog_start" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Start Merge"
+    "hdr_mertens_dialog_start": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start Merge"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "开始合并"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始合并"
           }
         }
       }
     },
-    "hdr_mertens_dialog_title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "HDR Merge (Mertens Quick)"
+    "hdr_mertens_dialog_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR Merge (Mertens Quick)"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "HDR 合并（Mertens 快速）"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR 合并（Mertens 快速）"
           }
         }
       }
     },
-    "toast_hdr_mertens_queued" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "HDR merge (Mertens) queued"
+    "toast_hdr_mertens_queued": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR merge (Mertens) queued"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "HDR 合并（Mertens）已加入队列"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDR 合并（Mertens）已加入队列"
           }
         }
       }
     },
-    "browser_menu_pano" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Panorama Merge"
+    "browser_menu_pano": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panorama Merge"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全景合成"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全景合成"
           }
         }
       }
     },
-    "pano_dialog_title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Panorama Merge"
+    "pano_dialog_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panorama Merge"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全景合成"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全景合成"
           }
         }
       }
     },
-    "pano_dialog_body" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose photos taken from the same viewpoint with about 30% overlap. The canvas is capped at 200 megapixels (larger sets scale down automatically), and the result is always cropped to the valid area."
+    "pano_dialog_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose photos taken from the same viewpoint with about 30% overlap. The canvas is capped at 200 megapixels (larger sets scale down automatically), and the result is always cropped to the valid area."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择同一视点、重叠约 30% 以上的照片；画布上限 2 亿像素，超限自动等比缩小；结果恒自动裁去无效边缘。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择同一视点、重叠约 30% 以上的照片；画布上限 2 亿像素，超限自动等比缩小；结果恒自动裁去无效边缘。"
           }
         }
       }
     },
-    "pano_dialog_start" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Start Merge"
+    "pano_dialog_start": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start Merge"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "开始合成"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始合成"
           }
         }
       }
     },
-    "toast_pano_queued" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Panorama merge queued"
+    "toast_pano_queued": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panorama merge queued"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全景合成已加入队列"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全景合成已加入队列"
           }
         }
       }
     },
-    "pano_error_alignment" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Panorama alignment failed"
+    "pano_error_alignment": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panorama alignment failed"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全景对齐失败"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全景对齐失败"
           }
         }
       }
     },
-    "pano_error_disconnected" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Panorama photos are disconnected (insufficient overlap)"
+    "pano_error_disconnected": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panorama photos are disconnected (insufficient overlap)"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全景照片不连通（重叠不足）"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全景照片不连通（重叠不足）"
           }
         }
       }
     },
-    "pano_error_canvas" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Panorama canvas invalid"
+    "pano_error_canvas": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panorama canvas invalid"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全景画布无效"
-          }
-        }
-      }
-     },
-    "mcp_connect_guidance_stderr" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The project is held by another instance (pid %1$@) — connect to its MCP endpoint %2$@, or close that instance and retry."
-          }
-        },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "项目已由另一实例持有（pid %1$@）——请连接其 MCP 端点 %2$@，或关闭该实例后重试。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全景画布无效"
           }
         }
       }
     },
-    "mcp_connect_guidance_stderr_noendpoint" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The project is held by another instance (pid %1$@) — close it or enable its MCP server."
+    "mcp_connect_guidance_stderr": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The project is held by another instance (pid %1$@) — connect to its MCP endpoint %2$@, or close that instance and retry."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "项目由另一实例持有（pid %1$@）——关闭它或在其上开启 MCP server。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "项目已由另一实例持有（pid %1$@）——请连接其 MCP 端点 %2$@，或关闭该实例后重试。"
           }
         }
       }
     },
-    "mcp_error_project_read_only" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The project is held by another instance (%1$@) — %2$@"
+    "mcp_connect_guidance_stderr_noendpoint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The project is held by another instance (pid %1$@) — close it or enable its MCP server."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "项目由另一实例持有（%1$@）——%2$@"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "项目由另一实例持有（pid %1$@）——关闭它或在其上开启 MCP server。"
           }
         }
       }
     },
-    "project_read_only_banner" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Read-only — project is open in another instance (pid %@)"
+    "mcp_error_project_read_only": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The project is held by another instance (%1$@) — %2$@"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "只读——项目已由另一实例（pid %@）打开"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "项目由另一实例持有（%1$@）——%2$@"
           }
         }
       }
     },
-    "project_read_only_cancel" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cancel"
+    "project_read_only_banner": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read-only — project is open in another instance (pid %@)"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "取消"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只读——项目已由另一实例（pid %@）打开"
           }
         }
       }
     },
-    "project_read_only_dialog_message" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%1$@” is held by another instance (pid %2$@). Open it read-only to browse, or retry to acquire the write right."
+    "project_read_only_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%1$@” 由另一实例持有（pid %2$@）。可只读打开浏览，或重试获取写权。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
           }
         }
       }
     },
-    "project_read_only_dialog_title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Project Opened by Another Instance"
+    "project_read_only_dialog_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%1$@” is held by another instance (pid %2$@). Open it read-only to browse, or retry to acquire the write right."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "项目已由另一实例打开"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%1$@” 由另一实例持有（pid %2$@）。可只读打开浏览，或重试获取写权。"
           }
         }
       }
     },
-    "project_read_only_open" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open Read-Only"
+    "project_read_only_dialog_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Project Opened by Another Instance"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "只读打开"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "项目已由另一实例打开"
           }
         }
       }
     },
-    "project_read_only_retry" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Retry"
+    "project_read_only_open": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Read-Only"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重试"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只读打开"
           }
         }
       }
     },
-    "session_lock_held" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This folder is already open in another Lightamer instance (%1$@). Close that instance and retry."
+    "project_read_only_retry": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "该照片文件夹已由另一 Lightamer 实例打开（%1$@）。关闭那个实例后重试。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
           }
         }
       }
     },
-    "export_gainmap_hint" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Embeds an ISO 21496-1 gain map in the JPEG (UltraHDR). HDR-capable viewers render the extended highlights; the base stays a normal SDR JPEG."
+    "session_lock_held": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This folder is already open in another Lightamer instance (%1$@). Close that instance and retry."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 JPEG 内嵌入 ISO 21496-1 gain map（UltraHDR）。支持 HDR 的查看器会渲染高光扩展；基图仍是普通 SDR JPEG。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该照片文件夹已由另一 Lightamer 实例打开（%1$@）。关闭那个实例后重试。"
           }
         }
       }
     },
-    "export_gainmap_label" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "UltraHDR (gain map)"
+    "export_gainmap_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Embeds an ISO 21496-1 gain map in the JPEG (UltraHDR). HDR-capable viewers render the extended highlights; the base stays a normal SDR JPEG."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "UltraHDR（gain map）"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 JPEG 内嵌入 ISO 21496-1 gain map（UltraHDR）。支持 HDR 的查看器会渲染高光扩展；基图仍是普通 SDR JPEG。"
           }
         }
       }
     },
-    "export_gainmap_unavailable_encoding" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The DRT Encoding is PQ/HLG — the base is not an SDR rendition, the gain map is unavailable."
+    "export_gainmap_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UltraHDR (gain map)"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "DRT Encoding 为 PQ/HLG——基图非 SDR rendition，gain map 不可用。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UltraHDR（gain map）"
           }
         }
       }
     },
-    "export_gainmap_unavailable_format" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "UltraHDR requires the JPEG format."
+    "export_gainmap_unavailable_encoding": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The DRT Encoding is PQ/HLG — the base is not an SDR rendition, the gain map is unavailable."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "UltraHDR 仅适用于 JPEG 格式。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DRT Encoding 为 PQ/HLG——基图非 SDR rendition，gain map 不可用。"
           }
         }
       }
     },
-    "export_gainmap_unavailable_peak" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Raise the DRT Peak to 203 nits or above to enable (no HDR headroom below the SDR reference white)."
+    "export_gainmap_unavailable_format": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UltraHDR requires the JPEG format."
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "将 DRT Peak 提升至 203 nits 以上以启用（低于 SDR 参考白无 HDR 余量）。"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UltraHDR 仅适用于 JPEG 格式。"
+          }
+        }
+      }
+    },
+    "export_gainmap_unavailable_peak": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Raise the DRT Peak to 203 nits or above to enable (no HDR headroom below the SDR reference white)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将 DRT Peak 提升至 203 nits 以上以启用（低于 SDR 参考白无 HDR 余量）。"
           }
         }
       }
@@ -32622,7 +32621,7 @@
         }
       }
     },
-    "export_preset_section":     {
+    "export_preset_section": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -32639,7 +32638,7 @@
         }
       }
     },
-    "export_preset_picker_label":     {
+    "export_preset_picker_label": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -32656,24 +32655,7 @@
         }
       }
     },
-    "export_preset_save":     {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Save Preset"
-          }
-        },
-        "zh": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "存为预设"
-          }
-        }
-      }
-    },
-    "export_preset_rename":     {
+    "export_preset_rename": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -32690,7 +32672,7 @@
         }
       }
     },
-    "export_preset_delete":     {
+    "export_preset_delete": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -32707,7 +32689,7 @@
         }
       }
     },
-    "export_preset_name_prompt":     {
+    "export_preset_name_prompt": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -32724,7 +32706,7 @@
         }
       }
     },
-    "export_preset_name_placeholder":     {
+    "export_preset_name_placeholder": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -32741,2411 +32723,2661 @@
         }
       }
     },
-    "mcp_tool_desc_search_photos" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在当前打开的图库（.lalb 项目）中检索照片——`list_photos` 寻址的是打开的会话，两者从不混用。每次调用对全库求值（无会话过滤叠加态）。mode：exif（缺省）用与 GUI 搜索框相同的语法解析查询——普通词走 EXIF 文本索引，结构化 token（iso800、f/2.8、2024-06..2024-08）走类型化列；clip 用本地 CLIP 模型嵌入查询并按 cosine 分数降序返回近邻；fulltext 走 AI 理解全文索引（caption/tags/scene）按 bm25 rank 序返回。分页仅存在于 mode=exif：把 `nextCursor` 作为 `cursor` 回传（短页即结尾；cursor 只对签发它的同一 sort 与本工具有效）。sort 是 {key: filename|rating|captureDate|iso|focalLength, ascending}（缺省 filename 升序）；cursor/sort 在 clip/fulltext 模式被拒绝（有界 top-K，不分页）。行携带窄投影（imageID、imagePath——项目相对 path-kind 形，寻址请用 imageID——filename、dir、captureDate、rating、flag、colorLabel、hasEdits）；缩略图走 get_thumbnails。错误：notSessionMember（无打开项目——先打开一个 .lalb）、invalidParams（空查询、未识别 token、坏 cursor/sort）、modelUnavailable（语义模型未就绪）。"
+    "mcp_tool_desc_search_photos": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在当前打开的图库（.lalb 项目）中检索照片——`list_photos` 寻址的是打开的会话，两者从不混用。每次调用对全库求值（无会话过滤叠加态）。mode：exif（缺省）用与 GUI 搜索框相同的语法解析查询——普通词走 EXIF 文本索引，结构化 token（iso800、f/2.8、2024-06..2024-08）走类型化列；clip 用本地 CLIP 模型嵌入查询并按 cosine 分数降序返回近邻；fulltext 走 AI 理解全文索引（caption/tags/scene）按 bm25 rank 序返回。分页仅存在于 mode=exif：把 `nextCursor` 作为 `cursor` 回传（短页即结尾；cursor 只对签发它的同一 sort 与本工具有效）。sort 是 {key: filename|rating|captureDate|iso|focalLength, ascending}（缺省 filename 升序）；cursor/sort 在 clip/fulltext 模式被拒绝（有界 top-K，不分页）。行携带窄投影（imageID、imagePath——项目相对 path-kind 形，寻址请用 imageID——filename、dir、captureDate、rating、flag、colorLabel、hasEdits）；缩略图走 get_thumbnails。错误：notSessionMember（无打开项目——先打开一个 .lalb）、invalidParams（空查询、未识别 token、坏 cursor/sort）、modelUnavailable（语义模型未就绪）。"
           }
         }
       }
     },
-    "mcp_tool_desc_get_history" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "读取一张图的编辑历史（只读——无 undo/redo 动词；本面从不写盘）：非破坏性编辑日志（参数编辑、图层结构编辑、粘贴纪元、文档级显示变换与胶片编辑）、版本列表元数据、活跃版本，以及元数据面（note/keywords/rating/flag/colorLabel）。image：库内图片 id（纯数字）或会话内 relPath（match_color 同款寻址）。items 缺省为摘要形（id/label/timestamp/kind/layerScope）；includeParams=true 逐项附加 params。列表截取最新端 500 条帽（itemCount 恒真值总数——截断可检出，保留最新端）。author 为保留字段，现阶段恒 null。完整版本链（每个版本自己的 item 列表）不在本面内。错误：notSessionMember（图片不可寻址 / 无打开项目）、invalidParams。"
+    "mcp_tool_desc_get_history": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取一张图的编辑历史（只读——无 undo/redo 动词；本面从不写盘）：非破坏性编辑日志（参数编辑、图层结构编辑、粘贴纪元、文档级显示变换与胶片编辑）、版本列表元数据、活跃版本，以及元数据面（note/keywords/rating/flag/colorLabel）。image：库内图片 id（纯数字）或会话内 relPath（match_color 同款寻址）。items 缺省为摘要形（id/label/timestamp/kind/layerScope）；includeParams=true 逐项附加 params。列表截取最新端 500 条帽（itemCount 恒真值总数——截断可检出，保留最新端）。author 为保留字段，现阶段恒 null。完整版本链（每个版本自己的 item 列表）不在本面内。错误：notSessionMember（图片不可寻址 / 无打开项目）、invalidParams。"
           }
         }
       }
     },
-    "mcp_tool_desc_get_state" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本服务器状态的一次性快照，六字段组：project（打开的 .lalb——路径 / 只读立场）、workspace（图库集合面：过滤 / 选择 / 当前图）、editor（活文档：图 URL / 有无编辑）、control（单写者锁 verdict + 写调用计数）、tasks（导出队列计数）与 server（服务器名/版本、host 模式、只读立场）。宿主看不到的字段为 null（如无头宿主的 workspace/editor/tasks；无 --project 旗标时 project）。这是一次性快照——字段不保证调用间一致；本面从不写盘。"
+    "mcp_tool_desc_get_state": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本服务器状态的一次性快照，六字段组：project（打开的 .lalb——路径 / 只读立场）、workspace（图库集合面：过滤 / 选择 / 当前图）、editor（活文档：图 URL / 有无编辑）、control（单写者锁 verdict + 写调用计数）、tasks（导出队列计数）与 server（服务器名/版本、host 模式、只读立场）。宿主看不到的字段为 null（如无头宿主的 workspace/editor/tasks；无 --project 旗标时 project）。这是一次性快照——字段不保证调用间一致；本面从不写盘。"
           }
         }
       }
     },
-    "mcp_tool_desc_list_luts" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "列出已安装的 LUT 库（只读、扁平清单——v1 无分组过滤）：每个 LUT 含 key、文件名、内容 hash、is1D、晶格 size、可选 title/subdirectory 与已记忆的创作编码对。key 即寻址值：作为 lut3d 模块 params `lutName` 的新写入寻址键传入。libraryRoot 是 key 相对的库根。全新宿主的首次调用可能在后台 LUT 库预热完成前阻塞至多 ~50s——短超时客户端建议重试。只读、无状态，除 internalError 外无错误。"
+    "mcp_tool_desc_list_luts": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列出已安装的 LUT 库（只读、扁平清单——v1 无分组过滤）：每个 LUT 含 key、文件名、内容 hash、is1D、晶格 size、可选 title/subdirectory 与已记忆的创作编码对。key 即寻址值：作为 lut3d 模块 params `lutName` 的新写入寻址键传入。libraryRoot 是 key 相对的库根。全新宿主的首次调用可能在后台 LUT 库预热完成前阻塞至多 ~50s——短超时客户端建议重试。只读、无状态，除 internalError 外无错误。"
           }
         }
       }
     },
-    "mcp_tool_desc_project_open" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "打开一个已有的 .lalb 项目包作为本服务器的项目上下文（需 writer 宿主——只读宿主先在 writer gate 处答 serverReadOnly）。path：.lalb 包的绝对路径；错误路径不动当前项目（先检后开——Alcedo 同构）。已持有的项目先关闭（checkpoint 随 close），随后打开目标；目标被另一实例持有时，typed projectReadOnly 应答携带持有者摘要且当前项目状态诚实（无头臂 close 成功后 open 失败 = 无项目打开的诚实空态——重试 open）。摘要为 {path, name, readOnly, heldByOther}——照片计数走 search_photos/list_photos。错误：invalidParams（缺 path/后缀不对）、projectReadOnly（目标被持有）、internalError（打开 I/O 失败）、serverReadOnly。"
+    "mcp_tool_desc_project_open": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开一个已有的 .lalb 项目包作为本服务器的项目上下文（需 writer 宿主——只读宿主先在 writer gate 处答 serverReadOnly）。path：.lalb 包的绝对路径；错误路径不动当前项目（先检后开——Alcedo 同构）。已持有的项目先关闭（checkpoint 随 close），随后打开目标；目标被另一实例持有时，typed projectReadOnly 应答携带持有者摘要且当前项目状态诚实（无头臂 close 成功后 open 失败 = 无项目打开的诚实空态——重试 open）。摘要为 {path, name, readOnly, heldByOther}——照片计数走 search_photos/list_photos。错误：invalidParams（缺 path/后缀不对）、projectReadOnly（目标被持有）、internalError（打开 I/O 失败）、serverReadOnly。"
           }
         }
       }
     },
-    "mcp_tool_desc_project_create" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新建一个 .lalb 项目包并打开为本服务器的项目上下文（需 writer 宿主——只读宿主先在 writer gate 处答 serverReadOnly）。folder：必须已存在的目录路径；name：包名（不得含路径分隔符 / 冒号 / 前导点）。包落在 folder/<name>.lalb；已存在的包拒绝、绝不覆盖。已持有的项目先关闭（checkpoint 随 close）。摘要为 {path, name, readOnly, heldByOther}——照片计数走 search_photos/list_photos。错误：invalidParams（目录不存在 / 名称非法 / 包已存在）、projectReadOnly（目标被持有）、internalError（创建 I/O 失败）、serverReadOnly。"
+    "mcp_tool_desc_project_create": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建一个 .lalb 项目包并打开为本服务器的项目上下文（需 writer 宿主——只读宿主先在 writer gate 处答 serverReadOnly）。folder：必须已存在的目录路径；name：包名（不得含路径分隔符 / 冒号 / 前导点）。包落在 folder/<name>.lalb；已存在的包拒绝、绝不覆盖。已持有的项目先关闭（checkpoint 随 close）。摘要为 {path, name, readOnly, heldByOther}——照片计数走 search_photos/list_photos。错误：invalidParams（目录不存在 / 名称非法 / 包已存在）、projectReadOnly（目标被持有）、internalError（创建 I/O 失败）、serverReadOnly。"
           }
         }
       }
     },
-    "mcp_tool_desc_list_versions" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "列出一张图 sidecar 文档的版本树（只读——本面从不写盘）：每版本含 id、name、createdAt/updatedAt、active 旗标、链 position/itemCount 真值，includeItems=true 时附各版本自己的条目清单（ACTIVE 版本读文档 history；非活跃版本读其冻结链；每条清单以最新端 500 条为帽并携带逐版本 truncated 旗标——position/itemCount 保持真值，截断可检测）。image：库图像 id（数字）或打开会话的 relPath（get_history 同款寻址）。只读 sidecar 真相——绝不查库侧的版本引用投影（投影 ≠ 真相）。无 sidecar 文档 = pristine 诚实面（versions: []、activeVersionID null——不是错误）。分工：get_history 仍是 ACTIVE 链 + 元数据面（note/keywords/rating）；list_versions 是版本树 + 非活跃链通道。错误：notSessionMember（图不可寻址 / 无打开项目）、invalidParams。"
+    "mcp_tool_desc_list_versions": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列出一张图 sidecar 文档的版本树（只读——本面从不写盘）：每版本含 id、name、createdAt/updatedAt、active 旗标、链 position/itemCount 真值，includeItems=true 时附各版本自己的条目清单（ACTIVE 版本读文档 history；非活跃版本读其冻结链；每条清单以最新端 500 条为帽并携带逐版本 truncated 旗标——position/itemCount 保持真值，截断可检测）。image：库图像 id（数字）或打开会话的 relPath（get_history 同款寻址）。只读 sidecar 真相——绝不查库侧的版本引用投影（投影 ≠ 真相）。无 sidecar 文档 = pristine 诚实面（versions: []、activeVersionID null——不是错误）。分工：get_history 仍是 ACTIVE 链 + 元数据面（note/keywords/rating）；list_versions 是版本树 + 非活跃链通道。错误：notSessionMember（图不可寻址 / 无打开项目）、invalidParams。"
           }
         }
       }
     },
-    "mcp_tool_desc_copy_adjustments" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "读取一张源图的调色调整作为传输预览（只读——不落任何服务端状态、无剪贴板；把应答中的 instanceId 喂给 paste_adjustments 的 include 参数）。source：库图像 id（数字）或打开会话的 relPath。应答枚举源的 ACTIVE 链（版本选择走 paste_adjustments 的 version 参数——versions[] 列出 id）：每个 Grade 层含其 instances {instanceId, opName, multiPriority, enabled, transferable}，不可贴行灰显可见（绝不静默吞掉），附 DRT 行存在性与 summary 计数。NOTE 层级：paste_adjustments 的 note 字段是历史提交上的 item 级编辑注记——与 append_note 设置的文档级 note 不同。错误：notSessionMember（未知 id / 无打开会话）、invalidParams。"
+    "mcp_tool_desc_copy_adjustments": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读取一张源图的调色调整作为传输预览（只读——不落任何服务端状态、无剪贴板；把应答中的 instanceId 喂给 paste_adjustments 的 include 参数）。source：库图像 id（数字）或打开会话的 relPath。应答枚举源的 ACTIVE 链（版本选择走 paste_adjustments 的 version 参数——versions[] 列出 id）：每个 Grade 层含其 instances {instanceId, opName, multiPriority, enabled, transferable}，不可贴行灰显可见（绝不静默吞掉），附 DRT 行存在性与 summary 计数。NOTE 层级：paste_adjustments 的 note 字段是历史提交上的 item 级编辑注记——与 append_note 设置的文档级 note 不同。错误：notSessionMember（未知 id / 无打开会话）、invalidParams。"
           }
         }
       }
     },
-    "mcp_tool_desc_paste_adjustments" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "把一张源图的调色调整一次性贴到多个打开会话的目标上（每目标 = 一次可撤销的 overwrite-paste 提交；写达后方返回）。source：库图像 id（数字）或打开会话的 relPath（copy_adjustments 同款寻址；无状态重读——无服务端剪贴板）。targets：1...1000 个打开会话 relPath。include：instanceId 子集（缺省全部可贴项）；includeDrt: false 丢弃 DRT 行（缺省 true）；version：copy_adjustments versions[] 的 id（缺省 ACTIVE 链）。蒙版在粘贴时重置纪元（源图在飞蒙版写入者绝不对贴后图生效）。编辑器中打开的活目标按目标拒绝（绝不静默跳过）。应答为逐目标分账 {relPath, status: applied|rejected(reason)}——全拒批以 appliedCount=0 诚实应答而非抛错。NOTE 层级：note 字段是各历史提交上的 item 级编辑注记——与 append_note 设置的文档级 note 不同。错误：invalidParams、notSessionMember、imageLiveInEditor、projectReadOnly、serverReadOnly、internalError。"
+    "mcp_tool_desc_paste_adjustments": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把一张源图的调色调整一次性贴到多个打开会话的目标上（每目标 = 一次可撤销的 overwrite-paste 提交；写达后方返回）。source：库图像 id（数字）或打开会话的 relPath（copy_adjustments 同款寻址；无状态重读——无服务端剪贴板）。targets：1...1000 个打开会话 relPath。include：instanceId 子集（缺省全部可贴项）；includeDrt: false 丢弃 DRT 行（缺省 true）；version：copy_adjustments versions[] 的 id（缺省 ACTIVE 链）。蒙版在粘贴时重置纪元（源图在飞蒙版写入者绝不对贴后图生效）。编辑器中打开的活目标按目标拒绝（绝不静默跳过）。应答为逐目标分账 {relPath, status: applied|rejected(reason)}——全拒批以 appliedCount=0 诚实应答而非抛错。NOTE 层级：note 字段是各历史提交上的 item 级编辑注记——与 append_note 设置的文档级 note 不同。错误：invalidParams、notSessionMember、imageLiveInEditor、projectReadOnly、serverReadOnly、internalError。"
           }
         }
       }
     },
-    "editor_history_author_badge" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "作者 %@"
+    "editor_history_author_badge": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "作者 %@"
           }
         }
       }
     },
-    "mcp_tool_desc_control_acquire" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "取得 GUI 会话的 agent 控制权（人机共驾：agent 持有控制期间用户编辑面被禁用；state-changing 工具在未持有时应答 controlNotHeld）。holder_name：你的会话标签（缺省 \"agent\"）——用户 Stop 后用同一标签恢复会延续先前任务；不同标签则新建任务。另一 holder 已持有时应答 controlBusy（携该 holder）；用户正在编辑器拖动时本调用会等待输入封合（有界等待，超时应答 controlBusy）。用 control_get / get_state 轮询变化（v1 无推送通知）。"
+    "mcp_tool_desc_control_acquire": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取得 GUI 会话的 agent 控制权（人机共驾：agent 持有控制期间用户编辑面被禁用；state-changing 工具在未持有时应答 controlNotHeld）。holder_name：你的会话标签（缺省 \"agent\"）——用户 Stop 后用同一标签恢复会延续先前任务；不同标签则新建任务。另一 holder 已持有时应答 controlBusy（携该 holder）；用户正在编辑器拖动时本调用会等待输入封合（有界等待，超时应答 controlBusy）。用 control_get / get_state 轮询变化（v1 无推送通知）。"
           }
         }
       }
     },
-    "mcp_tool_desc_control_release" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "把 agent 控制权交还给用户。幂等——未持有控制时调用不改变任何状态（状态对象照常应答）。"
+    "mcp_tool_desc_control_release": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把 agent 控制权交还给用户。幂等——未持有控制时调用不改变任何状态（状态对象照常应答）。"
           }
         }
       }
     },
-    "mcp_tool_desc_control_get" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "只读查询当前控制状态 {held, revokedByUser, holder}（轮询面——v1 无 control 变更通知）。revokedByUser = 用户已停止 agent：先停下工作、征得用户同意后再重新 acquire。"
+    "mcp_tool_desc_control_get": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只读查询当前控制状态 {held, revokedByUser, holder}（轮询面——v1 无 control 变更通知）。revokedByUser = 用户已停止 agent：先停下工作、征得用户同意后再重新 acquire。"
           }
         }
       }
     },
-    "tasks_agent_kind" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent"
+    "tasks_agent_kind": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent"
           }
         }
       }
     },
-    "agent_card_waiting" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "等待下一条命令"
+    "agent_card_waiting": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待下一条命令"
           }
         }
       }
     },
-    "tasks_agent_stop" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "停止 Agent"
+    "tasks_agent_stop": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停止 Agent"
           }
         }
       }
     },
-    "tasks_dismiss" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "移除"
+    "tasks_dismiss": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除"
           }
         }
       }
     },
-    "mcp_error_control_not_held" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此命令会更改会话状态，需要 agent 控制权——请先调用 control_acquire。"
+    "mcp_error_control_not_held": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此命令会更改会话状态，需要 agent 控制权——请先调用 control_acquire。"
           }
         }
       }
     },
-    "mcp_error_control_revoked_by_user" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "用户已停止 agent——请停止工作并询问用户如何继续；征得用户同意后再 control_acquire。"
+    "mcp_error_control_revoked_by_user": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用户已停止 agent——请停止工作并询问用户如何继续；征得用户同意后再 control_acquire。"
           }
         }
       }
     },
-    "mcp_error_control_busy" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "另一持有者已持有控制权：%1$@。"
+    "mcp_error_control_busy": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "另一持有者已持有控制权：%1$@。"
           }
         }
       }
     },
-    "slider_scrub_hint" : {
-      "localizations" : {
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "横向拖动数字扫值——按住 Shift 以 1/10 速度细调。"
+    "slider_scrub_hint": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "横向拖动数字扫值——按住 Shift 以 1/10 速度细调。"
           }
         }
       }
     },
-    "latitude_share_value" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ %lld%%"
+    "latitude_share_value": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %lld%%"
           }
         },
-        "zh" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ %lld%%"
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %lld%%"
           }
         }
       }
     },
-  "panel_lens_embedded_detected" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Vendor lens correction DETECTED in this file (DNG opcode list) — Lensfun auto-apply stays off to avoid double correction."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "检测到本文件含厂商镜头校正（DNG opcode 列表）——Lensfun 自动应用保持关闭，避免双重校正。"
+    "panel_lens_embedded_detected": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vendor lens correction DETECTED in this file (DNG opcode list) — Lensfun auto-apply stays off to avoid double correction."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检测到本文件含厂商镜头校正（DNG opcode 列表）——Lensfun 自动应用保持关闭，避免双重校正。"
+          }
+        }
+      }
+    },
+    "panel_lens_embedded_unknown": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Embedded correction state NOT DETECTABLE (vendor RAW) — enable Lensfun only after confirming the vendor correction is absent."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内嵌校正状态不可探测（厂商 RAW）——确认厂商校正不存在后再启用 Lensfun。"
+          }
+        }
+      }
+    },
+    "panel_lens_embedded_notapplicable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not applicable: raster image carries no embedded lens-geometry concept — Lensfun is safe to use."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不适用：栅格图像无内嵌镜头几何概念——可放心使用 Lensfun。"
+          }
+        }
+      }
+    },
+    "panel_lens_match_matched": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Matched profile"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匹配到配置"
+          }
+        }
+      }
+    },
+    "panel_lens_match_ambiguous": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ambiguous: multiple profiles tie — pick one in the profile browser."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歧义：多个配置同分——请在配置浏览器中手动选择。"
+          }
+        }
+      }
+    },
+    "panel_lens_match_nolens": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No matching lens profile at the confidence threshold."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "置信度阈值内无匹配镜头配置。"
+          }
+        }
+      }
+    },
+    "panel_lens_match_nodatabase": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No lens database installed."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未安装镜头数据库。"
+          }
+        }
+      }
+    },
+    "panel_lens_enabled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable lens correction"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用镜头校正"
+          }
+        }
+      }
+    },
+    "panel_lens_apply_distortion": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply distortion"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用畸变校正"
+          }
+        }
+      }
+    },
+    "panel_lens_apply_tca": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply chromatic aberration"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用色差校正"
+          }
+        }
+      }
+    },
+    "panel_lens_apply_vignette": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply vignetting"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用渐晕校正"
+          }
+        }
+      }
+    },
+    "panel_lens_auto_apply": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-apply match on new raster images (opt-in)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新栅格图像自动应用匹配（需手动开启）"
+          }
+        }
+      }
+    },
+    "panel_lens_scale_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scale"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缩放补偿"
+          }
+        }
+      }
+    },
+    "panel_lens_browser_search_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search lens profiles…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索镜头配置…"
+          }
+        }
+      }
+    },
+    "panel_lens_browser_scoring": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scoring…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打分中…"
+          }
+        }
+      }
+    },
+    "panel_lens_browser_empty": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type to search the lens database."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入以搜索镜头数据库。"
+          }
+        }
+      }
+    },
+    "panel_lens_browser_no_match": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No profile matches the search."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无匹配配置。"
+          }
+        }
+      }
+    },
+    "panel_lens_browser_low_confidence": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "low confidence"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "低置信"
+          }
+        }
+      }
+    },
+    "panel_lens_browser_truncated": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More rows hidden — refine the search."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多条目已隐藏——请细化搜索。"
+          }
+        }
+      }
+    },
+    "panel_lens_detected_confirm_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vendor correction detected"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检测到厂商校正"
+          }
+        }
+      }
+    },
+    "panel_lens_detected_confirm_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This image already carries the vendor lens correction. Selecting a Lensfun profile will STACK a second correction on top of it."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此图已含厂商镜头校正。选择 Lensfun 配置将在其上叠加第二重校正。"
+          }
+        }
+      }
+    },
+    "panel_lens_detected_confirm_apply": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stack anyway"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仍然叠加"
+          }
+        }
+      }
+    },
+    "panel_lens_detected_confirm_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        }
+      }
+    },
+    "panel_lens_target_projection": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Target projection"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目标投影"
+          }
+        }
+      }
+    },
+    "panel_lens_projection_rectilinear": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rectilinear (none)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直线(无)"
+          }
+        }
+      }
+    },
+    "panel_lens_projection_fisheye": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fisheye"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鱼眼"
+          }
+        }
+      }
+    },
+    "panel_lens_projection_equisolid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Equisolid"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等立体角"
+          }
+        }
+      }
+    },
+    "panel_lens_projection_stereographic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stereographic"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "立体投影"
+          }
+        }
+      }
+    },
+    "panel_lens_projection_orthographic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orthographic"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正交投影"
+          }
+        }
+      }
+    },
+    "settings_lensfun_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lens Data"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "镜头数据"
+          }
+        }
+      }
+    },
+    "settings_lensfun_dbtag": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Database tag"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数据库标识"
+          }
+        }
+      }
+    },
+    "settings_lensfun_check_update": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check for Database Updates"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查数据库更新"
+          }
+        }
+      }
+    },
+    "settings_lensfun_updating": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking for updates…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在检查更新…"
+          }
+        }
+      }
+    },
+    "settings_lensfun_updated": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Database updated."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数据库已更新。"
+          }
+        }
+      }
+    },
+    "settings_lensfun_sha_mismatch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SHA-256 mismatch — install refused."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SHA-256 不符——已拒绝安装。"
+          }
+        }
+      }
+    },
+    "settings_lensfun_update_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update download failed — the installed database is untouched."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新下载失败——已装数据库未受影响。"
+          }
+        }
+      }
+    },
+    "settings_lensfun_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The bundled snapshot is pinned and attributed (CC-BY-SA-3.0). Updates are manual and SHA-verified; a mismatched archive is never installed."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "随包快照为钉版并已归属（CC-BY-SA-3.0）。更新为手动且经 SHA 校验；不符的档案绝不安装。"
+          }
+        }
+      }
+    },
+    "panel_lens_rematch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Re-match current database"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按当前数据库重新匹配"
+          }
+        }
+      }
+    },
+    "panel_lens_rematch_miss": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Re-match missed — the snapshot was cleared."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新匹配未命中——快照已清除。"
+          }
+        }
+      }
+    },
+    "panel_lens_auto_scale": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto scale (border compensation)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动缩放（边框补偿）"
+          }
+        }
+      }
+    },
+    "panel_lens_user_scale": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "User scale"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手动缩放"
+          }
+        }
+      }
+    },
+    "panel_lens_scale_unsupported": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borders cannot fit even at zoom 8 — compensation unavailable."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "放大 8 倍仍无法收进边框——补偿不可用。"
+          }
+        }
+      }
+    },
+    "panel_lens_scale_readout": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resolved scale"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解析缩放"
+          }
+        }
+      }
+    },
+    "panel_lens_relay_crop": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relay suggested crop to Crop panel"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将建议裁切接力到裁切面板"
+          }
+        }
+      }
+    },
+    "panel_lens_relay_no_crop": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No crop module in the chain — nothing to relay to."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "链中无裁切模块——无处接力。"
+          }
+        }
+      }
+    },
+    "filter_focal_mm_value %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld mm"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld mm"
+          }
+        }
+      }
+    },
+    "rawdecode_raster_peak_value %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld nits"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld nits"
+          }
+        }
+      }
+    },
+    "rawdecode_raster_trc_gamma_value": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "gamma %@"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伽马 %@"
+          }
+        }
+      }
+    },
+    "tasks_analysis_title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo analysis"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片分析"
+          }
+        }
+      }
+    },
+    "tasks_analysis_waiting": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyzing library…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在分析图库…"
+          }
+        }
+      }
+    },
+    "tasks_analysis_detail %lld %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld photos"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已分析 %1$lld / %2$lld 张"
+          }
+        }
+      }
+    },
+    "library_hint_blurry": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Possibly blurry"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可能模糊"
+          }
+        }
+      }
+    },
+    "library_hint_eyes_closed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Possibly closed eyes"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可能闭眼"
+          }
+        }
+      }
+    },
+    "library_hint_burst_index %lld %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Burst %1$lld/%2$lld"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连拍 %1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "library_hint_make_stack": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stack Burst"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转为堆栈"
+          }
+        }
+      }
+    },
+    "library_filter_hasburst_unsupported": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Burst is a query-time annotation and cannot back a smart album condition."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连拍是查询期注记，无法作为智能相册条件。"
+          }
+        }
+      }
+    },
+    "settings_analysis_section": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo analysis"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片分析"
+          }
+        }
+      }
+    },
+    "settings_analysis_toggle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyze photos in the background"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后台分析照片"
+          }
+        }
+      }
+    },
+    "settings_analysis_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Computes sharpness, closed-eye and burst hints for the library while the app idles. Export and AI work always takes priority."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在空闲时为图库计算清晰度、闭眼与连拍提示。导出与 AI 任务始终优先。"
+          }
+        }
+      }
+    },
+    "cull_advance_label": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advance after rating (A)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "评级后前进（A）"
+          }
+        }
+      }
+    },
+    "cull_back_label": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to library (G)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "返回图库（G）"
+          }
+        }
+      }
+    },
+    "cull_compare_label": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compare (C)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对比（C）"
+          }
+        }
+      }
+    },
+    "cull_face_empty": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cull"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选片"
+          }
+        }
+      }
+    },
+    "cull_help_row": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "← → step  ·  ↑ ↓ burst groups  ·  0-5 stars  ·  P pick  X reject  U unflag  ·  6-9 colour labels  ·  Z or double-click 100%  ·  C compare  Tab switch side  ·  F face boxes  ·  D open in editor  ·  G back to library"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "← → 切换  ·  ↑ ↓ 连拍组  ·  0-5 星级  ·  P 留用  X 排除  U 取消  ·  6-9 色标  ·  Z 或双击 100%  ·  C 对比  Tab 切侧  ·  F 人脸框  ·  D 进编辑器  ·  G 返回图库"
+          }
+        }
+      }
+    },
+    "cull_hint_best": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Best"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最佳"
+          }
+        }
+      }
+    },
+    "cull_hint_blurry": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Possibly blurry"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可能模糊"
+          }
+        }
+      }
+    },
+    "cull_hint_eyes_closed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Possibly closed eyes"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可能闭眼"
+          }
+        }
+      }
+    },
+    "cull_hint_sharpness": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sharpness %.0f"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清晰度 %.0f"
+          }
+        }
+      }
+    },
+    "library_grid_cull": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick cull"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速选片"
+          }
+        }
+      }
+    },
+    "settings_previews_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Caches the decoded working planes so reopening and culling skip the RAW decode. Off disables the cache; everything in it is rebuildable."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缓存解码工作平面，重开与选片不再重复 RAW 解码。关闭即停用缓存；其中内容均可重建。"
+          }
+        }
+      }
+    },
+    "settings_previews_limit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cache limit"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缓存上限"
+          }
+        }
+      }
+    },
+    "settings_previews_mb": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld MB"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld MB"
+          }
+        }
+      }
+    },
+    "settings_previews_off": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
+          }
+        }
+      }
+    },
+    "settings_previews_section": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smart previews"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能预览"
+          }
+        }
+      }
+    },
+    "ai_mask_refine": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refine Mask Edge"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "精细化蒙版边缘"
+          }
+        }
+      }
+    },
+    "ai_mask_refine_failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mask refinement failed, keeping the quick mask"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蒙版精细化失败，已保留快速蒙版"
+          }
+        }
+      }
+    },
+    "history_mask_refine": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refine Mask Edge"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "精细化蒙版边缘"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_refine_masks": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refine the AI-generated raster masks of the editor's CURRENT image on a developed display guide (sample-based matting: hair, fur, branches, fine edges). Only the live editor image qualifies - relPath must name the image open in the editor right now; anything else fails typed. maskIds are the owning LAYERS' UUIDs whose masks were AI-generated; unknown or non-AI ids fail typed (nothing is silently dropped). Each refined raster replaces the quick one as ONE undoable history step; a failure keeps the quick mask. The pass runs in the background (seconds per mask): this call ENQUEUES and returns - poll render_preview afterwards to see the result. Serialized behind the render gate."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在显影后显示域向导图上精细化编辑器当前图像的 AI 蒙版(采样式抠图:发丝、毛发、枝叶等细边缘)。仅编辑器当前打开的图像可用——relPath 必须指向当前图像,否则 typed 报错。maskIds 为持有蒙版的图层 UUID;未知或非 AI 蒙版 typed 报错(不静默丢弃)。每个精细化栅格以一步可撤销 history 提交置换快速蒙版;失败保留快速蒙版。后台执行(每蒙版数秒):本调用入队即返回——随后用 render_preview 轮询结果。经渲染闸门串行。"
+          }
+        }
+      }
+    },
+    "settings_maskrefine_auto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refine AI mask edges automatically"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动精细化 AI 蒙版边缘"
+          }
+        }
+      }
+    },
+    "settings_maskrefine_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "After an AI mask is generated its edges are refined against the developed image in the background (seconds per mask). A failure keeps the quick mask."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI 蒙版生成后,后台在显影图上精细化其边缘(每个蒙版数秒)。失败时保留快速蒙版。"
+          }
+        }
+      }
+    },
+    "settings_maskrefine_section": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mask refinement"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蒙版精细化"
+          }
+        }
+      }
+    },
+    "history_process_migrate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Migrate to Current Process"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "迁移至当前渲染代"
+          }
+        }
+      }
+    },
+    "panel_film_migrate_body": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This document still renders with the frozen previous film generation. Updating re-renders it with the current spectral film core. Your edits and history stay untouched."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此文档仍以冻结的上一代胶片核渲染。更新后将以当前光谱胶片核重新渲染，编辑与历史不受影响。"
+          }
+        }
+      }
+    },
+    "panel_film_migrate_button": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update to Current Process"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新到当前渲染代"
+          }
+        }
+      }
+    },
+    "panel_film_migrate_cancel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        }
+      }
+    },
+    "panel_film_migrate_confirm": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新"
+          }
+        }
+      }
+    },
+    "panel_film_migrate_title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update to Current Process?"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新到当前渲染代？"
+          }
+        }
+      }
+    },
+    "ai_task_subject": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subject"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主体"
+          }
+        }
+      }
+    },
+    "ai_task_background": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Background"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "背景"
+          }
+        }
+      }
+    },
+    "ai_task_sky": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sky"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "天空"
+          }
+        }
+      }
+    },
+    "ai_task_people": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "People"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "人物"
+          }
+        }
+      }
+    },
+    "ai_task_sky_disabled_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sky masking is not available in this build (no native sky model)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "天空蒙版在本构建中不可用（无原生天空模型）。"
+          }
+        }
+      }
+    },
+    "ai_mask_expand_label": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expand"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "扩展"
+          }
+        }
+      }
+    },
+    "ai_mask_expand_reset": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset expand"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置扩展"
+          }
+        }
+      }
+    },
+    "ai_candidate_solving": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solving…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "求解中…"
+          }
+        }
+      }
+    },
+    "ai_candidate_ready": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Candidate ready"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "候选蒙版就绪"
+          }
+        }
+      }
+    },
+    "transfer_ai_masks_excluded %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld AI masks were excluded (they describe this image's content)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已排除 %lld 个 AI 蒙版（其描述的是本图内容）"
+          }
+        }
+      }
+    },
+    "film_section_bw": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "B&W"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "黑白"
+          }
+        }
+      }
+    },
+    "film_label_grade": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grade"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反差号"
+          }
+        }
+      }
+    },
+    "film_grade_none": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None (auto)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无（自动）"
+          }
+        }
+      }
+    },
+    "history_film_grade": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paper Grade"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相纸反差号"
+          }
+        }
+      }
+    },
+    "film_shoot_section": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shoot"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拍摄"
+          }
+        }
+      }
+    },
+    "film_shoot_caption": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lens filter at exposure — multiplies the film's spectral sensitivity; distinct from the enlarger's Y/M dichroic shifts below."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "曝光时镜头前置滤镜——作用于胶片光谱感度;与下方放大机 Y/M 二色性校正不同。"
+          }
+        }
+      }
+    },
+    "film_shoot_filter": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "滤镜"
+          }
+        }
+      }
+    },
+    "film_shoot_none": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无"
+          }
+        }
+      }
+    },
+    "film_shoot_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Data note: %@"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数据注记:%@"
+          }
+        }
+      }
+    },
+    "history_film_filter": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera Filter"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拍摄滤镜"
+          }
+        }
+      }
+    },
+    "film_grain_readout": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Published RMS %d µm · recommended strength %.1f"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发表 RMS %d µm · 推荐 strength %.1f"
+          }
+        }
+      }
+    },
+    "film_grain_apply": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用"
+          }
+        }
+      }
+    },
+    "history_rotate": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "旋转"
+          }
+        }
+      }
+    },
+    "history_auto_straighten": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto straighten"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动拉直"
+          }
+        }
+      }
+    },
+    "history_constrain": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Constrain crop"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "约束裁切"
+          }
+        }
+      }
+    },
+    "crop_auto_straighten": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto straighten"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动拉直"
+          }
+        }
+      }
+    },
+    "crop_constrain": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Constrain"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "约束"
+          }
+        }
+      }
+    },
+    "crop_auto_none_toast": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto straighten found no reliable horizon — nothing applied."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未找到可靠地平线，未应用拉直。"
+          }
+        }
+      }
+    },
+    "crop_constrain_none_toast": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crop already fits the photo — nothing to constrain."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裁切框已贴合照片，无需约束。"
+          }
+        }
+      }
+    },
+    "crop_straighten_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Straighten"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拉直"
+          }
+        }
+      }
+    },
+    "crop_rotate_ccw_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate 90° counterclockwise"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "逆时针旋转 90°"
+          }
+        }
+      }
+    },
+    "crop_rotate_cw_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rotate 90° clockwise"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顺时针旋转 90°"
+          }
+        }
+      }
+    },
+    "history_upright_mode": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upright mode"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upright 模式"
+          }
+        }
+      }
+    },
+    "history_upright_guides": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upright guides"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upright 导线"
+          }
+        }
+      }
+    },
+    "upright_mode_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mode"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模式"
+          }
+        }
+      }
+    },
+    "upright_mode_off": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
+          }
+        }
+      }
+    },
+    "upright_mode_guided": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guided"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "引导"
+          }
+        }
+      }
+    },
+    "upright_guides_clear": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear guides"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除导线"
+          }
+        }
+      }
+    },
+    "upright_tool_draw": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draw guides"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "绘制导线"
+          }
+        }
+      }
+    },
+    "upright_tool_done": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
+        }
+      }
+    },
+    "upright_tool_help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draw 2–4 lines along verticals or horizontals to correct perspective."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沿竖线或横线绘制 2–4 条导线以校正透视。"
+          }
+        }
+      }
+    },
+    "upright_double_warp_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Straighten is also active — two warps stack; folding the straighten into the guides is cleaner."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拉直同时生效——两重形变叠加，并入导线解更干净。"
+          }
+        }
+      }
+    },
+    "upright_guides_count": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guides: %d"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导线：%d"
+          }
+        }
+      }
+    },
+    "upright_guides_cap_toast": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guide limit reached — up to four guides."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已达导线上限——最多四条。"
+          }
+        }
+      }
+    },
+    "mcp_tool_desc_get_schema": {
+      "localizations": {
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个可编辑字段：其在 apply_params params 对象中的路径、类型、界面范围与含义，编辑前必读。每个 op 给出 opName、显示名、v50 iopOrder、VERSION（变化时请刷新缓存）、适用域与每个参数字段的路径、类型、范围、含义及规范默认值。范围是界面的（面板档位）——越界写入被拒绝而非钳制。本文档缺席的 op 仍可经 apply_params 全 JSON 替换，无字段参考。只读、无状态，除 internalError 外无其他错误。"
+          }
+        }
+      }
+    },
+    "settings_mcp_onboarding_section": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agents Onboarding"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接入向导"
+          }
+        }
+      }
+    },
+    "settings_mcp_onboarding_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste a block below into your agent to connect to this Mac's Lightamer MCP service. The service must be on (the switch above)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把下面配置粘贴进 agent 即可接入本机 Lightamer MCP 服务。服务须处于开启状态（上节开关）。"
+          }
+        }
+      }
+    },
+    "settings_mcp_onboarding_claude_code": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code (terminal command)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code（终端命令）"
+          }
+        }
+      }
+    },
+    "settings_mcp_onboarding_claude_desktop": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Desktop (config file)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Desktop（配置文件）"
+          }
+        }
+      }
+    },
+    "settings_mcp_onboarding_cli": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Command line (one-shot calls)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命令行（一次性调用）"
+          }
+        }
+      }
+    },
+    "settings_mcp_onboarding_cli_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install the command first, then single-shot any tool with mcp call (via the local HTTP endpoint — protocol-level full parity by construction)."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先安装命令，再用 mcp call 单发调用任一工具（走本机 HTTP 端点，协议级天然全量 parity）。"
+          }
+        }
+      }
+    },
+    "settings_mcp_onboarding_install": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install Command"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装命令"
+          }
+        }
+      }
+    },
+    "settings_mcp_onboarding_reinstall": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reinstall Command"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重装命令"
+          }
+        }
+      }
+    },
+    "settings_mcp_onboarding_uninstall": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uninstall Command"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "卸载命令"
+          }
+        }
+      }
+    },
+    "settings_mcp_onboarding_installed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installed"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已安装"
+          }
+        }
+      }
+    },
+    "settings_mcp_onboarding_not_installed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not installed"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未安装"
+          }
+        }
+      }
+    },
+    "settings_mcp_onboarding_installed_other": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Foreign file present"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已存在他人文件"
+          }
+        }
+      }
+    },
+    "settings_mcp_onboarding_copied": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已复制"
+          }
+        }
+      }
+    },
+    "settings_mcp_onboarding_copy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制"
+          }
+        }
+      }
+    },
+    "settings_mcp_onboarding_config_hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The configs point at the local MCP endpoint discovery file; host/port are written at service start, no manual port edits after pasting."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配置指向本机 MCP 端点发现文件；host/port 由服务启动时写入，粘贴后无需手工改端口。"
+          }
         }
       }
     }
-  },
-  "panel_lens_embedded_unknown" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Embedded correction state NOT DETECTABLE (vendor RAW) — enable Lensfun only after confirming the vendor correction is absent."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "内嵌校正状态不可探测（厂商 RAW）——确认厂商校正不存在后再启用 Lensfun。"
-        }
-      }
-    }
-  },
-  "panel_lens_embedded_notapplicable" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Not applicable: raster image carries no embedded lens-geometry concept — Lensfun is safe to use."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "不适用：栅格图像无内嵌镜头几何概念——可放心使用 Lensfun。"
-        }
-      }
-    }
-  },
-  "panel_lens_match_matched" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Matched profile"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "匹配到配置"
-        }
-      }
-    }
-  },
-  "panel_lens_match_ambiguous" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Ambiguous: multiple profiles tie — pick one in the profile browser."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "歧义：多个配置同分——请在配置浏览器中手动选择。"
-        }
-      }
-    }
-  },
-  "panel_lens_match_nolens" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "No matching lens profile at the confidence threshold."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "置信度阈值内无匹配镜头配置。"
-        }
-      }
-    }
-  },
-  "panel_lens_match_nodatabase" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "No lens database installed."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "未安装镜头数据库。"
-        }
-      }
-    }
-  },
-  "panel_lens_enabled" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Enable lens correction"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "启用镜头校正"
-        }
-      }
-    }
-  },
-  "panel_lens_apply_distortion" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Apply distortion"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "应用畸变校正"
-        }
-      }
-    }
-  },
-  "panel_lens_apply_tca" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Apply chromatic aberration"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "应用色差校正"
-        }
-      }
-    }
-  },
-  "panel_lens_apply_vignette" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Apply vignetting"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "应用渐晕校正"
-        }
-      }
-    }
-  },
-  "panel_lens_auto_apply" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Auto-apply match on new raster images (opt-in)"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "新栅格图像自动应用匹配（需手动开启）"
-        }
-      }
-    }
-  },
-  "panel_lens_scale_section" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Scale"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "缩放补偿"
-        }
-      }
-    }
-  },
-  "panel_lens_browser_search_placeholder" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Search lens profiles…"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "搜索镜头配置…"
-        }
-      }
-    }
-  },
-  "panel_lens_browser_scoring" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Scoring…"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "打分中…"
-        }
-      }
-    }
-  },
-  "panel_lens_browser_empty" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Type to search the lens database."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "输入以搜索镜头数据库。"
-        }
-      }
-    }
-  },
-  "panel_lens_browser_no_match" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "No profile matches the search."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "无匹配配置。"
-        }
-      }
-    }
-  },
-  "panel_lens_browser_low_confidence" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "low confidence"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "低置信"
-        }
-      }
-    }
-  },
-  "panel_lens_browser_truncated" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "More rows hidden — refine the search."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "更多条目已隐藏——请细化搜索。"
-        }
-      }
-    }
-  },
-  "panel_lens_detected_confirm_title" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Vendor correction detected"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "检测到厂商校正"
-        }
-      }
-    }
-  },
-  "panel_lens_detected_confirm_body" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "This image already carries the vendor lens correction. Selecting a Lensfun profile will STACK a second correction on top of it."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "此图已含厂商镜头校正。选择 Lensfun 配置将在其上叠加第二重校正。"
-        }
-      }
-    }
-  },
-  "panel_lens_detected_confirm_apply" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Stack anyway"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "仍然叠加"
-        }
-      }
-    }
-  },
-  "panel_lens_detected_confirm_cancel" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Cancel"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "取消"
-        }
-      }
-    }
-  },
-  "panel_lens_target_projection" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Target projection"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "目标投影"
-        }
-      }
-    }
-  },
-  "panel_lens_projection_rectilinear" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Rectilinear (none)"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "直线(无)"
-        }
-      }
-    }
-  },
-  "panel_lens_projection_fisheye" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Fisheye"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "鱼眼"
-        }
-      }
-    }
-  },
-  "panel_lens_projection_equisolid" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Equisolid"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "等立体角"
-        }
-      }
-    }
-  },
-  "panel_lens_projection_stereographic" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Stereographic"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "立体投影"
-        }
-      }
-    }
-  },
-  "panel_lens_projection_orthographic" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Orthographic"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "正交投影"
-        }
-      }
-    }
-  },
-  "settings_lensfun_section" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Lens Data"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "镜头数据"
-        }
-      }
-    }
-  },
-  "settings_lensfun_dbtag" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Database tag"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "数据库标识"
-        }
-      }
-    }
-  },
-  "settings_lensfun_check_update" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Check for Database Updates"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "检查数据库更新"
-        }
-      }
-    }
-  },
-  "settings_lensfun_updating" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Checking for updates…"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "正在检查更新…"
-        }
-      }
-    }
-  },
-  "settings_lensfun_updated" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Database updated."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "数据库已更新。"
-        }
-      }
-    }
-  },
-  "settings_lensfun_sha_mismatch" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "SHA-256 mismatch — install refused."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "SHA-256 不符——已拒绝安装。"
-        }
-      }
-    }
-  },
-  "settings_lensfun_update_failed" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Update download failed — the installed database is untouched."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "更新下载失败——已装数据库未受影响。"
-        }
-      }
-    }
-  },
-  "settings_lensfun_hint" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "The bundled snapshot is pinned and attributed (CC-BY-SA-3.0). Updates are manual and SHA-verified; a mismatched archive is never installed."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "随包快照为钉版并已归属（CC-BY-SA-3.0）。更新为手动且经 SHA 校验；不符的档案绝不安装。"
-        }
-      }
-    }
-  },
-  "panel_lens_rematch" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Re-match current database"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "按当前数据库重新匹配"
-        }
-      }
-    }
-  },
-  "panel_lens_rematch_miss" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Re-match missed — the snapshot was cleared."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "重新匹配未命中——快照已清除。"
-        }
-      }
-    }
-  },
-  "panel_lens_auto_scale" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Auto scale (border compensation)"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "自动缩放（边框补偿）"
-        }
-      }
-    }
-  },
-  "panel_lens_user_scale" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "User scale"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "手动缩放"
-        }
-      }
-    }
-  },
-  "panel_lens_scale_unsupported" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Borders cannot fit even at zoom 8 — compensation unavailable."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "放大 8 倍仍无法收进边框——补偿不可用。"
-        }
-      }
-    }
-  },
-  "panel_lens_scale_readout" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Resolved scale"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "解析缩放"
-        }
-      }
-    }
-  },
-  "panel_lens_relay_crop" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Relay suggested crop to Crop panel"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "将建议裁切接力到裁切面板"
-        }
-      }
-    }
-  },
-  "panel_lens_relay_no_crop" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "No crop module in the chain — nothing to relay to."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "链中无裁切模块——无处接力。"
-        }
-      }
-    }
-  },
-  "filter_focal_mm_value %lld" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "%lld mm"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "%lld mm"
-        }
-      }
-    }
-  },
-  "rawdecode_raster_peak_value %lld" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "%lld nits"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "%lld nits"
-        }
-      }
-    }
-  },
-  "rawdecode_raster_trc_gamma_value" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "gamma %@"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "伽马 %@"
-        }
-      }
-    }
-  },
-  "tasks_analysis_title" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Photo analysis"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "照片分析"
-        }
-      }
-    }
-  },
-  "tasks_analysis_waiting" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Analyzing library…"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "正在分析图库…"
-        }
-      }
-    }
-  },
-  "tasks_analysis_detail %lld %lld" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "%1$lld of %2$lld photos"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "已分析 %1$lld / %2$lld 张"
-        }
-      }
-    }
-  },
-  "library_hint_blurry" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Possibly blurry"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "可能模糊"
-        }
-      }
-    }
-  },
-  "library_hint_eyes_closed" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Possibly closed eyes"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "可能闭眼"
-        }
-      }
-    }
-  },
-  "library_hint_burst_index %lld %lld" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Burst %1$lld/%2$lld"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "连拍 %1$lld/%2$lld"
-        }
-      }
-    }
-  },
-  "library_hint_make_stack" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Stack Burst"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "转为堆栈"
-        }
-      }
-    }
-  },
-  "library_filter_hasburst_unsupported" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Burst is a query-time annotation and cannot back a smart album condition."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "连拍是查询期注记，无法作为智能相册条件。"
-        }
-      }
-    }
-  },
-  "settings_analysis_section" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Photo analysis"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "照片分析"
-        }
-      }
-    }
-  },
-  "settings_analysis_toggle" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Analyze photos in the background"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "后台分析照片"
-        }
-      }
-    }
-  },
-  "settings_analysis_hint" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Computes sharpness, closed-eye and burst hints for the library while the app idles. Export and AI work always takes priority."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "在空闲时为图库计算清晰度、闭眼与连拍提示。导出与 AI 任务始终优先。"
-        }
-      }
-    }
-  },
-  "cull_advance_label" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Advance after rating (A)"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "评级后前进（A）"
-        }
-      }
-    }
-  },
-  "cull_back_label" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Back to library (G)"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "返回图库（G）"
-        }
-      }
-    }
-  },
-  "cull_compare_label" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Compare (C)"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "对比（C）"
-        }
-      }
-    }
-  },
-  "cull_face_empty" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Cull"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "选片"
-        }
-      }
-    }
-  },
-  "cull_help_row" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "← → step  ·  ↑ ↓ burst groups  ·  0-5 stars  ·  P pick  X reject  U unflag  ·  6-9 colour labels  ·  Z or double-click 100%  ·  C compare  Tab switch side  ·  F face boxes  ·  D open in editor  ·  G back to library"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "← → 切换  ·  ↑ ↓ 连拍组  ·  0-5 星级  ·  P 留用  X 排除  U 取消  ·  6-9 色标  ·  Z 或双击 100%  ·  C 对比  Tab 切侧  ·  F 人脸框  ·  D 进编辑器  ·  G 返回图库"
-        }
-      }
-    }
-  },
-  "cull_hint_best" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Best"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "最佳"
-        }
-      }
-    }
-  },
-  "cull_hint_blurry" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Possibly blurry"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "可能模糊"
-        }
-      }
-    }
-  },
-  "cull_hint_eyes_closed" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Possibly closed eyes"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "可能闭眼"
-        }
-      }
-    }
-  },
-  "cull_hint_sharpness" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Sharpness %.0f"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "清晰度 %.0f"
-        }
-      }
-    }
-  },
-  "library_grid_cull" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Quick cull"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "快速选片"
-        }
-      }
-    }
-  },
-  "settings_previews_hint" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Caches the decoded working planes so reopening and culling skip the RAW decode. Off disables the cache; everything in it is rebuildable."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "缓存解码工作平面，重开与选片不再重复 RAW 解码。关闭即停用缓存；其中内容均可重建。"
-        }
-      }
-    }
-  },
-  "settings_previews_limit" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Cache limit"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "缓存上限"
-        }
-      }
-    }
-  },
-  "settings_previews_mb" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "%lld MB"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "%lld MB"
-        }
-      }
-    }
-  },
-  "settings_previews_off" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Off"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "关闭"
-        }
-      }
-    }
-  },
-  "settings_previews_section" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Smart previews"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "智能预览"
-        }
-      }
-    }
-  },
-  "ai_mask_refine" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Refine Mask Edge"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "精细化蒙版边缘"
-        }
-      }
-    }
-  },
-  "ai_mask_refine_failed" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Mask refinement failed, keeping the quick mask"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "蒙版精细化失败，已保留快速蒙版"
-        }
-      }
-    }
-  },
-  "history_mask_refine" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Refine Mask Edge"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "精细化蒙版边缘"
-        }
-      }
-    }
-  },
-  "mcp_tool_desc_refine_masks" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Refine the AI-generated raster masks of the editor's CURRENT image on a developed display guide (sample-based matting: hair, fur, branches, fine edges). Only the live editor image qualifies - relPath must name the image open in the editor right now; anything else fails typed. maskIds are the owning LAYERS' UUIDs whose masks were AI-generated; unknown or non-AI ids fail typed (nothing is silently dropped). Each refined raster replaces the quick one as ONE undoable history step; a failure keeps the quick mask. The pass runs in the background (seconds per mask): this call ENQUEUES and returns - poll render_preview afterwards to see the result. Serialized behind the render gate."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "在显影后显示域向导图上精细化编辑器当前图像的 AI 蒙版(采样式抠图:发丝、毛发、枝叶等细边缘)。仅编辑器当前打开的图像可用——relPath 必须指向当前图像,否则 typed 报错。maskIds 为持有蒙版的图层 UUID;未知或非 AI 蒙版 typed 报错(不静默丢弃)。每个精细化栅格以一步可撤销 history 提交置换快速蒙版;失败保留快速蒙版。后台执行(每蒙版数秒):本调用入队即返回——随后用 render_preview 轮询结果。经渲染闸门串行。"
-        }
-      }
-    }
-  },
-  "settings_maskrefine_auto" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Refine AI mask edges automatically"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "自动精细化 AI 蒙版边缘"
-        }
-      }
-    }
-  },
-  "settings_maskrefine_hint" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "After an AI mask is generated its edges are refined against the developed image in the background (seconds per mask). A failure keeps the quick mask."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "AI 蒙版生成后,后台在显影图上精细化其边缘(每个蒙版数秒)。失败时保留快速蒙版。"
-        }
-      }
-    }
-  },
-  "settings_maskrefine_section" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Mask refinement"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "蒙版精细化"
-        }
-      }
-    }
-  },
-  "history_process_migrate" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Migrate to Current Process"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "迁移至当前渲染代"
-        }
-      }
-    }
-  },
-  "panel_film_migrate_body" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "This document still renders with the frozen previous film generation. Updating re-renders it with the current spectral film core. Your edits and history stay untouched."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "此文档仍以冻结的上一代胶片核渲染。更新后将以当前光谱胶片核重新渲染，编辑与历史不受影响。"
-        }
-      }
-    }
-  },
-  "panel_film_migrate_button" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Update to Current Process"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "更新到当前渲染代"
-        }
-      }
-    }
-  },
-  "panel_film_migrate_cancel" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Cancel"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "取消"
-        }
-      }
-    }
-  },
-  "panel_film_migrate_confirm" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Update"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "更新"
-        }
-      }
-    }
-  },
-  "panel_film_migrate_title" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Update to Current Process?"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "更新到当前渲染代？"
-        }
-      }
-    }
-  },
-  "ai_task_subject" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Subject"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "主体"
-        }
-      }
-    }
-  },
-  "ai_task_background" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Background"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "背景"
-        }
-      }
-    }
-  },
-  "ai_task_sky" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Sky"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "天空"
-        }
-      }
-    }
-  },
-  "ai_task_people" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "People"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "人物"
-        }
-      }
-    }
-  },
-  "ai_task_sky_disabled_hint" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Sky masking is not available in this build (no native sky model)."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "天空蒙版在本构建中不可用（无原生天空模型）。"
-        }
-      }
-    }
-  },
-  "ai_mask_expand_label" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Expand"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "扩展"
-        }
-      }
-    }
-  },
-  "ai_mask_expand_reset" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Reset expand"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "重置扩展"
-        }
-      }
-    }
-  },
-  "ai_candidate_solving" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Solving…"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "求解中…"
-        }
-      }
-    }
-  },
-  "ai_candidate_ready" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Candidate ready"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "候选蒙版就绪"
-        }
-      }
-    }
-  },
-  "transfer_ai_masks_excluded %lld" : {
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "%lld AI masks were excluded (they describe this image's content)"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "已排除 %lld 个 AI 蒙版（其描述的是本图内容）"
-        }
-      }
-    }
-  },
-  "film_section_bw" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "B&W"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "黑白"
-        }
-      }
-    }
-  },
-  "film_label_grade" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Grade"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "反差号"
-        }
-      }
-    }
-  },
-  "film_grade_none" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "None (auto)"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "无（自动）"
-        }
-      }
-    }
-  },
-  "history_film_grade" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Paper Grade"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "相纸反差号"
-        }
-      }
-    }
-  },
-  "film_shoot_section" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Shoot"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "拍摄"
-        }
-      }
-    }
-  },
-  "film_shoot_caption" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Lens filter at exposure — multiplies the film's spectral sensitivity; distinct from the enlarger's Y/M dichroic shifts below."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "曝光时镜头前置滤镜——作用于胶片光谱感度;与下方放大机 Y/M 二色性校正不同。"
-        }
-      }
-    }
-  },
-  "film_shoot_filter" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Filter"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "滤镜"
-        }
-      }
-    }
-  },
-  "film_shoot_none" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "None"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "无"
-        }
-      }
-    }
-  },
-  "film_shoot_note" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Data note: %@"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "数据注记:%@"
-        }
-      }
-    }
-  },
-  "history_film_filter" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Camera Filter"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "拍摄滤镜"
-        }
-      }
-    }
-  },
-  "film_grain_readout" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Published RMS %d \u00b5m \u00b7 recommended strength %.1f"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "发表 RMS %d \u00b5m \u00b7 推荐 strength %.1f"
-        }
-      }
-    }
-  },
-  "film_grain_apply" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Apply"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "应用"
-        }
-      }
-    }
-  },
-  "history_rotate" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Rotate"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "旋转"
-        }
-      }
-    }
-  },
-  "history_auto_straighten" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Auto straighten"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "自动拉直"
-        }
-      }
-    }
-  },
-  "history_constrain" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Constrain crop"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "约束裁切"
-        }
-      }
-    }
-  },
-  "crop_auto_straighten" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Auto straighten"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "自动拉直"
-        }
-      }
-    }
-  },
-  "crop_constrain" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Constrain"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "约束"
-        }
-      }
-    }
-  },
-  "crop_auto_none_toast" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Auto straighten found no reliable horizon — nothing applied."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "未找到可靠地平线，未应用拉直。"
-        }
-      }
-    }
-  },
-  "crop_constrain_none_toast" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Crop already fits the photo — nothing to constrain."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "裁切框已贴合照片，无需约束。"
-        }
-      }
-    }
-  },
-  "crop_straighten_label" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Straighten"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "拉直"
-        }
-      }
-    }
-  },
-  "crop_rotate_ccw_label" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Rotate 90° counterclockwise"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "逆时针旋转 90°"
-        }
-      }
-    }
-  },
-  "crop_rotate_cw_label" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Rotate 90° clockwise"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "顺时针旋转 90°"
-        }
-      }
-    }
-  },
-  "history_upright_mode" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Upright mode"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Upright 模式"
-        }
-      }
-    }
-  },
-  "history_upright_guides" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Upright guides"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Upright 导线"
-        }
-      }
-    }
-  },
-  "upright_mode_label" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Mode"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "模式"
-        }
-      }
-    }
-  },
-  "upright_mode_off" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Off"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "关闭"
-        }
-      }
-    }
-  },
-  "upright_mode_guided" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Guided"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "引导"
-        }
-      }
-    }
-  },
-  "upright_guides_clear" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Clear guides"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "清除导线"
-        }
-      }
-    }
-  },
-  "upright_tool_draw" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Draw guides"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "绘制导线"
-        }
-      }
-    }
-  },
-  "upright_tool_done" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Done"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "完成"
-        }
-      }
-    }
-  },
-  "upright_tool_help" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Draw 2–4 lines along verticals or horizontals to correct perspective."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "沿竖线或横线绘制 2–4 条导线以校正透视。"
-        }
-      }
-    }
-  },
-  "upright_double_warp_note" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Straighten is also active — two warps stack; folding the straighten into the guides is cleaner."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "拉直同时生效——两重形变叠加，并入导线解更干净。"
-        }
-      }
-    }
-  },
-  "upright_guides_count" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Guides: %d"
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "导线：%d"
-        }
-      }
-    }
-  },
-  "upright_guides_cap_toast" : {
-    "extractionState" : "manual",
-    "localizations" : {
-      "en" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "Guide limit reached — up to four guides."
-        }
-      },
-      "zh" : {
-        "stringUnit" : {
-          "state" : "translated",
-          "value" : "已达导线上限——最多四条。"
-        }
-      }
-    }
-  }
   },
   "version": "1.0"
 }

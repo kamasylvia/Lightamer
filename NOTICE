@@ -319,3 +319,29 @@ U. OpenColorIO 2.5.1 (the camera-log curve parameters — Plan M9-4 T3)
    facts of the published curves, transcribed with this attribution per
    the BSD-3-Clause boundary. BSD-3-Clause permits this use; this
    attribution preserves the notice.
+
+──────────────────────────────────────────────────────────────────────────────
+MCP-UQ batch additions (agent ergonomics: get_schema + onboarding + one-shot CLI, 2026-10-31)
+──────────────────────────────────────────────────────────────────────────────
+
+V. SpektraLab RFC-026 (agent schema tool + Agents settings + CLI shape)
+
+   Upstream: SpektraLab (Hanze Qiu and contributors)
+   Upstream commit: 85c9c16 (2026-09-26), read via `git show`
+   License: GPL-3.0.
+
+   Lightamer's MCP agent-ergonomics face DERIVES its SHAPE from RFC-026
+   (the get_schema summary line "every editable field: path/type/range/
+   meaning, read before editing", the Agents settings page structure
+   with install row + Claude Code/Desktop copy blocks, the two-line
+   install script form, the 0/1/2 exit-code discipline): the covered
+   files re-express those shapes against Lightamer's own registry/
+   discovery/transport machinery with the upstream copyright preserved
+   in the file headers. No upstream code is copied verbatim; the debt
+   is structural and is marked per GPL-3.0. The covered files:
+
+     App/Sources/Lightamer/MCP/Tools/McpSchemaCatalog.swift
+     App/Sources/Lightamer/MCP/McpOnboarding.swift
+     App/Sources/Lightamer/MCP/McpOneShot.swift
+
+   These files are GPL-3.0 as part of Lightamer.
