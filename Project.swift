@@ -341,6 +341,7 @@ let project = Project(
                 "Tests/LightamerTests/FilmGoldenTests.swift",
                 "Tests/LightamerTests/FilmicRGBTests.swift",
                 "Tests/LightamerTests/SpectralBuildGoldenTests.swift",
+                "Tests/LightamerTests/SpectralClampedGoldenTests.swift",
                 "Tests/LightamerTests/SpectralKernelGoldenTests.swift",
                 "Tests/LightamerTests/SpectralPerfProbeTests.swift",
                 "Tests/LightamerTests/SpectralLegForkTests.swift",
@@ -542,6 +543,7 @@ let project = Project(
                 "Tests/LightamerTests/SpectralTcFitTests.swift",
                 "Tests/LightamerTests/SpectralSolveTests.swift",
                 "Tests/LightamerTests/SpectralNeutralSolveTests.swift",
+                "Tests/LightamerTests/SpectralConservationFallbackTests.swift",
                 "Tests/LightamerTests/VibranceVelviaCommitTests.swift",
                 "Tests/LightamerTests/VignetteTests.swift",
                 "Tests/LightamerTests/VisionDetectTests.swift",
@@ -1019,6 +1021,7 @@ let project = Project(
                 "Tests/LightamerTests/DrtPanelModelTests.swift",
                 "Tests/LightamerTests/FilmPanelTests.swift",
                 "Tests/LightamerTests/FilmPanelSpectralUITests.swift",
+                "Tests/LightamerTests/FilmPanelClampedTests.swift",
                 // M9-2 T2: the BW panel faces (sections/grade picker/pristine).
                 "Tests/LightamerTests/FilmPanelBWTests.swift",
                 "Tests/LightamerTests/FilmCardTests.swift",

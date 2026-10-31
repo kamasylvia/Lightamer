@@ -898,6 +898,12 @@ final class PipeCoordinator {
                     tableWavelengths: SpectralConstantsData.wavelengthsNm))
             any = true
         }
+        // M8-3+ T2 (R-M83P-1): the record's normalized mode rides the
+        // tags (nil/unknown = absent — the legacy path).
+        if let mode = record.resolvedReversalPrintMode {
+            tags.reversalPrintMode = mode
+            any = true
+        }
         return any ? tags : nil
     }
 

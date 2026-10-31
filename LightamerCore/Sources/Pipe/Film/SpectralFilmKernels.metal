@@ -133,6 +133,10 @@ using namespace metal;
 #define SF_U_CORR_DS 32         /* decimation factor (4 or 8, probe ③) */
 #define SF_U_BLUR_RADIUS 33     /* corr blur half-width (taps = 2r+1) */
 #define SF_U_TOTAL 34
+/* M8-3+ T2: the conservation fallback's channel-affine gain (u[36..38],
+   literal indices — the extended-face discipline: SF_U_TOTAL stays 34
+   for the seven-stage family; the mix kernel's 34/35 precedent). */
+#define SF_U_MIDGRAY_CHANNEL_GAIN 36 /* 3 */
 
 #define SF_LOG_EPS 1e-10f
 
@@ -633,8 +637,17 @@ static inline float3 spectral_stage_print_expose(
   const float b = (cmy.z - u[SF_U_ENL_LO + 2]) * u[SF_U_ENL_INV_RANGE + 2] * scale;
   float3 l1 = sf_pchip3d(lut, sx, sy, sz, cmin, cmax, steps, r, g, b);
   const float pe = u[SF_U_LOG10_PRINT_EXPOSURE];
-  return float3(fmax(l1.x + pe, -30.0f), fmax(l1.y + pe, -30.0f),
-                  fmax(l1.z + pe, -30.0f));
+  /* M8-3+ T2: the channel-affine gain rides the log add (the SHARED
+     polynomial — the platform log10f would be a different computation,
+     lines 214-217's discipline). Safe pairs = ones = +0 — the
+     exact-identity member. */
+  const float3 cg = float3(
+      sf_log10f(u[SF_U_MIDGRAY_CHANNEL_GAIN + 0]),
+      sf_log10f(u[SF_U_MIDGRAY_CHANNEL_GAIN + 1]),
+      sf_log10f(u[SF_U_MIDGRAY_CHANNEL_GAIN + 2]));
+  return float3(
+      fmax(l1.x + pe + cg.x, -30.0f), fmax(l1.y + pe + cg.y, -30.0f),
+      fmax(l1.z + pe + cg.z, -30.0f));
 }
 
 /* stage 6 — print_develop: print log exposure -> print CMY density

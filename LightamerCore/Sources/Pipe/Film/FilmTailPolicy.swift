@@ -846,6 +846,13 @@ public enum FilmRuntimeSolve {
             if let filter = tags.cameraFilter {
                 mode += "|filter:\(filter.name)"
             }
+            // M8-3+ T2 (R-M83P-1): the mode moves the tables'
+            // solvedPrintCC — the AUTO core's neutral face — so it
+            // folds the solve key (absent = the bare M8 key).
+            if let reversal = tags.reversalPrintMode,
+                reversal == SpectralNeutralSolve.directPositiveMode {
+                mode += "|reversal:\(SpectralNeutralSolve.directPositiveMode)"
+            }
         }
         let key = cacheKey(
             materialPairHash: materialPairHash, statsHash: statsHash,

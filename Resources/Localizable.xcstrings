@@ -35377,6 +35377,102 @@
           }
         }
       }
+    },
+    "film_disclosed_clamped": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neutral unreached — wall-limited; showing the compensated fallback"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中性未收敛——受限于调节墙；当前显示补偿回退结果"
+          }
+        }
+      }
+    },
+    "film_label_reversal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Print Mode"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "印相模式"
+          }
+        }
+      }
+    },
+    "film_reversal_converge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reversal printing converges onto print film (2383/2393) — the current paper stays until you switch."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反转片印相收敛至电影印片（2383/2393）——当前纸面保留至手动切换。"
+          }
+        }
+      }
+    },
+    "film_reversal_direct": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direct positive (scan neutral)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直接正片（扫描中性）"
+          }
+        }
+      }
+    },
+    "film_reversal_legacy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legacy (print exposure)"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "传统（印相曝光）"
+          }
+        }
+      }
+    },
+    "film_reversal_manual_cc": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direct-positive solve also wall-limited — trim with the Y/M shifts below."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直接正片求解同样受限——请用下方 Y/M 手动微调。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
