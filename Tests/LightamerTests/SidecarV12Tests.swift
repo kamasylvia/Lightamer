@@ -92,7 +92,9 @@ final class SidecarV12Tests: XCTestCase {
         let decoded = try JSONDecoder().decode(LightamerSidecar.self, from: bytes)
         XCTAssertEqual(decoded.filmRecord?.paperGrade, "3")
         XCTAssertEqual(decoded.filmRecord?.cameraFilter, "w25")
-        XCTAssertEqual(LightamerSidecar.schemaVersionCurrent, 12)
+        // M8-3+ T3: the live digit moved to 13 (the v12 digit is the
+        // document's own face above — the current-digit pin lives in
+        // SidecarV13Tests now).
     }
 
     // MARK: - 3: the absent-identity face + the hash movement

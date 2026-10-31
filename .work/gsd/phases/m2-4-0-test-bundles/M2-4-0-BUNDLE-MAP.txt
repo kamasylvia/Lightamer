@@ -951,3 +951,8 @@ IOP	5	SpectralNeutralSolveTests.swift
 IOP	5	SpectralConservationFallbackTests.swift
 IOPP	2	SpectralClampedGoldenTests.swift
 APP	3	FilmPanelClampedTests.swift
+#   M8-3+ T3（2026-10-31，issue #21）：空间载体——v13 三面入 Library / 记录
+#   三面+seed 折+优先级+bake 不折 4 法入 Layers / pristine 双面+off 默认 3 法入 App。
+LIB	3	SidecarV13Tests.swift
+LAYERS	4	FilmRecordSpatialTests.swift
+APP	3	FilmPanelSpatialTests.swift

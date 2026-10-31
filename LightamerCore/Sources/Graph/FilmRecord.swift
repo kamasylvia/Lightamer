@@ -91,6 +91,24 @@ public struct FilmRecord: Codable, Hashable, Sendable {
     /// normalized value, never the raw string). Incumbent T2 intermediate:
     /// the on-disk face activates with the T3 v13 bump (R-M83P-8).
     public var reversalPrintMode: String?
+    /// M8-3+ T3 (R-M83P-2): the spectral grain amount (the B-track
+    /// density-domain grain's strength). nil (the default) = off —
+    /// the legacy path verbatim; 0 = on-identity (the track runs,
+    /// the math is the identity). Producer range 0...8 (the upstream
+    /// amount domain); Core does NOT clamp (the panel owns validation).
+    public var grainAmount: Float?
+    /// M8-3+ T3 (R-M83P-2): the halation amount. nil = off; 0 =
+    /// on-identity. Producer range 0...1; Core does not clamp.
+    public var halationAmount: Float?
+    /// M8-3+ T3 (R-M83P-2): the taking-diffusion family id (the MASTER
+    /// switch — nil = the diffusion leg off even when diffusionAmount
+    /// is set; family set + amount absent = 1.0). Id spellings are the
+    /// upstream verbatim (T5 pins them).
+    public var diffusionFamily: String?
+    /// M8-3+ T3 (R-M83P-2): the diffusion amount. Ignored when the
+    /// family is absent (the priority face — the negative test pins
+    /// it); absent with the family set = 1.0. Producer range 0...1.
+    public var diffusionAmount: Float?
     /// Preset-name placeholder constants (KD-1). Deliberately EMPTY for
     /// this plan: no named film-look presets exist yet — M3-3-03 owns the
     /// preset registration face and appends its spellings here so the key
@@ -109,6 +127,10 @@ public struct FilmRecord: Codable, Hashable, Sendable {
         cameraFilter = nil
         paperGrade = nil
         reversalPrintMode = nil
+        grainAmount = nil
+        halationAmount = nil
+        diffusionFamily = nil
+        diffusionAmount = nil
     }
 
     /// The normalized mode (unknown strings → nil — the tolerant face).
@@ -134,6 +156,13 @@ public struct FilmRecord: Codable, Hashable, Sendable {
         // the T3 v13 bump — nil encodes nothing, the absent-identity
         // discipline covers the T2 window).
         case reversalPrintMode = "reversal_print_mode"
+        // M8-3+ T3 (R-M83P-2: the three faces move in ONE batch —
+        // MIN-6's discipline; the on-disk face activates with the v13
+        // bump in this same batch).
+        case grainAmount = "grain_amount"
+        case halationAmount = "halation_amount"
+        case diffusionFamily = "diffusion_family"
+        case diffusionAmount = "diffusion_amount"
     }
 
     /// Tolerant decode: every field decodeIfPresent with the pristine
@@ -155,6 +184,14 @@ public struct FilmRecord: Codable, Hashable, Sendable {
         paperGrade = try c.decodeIfPresent(String.self, forKey: .paperGrade) ?? d.paperGrade
         reversalPrintMode = try c.decodeIfPresent(
             String.self, forKey: .reversalPrintMode) ?? d.reversalPrintMode
+        grainAmount = try c.decodeIfPresent(
+            Float.self, forKey: .grainAmount) ?? d.grainAmount
+        halationAmount = try c.decodeIfPresent(
+            Float.self, forKey: .halationAmount) ?? d.halationAmount
+        diffusionFamily = try c.decodeIfPresent(
+            String.self, forKey: .diffusionFamily) ?? d.diffusionFamily
+        diffusionAmount = try c.decodeIfPresent(
+            Float.self, forKey: .diffusionAmount) ?? d.diffusionAmount
     }
 
     /// FNV-1a over the canonical JSON bytes (`.sortedKeys`, L013). The
