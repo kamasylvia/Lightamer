@@ -374,11 +374,15 @@ final class SpectralLegForkTests: XCTestCase {
         _ metal: MetalContext, payloads: SpectralGPUPayloads,
         input: any MTLTexture, output: any MTLTexture
     ) async throws {
-        let session = try await metal.makeEncoder(functionName: "spectral_film_stage_b")
-        session.encoder.setTexture(input, index: 0)
-        session.encoder.setTexture(output, index: 1)
-        session.encoder.setTexture(payloads.tcLutTexture, index: 2)  // the never-read corr slot
-        session.encoder.setTexture(payloads.tcLutTexture, index: 3)
+        // M8-3+ T4: the fused stage B is retired — the reference is the
+        // B1 → B2 chain (nil grain = skipped, the off-identity face).
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba32Float, width: input.width,
+            height: input.height, mipmapped: false)
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        descriptor.storageMode = .shared
+        let cmyPlane = try XCTUnwrap(metal.device.makeTexture(
+            descriptor: descriptor))
         let buffers: [any MTLBuffer] = [
             payloads.curvesBuffer, payloads.printCurvesBuffer,
             payloads.printLut, payloads.printSx, payloads.printSy,
@@ -387,13 +391,26 @@ final class SpectralLegForkTests: XCTestCase {
             payloads.scanSz, payloads.scanCmin, payloads.scanCmax,
             payloads.cmaxBuffer, payloads.constBlockBuffer, payloads.uniformsBuffer,
         ]
-        for (i, b) in buffers.enumerated() { session.encoder.setBuffer(b, offset: 0, index: i) }
-        session.encoder.dispatchThreads(
-            MTLSize(width: input.width, height: input.height, depth: 1),
-            threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
-        session.encoder.endEncoding()
-        session.commandBuffer.commit()
-        await session.commandBuffer.completed()
+        for (kernel, src, dst) in [
+            ("spectral_film_stage_b1", input, cmyPlane),
+            ("spectral_film_stage_b2", cmyPlane, output),
+        ] {
+            let session = try await metal.makeEncoder(functionName: kernel)
+            session.encoder.setTexture(src, index: 0)
+            session.encoder.setTexture(dst, index: 1)
+            session.encoder.setTexture(
+                payloads.tcLutTexture, index: 2)  // the never-read corr slot
+            session.encoder.setTexture(payloads.tcLutTexture, index: 3)
+            for (i, b) in buffers.enumerated() {
+                session.encoder.setBuffer(b, offset: 0, index: i)
+            }
+            session.encoder.dispatchThreads(
+                MTLSize(width: input.width, height: input.height, depth: 1),
+                threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
+            session.encoder.endEncoding()
+            session.commandBuffer.commit()
+            await session.commandBuffer.completed()
+        }
     }
 
     /// The production dispatch chain, couplers neutral → the stage-B-only

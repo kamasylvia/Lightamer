@@ -241,7 +241,8 @@ final class SpectralKernelGoldenTests: XCTestCase {
         try XCTSkipIf(MTLCreateSystemDefaultDevice() == nil, "no Metal GPU")
         let metal = try await makeMetal()
         let names = [
-            "spectral_film_stage_a", "spectral_film_stage_b",
+            "spectral_film_stage_a", "spectral_film_stage_b1",
+            "spectral_film_stage_b2",
             "spectral_film_blur_row", "spectral_film_blur_col",
             "spectral_film_stage_probe",
         ]
@@ -388,15 +389,30 @@ final class SpectralKernelGoldenTests: XCTestCase {
             floatBuffer(metal, cmaxTable), consts, uniforms,
         ]
 
-        let session = try await metal.makeEncoder(functionName: "spectral_film_stage_b")
-        bindStageB(session.encoder, input: input, output: output, corr: corr,
+        // M8-3+ T4: the fused stage B is retired — B1 writes the CMY
+        // plane, B2 resumes at print_expose (the shape face is the
+        // chain's: alpha rides through both halves).
+        let cmyPlane = try texture(metal, width: width, height: height, write: true)
+        let session1 = try await metal.makeEncoder(
+            functionName: "spectral_film_stage_b1")
+        bindStageB(session1.encoder, input: input, output: cmyPlane, corr: corr,
                    tcLut: tcLut, buffers: buffers)
-        session.encoder.dispatchThreads(
+        session1.encoder.dispatchThreads(
             MTLSize(width: width, height: height, depth: 1),
             threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
-        session.encoder.endEncoding()
-        session.commandBuffer.commit()
-        await session.commandBuffer.completed()
+        session1.encoder.endEncoding()
+        session1.commandBuffer.commit()
+        await session1.commandBuffer.completed()
+        let session2 = try await metal.makeEncoder(
+            functionName: "spectral_film_stage_b2")
+        bindStageB(session2.encoder, input: cmyPlane, output: output, corr: corr,
+                   tcLut: tcLut, buffers: buffers)
+        session2.encoder.dispatchThreads(
+            MTLSize(width: width, height: height, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        session2.encoder.endEncoding()
+        session2.commandBuffer.commit()
+        await session2.commandBuffer.completed()
 
         let data = readback(output)
         for i in 0..<(width * height) {
@@ -1584,18 +1600,31 @@ final class SpectralKernelGoldenTests: XCTestCase {
         for v in readback(corrOut) where v != 0 {
             XCTAssertTrue(v.isFinite, "the corr arm must not propagate NaN")
         }
-        // fused B: the poisoned pixel renders finite
-        let sessionB = try await metal.makeEncoder(functionName: "spectral_film_stage_b")
-        bindStageB(sessionB.encoder, input: inTex, output: outTex, corr: corrTex,
-                   tcLut: payloads.tcLutTexture, buffers: [
-                    payloads.curvesBuffer, payloads.printCurvesBuffer,
-                    payloads.printLut, payloads.printSx, payloads.printSy,
-                    payloads.printSz, payloads.printCmin, payloads.printCmax,
-                    payloads.scanLut, payloads.scanSx, payloads.scanSy,
-                    payloads.scanSz, payloads.scanCmin, payloads.scanCmax,
-                    payloads.cmaxBuffer, payloads.constBlockBuffer,
-                    payloads.uniformsBuffer,
-                   ])
+        // B1 → B2: the poisoned pixel renders finite through the split
+        // (M8-3+ T4: the fused stage B is retired).
+        let splitBuffers: [any MTLBuffer] = [
+            payloads.curvesBuffer, payloads.printCurvesBuffer,
+            payloads.printLut, payloads.printSx, payloads.printSy,
+            payloads.printSz, payloads.printCmin, payloads.printCmax,
+            payloads.scanLut, payloads.scanSx, payloads.scanSy,
+            payloads.scanSz, payloads.scanCmin, payloads.scanCmax,
+            payloads.cmaxBuffer, payloads.constBlockBuffer,
+            payloads.uniformsBuffer,
+        ]
+        let cmySplit = try texture(metal, width: w, height: h, write: true)
+        let sessionB1 = try await metal.makeEncoder(
+            functionName: "spectral_film_stage_b1")
+        bindStageB(sessionB1.encoder, input: inTex, output: cmySplit, corr: corrTex,
+                   tcLut: payloads.tcLutTexture, buffers: splitBuffers)
+        sessionB1.encoder.dispatchThreads(
+            MTLSize(width: w, height: h, depth: 1),
+            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        sessionB1.encoder.endEncoding()
+        sessionB1.commandBuffer.commit()
+        await sessionB1.commandBuffer.completed()
+        let sessionB = try await metal.makeEncoder(functionName: "spectral_film_stage_b2")
+        bindStageB(sessionB.encoder, input: cmySplit, output: outTex, corr: corrTex,
+                   tcLut: payloads.tcLutTexture, buffers: splitBuffers)
         sessionB.encoder.dispatchThreads(
             MTLSize(width: w, height: h, depth: 1),
             threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
