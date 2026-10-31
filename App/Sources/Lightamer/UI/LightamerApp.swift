@@ -143,6 +143,16 @@ enum LightamerEntryPoint {
             McpServerController.runHeadless(mode: mode) // parks forever
             return
         }
+        // UQ-S3: the one-shot CLI gate (`Lightamer mcp call/list`) — same
+        // fork shape as the headless arms above: never constructs the
+        // SwiftUI App, runs one call and exits with the typed code.
+        if let tail = McpOneShot.tailIfRequested() {
+            Task {
+                let code = await McpOneShot.run(tail)
+                exit(code)
+            }
+            dispatchMain() // the Task above exits; this parks meanwhile
+        }
         // Plan M2-10-05 (OQ-5-A): the AI worker fork — the same-binary
         // child process the editor spawns for local inference (a native
         // inference crash must never take the editor down). Like the MCP
