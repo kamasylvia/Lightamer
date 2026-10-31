@@ -182,3 +182,13 @@ MIT OR Apache-2.0（任选其一）——**代码级移植合法**（与 darktab
 - **docking/egui/title-bar/craft-libs repin**：UI 框架演进 churn，与我方 SwiftUI 无关。
 - **Info 面板多选元数据/关键词/Add Keywords**（`31ec62cd`）：我方 Inspector 元数据面
   已有同域，注记。
+
+## 增量登记（2026-10-31 复查；窗口 0da998f2..origin/main = +1900 commits，非 merge 1220）
+
+**总体判定：Lightroom-parity 打磨继续高速滚动，无结构性新学习点。** 大头 = 导入对话框重构（LR-IMP-ADD-DIALOG 21 + 关联）、无障碍（LR-BEHAV-ACCESS 24，screen reader 语义）、自我更新/installer（Linux .deb/AppImage + ARM64——其分发路线，我方 unsigned GitHub 独立分发不同构）、i18n 扩面。按域对照我方：
+
+- **已覆盖/已吸收**：LR-CROP-RECT（rotate/straighten/联动收缩语义——M9-3 刚建，含 #2308 类最小尺寸角拖边缘案例可对照）；LR-EDIT-OPTICS-PROFILE（镜头校正——LENS-01 Lensfun；其 Sony/Fuji in-file 畸变表 = CIRAW embedded 自动覆盖，架构优势）；LR-PROF-CAMERACOLOR（相机色彩——CIRAW embedded；其「从预览拟合 tone curve」是 DNG 弱档思路，我方 RAW 9 路线不需要）；LR-LIB-RATING/CULL、LR-META-XMP（我方不写 XMP 设计裁定）、LR-BEHAV-BG-TASKS、LR-PREF。
+- **两条小候选登记**：
+  1. **LR-VIEW-CLIPPING ⌥-drag 预览**：Blacks/Whites/Exposure/Sharpening/NR 拖拽时实时裁切预警预览（profiled 显示器直方图保持 + GPU 等价 + 曾 revert 重做的历史）。我方有直方图 + 软打样 gamut check，无逐滑杆拖拽裁切预览——小 UX 候选（Y 观感类）。
+  2. **LR-MERGE-HDR 质量配方**：全尺寸对齐精化 + 局部对齐（refine.rs/flow.rs）+ merge warp 用 Lanczos-3 采样（替 bilinear）——我方 HDR 栈（08-x）若将来做质量 pass 的参照配方（低优先，已交付栈）。
+- **N/A**：RAF 解码 buffered bit reader 提速 13-17%（解码器内部，CIRAW 路线不适用）；中键拖拽平移（Linux/Windows 鼠标中心主义，macOS 手势覆盖）；自更新/installer（分发路线不同构）。
