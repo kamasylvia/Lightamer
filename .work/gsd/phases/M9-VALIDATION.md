@@ -1,9 +1,11 @@
 ---
 phase: M9
 slug: aimask-bwspectral-upright-smallpool
-status: prepared
+status: validated
+milestone_closeout: M9
 created: 2026-10-30
-updated: 2026-10-31
+updated: 2026-10-31（签核）
+signed: 2026-10-31 23:10（用户审批通过后 orchestrator 落签）
 note: 2026-10-30 首次落盘因复合命令缺陷为空文件（cat 短路截断），2026-10-31 本体补全并含站后修复链（R7/R8/R9）终账
 ---
 
@@ -62,3 +64,8 @@ M9-3 ashift charter 勘误（站点瘦身）/ sidecar v12 首例封存面 bump /
 ## 八、C 档停位声明
 
 四站三眼闭环 + 站后修复链三批闭环 + 本汇编（含真实终账）落盘 = M9 执行材料齐；**VALIDATION 签核本体 = 用户过目后的独立批**。本文件曾于 2026-10-30 以空文件误入库（复合命令缺陷，commit f783f1c3），2026-10-31 本体补全——勘误如实登记。
+
+
+## 九、签核声明（2026-10-31 23:10）
+
+**用户审批通过**（2026-10-31「M9-VALIDATION 已过目，审批通过」）→ orchestrator 落签。M9 里程碑正式 closed：四站三眼全闭环 + 站后修复链三批（R7/R8/R9）+ 尾项路由池登记齐备；终态全套锚 **4443/34/0**（R9 修复轮终值）。晨审可推翻惯例维持（本签核为夜间授权链延伸，任一条可翻）。**MCP-UQ 增量批**（UQ-S1/S2/S3，反转后首波）为独立后续批，不在 M9 站范围，其终审另行闭环。
