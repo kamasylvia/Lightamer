@@ -68,3 +68,9 @@
 - **许可注记**：resources_product 数据文件整体在 GPL-3.0 仓内，NOTICE 自声明来源独立
   （厂商出版物数字化 = 事实数据）；M9 站 2 **建议自建数据**（同法数字化，NOTICE 干净），
   复制决策留 charter。
+
+## 增量登记（2026-10-31 晚复查；+22 新窗口）
+
+- **sidecar 热重载 + 自保存回声抑制**（PR#32 + `54c6bb9`「不采纳窗口自身保存为外部编辑」）：外部编辑热重载 + **自保存回声不误判为外部变更**——我方 SidecarStore 2s debounce 单写者 + adopt-external 路径需核对此回声抑制语义（登记核对项，非缺陷申报）。
+- **original after relaunch 修复**（`9a05ba0`）：重开恢复原片 + 直方图跟随——观感修复参考。
+- 其余 = CI 分发面（Linux/Windows only）。无 MCP/Agent 演进（RFC-026 后持续休眠）。
