@@ -27,3 +27,8 @@ never in-place edits of the profile bytes.
   test reconciles the manifest against this tree on every run.
 - Files are consumed by `FilmMaterialStore` (LightamerCore) through the
   typed loader; the JSON on disk is never rewritten by the app.
+
+## 2026-10-31: +3 B&W 卷（SPEC-02 verbatim 通道）
+
+新增 kodak_2302 / kodak_doublex / kodak_trix（生产端 JMS-1488106 生产订阅源
+packs/0.3.3 verbatim sha256 对账 MATCH）。我方谱面总数 28→31。
