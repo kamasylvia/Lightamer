@@ -1,0 +1,14 @@
+Working...
+# M8-3+ 最终验收：PASS，可收口
+
+**修复核验三件**：E-acc1 ✓ 八借点 @HEAD 亲核（`SpectralPayloads:747/862/999/1135/1348/1465/1742/1857`，Core 侧——任务书 `-- LightamerIOP/` 零命中系旧口径）+ Wiring **4/0/0**；E-fix-1 ✓ `Project.swift:345` 加回一行 + GrainGolden **4/0/0**（哨兵 `3613671270926763817` 恢复）；m-fix-1 ✓ 保留原名补双钉值（review 选项①非改名，`CrossArm:45-46/232-238/272-278`）+ **2/0/0**。
+
+**全套终值 4520/34/0**（4143s，guard PASS + ps 清零 + monitor 零触发 + nohup，零 MEMFAIL）：IOP 836/1/0 · **IOPParity 584/10/0（+4 加回实证）** · Layers 540/5/0 · Library 788/4/0 · Sessions 285/4/0 · Export 385/4/0 · App 1102/6/0。
+
+**ΔN 对账表**：4443（M9 close 锚）+18（mcp-uq 批）+1（修复轮直测，o1 勘误）+52（T1-T7）+(4+2−4)（修复轮一，账面曾误 +6）+4（fix2）= **4520** ✓。任务书链 2 处复述偏差已纠正：M9-3/M9-4 修复轮在 M9 close 之前已含锚内，不可重复计。
+
+**封存面**：修复轮段 17 件零交集；全批段仅两申报例外——sidecar v13 1 hunk 纯净 + PixelPipe E3 RMS tag **1 hunk**（任务书"2 hunks"复述偏差，git 事实纠正）。zh-audit 双 PASS 复跑。
+
+**issue/commits**：#21；收口 `bb1d1665`（免关联，未 push）。HEAD 起跑时已是 `8882976d` 非任务书 `2c57f1b5`——差 1 纯账本 commit，零产品影响。
+
+**挂账移交**：D5/D6/D8/D9/D11、obs-1/obs-2、100MP on 档真跑、m-6①/三戳 leg-2、走查六配方、RMS census——归批准轮/追踪，非本批缺口。
