@@ -1,0 +1,10 @@
+Working...
+Research 完。产物 `.work/gsd/phases/yiyin-filmframe/RESEARCH.md`（25KB），零 commit 零构建。
+
+结论先行：
+
+- **上游**：SpektraLab film edge = 底片曝光语义（非画框），`overscan.cpp` 2223 行 + `overscan.metal` 394 行 + host 双 Swift 模型；10 格式 mm 表、135 五布局/120 两布局、ISO 1007 DX（31 module 双轨）、date back 一机三面。RFC-031/032 本体与 `reference_film/` 均不在仓——注释即正本。边缘文案 = 引擎布局 + host `edgeText` 20 条 own 表（实测底片转录）。
+- **分野登记**：我方 terminal 合成 vs 上游曝光链——我方做上游否定的 "drawn border"，用户指令已接受形态，不仿真曝光链。
+- **我方挂点**：`BordersModule.Params.frameStyle` 新枚举（默认 canvas 逐字节）+ `YiyinLayout.filmEdge` 联排 + 新 kernel（旧零碰）+ 新建 `FilmEdgeCopyTable`（32 film 行自建零复制）+ 注入三腿加 film 位（导出推荐 `$jobFilmEdge` TaskLocal 仿 `$jobFilmTail`）；EXIF/日期经 `YiyinExifFormat` 现成复用。
+- **工作量**：首期（135 拟态唯一幅面）M-L，~2-3 周单人，A→F 六包；OQ 12 条带推荐值待裁（核心：OQ-1 只做 135、OQ-3 营销名大写直用、OQ-6 DX 有码才印、OQ-12 做旧不入首期）。
+- **P0 机检项**：缓存键必须含 stock 全 id 维，否则换卷不换边。
