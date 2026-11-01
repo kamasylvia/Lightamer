@@ -1,0 +1,9 @@
+Working...
+调研完成。产出：`.work/gsd/phases/m3-2-fsim-research/DT-TONEEQ-EXPOSURE-RESEARCH.md`（28KB，零 commit 零构建）。
+
+核心结论：
+
+- **dt toneeq 是两层曝光**：mask 层（exposure_boost/contrast_boost 决定像素落曲线何处）+ 补偿层（9 带 RBF 曲线决定给多少补偿）。我方渲染核（RBF 伪逆/80001 LUT/EIGF 五档/apply）已逐式移植，**缺的是 mask 层的操作面**。
+- **最大缺口 = auto 双按钮**：5%/95% 分位 → 两闭式解（中心→−4EV、90%→[−7,−1] + EIGF/GUIDED 回归修正），只动 mask 层不碰 9 带。纯加法可摘。
+- **任务书勘误**：M3-4 宽容度面板属 Film 域非 toneeq；「阈值面自动计算」正体是 mask 窗口自动对齐；我方"smoothing 面板缺 slider"半缺；我方"dt 无 OpenCL"注释已过时。
+- **可学习点**：立即可学 L1–L4（auto 双按钮/σ slider/直方图叠加/无效行置灰，建议打包一批）+ 需设计 D1–D3（画布点选直调/mask 显示/spot correct）+ 不适用 N1–N4（deflicker 等）。OQ 七条随附。
