@@ -1,0 +1,12 @@
+Working...
+调研完。`.work/gsd/phases/m3-2-fsim-research/DT-SPEKTRAFILM-IMPORT-RESEARCH.md` 已落盘（§0 结论 + §1 功能清单 + §2 时间线 62 commits 关键节点 + §3 十一条评估 + §4 数据对照 + §5 差距表 + §6 裁决表）。
+
+核心结论五条：
+
+1. **dt 已落地**：9-05 首版合入，5.8 RELEASE_NOTES 头条；10-12 后静默（等上游 0.3.4 包，数据仓仍只有 0.3.3）。
+2. **我方已跟到 10-09 树**：宽模糊抽稀全套已在 M8-3+ T5；10-09 后 dt 净新增仅 2 实质 commit（其一 YVV 宽度对齐我方已显式不移植）。
+3. **立即可学三件**：print diffusion 线性域核对（`6d92ef5814`，查 B2 钩消费域）+ Tri-X 列矩阵读法/网格拒建门 + **B&W 三卷**（2302/doublex/trix，SPEC-02 verbatim，我方零 B&W 覆盖）。
+4. **附带勘误**：dt 盘上 `spectra_lut.f32` 是 **fp16 5.7MB** 非 f32 12MB（字节算死），M8 RESEARCH §2 "≈12MB" 记述需勘误——已记入报告 §4。
+5. **分叉修/OpenCL 清理/GCC**：我方 exact-kernel + 三板斧已免疫/覆盖，仅多层档子层完备性需顺路核对一项。
+
+零 commit 零构建，纯文本交付。
