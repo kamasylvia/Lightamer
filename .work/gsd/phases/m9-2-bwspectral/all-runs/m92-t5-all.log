@@ -1,0 +1,22 @@
+BUNDLE|IOP|798/1/0|peakRSS=6062MB|997s|sampling=time
+BUNDLE|IOPParity|540/10/0|peakRSS=5593MB|1576s|sampling=time
+BUNDLE|Layers|528/5/0|peakRSS=1183MB|430s|sampling=time
+BUNDLE|Library|785/4/0|peakRSS=742MB|171s|sampling=time
+BUNDLE|Sessions|285/4/0|peakRSS=1204MB|62s|sampling=time
+BUNDLE|Export|385/4/0|peakRSS=4962MB|200s|sampling=time
+BUNDLE|App|1042/6/2|peakRSS=2832MB|620s|sampling=time
+  ↳ App FAILED（fail；host exit=1 仅参考）— 完整输出: /tmp/la-direct-tests-App.log
+Test Case '-[LightamerTestsApp.FilmPanelSpectralUITests testPanelControlInventoryMatchesTheFrozenSnapshot]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/FilmPanelSpectralUITests.swift:230: error: -[LightamerTestsApp.FilmPanelSpectralUITests testPanelControlInventoryMatchesTheFrozenSnapshot] : XCTAssertEqual failed: ("["film.migrate.cancel", "film.placement.fit", "film.placement.reject.ns", "film.solve.button", "film.migrate.button", "film.migrate.sheet", "film.grade.picker", "film.enable", "film.paper.picker", "editor.stack.film.panel", "film.y.slider", "film.latitude.histogram", "film.placement.add", "film.placement.reject.knee", "film.readout.unbound", "film.latitude.share.below", "film.placement.section", "film.strength.slider", "film.placement.fit.shared", "film.placement.fit.refused", "film.film.picker", "film.exposure.slider", "film.filter.picker", "film.latitude.share.above", "film.content.toggle", "film.latitude.section", "film.placement.reject.nh", "film.placement.fit.sidesoff", "film.placement.m", "film.m.slider", "film.latitude.share.inside", "film.migrate.confirm", "film.placement.ns", "film.grain.apply", "film.close", "film.readout.value", "film.placement.nh", "film.placement.readouts"]") is not equal to ("["film.latitude.share.below", "film.placement.nh", "film.placement.ns", "film.placement.fit.sidesoff", "film.placement.fit.refused", "film.placement.add", "film.latitude.section", "film.enable", "film.placement.reject.knee", "film.close", "film.paper.picker", "editor.stack.film.panel", "film.readout.value", "film.migrate.button", "film.migrate.confirm", "film.latitude.share.inside", "film.readout.unbound", "film.latitude.histogram", "film.content.toggle", "film.y.slider", "film.placement.section", "film.exposure.slider", "film.solve.button", "film.strength.slider", "film.migrate.cancel", "film.film.picker", "film.placement.readouts", "film.placement.m", "film.placement.reject.nh", "film.m.slider", "film.placement.reject.ns", "film.migrate.sheet", "film.placement.fit.shared", "film.latitude.share.above", "film.placement.fit"]") - FilmPanelView's identifier inventory must equal the frozen snapshot — diff: ["film.grade.picker", "film.filter.picker", "film.grain.apply"]
+Test Case '-[LightamerTestsApp.FilmPanelSpectralUITests testPanelControlInventoryMatchesTheFrozenSnapshot]' failed (0.492 seconds).
+Test Case '-[LightamerTestsApp.FilmPanelSpectralUITests testPanelSourceCarriesNoAdaptationControlFace]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/FilmPanelSpectralUITests.swift:319: error: -[LightamerTestsApp.FilmPanelSpectralUITests testPanelSourceCarriesNoAdaptationControlFace] : XCTAssertFalse failed - the film panel must expose no adaptation control (token surface)
+Test Case '-[LightamerTestsApp.FilmPanelSpectralUITests testPanelSourceCarriesNoAdaptationControlFace]' failed (0.024 seconds).
+Test Suite 'FilmPanelSpectralUITests' failed at 2026-10-28 00:29:57.115.
+--
+Test Suite 'YiyinSheetSizingTests' passed at 2026-10-28 00:33:26.724.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 2.110 (2.112) seconds
+Test Suite 'LightamerTestsApp.xctest' failed at 2026-10-28 00:33:26.724.
+	 Executed 1042 tests, with 6 tests skipped and 2 failures (0 unexpected) in 616.873 (617.167) seconds
+Test Suite 'All tests' failed at 2026-10-28 00:33:26.742.
+TOTAL|4363/34/2|4056s

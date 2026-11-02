@@ -1,0 +1,16 @@
+BUNDLE|IOP|840/1/1|peakRSS=6001MB|1002s|sampling=time
+  ↳ IOP FAILED（fail；host exit=1 仅参考）— 完整输出: /tmp/la-direct-tests-IOP.log
+Test Case '-[LightamerTestsIOP.SpectralNeutralSolveTests testAnchoredRoundsAcrossThe28Pairs]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/SpectralNeutralSolveTests.swift:285: error: -[LightamerTestsIOP.SpectralNeutralSolveTests testAnchoredRoundsAcrossThe28Pairs] : XCTAssertEqual failed: ("23") is not equal to ("20")
+Test Case '-[LightamerTestsIOP.SpectralNeutralSolveTests testAnchoredRoundsAcrossThe28Pairs]' failed (1.405 seconds).
+--
+Test Case '-[LightamerTestsIOP.SpectralNeutralSolveTests testSafetyPairsHoldBandIdentityAcrossSeeds]' started.
+Test Case '-[LightamerTestsIOP.SpectralNeutralSolveTests testSafetyPairsHoldBandIdentityAcrossSeeds]' passed (0.057 seconds).
+Test Suite 'SpectralNeutralSolveTests' failed at 2026-11-02 22:16:54.553.
+--
+Test Suite 'VisionDetectTests' passed at 2026-11-02 22:23:11.178.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.772 (0.772) seconds
+Test Suite 'LightamerTestsIOP.xctest' failed at 2026-11-02 22:23:11.178.
+	 Executed 840 tests, with 1 test skipped and 1 failure (0 unexpected) in 999.703 (999.791) seconds
+Test Suite 'All tests' failed at 2026-11-02 22:23:11.178.
+TOTAL|840/1/1|1002s
