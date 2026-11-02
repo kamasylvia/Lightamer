@@ -174,10 +174,13 @@ anchored 探测面 + App BW 分节 7 卷)。
 | Export | 385/4/0 | 6047MB | 205s |
 | App | 1102/6/0 | 2832MB | 667s |
 
-**ΔN 带式对账**:全套 4533 = 任务书基线 4443/34/0(R9 终态)⊕
-ΔN_中间批(M8-3+ / MCP-UQ / R7-R9 尾 / gallery-first 等,本批不重算,
-= 4529 − 4443 = +86)⊕ **本批 +4**(BWPackDecodeTests 4 法,BUNDLE-MAP
-IOP 行在册);known-issue 121 fails → **0**(HEAD 5bb31915 注记族清零)。
+**ΔN 链式对账**（审查 `M9-2BW-REVIEW.md` §8 独立核实可加）：
+4443（R9 终态 `3e3955fc`）→ 4462（MCP-UQ `ef3e4aff`，+19）→
+4514（m83p lane `ac0157b1`，+52）→ 4516（`b8bbe9e5`，+2）→ 4520
+（`2c57f1b5`/`bb1d1665`/`e1010e3a`，+4）→ +0（vendoring `55ad476d`，test
+diff 零 func）→ +9（gallery-first `7aa4c140`）→ 4529 → **4533**（**本批
++4**，BWPackDecodeTests 4 法，BUNDLE-MAP IOP 行在册）；known-issue 121
+fails → **0**（HEAD `5bb31915` 注记族清零）。
 
 **定向轮实录**:IOP 首轮 840/1/1(唯一红 = anchored 20 钉,前任漏改)
 → 修复后类过滤 5/0/0;Layers **540/5/0**(462s);IOPParity

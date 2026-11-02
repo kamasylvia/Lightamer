@@ -616,7 +616,7 @@ final class SpectralDualArmGoldenTests: XCTestCase {
             if v1Bytes != v2Bytes { differingPairs += 1 }
         }
         XCTAssertGreaterThan(
-            differingPairs, 25,
+            differingPairs, 28,
             "the spectral fork must be visible across the vendored set "
                 + "(\(differingPairs)/31 pairs differ)")
         print("M8-2-SMOKE|matrix|31 profiles|differing pairs \(differingPairs)/31")

@@ -252,13 +252,22 @@ final class SpectralProfileDecodeTests: XCTestCase {
                 }
             }
 
-            // channel_density: null-aware band 0-78/243 (the v0.3.3 BW
-            // pack carries ZERO nulls — full 1/3 neutral silver; the
-            // 28-profile measured domain was 15-78), non-null values
-            // finite.
+            // channel_density: null-aware band 0-78/243 — the v0.3.3 BW
+            // pack carries ZERO nulls (full 1/3 neutral silver); the
+            // 28-profile measured domain was 15-78 (vision3 three at 15).
+            // The BW branch pins the pack face exactly; the legacy branch
+            // keeps the measured-domain floor (≥ 0 on a count is vacuous,
+            // so a shared floor would de-pin the stock guard).
+            let isBWPackForChannel = [
+                "kodak_2302.json", "kodak_doublex.json", "kodak_trix.json"
+            ].contains(name)
             let channel = try XCTUnwrap(profile.channelDensity, name)
             let nulls = channel.flatMap { $0 }.count(where: { $0 == nil })
-            XCTAssertGreaterThanOrEqual(nulls, 0, name)
+            if isBWPackForChannel {
+                XCTAssertEqual(nulls, 0, name)
+            } else {
+                XCTAssertGreaterThanOrEqual(nulls, 15, name)
+            }
             XCTAssertLessThanOrEqual(nulls, 78, name)
             for value in channel.flatMap({ $0 }).compactMap({ $0 }) {
                 XCTAssertTrue(value.isFinite, name)
