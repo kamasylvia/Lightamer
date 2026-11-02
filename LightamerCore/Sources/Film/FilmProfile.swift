@@ -222,9 +222,10 @@ public struct FilmProfile: Codable, Sendable, Equatable {
     /// [R, G, B] within the row). NULLABLE per point: the v0.3.3 BW pack
     /// (kodak_2302/doublex/trix) carries JSON nulls at unmeasured
     /// wavelengths — decode preserves them verbatim ([Float?] storage,
-    /// same family as channel_density) and consumption goes ONLY through
-    /// `logSensitivityProjected()`. Tolerant: absent key or a wrong shape
-    /// → nil (never throws).
+    /// same family as channel_density). Consumers read a null sample as
+    /// ZERO sensitivity (upstream hanatos.cpp:164 np.nan_to_num); never
+    /// interpolate / project across unmeasured wavelengths. Tolerant:
+    /// absent key or a wrong shape → nil (never throws).
     public let logSensitivity: [[Float?]]?
     /// 81×3 spectral channel densities, NULLABLE per point (null is a
     /// legal data state — 15-78 of 243 points across the vendored set).
@@ -630,21 +631,6 @@ public struct FilmProfile: Codable, Sendable, Equatable {
                 channelDensity.map { $0[channel] }, axis: wavelengths) ?? []
         }
     }
-    /// The projected (null-resolved) 81×3 log-sensitivity matrix (v0.3.3
-    /// BW pack: kodak_2302/doublex/trix carry JSON nulls at unmeasured
-    /// wavelengths — per-channel series resolve through the single
-    /// projection source, same family as channelDensityProjected).
-    /// Layout is channel-major: `[channel][wavelength]`. Returns nil when
-    /// the field itself degraded at decode; an all-null channel yields an
-    /// empty series (the engine's coverage gate rejects it).
-    public func logSensitivityProjected() -> [[Double]]? {
-        guard let logSensitivity, !logSensitivity.isEmpty else { return nil }
-        return (0..<3).map { channel in
-            Self.projectedSpectralSeries(
-                logSensitivity.map { $0[channel] }, axis: wavelengths) ?? []
-        }
-    }
-
 
     /// The projected (null-resolved) 81-point mid-scale neutral density —
     /// same family, same single source.
