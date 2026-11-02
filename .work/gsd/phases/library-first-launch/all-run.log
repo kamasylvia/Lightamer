@@ -1,0 +1,23 @@
+BUNDLE|IOP|836/1/17|peakRSS=5894MB|923s|sampling=time
+  ↳ IOP FAILED（fail；host exit=1 仅参考）— 完整输出: /tmp/la-direct-tests-IOP.log
+Test Case '-[LightamerTestsIOP.SpectralConservationFallbackTests testDirectPositiveBeatsLegacyOnTheReversalPair]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/SpectralConservationFallbackTests.swift:40: error: -[LightamerTestsIOP.SpectralConservationFallbackTests testDirectPositiveBeatsLegacyOnTheReversalPair] : failed: caught error: "schemaMismatch("DecodingError.typeMismatch: Expected value of type Float. Path: data.base_density[0]. Debug description: Expected to decode Float but found an array instead.")"
+Test Case '-[LightamerTestsIOP.SpectralConservationFallbackTests testDirectPositiveBeatsLegacyOnTheReversalPair]' failed (1.419 seconds).
+Test Case '-[LightamerTestsIOP.SpectralConservationFallbackTests testFallbackGainCompensatesBelowHalfPercent]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/SpectralConservationFallbackTests.swift:40: error: -[LightamerTestsIOP.SpectralConservationFallbackTests testFallbackGainCompensatesBelowHalfPercent] : failed: caught error: "schemaMismatch("DecodingError.typeMismatch: Expected value of type Float. Path: data.base_density[0]. Debug description: Expected to decode Float but found an array instead.")"
+Test Case '-[LightamerTestsIOP.SpectralConservationFallbackTests testFallbackGainCompensatesBelowHalfPercent]' failed (0.005 seconds).
+Test Case '-[LightamerTestsIOP.SpectralConservationFallbackTests testNilModeIsTheLegacySolveVerbatim]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/SpectralConservationFallbackTests.swift:40: error: -[LightamerTestsIOP.SpectralConservationFallbackTests testNilModeIsTheLegacySolveVerbatim] : failed: caught error: "schemaMismatch("DecodingError.typeMismatch: Expected value of type Float. Path: data.base_density[0]. Debug description: Expected to decode Float but found an array instead.")"
+Test Case '-[LightamerTestsIOP.SpectralConservationFallbackTests testNilModeIsTheLegacySolveVerbatim]' failed (0.004 seconds).
+Test Case '-[LightamerTestsIOP.SpectralConservationFallbackTests testSafePairsNeverEnterTheFallback]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/SpectralConservationFallbackTests.swift:40: error: -[LightamerTestsIOP.SpectralConservationFallbackTests testSafePairsNeverEnterTheFallback] : failed: caught error: "schemaMismatch("DecodingError.typeMismatch: Expected value of type Float. Path: data.base_density[0]. Debug description: Expected to decode Float but found an array instead.")"
+Test Case '-[LightamerTestsIOP.SpectralConservationFallbackTests testSafePairsNeverEnterTheFallback]' failed (0.004 seconds).
+Test Case '-[LightamerTestsIOP.SpectralConservationFallbackTests testWallLineSearchSitsBelowTheClampedResidual]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/SpectralConservationFallbackTests.swift:40: error: -[LightamerTestsIOP.SpectralConservationFallbackTests testWallLineSearchSitsBelowTheClampedResidual] : failed: caught error: "schemaMismatch("DecodingError.typeMismatch: Expected value of type Float. Path: data.base_density[0]. Debug description: Expected to decode Float but found an array instead.")"
+Test Case '-[LightamerTestsIOP.SpectralConservationFallbackTests testWallLineSearchSitsBelowTheClampedResidual]' failed (0.004 seconds).
+Test Suite 'SpectralConservationFallbackTests' failed at 2026-11-02 18:57:46.348.
+--
+Test Case '-[LightamerTestsIOP.SpectralGrainDeriveTests testAllNilRmsDegradesTyped]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/SpectralGrainDeriveTests.swift:130: error: -[LightamerTestsIOP.SpectralGrainDeriveTests testAllNilRmsDegradesTyped] : failed: caught error: "schemaMismatch("DecodingError.typeMismatch: Expected value of type Float. Path: data.base_density[0]. Debug description: Expected to decode Float but found an array instead.")"
+Test Case '-[LightamerTestsIOP.SpectralGrainDeriveTests testAllNilRmsDegradesTyped]' failed (0.004 seconds).
+TOTAL|836/1/17|923s
