@@ -110,6 +110,15 @@ internal struct LightamerShellFace: View {
                 // L057 (fix(l057)): Task hop — the begin-seam panel runs
                 // outside this closure's frame.
                 onImportFolder: { Task { await importFolderFromPanel() } },
+                // Gallery-first startup (2026-11-02): the fallback face's
+                // re-drive (the no-project state's way back to the default
+                // library — the Welcome sheet stays the failure fallback).
+                onOpenDefaultLibrary: {
+                    Task {
+                        await openDefaultLibraryIfAvailable(
+                            fallbackToWelcome: true)
+                    }
+                },
                 // R3 mark wiring (D5 seed isomorphism): the SAME seed face
                 // MetadataController.configure rides on the session-open path.
                 libraryMarkSeed: { await self.seedInstances() }
@@ -172,14 +181,26 @@ internal struct LightamerShellFace: View {
                     edrHeadroomMonitor.start()
                 }
                 .task {
-                    // Plan M2-2-2 (OQ-1 A): the minimal Welcome entry shows
-                    // at launch when no project is open AND the recent list
-                    // is empty — the additive path beside the Session face
-                    // (coexistence until M2-2-4's 剥离门).
-                    if libraryProjects.projectStore == nil,
-                       libraryProjects.recentProjects.isEmpty {
-                        graph.libraryWelcomePresented = true
-                    }
+                    // Gallery-first startup (2026-11-02, supersedes the M2-2-2
+                    // OQ-1 A face): a cold launch (no project open) opens
+                    // the DEFAULT LIBRARY unconditionally — the window shows
+                    // the real grid (empty face + import entry) instead of
+                    // the Welcome sheet, whether or not recents exist (a
+                    // returning user lands on their collection, not a
+                    // picker). The welcome survives ONLY as the default-
+                    // library failure fallback (support dir unreachable /
+                    // open threw — the error surfaces on the controller's
+                    // alert, the sheet keeps a manual entry). The legacy
+                    // gate (gate=true) skips this drive entirely — the old
+                    // session shell keeps its untouched launch behavior.
+                    guard !legacyLibraryEnabled else { return }
+                    // The test-host guard: a unit-test launch must never
+                    // create/open the user's REAL library as a side effect
+                    // (reproduced 2026-11-02 — every bundle run created it).
+                    guard !LibraryFirstLaunch.isTestHost() else { return }
+                    guard libraryProjects.projectStore == nil else { return }
+                    await openDefaultLibraryIfAvailable(
+                        fallbackToWelcome: true)
                 }
                 .task {
                     await wireGraph()
@@ -1454,6 +1475,38 @@ internal struct LightamerShellFace: View {
                             try await agentControl.admit(toolName: name)
                         })
     }
+    /// Gallery-first startup drive (2026-11-02): open-or-create the default
+    /// library (`LibraryFirstLaunch.defaultLibraryURL`) through the EXISTING
+    /// controller faces — `openProject` when the package file exists,
+    /// `createProject` (parent dirs made by the store) when it does not. A
+    /// held lock on the default package publishes the standard conflict
+    /// dialog (the `openProject` typed face — no special-casing); any other
+    /// failure reports on the controller's alert (the `reportError` face)
+    /// and — when `fallbackToWelcome` — presents the Welcome sheet so the
+    /// user keeps a manual project entry.
+    private func openDefaultLibraryIfAvailable(fallbackToWelcome: Bool) async {
+        guard let url = LibraryFirstLaunch.defaultLibraryURL() else {
+            if fallbackToWelcome { graph.libraryWelcomePresented = true }
+            return
+        }
+        do {
+            if FileManager.default.fileExists(atPath: url.path) {
+                try await libraryProjects.openProject(at: url)
+            } else {
+                try await libraryProjects.createProject(
+                    at: url, name: LibraryFirstLaunch.defaultLibraryName)
+            }
+            if libraryProjects.pendingConflict == nil {
+                graph.libraryWelcomePresented = false
+            }
+        } catch {
+            libraryProjects.reportError(error.localizedDescription)
+            if fallbackToWelcome, libraryProjects.projectStore == nil {
+                graph.libraryWelcomePresented = true
+            }
+        }
+    }
+
     private func newLibraryProjectFromPanel() async {
         guard let url = await LibraryPanels.newProject() else { return }
         do {

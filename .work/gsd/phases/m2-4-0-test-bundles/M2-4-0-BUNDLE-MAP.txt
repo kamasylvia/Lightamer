@@ -355,7 +355,7 @@ LIB	16	ImportCategoryTests.swift
 LIB	10	LibraryFilterDomainTests.swift
 LIB	10	LibraryThumbnailBridgeTests.swift
 LIB	16	LutLibraryStoreTests.swift
-LIB	11	LibraryDocumentTests.swift
+LIB	9	LibraryFirstLaunchTests.swift
 LIB	11	LibraryInspectorModelTests.swift
 LIB	11	LibraryLegacyGateTests.swift
 LIB	14	LibraryStoreTests.swift

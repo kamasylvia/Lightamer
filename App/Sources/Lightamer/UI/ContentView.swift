@@ -51,6 +51,10 @@ internal struct ContentView: View {
     var legacyLibraryEnabled: Bool = false
     var projectController: LibraryProjectController?
     var onImportFolder: () -> Void = { }
+    /// Gallery-first startup (2026-11-02): the fallback face's re-drive
+    /// impulse (the shell re-opens the default library; nil = the inert
+    /// skeleton state — the fallback button stays hidden).
+    var onOpenDefaultLibrary: (() -> Void)?
     /// R3 mark wiring: the pristine-mint seed provider handed to the
     /// workspace host's writer leg (the MetadataController.configure seed
     /// isomorphism — the app root's `seedInstances()` face; no default = the
@@ -222,6 +226,7 @@ internal struct ContentView: View {
             WorkspaceHostView(
                 projectController: projectController,
                 onImportFolder: onImportFolder,
+                onOpenDefaultLibrary: onOpenDefaultLibrary,
                 libraryMarkSeed: libraryMarkSeed)
                 .modifier(InspectorPageMount(
                     projectController: projectController))
@@ -725,9 +730,15 @@ internal struct ContentView: View {
 
 struct ProjectWorkspaceFace: View {
 
-    /// The project lifecycle face (nil = no project open — the welcome
-    /// entry state).
+    /// The project lifecycle face (nil = no project open — the
+    /// gallery-first fallback state: the launch task opens the default
+    /// library before this face shows, so nil means the default-library
+    /// drive failed or was dismissed; the OPEN arm below is the dead
+    /// branch — the launch task lands on the real grid, never here).
     let controller: LibraryProjectController?
+    /// The import impulse for the fallback face (nil = the copy-only
+    /// skeleton state; the host injections ride beside).
+    var onOpenDefaultLibrary: (() -> Void)?
     let onImportFolder: () -> Void
 
     var body: some View {
@@ -754,11 +765,27 @@ struct ProjectWorkspaceFace: View {
                 .keyboardShortcut("i", modifiers: [.command, .shift])
                 .accessibilityIdentifier("library.project.import")
             } else {
+                // Gallery-first startup (2026-11-02): the no-project
+                // fallback — the default-library drive failed or was
+                // dismissed. The copy reuses the frozen M2-2-4 keys (the
+                // catalog rows stay live) and the entry re-drives the
+                // default library (the host injects its opener; skeleton
+                // mounts render copy-only).
                 Text(String(localized: "project_face_no_project"))
                     .font(.title2)
                 Text(String(localized: "project_face_no_project_hint"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                if let onOpenDefaultLibrary {
+                    Button {
+                        onOpenDefaultLibrary()
+                    } label: {
+                        Label(
+                            String(localized: "project_face_open_default"),
+                            systemImage: "photo.on.rectangle")
+                    }
+                    .accessibilityIdentifier("library.project.openDefault")
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

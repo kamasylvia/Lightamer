@@ -707,6 +707,7 @@ let project = Project(
                 "Tests/LightamerTests/ImportMergeStackTests.swift",
                 "Tests/LightamerTests/LibraryBenchmarkHarness.swift",
                 "Tests/LightamerTests/LibraryDocumentTests.swift",
+                "Tests/LightamerTests/LibraryFirstLaunchTests.swift",
                 "Tests/LightamerTests/LibraryFilterDomainTests.swift",
                 "Tests/LightamerTests/LibraryGridModelTests.swift",
                 "Tests/LightamerTests/LibraryGridStackTests.swift",

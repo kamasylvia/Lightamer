@@ -99,6 +99,13 @@ struct LibraryGridView: View {
     // the test skeleton state). Declared AFTER cullingBadges to keep the
     // memberwise-argument order the host's call site already uses.
     var onCull: ((Int64?) -> Void)?
+    // Gallery-first startup (2026-11-02): the empty-collection import
+    // entry. The host hands in its own `onImportFolder` closure (the same
+    // impulse the project-face inline button and the File menu's Import
+    // Folder… item fire) so the cold-launch grid offers a first-class
+    // import door — nil = the copy-only skeleton state (tests).
+    var onImportFolder: (() -> Void)?
+
 
     @State private var pager: LibraryGridPager?
 
@@ -334,7 +341,7 @@ struct LibraryGridView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 10) {
             Text(String(
                 localized: "library_grid_empty",
                 defaultValue: "No photos in this collection"))
@@ -345,6 +352,24 @@ struct LibraryGridView: View {
                 defaultValue: "Import a folder or clear the search filter."))
                 .font(.caption)
                 .foregroundStyle(ThemeTokens.textSecondary)
+            // Gallery-first startup (2026-11-02): the cold-launch import
+            // door — the same impulse as the File menu's Import Folder…
+            // command (the host injects it; skeleton mounts leave it nil
+            // and keep the copy-only face).
+            if let onImportFolder {
+                Button {
+                    onImportFolder()
+                } label: {
+                    Label(
+                        String(localized: "library_grid_empty_import"),
+                        systemImage: "square.and.arrow.down")
+                }
+                .keyboardShortcut("i", modifiers: [.command, .shift])
+                .accessibilityIdentifier("library.grid.empty.import")
+                Text(String(localized: "library_grid_empty_drop_hint"))
+                    .font(.caption2)
+                    .foregroundStyle(ThemeTokens.textSecondary)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(ThemeTokens.windowBackground)
