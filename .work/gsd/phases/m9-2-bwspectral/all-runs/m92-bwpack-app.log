@@ -1,0 +1,16 @@
+BUNDLE|App|1102/6/1|peakRSS=2832MB|669s|sampling=time
+  ↳ App FAILED（fail；host exit=1 仅参考）— 完整输出: /tmp/la-direct-tests-App.log
+Test Case '-[LightamerTestsApp.FilmPanelBWTests testBWStocksGroupIntoTheirOwnSection]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/FilmPanelBWTests.swift:105: error: -[LightamerTestsApp.FilmPanelBWTests testBWStocksGroupIntoTheirOwnSection] : XCTAssertEqual failed: ("["kodak_doublex", "ilford_hp5_plus_400", "kodak_tmax_100", "fujifilm_neopan_acros_100_ii", "kodak_2302", "kodak_tri_x_400", "kodak_trix"]") is not equal to ("["fujifilm_neopan_acros_100_ii", "kodak_tri_x_400", "kodak_tmax_100", "ilford_hp5_plus_400"]") - the four BW films ride the section
+Test Case '-[LightamerTestsApp.FilmPanelBWTests testBWStocksGroupIntoTheirOwnSection]' failed (2.625 seconds).
+--
+Test Case '-[LightamerTestsApp.FilmPanelBWTests testPaperSwitchClearsGradeOnlyOnNonGradedPaper]' started.
+Test Case '-[LightamerTestsApp.FilmPanelBWTests testPaperSwitchClearsGradeOnlyOnNonGradedPaper]' passed (0.273 seconds).
+Test Suite 'FilmPanelBWTests' failed at 2026-11-02 23:24:41.535.
+--
+Test Suite 'YiyinSheetSizingTests' passed at 2026-11-02 23:28:45.555.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 2.755 (2.759) seconds
+Test Suite 'LightamerTestsApp.xctest' failed at 2026-11-02 23:28:45.555.
+	 Executed 1102 tests, with 6 tests skipped and 1 failure (0 unexpected) in 665.890 (666.204) seconds
+Test Suite 'All tests' failed at 2026-11-02 23:28:45.562.
+TOTAL|1102/6/1|669s

@@ -1,0 +1,37 @@
+Working...
+# spektra-module P1 PLAN 落盘摘要（完整输出）
+
+**产物**：`.work/gsd/phases/spektra-module/PLAN.md`（25,117 字节，5 段 chunked 追加：4616/4521/5240/4899/5841，全部 ≤8KB，无截断）。零产品代码、零构建、零测试、零 commit。
+
+**基线**：HEAD `e63ebb3f`（亲核，M9-2 在内）；`git status` 仅 `.work/` 未跟踪日志，Film/ 零 diff——无异常。
+
+## 任务分解（T1..T8，ΔN=56，AC=34）
+
+| T | 标题 | ΔN | 要点 |
+|---|---|---|---|
+| T1 | 注册骨架 | 6 | V50Order `("spektraFilm", 46.7)` verbatim 行 + GradeCatalog 第 21 行 + `LIGHTAMER_FILM_MODULE` env 门（默认 off） |
+| T2 | Module 本体 | 8 | delegate 形态 process（ACEScc 往返 kernel 复用 + 直方图 + FilmMethodBox 转发）；flags `[.supportsBlending, .oneInstance]`；tileHalo 不覆盖；密度/光谱工厂 md5 冻结 |
+| T3 | 参数载体迁移 | 7 | 新写走 `ModuleInstance.paramsData`；carrier/sidecar `filmRecord` 键 + history `filmDocumentScope` 保留只读停产；schema v13 零 diff 机检 |
+| T4 | 双轨读 + 迁移行 | 9 | 内容判定双条件单源；legacy 档旧腿逐位恒等；`FilmMigrationAction.convertToModule` 三源 gate；确认 = 合成实例挂最上层 + 清空 carrier + 标准 commit |
+| T5 | 求解链不动 | 4 | SolveCache 键零改；统计对象变更声明（顶面→本层 46.7 输入）；tile 永不可达双条件钉死 |
+| T6 | 下游面 | 10 | DRT upstream 自然收敛零 hunk；导出 filmTails 保留 legacy 通道；缩略图剥除；面板换锚；Film 卡退役；MCP 自动寻址 |
+| T7 | 桥接测试 | 12 | 两宿主逐位相等三形态（主门）+ ACEScc 往返 ≤1e-6 + D-SM-1 负测 + BUNDLE-MAP 同批 |
+| T8 | 收口 | 0 | 全套 + GUI 走查 + zh 对账 + SUMMARY/DECISIONS + 申报终表 |
+
+## 本 PLAN 新增判定（D-SM-1..7，备案）
+
+- **D-SM-1**：prepareChain 无需新折叠缝（stats=纯函数(输入平面)，输入内容已被 levelHash 键控；AC-T7-5 负测证伪则 re-plan）。
+- **D-SM-2**：执行核 delegate 形态（module 调现装配，函数体零 diff）。
+- **D-SM-3**：history 键族保留只读 + 新写停产（零新键）。
+- **D-SM-4**：导出 `filmTails` 保留为 legacy 通道 → `ExportQueueContract` 零 diff（修订 RESEARCH 申报）。
+- **D-SM-5**：ACEScc 往返走 kernel 复用，零新 kernel；skipsEnvelope 优化不做。
+- **D-SM-6**：迁移行 = 新 action case + 复用 `ProcessMigrationRow`。
+- **D-SM-7**：多层漂移提示 ≤2 新 zh 键。
+
+## 封存面申报（实质仅 2 行 + 1 期望）
+
+PixelPipe（注释 hunk）/ V50Order（add-only 一行）/ GradeCatalog（一行 + E7 20→21）；ExportQueueContract、sidecar schema、HistoryStack/HistoryHash、DRT 四件、导出矩阵、NodeGraphCommand 全部零 diff。D-SM-1 证伪是唯一 re-plan 触发器（PixelPipe +1 逻辑 hunk）。
+
+## 风险→任务映射
+
+R1 锚→T2+T5；R2 corr→T5；R3 漂移→T4+T6+T7；R4 内存→T2 单实例；R5 重复求解→T5；R6 往返→T2+T7 精度门。

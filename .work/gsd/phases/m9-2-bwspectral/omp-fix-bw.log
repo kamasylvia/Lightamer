@@ -1,0 +1,13 @@
+Working...
+M9-2 改签批 review 修复收口完毕。HEAD 起点亲核 `e63ebb3f` ✓。
+
+逐 finding 修法→验证：
+
+- **minor-1**（SpectralProfileDecodeTests nulls 门）：删恒真 `≥ 0`，改 BW 分支 `XCTAssertEqual(nulls, 0)`（钉死三卷 midscale-缺席面）+ 存量 28 卷恢复 `≥ 15` 紧致地板（`≥ 0` on count 恒真论证写进注释）。定向 `SpectralProfileDecodeTests` **3/0/0**（peakRSS 193MB）。
+- **minor-2**（FilmProfile 死 API + 契约注释）：删前 grep 仅命中定义+注释两处（零调用），删 `public logSensitivityProjected()`（7 行 doc + 7 行体），字段注释改「null 读作零灵敏度（上游 hanatos.cpp:164 np.nan_to_num），禁插值」；删后 grep 零残留（exit 1）。消费面零改（引擎四处直读 `logSensitivity` null→0 不变）。
+- **minor-3**（DualArm 门槛）：`differingPairs > 25` → `> 28`（≥29/31 ≈ 94%，恢复原严格度；实测 31/31 全分叉有余量）。定向 `SpectralDualArmGoldenTests` **12/0/0**（782s，peakRSS 362MB）。
+- **obs-b**（docs 顺手）：SUMMARY 账本 `4529−4443=+86` 同义反复 → 分段链式列表（4443→4462→4514→4516→4520→+0→+9→4529→4533），数值零改。
+
+定向第三类：`FilmProfileTests` **21/0/0**（peakRSS 202MB）。guard 先行 PASS（heavy=0 free=79%）；跑前跑后 ps 零 Lightamer 实例（仅 omp 自身）；zh-audit `--check` **PASS**（1798/2131，与审查一致）。
+
+commit：`1efbc9e2`（单 commit，4 文件 +26/−28，body 含 finding→fix 映射 + 验证方法）。封存面声明：17 件机检零 diff（类型定义 grep 零命中）+ `RenderProcess.current` 恒 3 + `Resources/FilmProfiles/` 零 diff。零 push、零新文件（仅改 4 存量文件）。

@@ -1,0 +1,13 @@
+BUNDLE|App|1042/6/1|peakRSS=1896MB|618s|sampling=time
+  ↳ App FAILED（fail；host exit=1 仅参考）— 完整输出: /tmp/la-direct-tests-App.log
+Test Case '-[LightamerTestsApp.FilmPanelSpectralUITests testPanelSourceCarriesNoAdaptationControlFace]' started.
+/Volumes/UNITEK/Documents/Development/Lightamer/Tests/LightamerTests/FilmPanelSpectralUITests.swift:326: error: -[LightamerTestsApp.FilmPanelSpectralUITests testPanelSourceCarriesNoAdaptationControlFace] : XCTAssertFalse failed - the film panel must expose no adaptation control (token surface)
+Test Case '-[LightamerTestsApp.FilmPanelSpectralUITests testPanelSourceCarriesNoAdaptationControlFace]' failed (3.232 seconds).
+Test Suite 'FilmPanelSpectralUITests' failed at 2026-10-28 00:47:04.225.
+--
+Test Suite 'YiyinSheetSizingTests' passed at 2026-10-28 00:50:27.377.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 2.204 (2.209) seconds
+Test Suite 'LightamerTestsApp.xctest' failed at 2026-10-28 00:50:27.378.
+	 Executed 1042 tests, with 6 tests skipped and 1 failure (0 unexpected) in 615.218 (615.498) seconds
+Test Suite 'All tests' failed at 2026-10-28 00:50:27.382.
+TOTAL|1042/6/1|618s
