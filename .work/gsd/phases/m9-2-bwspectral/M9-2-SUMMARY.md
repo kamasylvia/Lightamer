@@ -141,3 +141,55 @@ SHOOT 节 w25 压暗方向/granularity readout 一键应用/w58 注记/色卷
 **zh-audit**：--check PASS（1744 source / 2060 catalog）+ --self-test PASS。
 
 **遗留移交**：m-1 类注释谓词名 / o-omp3 孤儿 png / bootstrap 补走查（沿 M9-1 尾项池）。
+
+## v0.3.3 BW pack 解码修复节(2026-11-02,改签批——续任 executor)
+
+**批形态**:M9-2 改签版 = 解码器吃下 CC 包 v0.3.3 trio(base_density
+数组形 + null 谱面)+ 全部 M9BW 验收(known issue 收口)。前任 omp
+lane SIGTERM 断点,在制品亲核保留续接(§14);断点审计与裁定正本 =
+DECISIONS §11。
+
+**产线面(四文件,前任在制品完整保留)**:FilmProfile([[Float?]]
+谱面 + 中位显影列归一 + 双形 fail-closed)/ FilmMaterialStore(pair
+hash nil-vs-value 标签)/ PaperGradeTable + SpectralBuildEngine
+(null → 0 消费面)。**本轮新增修复**:Project.swift BloomTests 误删
+回归(前任把 BWPackDecodeTests 写成替换)+ 七处计数/遍历/快照 re-pin
+(FilmProfileTests×3 + 三 set-wide + ExposureSemantics manifest +
+anchored 探测面 + App BW 分节 7 卷)。
+
+**新测试**:BWPackDecodeTests(IOP)4 法——ΔN = **+4**;其余 = 已知
+损伤修复非新法。
+
+**全套终值(--all,2026-11-03 轮)**:**4533/34/0**(4277s,零失败零 crash 零 MEMFAIL;
+首轮 --all 的 IOP 腿遭 xzm malloc 回收 trap 环境型宿主崩〔DECISIONS §11
+环境事件〕,clean 重跑取本终值):
+
+| bundle | executed/skipped/failed | 峰值 RSS | 时长 |
+|---|---|---|---|
+| IOP | 840/1/0 | 6874MB | 987s |
+| IOPParity | 584/10/0 | 4916MB | 1733s |
+| Layers | 540/5/0 | 1168MB | 448s |
+| Library | 797/4/0 | 750MB | 172s |
+| Sessions | 285/4/0 | 1266MB | 65s |
+| Export | 385/4/0 | 6047MB | 205s |
+| App | 1102/6/0 | 2832MB | 667s |
+
+**ΔN 带式对账**:全套 4533 = 任务书基线 4443/34/0(R9 终态)⊕
+ΔN_中间批(M8-3+ / MCP-UQ / R7-R9 尾 / gallery-first 等,本批不重算,
+= 4529 − 4443 = +86)⊕ **本批 +4**(BWPackDecodeTests 4 法,BUNDLE-MAP
+IOP 行在册);known-issue 121 fails → **0**(HEAD 5bb31915 注记族清零)。
+
+**定向轮实录**:IOP 首轮 840/1/1(唯一红 = anchored 20 钉,前任漏改)
+→ 修复后类过滤 5/0/0;Layers **540/5/0**(462s);IOPParity
+**584/10/0**(1760s,峰 RSS 3879MB;构建冒烟 31 对 36.6s + 双臂矩阵
+31/31 全分叉 + grain 31 对全有限);App 1102/6/1(唯一红 = BW 分节
+快照 4→7)→ 修复后类过滤 6/0/0。
+
+**红线机检**:DECISIONS §11 末节全集零 diff(封存 17 + RenderProcess
++ GrainModule + 双 .metal + CC 包 33/33 + UserDefaults + xcstrings +
+SPM + 禁形);zh-audit --check PASS(1798 source / 2131 catalog)+
+--self-test PASS。
+
+**收尾**:产品面 commit `339adb33`(fixes #22);GOAL-STATE 现势行 +
+TODO M9-2 段翻账同批(docs commit)。未 push——双远程 push 与 GH 侧
+#22 反向引用归 orchestrator 审核后决策。
