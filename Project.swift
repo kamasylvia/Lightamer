@@ -448,6 +448,10 @@ let project = Project(
                 "Tests/LightamerTests/ChainBuilderHelpers.swift",
                 "Tests/LightamerTests/BilateralGrid3DTests.swift",
                 "Tests/LightamerTests/BloomTests.swift",
+                // v0.3.3 BW pack repair: the trio decode gates (BW identity /
+                // null log-sensitivity verbatim + pinned counts / median
+                // development column / pair-hash face).
+                "Tests/LightamerTests/BWPackDecodeTests.swift",
                 // M9-3 T1: the Guided Upright math gates (golden six gates)
                 // and the straighten-angle crop closed form (#742/#1388/#1794).
                 "Tests/LightamerTests/UprightMathTests.swift",

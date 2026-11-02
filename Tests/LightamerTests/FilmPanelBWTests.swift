@@ -102,10 +102,15 @@ final class FilmPanelBWTests: XCTestCase {
                       "the color set stays flat on top")
         let bw = sections.first { $0.title == "bw" }
         XCTAssertNotNil(bw, "the BW section exists")
+        // The section = every channel_model "bw" film across the two
+        // indexed directories (D-M92-7): the four self-digitized M9-2 BW
+        // films (FilmProfilesBW) + the three v0.3.3 CC-pack BW entries
+        // (FilmProfiles: kodak_2302 print stock / doublex / trix).
         XCTAssertEqual(Set((bw?.stocks ?? []).map { $0.info.stock ?? "" }),
                        ["kodak_tri_x_400", "kodak_tmax_100",
-                        "fujifilm_neopan_acros_100_ii", "ilford_hp5_plus_400"],
-                       "the four BW films ride the section")
+                        "fujifilm_neopan_acros_100_ii", "ilford_hp5_plus_400",
+                        "kodak_2302", "kodak_doublex", "kodak_trix"],
+                       "the seven BW films ride the section")
         // The paper picker's twin.
         let paperSections = model.paperStockSections
         let bwPaper = paperSections.first { $0.title == "bw" }

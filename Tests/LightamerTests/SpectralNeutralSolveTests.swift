@@ -93,7 +93,8 @@ final class SpectralNeutralSolveTests: XCTestCase {
             repeating: [Double](repeating: 0, count: 3), count: axisCount)
         for l in 0..<axisCount {
             for c in 0..<3 {
-                let v = pow(10.0, Double(logSens[l][c]))
+                guard let sample = logSens[l][c] else { continue }
+                let v = pow(10.0, Double(sample))
                 sens[l][c] = v.isFinite ? v : 0.0
             }
         }
@@ -106,13 +107,14 @@ final class SpectralNeutralSolveTests: XCTestCase {
         XCTAssertEqual(
             table.tripletCount, 160,
             "8 papers × TH-KG3 × 20 films = 160 triplets (the A1 matrix)")
-        // The store's roster (22 film-support incl. the two print films
-        // 2383/2393 + 6 RA-4 papers) vs the table's key shape (20 taking
-        // films × 8 paper keys incl. 2383/2393 as PAPER keys — the table
-        // predates the support split): the hit face walks the TABLE's
-        // keys, not the store's roster.
+        // The store's roster (25 film-support = 22 incl. the two print
+        // films 2383/2393 + the v0.3.3 BW trio; 6 RA-4 papers) vs the
+        // table's key shape (20 taking films × 8 paper keys incl.
+        // 2383/2393 as PAPER keys — the table predates the support
+        // split): the hit face walks the TABLE's keys, not the store's
+        // roster.
         let store = try store()
-        XCTAssertEqual(store.filmStocks().count, 22)
+        XCTAssertEqual(store.filmStocks().count, 25)
         XCTAssertEqual(store.paperStocks().count, 6)
         let tableFilms = ["fujifilm_c200", "fujifilm_pro_400h",
                           "fujifilm_provia_100f", "fujifilm_velvia_100",
@@ -273,11 +275,18 @@ final class SpectralNeutralSolveTests: XCTestCase {
         let table = try NeutralPrintAnchorTable.load(url: anchorURL())
         let store = try store()
         let dichroic = SpectralConstantsData.dichroicTransmissions
-        // The 28-pair face: 20 taking films × 6 RA-4 papers (the store's
-        // support split — NOT the table's 160-key shape: 2383/2393 ride
-        // as FILMS here, the round probe's production leg).
+        // The 28-pair face: 20 anchored taking films × 6 RA-4 papers (the
+        // store's support split — NOT the table's 160-key shape). The
+        // print stocks 2383/2393 AND the v0.3.3 BW pack's 2302 ride as
+        // FILMS in the support split (2302 = the third print stock);
+        // trix/doublex are taking films with NO anchor-table rows — they
+        // resolve via the legacy (50,50) seed fallback face (M8-3+ T1),
+        // outside this anchored probe's measurement set.
         let films = store.filmStocks().filter {
             $0.info.stock != "kodak_2383" && $0.info.stock != "kodak_2393"
+                && $0.info.stock != "kodak_2302"
+                && $0.info.stock != "kodak_trix"
+                && $0.info.stock != "kodak_doublex"
         }
         let papers = store.paperStocks()
         XCTAssertEqual(films.count, 20)

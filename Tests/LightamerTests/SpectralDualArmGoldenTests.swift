@@ -564,7 +564,7 @@ final class SpectralDualArmGoldenTests: XCTestCase {
 
     // MARK: - T6: the end-to-end matrix smoke (the whole vendored set)
 
-    /// The 28-profile × dual-arm render matrix (the smoke level — the
+    /// The 31-profile × dual-arm render matrix (the smoke level — the
     /// golden level is the ramp/fixture pins above): every profile takes
     /// the film seat against the shared endura paper, renders under BOTH
     /// arms through the REAL pipe, and every render comes back finite;
@@ -573,7 +573,8 @@ final class SpectralDualArmGoldenTests: XCTestCase {
     /// principle, so the pin is a count, not a per-pair identity). The
     /// builds ride the tc_lut slot's LRU (the capacity keeps ~6 bundles —
     /// the smoke thrashes it deliberately, the eviction face under load).
-    func testAll28ProfilesRenderBothArmsEndToEnd() async throws {
+    /// The set = the 28-profile 0.3.2 base + the v0.3.3 BW pack trio.
+    func testAll31ProfilesRenderBothArmsEndToEnd() async throws {
         let metal = try await makeMetal()
         let chain = try await makeColorOut(registry: ModuleRegistry.makeDefault())
         let paper = try endura
@@ -581,7 +582,7 @@ final class SpectralDualArmGoldenTests: XCTestCase {
             atPath: profilesDirectory().path)
             .filter { $0.hasSuffix(".json") }
             .sorted()
-        XCTAssertEqual(names.count, 28)
+        XCTAssertEqual(names.count, 31)
 
         let image = makeRampImage(width: 24, height: 16)
         var differingPairs = 0
@@ -617,8 +618,8 @@ final class SpectralDualArmGoldenTests: XCTestCase {
         XCTAssertGreaterThan(
             differingPairs, 25,
             "the spectral fork must be visible across the vendored set "
-                + "(\(differingPairs)/28 pairs differ)")
-        print("M8-2-SMOKE|matrix|28 profiles|differing pairs \(differingPairs)/28")
+                + "(\(differingPairs)/31 pairs differ)")
+        print("M8-2-SMOKE|matrix|31 profiles|differing pairs \(differingPairs)/31")
     }
 
     /// The export-seam smoke: a v2 document's film leg through the EXPORT

@@ -235,7 +235,7 @@ final class SpectralExposureSemanticsTests: XCTestCase {
             "the old density-only consumer claim must be retired")
 
         // The byte-verbatim scope: NOTICE is OUR file (not manifest-pinned)
-        // and the manifest's 30 data-file pins stay untouched — the
+        // and the manifest's 33 data-file pins stay untouched — the
         // FilmProfileTests MANIFEST reconciliation (full, not sampled)
         // rides the same suite run as the zero-drift gate.
         let manifestURL = profilesDirectory()
@@ -246,8 +246,8 @@ final class SpectralExposureSemanticsTests: XCTestCase {
             manifest.contains("NOTICE"),
             "NOTICE is our disclosure file — the manifest pins the data files only")
         XCTAssertEqual(
-            manifest.split(separator: "\n").count, 30,
-            "the manifest's pin count (LICENSE + 28 profiles + the neutral "
-                + "print-filter table) is untouched")
+            manifest.split(separator: "\n").count, 33,
+            "the manifest's pin count (LICENSE + 31 profiles [28 base + the "
+                + "v0.3.3 BW trio] + the neutral print-filter table) is untouched")
     }
 }

@@ -171,9 +171,9 @@ final class SpectralGrainGoldenTests: XCTestCase {
             "the B1→B2 split holds the ramp512 sentinel (off-identity)")
     }
 
-    // MARK: - 2: the 28-pair sweep (the breadth face)
+    // MARK: - 2: the 31-pair sweep (the breadth face)
 
-    func testAll28PairsRenderFiniteThroughTheSplit() async throws {
+    func testAll31PairsRenderFiniteThroughTheSplit() async throws {
         let metal = try await makeMetal()
         let chain = try await makeColorOut(registry: ModuleRegistry.makeDefault())
         let paper = try endura
@@ -181,7 +181,7 @@ final class SpectralGrainGoldenTests: XCTestCase {
             atPath: profilesDirectory().path)
             .filter { $0.hasSuffix(".json") }
             .sorted()
-        XCTAssertEqual(names.count, 28)
+        XCTAssertEqual(names.count, 31, "the 28-profile base + the v0.3.3 BW trio")
         let image = makeRampImage(width: 24, height: 16)
         for name in names {
             let profile = try FilmProfile.load(

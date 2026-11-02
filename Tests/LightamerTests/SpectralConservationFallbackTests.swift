@@ -65,7 +65,8 @@ final class SpectralConservationFallbackTests: XCTestCase {
             repeating: [Double](repeating: 0, count: 3), count: axisCount)
         for l in 0..<axisCount {
             for c in 0..<3 {
-                let v = pow(10.0, Double(logSens[l][c]))
+                guard let sample = logSens[l][c] else { continue }
+                let v = pow(10.0, Double(sample))
                 sens[l][c] = v.isFinite ? v : 0.0
             }
         }

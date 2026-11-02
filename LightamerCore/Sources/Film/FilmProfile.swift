@@ -219,10 +219,13 @@ public struct FilmProfile: Codable, Sendable, Equatable {
     // MARK: - Spectral face (M8-1a T1, additive; the 亲核登记② six)
 
     /// 81×3 log10 sensitivity (the on-disk layout: one row per wavelength,
-    /// [R, G, B] within the row). Tolerant: absent key or a wrong shape →
-    /// nil; every point is a finite number (the asset set carries no nulls
-    /// here — a null would fail the [Float] decode and degrade the field).
-    public let logSensitivity: [[Float]]?
+    /// [R, G, B] within the row). NULLABLE per point: the v0.3.3 BW pack
+    /// (kodak_2302/doublex/trix) carries JSON nulls at unmeasured
+    /// wavelengths — decode preserves them verbatim ([Float?] storage,
+    /// same family as channel_density) and consumption goes ONLY through
+    /// `logSensitivityProjected()`. Tolerant: absent key or a wrong shape
+    /// → nil (never throws).
+    public let logSensitivity: [[Float?]]?
     /// 81×3 spectral channel densities, NULLABLE per point (null is a
     /// legal data state — 15-78 of 243 points across the vendored set).
     /// Consumed ONLY through `channelDensityProjected()`.
@@ -299,15 +302,38 @@ public struct FilmProfile: Codable, Sendable, Equatable {
         info = try container.decode(Info.self, forKey: .info)
         let data = try container.nestedContainer(keyedBy: DataKeys.self, forKey: .data)
         logExposure = try data.decode([Float].self, forKey: .logExposure)
-        densityCurves = try data.decode([[Float]].self, forKey: .densityCurves)
-        baseDensity = try data.decode([Float?].self, forKey: .baseDensity)
+        // v0.3.3 BW pack: doublex/2302 carry 256×5 density_curves — one
+        // monochrome D–logE curve per development time (see
+        // `development_time`, 5 entries). The density domain is 3-channel,
+        // so decode normalizes to 256×3 by taking the MEDIAN development
+        // column triplicated ([R, G, B] identical — the monochrome truth).
+        // Median (not first/last) = the pack's central development regime;
+        // the discarded off-median variants are out of the consumer face
+        // (CONSUMER-KEYS-ONLY contract — the asset file is never
+        // rewritten). Tri-X carries plain 256×3 (no-op path).
+        let rawCurves = try data.decode([[Float]].self, forKey: .densityCurves)
+        densityCurves = Self.normalizedDensityCurves(rawCurves)
+        // v0.3.3 BW pack, second face: doublex/2302 carry 81×5
+        // base_density — the same per-development-time family as the
+        // density_curves above. Decode takes the MEDIAN column (same
+        // central-regime selection); the plain 81-vector path passes
+        // through verbatim. A dual-shape failure fails closed (typed).
+        if let vector = try? data.decode([Float?].self, forKey: .baseDensity) {
+            baseDensity = vector
+        } else if let family = try? data.decode(
+            [[Float?]].self, forKey: .baseDensity) {
+            baseDensity = Self.normalizedBaseDensityFamily(family)
+        } else {
+            throw FilmProfileError.schemaMismatch(
+                "data.base_density is neither an 81-vector nor a family matrix")
+        }
         wavelengths = try data.decode([Float].self, forKey: .wavelengths)
         // Tolerant spectral face (M8-1a T1): decodeIfPresent + eager shape
         // validation; a violation degrades the FIELD to nil — it never
         // throws (point-wise nulls are legal data, they do not trigger the
         // downgrade; review B1).
-        logSensitivity = Self.normalizedSpectralMatrix(
-            try? data.decode([[Float]].self, forKey: .logSensitivity),
+        logSensitivity = Self.normalizedSpectralNullableMatrix(
+            try? data.decode([[Float?]].self, forKey: .logSensitivity),
             axisCount: wavelengths.count)
         channelDensity = Self.normalizedSpectralNullableMatrix(
             try? data.decode([[Float?]].self, forKey: .channelDensity),
@@ -337,19 +363,50 @@ public struct FilmProfile: Codable, Sendable, Equatable {
         }
         return nil
     }
-
-    /// Shape gate for the log-sensitivity matrix: row count == the axis
-    /// count, row width == 3; any violation → nil (tolerant downgrade).
-    private static func normalizedSpectralMatrix(
-        _ rows: [[Float]]?, axisCount: Int
-    ) -> [[Float]]? {
-        guard let rows, rows.count == axisCount,
-            rows.allSatisfy({ $0.count == 3 }) else { return nil }
-        return rows
+    /// The BW development-variant gate (v0.3.3 pack): 256×N with N != 3
+    /// is the per-development-time monochrome family — the MEDIAN column
+    /// (sorted curves by development response at mid-exposure) triplicated
+    /// to the 256×3 consumer face. N == 3 passes through verbatim
+    /// (zero-drift for the whole 28-profile set). Ragged rows pass through
+    /// untouched — `validateShape` fails them closed downstream.
+    static func normalizedDensityCurves(_ rows: [[Float]]) -> [[Float]] {
+        guard let width = rows.first?.count, width != 3,
+            rows.allSatisfy({ $0.count == width }), width >= 1 else {
+            return rows
+        }
+        let mid = rows.count / 2
+        let order = (0..<width).sorted {
+            rows[mid][$0] < rows[mid][$1]
+        }
+        let median = order[width / 2]
+        return rows.map { row in
+            [row[median], row[median], row[median]]
+        }
+    }
+    /// The base-density family gate (v0.3.3 pack): an 81×N matrix is the
+    /// per-development-time Dmin family — the MEDIAN column (sorted by the
+    /// mid-axis response, the density_curves twin rule) becomes the
+    /// 81-vector consumer face. Ragged/empty input passes through as an
+    /// empty vector — `validateShape` fails it closed downstream.
+    static func normalizedBaseDensityFamily(_ rows: [[Float?]]) -> [Float?] {
+        guard let width = rows.first?.count, width >= 1,
+            rows.allSatisfy({ $0.count == width }) else {
+            return []
+        }
+        let mid = rows.count / 2
+        let order = (0..<width).sorted {
+            (rows[mid][$0] ?? -Float.infinity)
+                < (rows[mid][$1] ?? -Float.infinity)
+        }
+        let median = order[width / 2]
+        return rows.map { $0[median] }
     }
 
-    /// Shape gate for the nullable channel-density matrix (same contract;
-    /// point-wise nulls do NOT trigger the downgrade — review B1).
+
+
+    /// Shape gate for a nullable spectral matrix (row count == the axis
+    /// count, row width == 3; any violation → nil). Point-wise nulls do
+    /// NOT trigger the downgrade (v0.3.3 BW pack needs them verbatim).
     private static func normalizedSpectralNullableMatrix(
         _ rows: [[Float?]]?, axisCount: Int
     ) -> [[Float?]]? {
@@ -357,6 +414,7 @@ public struct FilmProfile: Codable, Sendable, Equatable {
             rows.allSatisfy({ $0.count == 3 }) else { return nil }
         return rows
     }
+
 
     /// Shape gate for a nullable axis-length array.
     private static func normalizedSpectralNullableArray(
@@ -374,7 +432,7 @@ public struct FilmProfile: Codable, Sendable, Equatable {
     public init(
         metadata: Metadata, info: Info, logExposure: [Float],
         densityCurves: [[Float]], baseDensity: [Float?], wavelengths: [Float],
-        logSensitivity: [[Float]]? = nil, channelDensity: [[Float?]]? = nil,
+        logSensitivity: [[Float?]]? = nil, channelDensity: [[Float?]]? = nil,
         midscaleNeutralDensity: [Float?]? = nil,
         adaptationWindowParams: FilmProfileAdaptationParams? = nil,
         adaptationSurfaceParams: FilmProfileAdaptationParams? = nil
@@ -385,7 +443,7 @@ public struct FilmProfile: Codable, Sendable, Equatable {
         self.densityCurves = densityCurves
         self.baseDensity = baseDensity
         self.wavelengths = wavelengths
-        self.logSensitivity = Self.normalizedSpectralMatrix(
+        self.logSensitivity = Self.normalizedSpectralNullableMatrix(
             logSensitivity, axisCount: wavelengths.count)
         self.channelDensity = Self.normalizedSpectralNullableMatrix(
             channelDensity, axisCount: wavelengths.count)
@@ -572,6 +630,21 @@ public struct FilmProfile: Codable, Sendable, Equatable {
                 channelDensity.map { $0[channel] }, axis: wavelengths) ?? []
         }
     }
+    /// The projected (null-resolved) 81×3 log-sensitivity matrix (v0.3.3
+    /// BW pack: kodak_2302/doublex/trix carry JSON nulls at unmeasured
+    /// wavelengths — per-channel series resolve through the single
+    /// projection source, same family as channelDensityProjected).
+    /// Layout is channel-major: `[channel][wavelength]`. Returns nil when
+    /// the field itself degraded at decode; an all-null channel yields an
+    /// empty series (the engine's coverage gate rejects it).
+    public func logSensitivityProjected() -> [[Double]]? {
+        guard let logSensitivity, !logSensitivity.isEmpty else { return nil }
+        return (0..<3).map { channel in
+            Self.projectedSpectralSeries(
+                logSensitivity.map { $0[channel] }, axis: wavelengths) ?? []
+        }
+    }
+
 
     /// The projected (null-resolved) 81-point mid-scale neutral density —
     /// same family, same single source.

@@ -117,8 +117,11 @@ final class BWProfileAssetsTests: XCTestCase {
             // The neutral silver form: three identical channels per row.
             let sens = try XCTUnwrap(profile.logSensitivity, "\(id) spectral face")
             for (i, row) in sens.enumerated() {
-                XCTAssertEqual(row[0], row[1], "\(id) row \(i): channel 0 == 1")
-                XCTAssertEqual(row[1], row[2], "\(id) row \(i): channel 1 == 2")
+                let r0 = try XCTUnwrap(row[0], "\(id) row \(i): c0 non-null")
+                let r1 = try XCTUnwrap(row[1], "\(id) row \(i): c1 non-null")
+                let r2 = try XCTUnwrap(row[2], "\(id) row \(i): c2 non-null")
+                XCTAssertEqual(r0, r1, "\(id) row \(i): channel 0 == 1")
+                XCTAssertEqual(r1, r2, "\(id) row \(i): channel 1 == 2")
             }
             let cd = try XCTUnwrap(profile.channelDensity, "\(id) channel density")
             for (i, row) in cd.enumerated() {
@@ -151,7 +154,8 @@ final class BWProfileAssetsTests: XCTestCase {
         var sawSplit = false
         for (i, row) in sens.enumerated() {
             let nm = 380 + 5 * i
-            if (460...540).contains(nm), abs(row[0] - row[1]) > 0.2 {
+            if (460...540).contains(nm), let r0 = row[0], let r1 = row[1],
+                abs(r0 - r1) > 0.2 {
                 sawSplit = true
                 break
             }
@@ -171,7 +175,8 @@ final class BWProfileAssetsTests: XCTestCase {
             let nm = 380 + 5 * i
             if nm >= 560 {
                 for c in 0..<3 {
-                    XCTAssertLessThanOrEqual(row[c], -6.0,
+                    let v = try XCTUnwrap(row[c], "channel \(c) at \(nm) nm non-null")
+                    XCTAssertLessThanOrEqual(v, -6.0,
                                              "channel \(c) at \(nm) nm must be blind")
                 }
             }

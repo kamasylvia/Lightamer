@@ -318,8 +318,8 @@ public enum SpectralBuildEngine {
     // MARK: - Errors
 
     private static func requireSpectral(
-        _ field: @autoclosure () -> [[Float]]?, _ name: String, _ stock: String
-    ) throws -> [[Float]] {
+        _ field: @autoclosure () -> [[Float?]]?, _ name: String, _ stock: String
+    ) throws -> [[Float?]] {
         guard let value = field() else {
             throw SpectralBuildError.missingSpectralFace("\(stock): \(name)")
         }
@@ -420,6 +420,7 @@ public enum SpectralBuildEngine {
             film.logSensitivity, "log_sensitivity", stock)
         let filmSens: [[Double]] = logSensitivity.map { row in
             row.map { value in
+                guard let value else { return 0.0 }
                 let v = pow(10.0, Double(value))
                 return v.isFinite ? v : 0.0
             }
@@ -645,6 +646,7 @@ public enum SpectralBuildEngine {
             paper.logSensitivity, "log_sensitivity", paperStock)
         let printSens: [[Double]] = paperLogSens.map { row in
             row.map { value in
+                guard let value else { return 0.0 }
                 let v = pow(10.0, Double(value))
                 return v.isFinite ? v : 0.0
             }
