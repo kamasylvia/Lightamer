@@ -301,3 +301,106 @@ commit message 分节载明三任务。
 
 **回归**:CameraFilterTests + FilterBakeKeyTests + BWProfileAssetsTests
 (MANIFEST 对账)定向绿——guard 前置,结果见 commit message。
+
+## 11. v0.3.3 BW pack 解码修复(2026-11-02,续任 executor——第三段断点续接)
+
+**任务书形态**:M9-2 改签版——「3 卷 B&W 谱面已在
+`Resources/FilmProfiles/profiles/`(kodak_2302/doublex/trix,55ad476d
+入库;HEAD 自注 Known issue:121 pre-existing fails in IOP/Layers/App
+decoder)——本批核心 = 让解码器支持它们的 base_density 数组形结构 +
+全部 M9BW 验收」。v2 PLAN 的 T1..T5(自建资产路线)已在
+`af446612..ad7c43cf` 三眼闭环,本批非其重跑。
+
+**断点盘点(§14 纪律,勿盲重做)**:前任 omp 执行 lane SIGTERM 中断
+(omp-exec.log 5 行即断),未提交 diff = 其在制品,逐文件亲核后
+保留续接——产线四件完整连贯:
+
+- `FilmProfile`:`logSensitivity` 存储面放宽 `[[Float]]?` →
+  `[[Float?]]?`(null 点 = v0.3.3 pack 未测波长合法态,逐字保留,
+  消费仅经引擎投影);`density_curves` NxK(K≠3)= 按显影时间族的
+  **中位显影列**归一到 Nx3;`base_density` 81xK 族 → 81 向量;双形
+  typed fail-closed;28 卷存量形逐字节零漂移(pass-through)。
+- `FilmMaterialStore.materialPairHash`:log_sensitivity 折叠改
+  nil-vs-value 标签形([[Float?]] 放宽的最小正确适配;运行时缓存键,
+  非持久身份——全量 pair 一次冷 miss 窗口,非输出漂移)。
+- `PaperGradeTable` / `SpectralBuildEngine`:nullable 采样消费面
+  (null → 0 灵敏度 / 跳样)。
+- 新测试 `BWPackDecodeTests`(IOP,4 法):BW 身份 / null 行逐字 +
+  钉数(56/33/30,零部分空行)/ 中位显影列确定性 / pair hash 面。
+
+**前任遗留缺陷三件(本轮修)**:
+
+1. **Project.swift 写成替换而非插入**——`BWPackDecodeTests` 覆掉了
+   `BloomTests.swift` 行,IOP 6 法静默掉册;修复 = 恢复 BloomTests
+   行,BWPackDecodeTests 回纯插入(diff +4/-0)。
+2. **计数钉只改一半**:漏 FilmProfileTests(names.count 28→31 /
+   version 集遍历 0.3.2 ⊕ trio 0.3.3 / film 22→25 / densitometer
+   set-wide 规则)、SpectralBuildGolden+SpectralGrainGolden+
+   SpectralDualArmGolden 三个 set-wide 遍历(28→31)、
+   SpectralExposureSemanticsTests manifest 钉(30→33)。
+3. **anchored 探测面**:filmStocks 25 - 2383/2393 = 23 ≠ 20——
+   kodak_2302 = 第三张印片(stock,stage=printing)与 2383/2393 同类
+   排除;trix/doublex 无锚表种子(legacy (50,50) 回落面,M8-3+ T1
+   语义)不入该探测的测量对象;维持 20 anchored taking films 语义。
+
+**解码语义裁定**:
+
+1. **null → 0 灵敏度** = 上游 hanatos.cpp:164 `np.nan_to_num` 读法
+   (null→NaN→0);锚定于 BWPackDecodeTests 注释。
+2. **中位显影列** = 按 mid-exposure(row 128)响应排序取中——pack
+   的中央显影档(2302:curves col 2 = 5.0min / base col 2 =
+   5.0min;doublex:curves col 2 = 6.5min / base col 0 = 4.0min——
+   两键独立排序,各自响应决定,BWPackDecodeTests 法 3 钉死)。
+3. **trio 全 null midscale / adaptation 双块**(`hanatos2025_*` 键
+   值 null)→ `decodeIfPresent` nil,引擎窗口守卫降级为无窗灵敏度
+   (SpectralProfileDecodeTests 扩注已在)。
+4. **BW 分节 7 卷**(App FilmPanelBWTests)= D-M92-7 的
+   channelModel 分节语义对 31 卷事实的正确投影:4 自建
+   (FilmProfilesBW)+ 3 CC 包(trio)同节;2302(印片,support=film)
+   随 filmStocks 进片 picker,同 2383/2393 在彩色列的先例。
+
+**M9BW 验收面落点(31 卷事实下的 re-pin)**:中性/阶调 golden 门
+(BWSpectralGoldenTests,自建 BW 族)零回归随 --all;trio 真功能面
+= 三个 set-wide 遍历:构建冒烟 31 对全有限(36.6s ≪ 600s 带)+
+双臂矩阵 **31/31 全分叉**(trio 的 v1 密度臂 ≠ v2 光谱臂亦成立)+
+grain split 31 对渲染全有限(BWPackDecode 解码门 4 法 =
+纯 CPU 解码面,刻意非 Golden,前任 BUNDLE-MAP 注记维持)。
+
+**Known issue 收口**:5bb31915 注记的 121 pre-existing fails 族清零
+——IOP 首轮 840/1/1(唯一红 = 计数钉族)+ 修复后类过滤 5/0/0;
+Layers 540/5/0;IOPParity 584/10/0(峰 3879MB);App 1102/6/1
+(唯一红 = BW 分节 4→7 快照)+ 修复后类过滤 6/0/0;终值以 --all
+七 bundle 分值为准(SUMMARY)。
+
+**ΔN = +4**(BWPackDecodeTests)——其余测试面变更 = 已知损伤修复
+(计数钉/遍历适配/快照 re-pin),非新法。
+
+**红线族自证(工作树 vs HEAD 机检全零)**:封存面 17 件(TerminalTail
+Policy/DrtTailAssembly 在 PixelPipe.swift、ExportFormatSpec 在
+ExportRecipe.swift,按类型名定位同零 diff)/ RenderProcess /
+GrainModule / FilmSubRunKernels.metal / SpectralFilmKernels.metal /
+LibraryProjectController / McpServerController 零 diff;
+Resources/FilmProfiles/ 零 diff + MANIFEST 33/33 OK;UserDefaults
+零新键;xcstrings 零 diff(zh-audit --check PASS 1798/2131 +
+--self-test PASS);零新 SPM;`String.LocalizationValue("…\(x)")`
+唯一命中 = HEAD 既有文档注释(App 1652 行),零新命中;`.runModal(`
+零命中;tuist generate 生成物零入 git。
+
+**环境事件登记(2026-11-02 23:57,--all 首轮 IOP 腿宿主崩)**:
+`Lightamer-2026-11-02-235749.ips` = EXC_BREAKPOINT/SIGTRAP(exit 133),
+trap 点在 **libsystem_malloc `_xzm_reclaim_force_sync.cold.2`**
+(xzone 分配器 madvise 回收强制同步的 abort 分支),调用链 =
+`LensfunDB` → `[LensEntry]` 数组析构 → `swift_release_dealloc` →
+`xzm_reclaim_mark_free_locked`(LensAutoApplyTests 起跑瞬间的
+teardown 释放风暴)。定性 **环境型分配器脆性,非确定性 app 缺陷**:
+①同 binary 今晚首轮 IOP 全跑在同一时间点位(~307s / 259 passed)
+顺利通过(840/1/1→修钉后 840/1/0);②trap 在系统分配器内部回收路径,
+零 Swift fatal/precondition 消息;③monitor 看门狗零击杀记录(RSS
+未越 9GB 线;崩溃轮 ru_maxrss 口径 ~9.5GB 与首轮 ~10.2GB 同量级——
+IOP 腿自 31 卷集起常态贴线,L055 crash verdict 族计数置零处置);
+④clean 重跑 `--all` 第二轮 IOP **840/1/0**(峰 6874MB,987s)——
+同点位越过,环境型确认。处置 = 不改代码、不重试同轮,整套 clean
+重跑取终值(DECISIONS §8「红即修后复跑」先例的 crash 变体)。
+观察项登记(非门):IOP 腿 footprint 贴 9-10GB 线为 31 卷集后的
+新常态,若后续批复现 xzm trap 可考虑 IOP 域拆 bundle(M2-4-0 E2
+路径),本批不立项。
