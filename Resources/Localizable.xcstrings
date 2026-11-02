@@ -35569,6 +35569,60 @@
           }
         }
       }
+    },
+    "library_grid_empty_import": {
+      "comment": "Gallery-first startup (2026-11-02): the cold-launch grid empty-state import button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import Folder…"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入文件夹…"
+          }
+        }
+      }
+    },
+    "library_grid_empty_drop_hint": {
+      "comment": "Gallery-first startup (2026-11-02): the cold-launch grid empty-state drag hint.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "…or drop a folder here."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "……或把文件夹拖到这里。"
+          }
+        }
+      }
+    },
+    "project_face_open_default": {
+      "comment": "Gallery-first startup (2026-11-02): the no-project fallback's re-drive button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open My Library"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开我的图库"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

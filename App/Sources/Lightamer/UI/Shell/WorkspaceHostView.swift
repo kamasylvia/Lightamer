@@ -25,7 +25,10 @@ struct WorkspaceHostView: View {
     /// the no-project state).
     let projectController: LibraryProjectController?
     let onImportFolder: () -> Void
-    /// R3 mark wiring (D5's seed-injection isomorphism): the pristine-mint
+    /// Gallery-first startup (2026-11-02): the fallback face's re-drive
+    /// impulse (the shell re-opens the default library; nil = the inert
+    /// skeleton state the tests mount — the fallback button stays hidden).
+    var onOpenDefaultLibrary: (() -> Void)?
     /// seed for `LibraryMetadataWriter`, injected by the app root — the SAME
     /// `seedInstances()` face `MetadataController.configure` rides on the
     /// session-open path (the mints must agree on the default instance set).
@@ -631,7 +634,11 @@ struct WorkspaceHostView: View {
                     // the clicked row anchors the cull table).
                     onCull: { anchor in
                         Task { await openCullFace(anchorID: anchor) }
-                    })
+                    },
+                    // Gallery-first startup (2026-11-02): the cold-launch
+                    // grid's empty-state import door (the host's own folder
+                    // impulse — the same one the File menu fires).
+                    onImportFolder: onImportFolder)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // The T2 Album Inspector (fixed-width tier, KD-2): the
                 // Alcedo panel IA over the SAME cursor the grid renders.
@@ -687,10 +694,12 @@ struct WorkspaceHostView: View {
                 }
             }
         } else {
-            // The no-project state keeps the M2-2-4 container verbatim
-            // (welcome / import entry).
+            // Gallery-first startup (2026-11-02): the no-project fallback
+            // (the default-library drive failed or was dismissed — the
+            // launch task lands on the real grid, never here).
             ProjectWorkspaceFace(
                 controller: projectController,
+                onOpenDefaultLibrary: onOpenDefaultLibrary,
                 onImportFolder: onImportFolder)
         }
     }
