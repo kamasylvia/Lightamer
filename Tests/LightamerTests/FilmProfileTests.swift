@@ -8,13 +8,15 @@ import XCTest
 //   T2 asset-integrity face (raw JSONSerialization — the integrity
 //   contract holds independent of any Swift type):
 //     1. MANIFEST.sha256 reconciles EVERY file it lists, and the manifest
-//        covers the whole asset set (LICENSE + 28 profiles + the neutral
+//        covers the whole asset set (LICENSE + 31 profiles + the neutral
 //        print-filter table) — full reconciliation, never sampling
 //        (checker ①: the asset-integrity true chain).
-//     2. Profile count = 28 with the film/paper split pinned to the
-//        vendored snapshot (22 film / 6 paper by info.support).
+//     2. Profile count = 31 with the film/paper split pinned to the
+//        vendored snapshot (25 film / 6 paper by info.support — the 0.3.2
+//        base set of 22 films + 6 papers, plus the v0.3.3 BW pack trio
+//        kodak_2302/doublex/trix riding as films).
 //     3. Every profile's metadata.license names CC BY-SA 4.0 and
-//        metadata.version = the vendored 0.3.2.
+//        metadata.version = the vendored 0.3.2 (the BW trio: 0.3.3).
 //     4. neutral_print_filters.json shape: 8 paper stocks × TH-KG3 head ×
 //        film entries, [C, M, Y] triplets with C ≡ 0, and the two sanity
 //        named combos present with the measured values the solver band
@@ -33,8 +35,8 @@ import XCTest
 //        λ sampling lands the portra_400 orange-mask constants, the paper
 //        Dmin constants, and fails closed on nil/mis-shaped arrays.
 //     9. Set-wide invariants: status_M (film) vs status_A (paper) across
-//        all 28 (the m3 mixed-domain registration fact) and strictly
-//        ascending λ axes.
+//        all 31 (the m3 mixed-domain registration fact; the BW trio reads
+//        diffuse_visual) and strictly ascending λ axes.
 //
 //   The directory is located via #filePath (walk to the repo root) — Core
 //   tests never depend on the App bundle (KD-2).
@@ -59,6 +61,14 @@ final class FilmProfileTests: XCTestCase {
     private static var profilesDirectory: URL {
         filmProfilesDirectory.appendingPathComponent("profiles")
     }
+
+    /// The v0.3.3 BW pack trio (the only entries above the vendored 0.3.2
+    /// snapshot — they carry metadata.version "0.3.3" and the B&W data
+    /// faces: null-row log_sensitivity, per-development family matrices,
+    /// diffuse_visual densitometry).
+    private static let bwPackStocks: Set<String> = [
+        "kodak_2302.json", "kodak_doublex.json", "kodak_trix.json",
+    ]
 
     private static func json(at url: URL) throws -> [String: Any] {
         let data = try Data(contentsOf: url)
@@ -98,8 +108,9 @@ final class FilmProfileTests: XCTestCase {
             checked += 1
         }
         XCTAssertEqual(
-            checked, 30,
-            "manifest covers LICENSE + 28 profiles + neutral_print_filters")
+            checked, 33,
+            "manifest covers LICENSE + 31 profiles (28 base + v0.3.3 BW trio) "
+                + "+ neutral_print_filters")
     }
 
     func testManifestCoversTheWholeAssetTree() throws {
@@ -129,11 +140,11 @@ final class FilmProfileTests: XCTestCase {
 
     // MARK: - 2: profile inventory
 
-    func testProfileCountIs28WithTheVendoredFilmPaperSplit() throws {
+    func testProfileCountIs31WithTheVendoredFilmPaperSplit() throws {
         let names = try FileManager.default.contentsOfDirectory(
             atPath: Self.profilesDirectory.path)
             .filter { $0.hasSuffix(".json") }
-        XCTAssertEqual(names.count, 28, "the vendored 0.3.2 snapshot")
+        XCTAssertEqual(names.count, 31, "the vendored snapshot: 0.3.2 base set + the v0.3.3 BW trio")
 
         var film = 0
         var paper = 0
@@ -148,7 +159,7 @@ final class FilmProfileTests: XCTestCase {
                 XCTFail("unknown support \(support) in \(name)")
             }
         }
-        XCTAssertEqual(film, 22, "film stocks in the vendored snapshot")
+        XCTAssertEqual(film, 25, "film stocks: the 22-film 0.3.2 base + the v0.3.3 BW trio")
         XCTAssertEqual(paper, 6, "paper stocks in the vendored snapshot")
     }
 
@@ -172,7 +183,13 @@ final class FilmProfileTests: XCTestCase {
                 license.contains("andreavolpato/spektrafilm"),
                 "\(name) metadata.license must link the canonical source")
             let version = try XCTUnwrap(metadata["version"] as? String, name)
-            XCTAssertEqual(version, "0.3.2", "the vendored snapshot version")
+            // The vendored snapshot: the 28-profile 0.3.2 base set + the
+            // three v0.3.3 BW pack entries (kodak_2302/doublex/trix).
+            XCTAssertTrue(
+                version == "0.3.2"
+                    || (version == "0.3.3"
+                        && Self.bwPackStocks.contains(name)),
+                "\(name) carries an unexpected metadata.version \(version)")
             let citation = try XCTUnwrap(metadata["citation"] as? String, name)
             XCTAssertTrue(citation.contains("spektrafilm"), name)
         }
@@ -484,6 +501,9 @@ final class FilmProfileTests: XCTestCase {
         // The m3 boundary fact, machine-checked across the whole set at
         // its ACTUAL granularity (the plan's coarse "film=status_M /
         // paper=status_A" note refined by the vendored snapshot):
+        //   bw channel model         → diffuse_visual (the B&W silver
+        //     domain — the v0.3.3 pack trio; the diffuse-visual reading
+        //     is the BW densitometry fact, M9-2 family face);
         //   paper                    → status_A (6/6);
         //   film, type=positive      → status_A (the 4 slide stocks);
         //   film, type=negative      → status_M — EXCEPT kodak_2383/2393,
@@ -493,10 +513,14 @@ final class FilmProfileTests: XCTestCase {
         let names = try FileManager.default.contentsOfDirectory(
             atPath: Self.profilesDirectory.path)
             .filter { $0.hasSuffix(".json") }
-        XCTAssertEqual(names.count, 28)
+        XCTAssertEqual(names.count, 31)
         for name in names {
             let profile = try FilmProfile.load(
                 Self.profilesDirectory.appendingPathComponent(name))
+            if profile.info.channelModel == "bw" {
+                XCTAssertEqual(profile.info.densitometer, "diffuse_visual", name)
+                continue
+            }
             let stock = try XCTUnwrap(profile.info.stock, name)
             switch (profile.info.support, profile.info.type) {
             case ("paper", _):
@@ -533,7 +557,7 @@ final class FilmProfileTests: XCTestCase {
             profilesDirectory: Self.profilesDirectory)
         let films = store.filmStocks()
         let papers = store.paperStocks()
-        XCTAssertEqual(films.count, 22)
+        XCTAssertEqual(films.count, 25, "22 + the v0.3.3 BW trio")
         XCTAssertEqual(papers.count, 6)
         // Deterministic id-sorted order (menu/UI face).
         XCTAssertEqual(
@@ -657,16 +681,29 @@ final class FilmProfileTests: XCTestCase {
                 }
             }
             // M9-2 T3: the spectral consumption keys (D-M92-5).
+            // log_sensitivity is nil-vs-value tagged since the v0.3.3 BW
+            // pack (the base_density form above).
             if let logSensitivity = profile.logSensitivity {
                 var tag = UInt64(1)
                 withUnsafeBytes(of: &tag) {
                     expected = StableHash.combine(expected, $0)
                 }
                 for row in logSensitivity {
-                    for value in row {
-                        var v = UInt64(value.bitPattern)
-                        withUnsafeBytes(of: &v) {
-                            expected = StableHash.combine(expected, $0)
+                    for sample in row {
+                        if let value = sample {
+                            var present = UInt64(1)
+                            withUnsafeBytes(of: &present) {
+                                expected = StableHash.combine(expected, $0)
+                            }
+                            var v = UInt64(value.bitPattern)
+                            withUnsafeBytes(of: &v) {
+                                expected = StableHash.combine(expected, $0)
+                            }
+                        } else {
+                            var absent = UInt64(0)
+                            withUnsafeBytes(of: &absent) {
+                                expected = StableHash.combine(expected, $0)
+                            }
                         }
                     }
                 }

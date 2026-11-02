@@ -79,9 +79,10 @@ final class SpectralProfileDecodeTests: XCTestCase {
         XCTAssertEqual(filmLog[0].count, 3)
         for row in filmLog {
             for value in row {
-                XCTAssertTrue(value.isFinite)
-                XCTAssertGreaterThanOrEqual(value, -20)
-                XCTAssertLessThanOrEqual(value, 20)
+                let v = try XCTUnwrap(value)
+                XCTAssertTrue(v.isFinite)
+                XCTAssertGreaterThanOrEqual(v, -20)
+                XCTAssertLessThanOrEqual(v, 20)
             }
         }
 
@@ -215,15 +216,15 @@ final class SpectralProfileDecodeTests: XCTestCase {
             Set(info.keys), ["stock", "support", "reference_illuminant"])
     }
 
-    // MARK: - 3: the 28-profile set-wide smoke (null-aware bands)
+    // MARK: - 3: the 31-profile set-wide smoke (null-aware bands)
 
-    func testAll28ProfilesDecodeTheSpectralFaceWithinTheMeasuredBands()
+    func testAll31ProfilesDecodeTheSpectralFaceWithinTheMeasuredBands()
         throws {
         let names = try FileManager.default.contentsOfDirectory(
             atPath: Self.profilesDirectory.path)
             .filter { $0.hasSuffix(".json") }
             .sorted()
-        XCTAssertEqual(names.count, 28, "the vendored 0.3.2 snapshot")
+        XCTAssertEqual(names.count, 31, "the vendored 0.3.3 snapshot (28 + 3 BW)")
 
         let referenceVocabulary: Set<String> = ["D55", "T", "TH-KG3"]
         let viewingVocabulary: Set<String> = ["D50", "K75P"]
@@ -236,33 +237,49 @@ final class SpectralProfileDecodeTests: XCTestCase {
             // against the vendored 380-780@5nm axis).
             XCTAssertEqual(profile.wavelengths, Self.vendoredAxis, name)
 
-            // log_sensitivity: 81×3, finite, within the measured band.
+            // log_sensitivity: 81×3, non-null values finite within the
+            // measured band. Nulls are legal per-point states (the v0.3.3
+            // BW pack: kodak_2302/doublex/trix carry 30-56 null rows at
+            // unmeasured wavelengths).
             let log = try XCTUnwrap(profile.logSensitivity, name)
             XCTAssertEqual(log.count, 81, name)
             for row in log {
                 XCTAssertEqual(row.count, 3, name)
-                for value in row {
+                for value in row.compactMap({ $0 }) {
                     XCTAssertTrue(value.isFinite, name)
                     XCTAssertGreaterThanOrEqual(value, -20, name)
                     XCTAssertLessThanOrEqual(value, 20, name)
                 }
             }
 
-            // channel_density: null-aware band 15-78/243 (the 亲核登记
-            // measured domain), non-null values finite.
+            // channel_density: null-aware band 0-78/243 (the v0.3.3 BW
+            // pack carries ZERO nulls — full 1/3 neutral silver; the
+            // 28-profile measured domain was 15-78), non-null values
+            // finite.
             let channel = try XCTUnwrap(profile.channelDensity, name)
             let nulls = channel.flatMap { $0 }.count(where: { $0 == nil })
-            XCTAssertGreaterThanOrEqual(nulls, 15, name)
+            XCTAssertGreaterThanOrEqual(nulls, 0, name)
             XCTAssertLessThanOrEqual(nulls, 78, name)
             for value in channel.flatMap({ $0 }).compactMap({ $0 }) {
                 XCTAssertTrue(value.isFinite, name)
             }
 
-            // midscale: null-aware band 5-26/81.
-            let mid = try XCTUnwrap(profile.midscaleNeutralDensity, name)
-            let midNulls = mid.count(where: { $0 == nil })
-            XCTAssertGreaterThanOrEqual(midNulls, 5, name)
-            XCTAssertLessThanOrEqual(midNulls, 26, name)
+            // midscale: null-aware band 5-26/81 on the 28-profile set;
+            // the three v0.3.3 BW films omit the key (nil field — the
+            // tolerant face, zero engine consumption).
+            let midNulls: Int
+            if let mid = profile.midscaleNeutralDensity {
+                midNulls = mid.count(where: { $0 == nil })
+                XCTAssertGreaterThanOrEqual(midNulls, 5, name)
+                XCTAssertLessThanOrEqual(midNulls, 26, name)
+            } else {
+                XCTAssertTrue(
+                    ["kodak_2302.json", "kodak_doublex.json", "kodak_trix.json"]
+                        .contains(name),
+                    "midscale omission is the v0.3.3 BW face: \(name)")
+                midNulls = -1
+            }
+            _ = midNulls
 
             // The projection face resolves on every profile (the engine's
             // precondition) and every resolved value is finite.
@@ -271,12 +288,18 @@ final class SpectralProfileDecodeTests: XCTestCase {
                 XCTAssertEqual(series.count, 81, name)
                 XCTAssertTrue(series.allSatisfy(\.isFinite), name)
             }
-            XCTAssertTrue(
-                try XCTUnwrap(profile.midscaleNeutralDensityProjected(), name)
-                    .allSatisfy(\.isFinite), name)
+            if profile.midscaleNeutralDensity != nil {
+                XCTAssertTrue(
+                    try XCTUnwrap(profile.midscaleNeutralDensityProjected(), name)
+                        .allSatisfy(\.isFinite), name)
+            }
 
-            // Adaptation params: present exactly on filming stocks.
-            if profile.info.stage == "filming" {
+            // Adaptation params: present on the 28-profile filming stocks;
+            // the v0.3.3 BW pack omits both blocks (nil — the window guard
+            // in the engine degrades to unwindowed sensitivities).
+            let isBWPack = ["kodak_2302.json", "kodak_doublex.json", "kodak_trix.json"]
+                .contains(name)
+            if profile.info.stage == "filming", !isBWPack {
                 guard case .window(let w)? = profile.adaptationWindowParams else {
                     return XCTFail("window params on filming stock \(name)")
                 }

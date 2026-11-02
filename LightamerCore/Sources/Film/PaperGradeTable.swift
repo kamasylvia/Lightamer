@@ -183,7 +183,8 @@ public enum PaperGradeTable {
         for c in 0..<3 {
             var sum = 0.0
             for l in 0..<axis.count {
-                let s = pow(10.0, Double(logSens[l][c]))
+                guard let sample = logSens[l][c] else { continue }
+                let s = pow(10.0, Double(sample))
                 sum += illum[l] * s
             }
             logE[c] = log10(max(sum, 1e-300))
@@ -260,7 +261,8 @@ public enum PaperGradeTable {
         for c in 0..<3 {
             var sum = 0.0
             for l in 0..<axis.count {
-                sum += illum[l] * pow(10.0, Double(logSens[l][c]))
+                guard let sample = logSens[l][c] else { continue }
+                sum += illum[l] * pow(10.0, Double(sample))
             }
             geometric += log(max(sum, 1e-300))
         }

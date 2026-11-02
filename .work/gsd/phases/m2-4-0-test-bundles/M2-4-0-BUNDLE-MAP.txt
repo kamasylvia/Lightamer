@@ -973,3 +973,6 @@ IOPP	4	SpectralScratchWiringTests.swift
 IOPP	2	SpectralCrossArmGoldenTests.swift
 #   M8-3+ T7（2026-10-31，issue #21）：收口冒烟——全 off 抽样 + 三腿全开各一
 #   （SpectralSpatialLegTests 扩 2 法，4→6）。
+#   v0.3.3 BW pack repair（2026-11-02）：trio 解码门 4 法入 IOP（BW 身份/null
+#   谱面逐字+钉数/中位显影列/键折面；纯 CPU 解码面非 Golden）。
+IOP	4	BWPackDecodeTests.swift

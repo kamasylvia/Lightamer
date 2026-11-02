@@ -76,6 +76,7 @@ final class SpectralBuildGoldenTests: XCTestCase {
         let refSPD = try XCTUnwrap(SpectralConstants.spd(named: refName))
         let sens: [[Double]] = film.logSensitivity!.map { row in
             row.map { v -> Double in
+                guard let v else { return 0.0 }
                 let x = pow(10.0, Double(v))
                 return x.isFinite ? x : 0.0
             }
@@ -194,9 +195,12 @@ final class SpectralBuildGoldenTests: XCTestCase {
                 var light = Double(tables.illumPrint[l]) * pow(10.0, -ds)
                 if !light.isFinite { light = 0 }
                 let s = paper.logSensitivity!
-                raw.x += light * pow(10.0, Double(s[l][0]))
-                raw.y += light * pow(10.0, Double(s[l][1]))
-                raw.z += light * pow(10.0, Double(s[l][2]))
+                let s0 = s[l][0].map { pow(10.0, Double($0)) } ?? 0
+                let s1 = s[l][1].map { pow(10.0, Double($0)) } ?? 0
+                let s2 = s[l][2].map { pow(10.0, Double($0)) } ?? 0
+                raw.x += light * s0
+                raw.y += light * s1
+                raw.z += light * s2
             }
             let f = Double(tables.midgrayFactor)
             var out = SIMD3<Double>.zero
@@ -372,7 +376,7 @@ final class SpectralBuildGoldenTests: XCTestCase {
         }
     }
 
-    // MARK: - 7 (T5): the 28-profile full-table build smoke
+    // MARK: - 7 (T5): the 31-profile full-table build smoke
 
     /// The vendored set builds end-to-end: every profile takes the film
     /// seat (the tc expansion + mid-gray solve are per-pair), the shared
@@ -380,7 +384,10 @@ final class SpectralBuildGoldenTests: XCTestCase {
     /// integration legs stay in the registered seconds-band (the T5
     /// actuals live in M8-1A-DECISIONS). Memory rides the host-level
     /// ru_maxrss machine check (test-direct's per-bundle MEMFAIL gate).
-    func testAll28ProfilesBuildTheFullTableSetWithinTheTimeBand() throws {
+    /// The set = the 28-profile 0.3.2 base + the v0.3.3 BW pack trio
+    /// (null log-sensitivity rows read as zero sensitivity — the build
+    /// stays finite across the B&W seats).
+    func testAll31ProfilesBuildTheFullTableSetWithinTheTimeBand() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -391,7 +398,7 @@ final class SpectralBuildGoldenTests: XCTestCase {
             atPath: profilesDirectory.path)
             .filter { $0.hasSuffix(".json") }
             .sorted()
-        XCTAssertEqual(names.count, 28)
+        XCTAssertEqual(names.count, 31)
 
         let paper = try FilmProfile.load(
             profilesDirectory.appendingPathComponent("kodak_portra_endura.json"))
@@ -419,13 +426,14 @@ final class SpectralBuildGoldenTests: XCTestCase {
         }
         let totalSeconds = Date().timeIntervalSince(buildStart)
         print(String(
-            format: "T5 smoke: 28 pairs in %.1fs (integration legs %.1fs, "
+            format: "T5 smoke: 31 pairs in %.1fs (integration legs %.1fs, "
                 + "the rest the one-time shared coefficient fit)",
             totalSeconds, totalIntegrationSeconds))
-        // The registered band (the DEBUG-config measured actual 317.8 s —
-        // the test bundles run Debug; the -O production path measures
-        // ~16 s for the same work. DECISIONS).
-        XCTAssertLessThanOrEqual(totalSeconds, 600.0, "the 28-pair band")
+        // The registered band (the DEBUG-config measured actual 317.8 s
+        // for the 28-pair base set — the test bundles run Debug; the -O
+        // production path measures ~16 s for the same work. DECISIONS).
+        // The BW trio adds three pairs inside the same band.
+        XCTAssertLessThanOrEqual(totalSeconds, 600.0, "the 31-pair band")
     }
 }
 

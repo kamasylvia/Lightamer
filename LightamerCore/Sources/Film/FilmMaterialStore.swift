@@ -187,13 +187,20 @@ public final class FilmMaterialStore: @unchecked Sendable {
             combined = chain(combined, UInt64(value.bitPattern))
         }
         // M9-2 T3 (D-M92-5): the spectral consumption keys —
-        // log_sensitivity (row-major [λ][c] as decoded) and
+        // log_sensitivity (row-major [λ][c] as decoded, nil-vs-value
+        // tagged since the v0.3.3 BW pack — the base_density form) and
         // channel_density (nil-vs-value tagged, the base_density form).
         if let logSensitivity = profile.logSensitivity {
             combined = chain(combined, 1)
             for row in logSensitivity {
-                for value in row {
-                    combined = chain(combined, UInt64(value.bitPattern))
+                for sample in row {
+                    switch sample {
+                    case .some(let value):
+                        combined = chain(combined, 1)
+                        combined = chain(combined, UInt64(value.bitPattern))
+                    case .none:
+                        combined = chain(combined, 0)
+                    }
                 }
             }
         } else {

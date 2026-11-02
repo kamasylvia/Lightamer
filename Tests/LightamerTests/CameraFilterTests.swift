@@ -114,8 +114,11 @@ final class CameraFilterTests: XCTestCase {
         // BW sensitivities are channel-EQUAL — the green-channel factor
         // is unique across channels (X-M92-1's premise, pinned here).
         for l in 0..<axis.count {
-            XCTAssertEqual(sens[l][0], sens[l][1])
-            XCTAssertEqual(sens[l][1], sens[l][2],
+            let g0 = try XCTUnwrap(sens[l][0], "BW row \(l): c0 non-null")
+            let g1 = try XCTUnwrap(sens[l][1], "BW row \(l): c1 non-null")
+            let g2 = try XCTUnwrap(sens[l][2], "BW row \(l): c2 non-null")
+            XCTAssertEqual(g0, g1)
+            XCTAssertEqual(g1, g2,
                            "BW row \(l): three-channel equal")
         }
         // The independent Σ over the green channel vs the reference SPD
@@ -129,7 +132,8 @@ final class CameraFilterTests: XCTestCase {
         func greenRollFactor(_ t: [Double]) -> Double {
             var num = 0.0, den = 0.0
             for l in 0..<axis.count {
-                let g = pow(10.0, Double(sens[l][1]))
+                guard let sample = sens[l][1] else { continue }
+                let g = pow(10.0, Double(sample))
                 num += g * t[l] * spd[l]
                 den += g * spd[l]
             }
