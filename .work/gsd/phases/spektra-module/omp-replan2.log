@@ -1,0 +1,35 @@
+Working...
+PLAN.md v2 落盘完毕（46,206B，唯一修改文件，零产品代码/零构建/零 commit）。基线亲核：HEAD `9a69d0e4` ✓（评审落盘 commit）。
+
+# spektra-module P1 replan 完成：v1 → v2 消解摘要
+
+## B1（挂载作用域三互斥）→ D-SM-8 + T3'/T4'/T6'
+- spektraFilm 钉死 **grade 层专属 op**：迁移确认/面板 enable 照搬 `FilmPanelModel.addPlacement()` 形态（最上层 adjustment 层，无则 `addAdjustmentLayer()`）+ `addModuleToLayer`；参数写走 `recordLayerChange` / D-H1 `commitContinuousEdit(layerScope:)`。
+- 判别谓词 = **全作用域 presence 单源** `hasSpektraFilmInstance`（全局 ∪ 各层 `ModuleRegistry.effectiveInstances(layer:)`，不看 enabled），六消费点共用。
+- 基链/`recordChange` 直调/Copy-Paste 全局 epoch = typed reject（各一条负测）。
+- **MCP 判定 = P1 显式拒绝**：`apply_params` 对 spektraFilm 返 invalidParams 带层专属理由（扩层参数 = MCP schema 破坏性变更，P2 立项）。
+
+## B2（逐位主门不可达）→ D-SM-9 + T7' 重写
+- 口径改 **ε 带**：两次 f32 ACEScc 往返，log 域 1 ulp ≈ 6e-8 × decode 放大 12× → 单次 ~1e-6，胶片链斜率再放大。带宽三段：暗部绝对 2e-5 / 中段相对 5e-4 / 高光相对 2e-3（实测只许收紧）；比较空间 L048。
+- 「process 不 bump」理由重写：用户确认显式转换（M9-4 小近似先例同形）+ legacy 档未转换逐位走旧腿（AC-T4'-1 保留逐位）。
+
+## M1–M10
+- **M1**：sync 腿改「实例在场→清 carrier」+ `versionActionDidChange` 同款接入 + 成对写锚有意解除登记（D-SM-10）。
+- **M2**：非封存新文件 `FilmLegFactory.swift` public 包装缝（同 target 调 internal `assembleFilmLeg`，传 `piece.renderProcess`）；删 T2-3；AC 钉访问级/签名零 diff。
+- **M3**：T5'-1 改「module 侧新增，legacy `runFilmLeg` 原样保留」；AC 改函数体 diff 为空。
+- **M4**：单实例全入口守卫 D-SM-11（add 菜单已有隐藏/MCP 拒绝/paste 单实例合并/paste→legacy 拒绝）；`isAdjustmentTransferable` op 特例。
+- **M5**：采 (a) **registry 恒注册**，env 只门 UI/迁移/写入口；计数口径修正唯一 op 19→20；闭包测试零改即过。
+- **M6**：process 门 film 源改「legacy ∨ 实例在场」+ 第三标记形（`recordLayerChange` params-verbatim，禁 film-item 形）+ `migratable` 扩认。
+- **M7**：渲染入口清单——export include / thumbnail strip 落物化层（禁改件零触）/ QuickLook include（观感变化申报）/ ColorMatch+探针 strip；grid 成本改可度量指标。
+- **M8**：**判定 = out 纹理承接首段 + 单中间面**（借 ScratchAllocator slot，P1 不做单 pass 融合）；100MP ΔRSS ≤ 1.6GB 探针 AC；全套前贴线定向轮。
+- **M9**：桥接改名 `SpektraBridgeParityTests`（命中 IOPP 路由）；合成小平面 + 1 张降采样 CC0；**每 T 同批登记**；T8' 基线公式写死。
+- **M10**：蒙版 AC（opacity 0.5/径向 = 混合公式期望）+ 走查项；env-off 迁移档四元 AC；**判定 = convert 前打 pre-convert 备份**。
+- **m1–m9**：基线重钉/`order(for:)`/md5 提取法/`populate(filmModule:)`/IopCatalog 不加行（m4 裁定）/grep 扩集/宽容度换锚/undo 步数（有层 2/无层 3）/零触碰补行+process 常量断言/Inputs 文案参数化+键预算 ≤4+独立 AX 前缀——全部落位。
+
+## ΔN = 76（−4 退役另计）
+7+10+10+13+4+16+16+0 = 76，落在评审估算 75–80 内。T8' 基线公式：M9-2 收口值 + 76 − FilmCardTests 4。既有改写申报：GradeCatalogTests 2 法期望、CatalogAddFaceTests 1 法、FilmMigrationTests 真值表扩、三文件双形态参数化。
+
+## 封存面新申报
+v1「2 行 + 1 期望」**仍成立**：V50Order add-only 一行 + GradeCatalog 第 21 行 + E7 期望（口径修正唯一 op 19→20）；PixelPipe 逻辑零改**条件成立**（M2 包装缝 + M3 双统计保留两前提，T8' 终表复核）；ExportQueueContract/sidecar/HistoryStack/HistoryHash/DRT 族/导出矩阵/NodeGraph 全部零 diff；补 UserDefaults 零新键 + filmPlacement 20.8 零改 + SessionThumbnailRenderer 零触三行。
+
+纪律偏离自报：第三段 10044B 超 8KB 上限一段，其余六段合规；全文 U+FFFD 零命中。
