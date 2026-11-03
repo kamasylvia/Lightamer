@@ -1,0 +1,37 @@
+Working...
+# spektra-module P1 replan v4 交付（PLAN v4 已落盘，52,419B / 389 行，9 段全 ≤8KB，U+FFFD=0，零 commit）
+
+基线亲核：HEAD `0d7d0e90` ✓。v3 判定表（B1/B3/B4 真消解、B2 部分）未推翻，只补未消解与新增。
+
+## 2 blocking 消解
+
+**R-B1（appex 注册降级）→ 修法(甲)补齐生命线 4，不申请降档**：HEAD 无不可行项——`LightamerQuickLook` target 已依赖 Core+IOP（`Project.swift:270-274`），`populate` 为 public async（`Registry.swift:69`）、`FilmMaterialStore.init` 为 public（`FilmMaterialStore.swift:54-64`），QL 进程可达。`LightamerQuickLook.swift:34-37` `Env` 增三件：① registry 改全量 `populate`（spektraFilm 恒注册 + `FilmStatsSeam` 顺带安装）② 进程自建 store + 装 `FilmMaterialSeam` 闭包（host bundle resource 路径分支，执行期落盘验证）③ run 内 tags 供给（record 取自 QL `document.layerStack` 内实例）。反证已坐实写入 S-QL-4（`QuickLookRenderer.swift:252,270-289` 不 strip = 新不一致；QL/导出共 `ExportChainBuilder` 语义分叉无单源）。v3「P2 立项」判撤销；AC-T6'-4 反向断言删除，改「QL preview（2560）== 导出同档（ε 带，D-SM-16）」+ 新增 AC-T6'-13（unknownOps 不含 spektraFilm）。PLAN 新增 D-SM-15/D-SM-16，`grep D-SM-0` = 4 命中。
+
+**R-B2（测试改写不全）→ T1' 编辑点 4 重写为两批共 12 条 + add-face 1 法**：GradeCatalogTests 10 条（`:39` 20→21、`:41-48` 追加、`50` 20→21、`:55` 16→17 含注释串、`95` 19→20 含注释串、`:100-109` 白名单追加判别力修复、`:139` 19→20、`:144-166` expected 加行、`:193-205` +13 项、`:228` eleven→thirteen）+ V50OrderTests 2 条（`:24` 108→109 说明串补 `+ spektraFilm`、`:284-293` nativeRows 追加后 `:294` 仍 93 不动）。v3「`:130-139` E7 零改」表述撤销。全仓 grep 结论：`DefaultFaceTests` 四计数（:365/:370/:388/:414）零改（IopCatalog 手写表不加行）+ `NodeOwnershipTests:88` 零改（face union 不含 spektraFilm）+ `SidecarSeedTopUpTests` 自持 fixture 零改。新增 AC-T1'-5「T1' 后 bundle 全绿零未申报红」+ v4 纪律「写零改必须带 grep 证据」。
+
+## 5 major 消解
+
+- **R-M1** → 修(甲)：`legTags` per-target 化——兄弟位从各自 `readDocument().layerStack` 内 spektraFilm record 经 `resolveLegTags` 解析（`ExportRenderer.swift:852-861` public 读面已存在；S-RM1 四节落证）；`filmTails` 维持 loaded-only。AC-T6'-2 加兄弟图 tags 臂。
+- **R-M2** → 判据改层面读取：`createPresetFromCurrent` 前用 `hasSpektraFilmInstance` 单源谓词查 `editorState.layerStack`（闭包组装点 `LightamerShell.swift:653-666` 同文件可读）→ 抛 `PresetError.layerOnlyOpPresent`（Core additive case）+ 无新文件；AC-T6'-9 改可触发 fixture。
+- **R-M3** → `SpektraFilmTests` 落 **LAYERS**（944MB 基线，`FilmLegTests` 同域先例）；100MP 只留探针轮，默认套件中平面 ≤2K + 分配计数；基线轮提前为 T2'-0。
+- **R-M4** → 修法(甲)：`mergeLayerDown` 开头预检（toast + return，不调 `mergeDown`）+ `mergeDown` refuse hunk 纵深防御；`MergeDownOutcome`（internal，`:76`）零改。T3' ΔN +1（预检 toast 法）。
+- **R-M5** → 封存表增第 16 行 `LayerStack.mergeDown`；T3'「封存面：无」改「1 hunk」；结论句改「实质 3 行 + 1 注释例外」。
+
+9 minor 全修：r-m1（ΔN 见下）/ r-m2（去数字，BUNDLE-MAP 行集为准）/ r-m3（AC-T1'-1 补计数）/ r-m4（chain 过滤措辞）/ r-m5（仅 opName 限定）/ r-m6（行为断言钉死）/ r-m7（点名 `alert_cancel`，en Cancel/zh 取消已验）/ r-m8（删 ±10% 改目视）/ r-m9（AC-T2'-6 拆两条 + `liveSurfaceCount` 测试缝申报）。
+
+## D-SM-0 五条生命线落实表
+
+| # | 生命线 | 任务 | AC | 状态 |
+|---|---|---|---|---|
+| 1 材料缝 | T2'-1 + T4'-1 | AC-T2'-7/8 | 全量 |
+| 2 tags 供给 | T4'-1 + T6'-2 | AC-T4'-2/AC-T6'-2/AC-T7'-7 | 全量 |
+| 3 merge 语义 | T3'-3 | AC-T3'-6 | 全量 |
+| 4 appex 注册 | T6'-3（D-SM-15） | AC-T6'-4/AC-T6'-13 | 全量 |
+| 5 scratch | T2'-1 + T2'-0 | AC-T2'-6/11/AC-T8'-1 | 全量 |
+
+## ΔN + 封存表
+
+- **ΔN = 101 新法 − 4 退役 = 净增 97**（分项 7+15+14+15+4+28+18+0=101；v3 96 纠算 +5：T2' 纠算 +1、T3' 预检 +1、T6' QL 2 + 兄弟图 1 + 层面拒绝 1）。
+- **封存表 16 行**（11 零 diff + V50Order/GradeCatalog/LayerStack 实质 3 行 + PixelPipe 注释例外 + 落域行）。
+
+复审节点：R-B1/R-B2 全核 + R-M1..R-M5 全核 + minor 抽核。唯一产出 = `PLAN.md`（v4）；零产品代码、零构建、零 commit。
