@@ -640,6 +640,9 @@ let project = Project(
                 // spektra-module P1 T5' (refs #21): the no-tiling pin +
                 // solve-chain freeze (LAYERS domain, SpektraFilmTests twin).
                 "Tests/LightamerTests/SpektraTilePolicyTests.swift",
+                // spektra-module P1 T7' (refs #21): the dual-host ε-band
+                // bridge (LAYERS domain — the *Parity* name avoided).
+                "Tests/LightamerTests/SpektraBridgeTests.swift",
                 "Tests/LightamerTests/FilmDeterminismTests.swift",
                 "Tests/LightamerTests/FilmDescriptorTests.swift",
                 "Tests/LightamerTests/FilmPlacementDriverTests.swift",

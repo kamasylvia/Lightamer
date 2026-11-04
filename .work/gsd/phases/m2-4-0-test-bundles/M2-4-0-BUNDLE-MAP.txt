@@ -579,12 +579,12 @@ LIB	9	FilmSidecarTests.swift
 #   （*Kernel* 域惯例）；FilmCoordinatorTests = APP/App 级；
 #   ExportFilmChainTests = EXPORT/Core 级）。行内 method 数以终态对账为准。
 #   运行期总数基线相应上移（3081 推算值起算，首个全套轮实测校正）。
-LAYERS	9	FilmLegTests.swift
+LAYERS	11	FilmLegTests.swift
 LAYERS	8	FilmPrintBakeTests.swift
 LAYERS	3	FilmPlacementDriverTests.swift
 IOP	11	FilmPlacementTests.swift
 IOPP	3	FilmPlacementKernelTests.swift
-APP	5	FilmCoordinatorTests.swift
+APP	8	FilmCoordinatorTests.swift
 EXPORT	8	ExportFilmChainTests.swift
 # M3-3-02 验收勘误（2026-10-09 验收 subagent）：上行四处 method 数按文件终态实数
 #   修正（FilmPrintBake 7→8、FilmPlacementDriver 4→3、FilmPlacementTests 7→11）——
@@ -1004,3 +1004,8 @@ LAYERS	4	SpektraTilePolicyTests.swift
 SESS	4	ThumbnailStripTests.swift
 APP	3	McpFilmTests.swift
 EXPORT	2	QuickLookFilmTests.swift
+#   spektra-module P1 T7'（2026-11-04，refs #21）：桥接 18 法——SpektraBridgeTests 12 法
+#   入 LAYERS（三形态×合成/CC0 6/往返 2/蒙版 2/戳记+tags 2）+ 双形态参数化 6 法
+#   （FilmLegTests +2 9→11、FilmCoordinatorTests +2 6→8 按实数、ExportFilmChainTests
+#   +4 已在 T6' 行计入故本批为跨文件复核——T7' 新增实数 = 12+2+2+2 面内）。
+LAYERS	12	SpektraBridgeTests.swift

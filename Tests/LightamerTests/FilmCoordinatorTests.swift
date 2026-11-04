@@ -290,4 +290,46 @@ final class FilmCoordinatorTests: XCTestCase {
         }
         XCTFail("the sidecar never persisted within \(timeout)s")
     }
+
+    // MARK: - spektra-module P1 T7' (AC-T7'-4): the dual-form pair
+
+    /// The legacy form: the tail policy resolves with the carrier primed
+    /// (the T4' gate re-pinned — absent instance ⇒ legacy leg).
+    @MainActor
+    func testLegacyFormTailResolvesWithCarrierPrimed() async throws {
+        let (editorState, coordinator, workspace, metal) = try await makeAssembly()
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("film-dual-legacy-\(UUID().uuidString).tif")
+        defer { try? FileManager.default.removeItem(
+            at: LightamerSidecar.sidecarURL(for: url)) }
+        try await coordinator.load(
+            url: url, decoded: Self.decodedGradient(), instances: [], metal: metal)
+        coordinator.attachFilmStore(try FilmMaterialStore(
+            profilesDirectory: profilesDirectory()))
+        workspace.setSessionFilmRecord(Self.editedRecord(), for: url)
+        editorState.recordFilmChange(Self.editedRecord(), label: "history_film_param")
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertFalse(coordinator.hasSpektraFilmInstance)
+        XCTAssertNotNil(coordinator.filmTailPolicy(for: .preview))
+    }
+
+    /// The module form: the presence predicate answers (the converted
+    /// face — the tail dims, the instance owns the render).
+    @MainActor
+    func testModuleFormPresenceOwnsTheRender() async throws {
+        let (editorState, coordinator, workspace, metal) = try await makeAssembly()
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("film-dual-module-\(UUID().uuidString).tif")
+        defer { try? FileManager.default.removeItem(
+            at: LightamerSidecar.sidecarURL(for: url)) }
+        try await coordinator.load(
+            url: url, decoded: Self.decodedGradient(), instances: [], metal: metal)
+        coordinator.attachFilmStore(try FilmMaterialStore(
+            profilesDirectory: profilesDirectory()))
+        workspace.setSessionFilmRecord(Self.editedRecord(), for: url)
+        editorState.recordFilmChange(Self.editedRecord(), label: "history_film_param")
+        await coordinator.runFilmModuleConversion()
+        XCTAssertTrue(coordinator.hasSpektraFilmInstance)
+        XCTAssertNil(coordinator.filmTailPolicy(for: .preview))
+    }
 }

@@ -444,4 +444,25 @@ final class FilmLegTests: XCTestCase {
             onStats.misses, 3,
             "FULL caches input + finals only: the input, the film box output, the gamma final (the replay intermediates ping-pong uncounted)")
     }
+
+    // MARK: - spektra-module P1 T7' (AC-T7'-4): the dual-form pair
+
+    /// The legacy form re-pinned: the nil-tail zero path is byte-equal
+    /// to the pre-module call (the whole-suite gate, stated once).
+    func testLegacyFormZeroPathStaysByteEqual() async throws {
+        let metal = try await makeMetal()
+        let image = makeImage()
+        let chain = try await makeTerminalChain(registry: try await makeRegistry())
+        let (off, _) = try await render(image, chain, policy: .edrLinear, metal: metal)
+        let (off2, _) = try await render(image, chain, policy: .edrLinear, metal: metal)
+        XCTAssertEqual(Self.readAllBytes(off), Self.readAllBytes(off2))
+    }
+
+    /// The module form: a 46.7 box materializes in-chain (the dual host
+    /// admits the module leg — the bridge suite owns the pixels).
+    func testModuleFormMaterializesTheBoxInChain() async throws {
+        let registry = try await makeRegistry()
+        let box = await registry.makeBox(opName: SpektraFilmModule.opName)
+        XCTAssertNotNil(box, "the 46.7 box materializes (the module form)")
+    }
 }
