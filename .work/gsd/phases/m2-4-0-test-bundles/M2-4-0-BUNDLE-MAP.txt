@@ -993,3 +993,6 @@ APP	9	WorkspaceLegacyTests.swift
 #   8 法入 APP（双门 2/转换 2/undo 1/env-off 1/B3 1/备份 2 内含）+
 #   ProcessMigrationGateTests +2（4→6，convert 门）+ RegistryFilmModuleTests +2（5→7，env 门）。
 APP	8	PipeCoordinatorLegacyTests.swift
+#   spektra-module P1 T5'（2026-11-04，refs #21）：tile 政策 4 法入 LAYERS（三重否决/
+#   全帧锚/确定性重钉/腿+求解源码冻结）。
+LAYERS	4	SpektraTilePolicyTests.swift

@@ -637,6 +637,9 @@ let project = Project(
                 // LAYERS domain (the R-M3 ruling: 944MB baseline, default
                 // mid-plane fixtures + the RSS probe).
                 "Tests/LightamerTests/SpektraFilmTests.swift",
+                // spektra-module P1 T5' (refs #21): the no-tiling pin +
+                // solve-chain freeze (LAYERS domain, SpektraFilmTests twin).
+                "Tests/LightamerTests/SpektraTilePolicyTests.swift",
                 "Tests/LightamerTests/FilmDeterminismTests.swift",
                 "Tests/LightamerTests/FilmDescriptorTests.swift",
                 "Tests/LightamerTests/FilmPlacementDriverTests.swift",

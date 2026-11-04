@@ -32,8 +32,8 @@ import os
 //
 // TILE POLICY (T5' pin — the per-ROI red line's structural face):
 // tileHalo default 0 + tileWorkingSetBytesPerPixel default 0 + no
-// .allowTiling ⇒ the tile driver NEVER tiles this module (P2掛賬 for the
-// dt-4.1(b) tiling turn-on).
+// .allowTiling ⇒ the tile driver NEVER tiles this module (the 4σ halo +
+// per-tile corr rebuild = P2, Research §4.1(b) — the tiling turn-on).
 // ─────────────────────────────────────────────────────────────────────────
 
 public final class SpektraFilmModule: IOPModule {
