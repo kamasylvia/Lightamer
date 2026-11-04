@@ -136,6 +136,9 @@ internal struct FilmPanelView: View {
 /// through the coordinator faces). The copy keys are the NEUTRAL
 /// `panel_process_migrate_*` family (the film-era `panel_film_migrate_*`
 /// keys stay in the catalog unreferenced — bytes untouched).
+/// spektra-module P1 T4': the `.convertToModule` arm mounts the same
+/// row/sheet with the `panel_film_convert_*` copy (the STATIC-key fork
+/// below — V14: no dynamic key construction, every key a literal).
 struct ProcessMigrationInputs {
     let action: FilmMigrationAction
     let onMigrate: () -> Void
@@ -147,21 +150,34 @@ struct ProcessMigrationRow: View {
 
     @State private var confirmPresented = false
 
+    private var isConvert: Bool {
+        if case .convertToModule = inputs.action { return true }
+        return false
+    }
+
     var body: some View {
         Group {
             if inputs.action.migratable {
                 Button {
                     confirmPresented = true
                 } label: {
-                    Text(String(
-                            localized: "panel_process_migrate_button",
-                            defaultValue: "Update to Current Process"))
-                        .frame(maxWidth: .infinity)
+                    Group {
+                        if isConvert {
+                            Text(String(
+                                localized: "panel_film_convert_button",
+                                defaultValue: "Convert to Film module"))
+                        } else {
+                            Text(String(
+                                localized: "panel_process_migrate_button",
+                                defaultValue: "Update to Current Process"))
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
                 .controlSize(.small)
                 .padding(.horizontal, 8)
                 .padding(.top, 4)
-                .accessibilityIdentifier("film.migrate.button")
+                .accessibilityIdentifier(isConvert ? "film.convert.button" : "film.migrate.button")
                 .sheet(isPresented: $confirmPresented) {
                     MigrationConfirmSheet(inputs: inputs, presented: $confirmPresented)
                 }
@@ -179,39 +195,81 @@ struct MigrationConfirmSheet: View {
     let inputs: ProcessMigrationInputs
     @Binding var presented: Bool
 
+    private var isConvert: Bool {
+        if case .convertToModule = inputs.action { return true }
+        return false
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(String(
-                    localized: "panel_process_migrate_title",
-                    defaultValue: "Update to Current Process?"))
-                .font(.callout.weight(.medium))
-            Text(String(
-                    localized: "panel_process_migrate_body",
-                    defaultValue: "This document still renders with the frozen previous process generation. Updating re-renders it with the current semantics. For older color-wheel documents the new wheels re-express the previous look (the previous rendering behavior is kept; a small approximation can remain at the range ends). Your edits and history stay untouched."))
-                .font(.caption)
-                .foregroundStyle(ThemeTokens.textSecondary)
+            Group {
+                if isConvert {
+                    Text(String(
+                        localized: "panel_film_convert_title",
+                        defaultValue: "Convert to Film module?"))
+                } else {
+                    Text(String(
+                        localized: "panel_process_migrate_title",
+                        defaultValue: "Update to Current Process?"))
+                }
+            }
+            .font(.callout.weight(.medium))
+            Group {
+                if isConvert {
+                    Text(String(
+                        localized: "panel_film_convert_body",
+                        defaultValue: "This document still carries a legacy film record rendered after all layers. Converting moves it into a Film module in the topmost adjustment layer."))
+                } else {
+                    Text(String(
+                        localized: "panel_process_migrate_body",
+                        defaultValue: "This document still renders with the frozen previous process generation. Updating re-renders it with the current semantics. For older color-wheel documents the new wheels re-express the previous look (the previous rendering behavior is kept; a small approximation can remain at the range ends). Your edits and history stay untouched."))
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(ThemeTokens.textSecondary)
             HStack {
                 Spacer(minLength: 0)
-                Button(String(
-                        localized: "panel_process_migrate_cancel",
-                        defaultValue: "Cancel")) {
-                    presented = false
+                Group {
+                    if isConvert {
+                        Button(String(
+                            localized: "alert_cancel",
+                            defaultValue: "Cancel")) {
+                            presented = false
+                        }
+                    } else {
+                        Button(String(
+                            localized: "panel_process_migrate_cancel",
+                            defaultValue: "Cancel")) {
+                            presented = false
+                        }
+                    }
                 }
                 .keyboardShortcut(.cancelAction)
-                .accessibilityIdentifier("film.migrate.cancel")
-                Button(String(
-                        localized: "panel_process_migrate_confirm",
-                        defaultValue: "Update")) {
-                    presented = false
-                    inputs.onMigrate()
+                .accessibilityIdentifier(isConvert ? "film.convert.cancel" : "film.migrate.cancel")
+                Group {
+                    if isConvert {
+                        Button(String(
+                            localized: "panel_film_convert_confirm",
+                            defaultValue: "Convert")) {
+                            presented = false
+                            inputs.onMigrate()
+                        }
+                    } else {
+                        Button(String(
+                            localized: "panel_process_migrate_confirm",
+                            defaultValue: "Update")) {
+                            presented = false
+                            inputs.onMigrate()
+                        }
+                    }
                 }
                 .keyboardShortcut(.defaultAction)
-                .accessibilityIdentifier("film.migrate.confirm")
+                .accessibilityIdentifier(isConvert ? "film.convert.confirm" : "film.migrate.confirm")
             }
         }
         .padding(16)
         .frame(width: 320)
-        .accessibilityIdentifier("film.migrate.sheet")
+        .accessibilityIdentifier(isConvert ? "film.convert.sheet" : "film.migrate.sheet")
     }
 }
 

@@ -82,4 +82,25 @@ final class RegistryFilmModuleTests: XCTestCase {
         let narrow = LightamerIOPRegistry.editingDefaultInstances(defaultFace: true).count
         XCTAssertEqual(full, narrow + 6, "the D1/D2 six are the only seed delta")
     }
+
+    // MARK: - spektra-module P1 T4' (AC-T4'-6): the env write-face gate
+
+    /// The env-off face: the key spelled once + the default-off reading
+    /// (the absent env answers false — the T4' environment gate).
+    func testEnvOffIsTheDefaultFace() {
+        XCTAssertEqual(
+            LightamerIOPRegistry.filmModuleEnvironmentKey,
+            "LIGHTAMER_FILM_MODULE")
+        XCTAssertFalse(LightamerIOPRegistry.isFilmModuleRequested(
+            environment: [:]))
+    }
+
+    /// Registration ignores the env (both faces resolve with the env
+    /// absent — the M2-a render face, re-pinned at the gate level).
+    func testRegistrationIgnoresTheEnv() async {
+        let registry = ModuleRegistry.makeDefault()
+        await LightamerIOPRegistry.populate(registry, defaultFace: true)
+        let box = await registry.makeBox(opName: "spektraFilm")
+        XCTAssertNotNil(box)
+    }
 }

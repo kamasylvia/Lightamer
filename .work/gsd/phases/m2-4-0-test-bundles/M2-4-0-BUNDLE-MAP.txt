@@ -936,7 +936,7 @@ IOP	6	ColorWheelsLegacyConvertTests.swift
 IOPP	11	ColorWheelsToneWheelGoldenTests.swift
 IOPP	4	ProcessForkCacheKeyTests.swift
 IOP	6	LutEncodingExpansionTests.swift
-APP	4	ProcessMigrationGateTests.swift
+APP	6	ProcessMigrationGateTests.swift
 APP	4	SmallPoolUITests.swift
 # R7 修复批增行（2026-10-31，M9 站后尾项清偿，issue #15）：法数 FilmPanelBWTests 5→6（纸切换 grade 清键门法）+ DrtPanelModelTests
 #   9→11（读链初值语义法 + 方法切换 sections 联动法）/ AdjustmentTransferTests
@@ -981,7 +981,7 @@ IOP	4	BWPackDecodeTests.swift
 #   RegistryFilmModuleTests 5 法入 APP（双面注册/谓词三态/wrapper 同值/目录席位+seed
 #   缺席/默认面计数契约——IopCatalog 在 App 面故落 APP 非 IOP），CatalogAddFaceTests
 #   期望 14→15（不增法，行内 9 不动）。
-APP	5	RegistryFilmModuleTests.swift
+APP	7	RegistryFilmModuleTests.swift
 #   spektra-module P1 T2'（2026-11-04，refs #21）：本体 15 法入 LAYERS（类型 2/
 #   恒等+编码 2/缝正负 2/分配+探针 2/斜率+戳记+争槽 3/工厂双臂 2/md5 双臂 2）。
 LAYERS	15	SpektraFilmTests.swift
@@ -989,3 +989,7 @@ LAYERS	15	SpektraFilmTests.swift
 #   9 法入 APP（在场 3/拒收 2/门控 2/合并 2）+ FilmHistoryTests +2（8→10）+
 #   FilmSidecarTests +3（6→9）+ LayerCoreTests +1（16→17，⑯ refuse）。
 APP	9	WorkspaceLegacyTests.swift
+#   spektra-module P1 T4'（2026-11-04，refs #21）：双轨 15 法——PipeCoordinatorLegacyTests
+#   8 法入 APP（双门 2/转换 2/undo 1/env-off 1/B3 1/备份 2 内含）+
+#   ProcessMigrationGateTests +2（4→6，convert 门）+ RegistryFilmModuleTests +2（5→7，env 门）。
+APP	8	PipeCoordinatorLegacyTests.swift

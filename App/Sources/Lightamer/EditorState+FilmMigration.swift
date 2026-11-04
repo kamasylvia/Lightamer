@@ -41,16 +41,26 @@ enum FilmMigrationAction: Equatable {
     /// generation is invisible to the render (both arms render the
     /// identity bit-identically), so there is nothing to migrate.
     case notApplicable
+    /// spektra-module P1 T4': the document carries a LEGACY film record
+    /// and no module instance — the row offers the one-way conversion
+    /// (synthesize the 46.7 instance + clear the carrier + persist).
+    case convertToModule
 
     /// The pure gate (the ONE decision place). `hasColorWheelsEdits`
     /// (M9-4 泛化①) rides with a default false so the M8-3-era call
-    /// shapes and tests compile untouched.
+    /// shapes and tests compile untouched. spektra-module P1 T4': the
+    /// legacy pair rides with defaults too — `hasLegacyFilm && !editing`
+    /// earns `.convertToModule` AHEAD of the process gate (the module
+    /// move precedes the generation move; a converted document's process
+    /// row appears after).
     static func evaluate(
         processRawValue: Int?, hasFilmRecord: Bool,
         hasColorWheelsEdits: Bool = false, editingInFlight: Bool,
-        currentRawValue: Int = RenderProcessVersion.current.rawValue
+        currentRawValue: Int = RenderProcessVersion.current.rawValue,
+        hasLegacyFilm: Bool = false, hasSpektraFilmInstance: Bool = false
     ) -> FilmMigrationAction {
         if editingInFlight { return .editingInFlight }
+        if hasLegacyFilm, !hasSpektraFilmInstance { return .convertToModule }
         guard let processRawValue, hasFilmRecord || hasColorWheelsEdits
         else { return .notApplicable }
         guard processRawValue < currentRawValue else { return .alreadyCurrent }
@@ -59,7 +69,9 @@ enum FilmMigrationAction: Equatable {
 
     /// The row's visibility face.
     var migratable: Bool {
-        if case .migrate = self { return true }
-        return false
+        switch self {
+        case .migrate, .convertToModule: return true
+        case .alreadyCurrent, .editingInFlight, .notApplicable: return false
+        }
     }
 }

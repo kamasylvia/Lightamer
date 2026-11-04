@@ -35641,6 +35641,78 @@
           }
         }
       }
+    },
+    "panel_film_convert_title": {
+      "comment": "spektra-module P1 T4': the convert row's confirm sheet title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convert to Film module?"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转换为胶片模块？"
+          }
+        }
+      }
+    },
+    "panel_film_convert_body": {
+      "comment": "spektra-module P1 T4': the confirm body incl. the multi-layer drift note (D-SM-7).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This document still carries a legacy film record rendered after all layers. Converting moves it into a Film module in the topmost adjustment layer. The look stays identical for single-layer documents; multi-layer documents can shift because the film then sees this layer's input instead of the full composite. The previous sidecar is kept as a pre-convert backup."
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此文档仍带有在所有图层之后渲染的旧胶片记录。转换会将其移入最上层调整层的胶片模块。单层文档观感不变；多层文档可能漂移，因为胶片此后只看到本层输入而非完整合成。转换前 sidecar 会保留为备份。"
+          }
+        }
+      }
+    },
+    "panel_film_convert_button": {
+      "comment": "spektra-module P1 T4': the convert row button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convert to Film module"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转换为胶片模块"
+          }
+        }
+      }
+    },
+    "panel_film_convert_confirm": {
+      "comment": "spektra-module P1 T4': the confirm sheet confirm (cancel reuses alert_cancel).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convert"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转换"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

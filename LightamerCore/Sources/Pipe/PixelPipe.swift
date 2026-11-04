@@ -1176,6 +1176,10 @@ internal final class PixelPipe: @unchecked Sendable {
         var roi = walked
         var upstreamSeed = topEnabledPosition >= 0 ? levelHash[topEnabledPosition] : fallbackSeed
         // ① the film sub-run (KD-1 ①): consumes the working float32 plane.
+        // spektra-module P1 T4' (封存表 PixelPipe 注释例外): the LEGACY replay
+        // arm of the dual-track era — migrated documents carry their film in
+        // the 46.7 module (filmTail nil) and never reach this leg; unmigrated
+        // documents replay here bit-identically. Logic zero-diff.
         if let filmParams = filmTail, !isFilmTailLeg {
             let leg = try await runFilmLeg(
                 input: texture, inputROI: roi, params: filmParams,

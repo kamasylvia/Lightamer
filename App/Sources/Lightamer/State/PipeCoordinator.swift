@@ -850,6 +850,10 @@ final class PipeCoordinator {
     /// grid consumes display-ready SDR planes). Internal: the APP tests
     /// drive the four-piece's run-pass face directly (@testable).
     func filmTailPolicy(for resolution: PipeResolution) -> FilmTailPolicy? {
+        // spektra-module P1 T4' (dual-track): the module owns the render
+        // once present — the legacy tail supplies ONLY legacy documents
+        // (carrier present AND no instance). Thumbnail stays nil (KD-4).
+        guard !hasSpektraFilmInstance else { return nil }
         guard resolution != .thumbnail, let url = currentImageURL, let workspace,
             workspace.hasFilmRecord(for: url), let filmStore
         else { return nil }
@@ -880,14 +884,36 @@ final class PipeCoordinator {
     /// transmission aligned onto the engine axis); an unknown/empty name
     /// degrades to no-tag (typed at THIS layer, never in the engine).
     func filmLegRequestTags(for resolution: PipeResolution) -> SpectralPrintBake.FilmLegRequestTags? {
-        guard resolution != .thumbnail, let url = currentImageURL, let workspace,
-            workspace.hasFilmRecord(for: url), let filmStore
-        else { return nil }
-        let record = workspace.filmRecord(for: url)
+        // spektra-module P1 T4' (D-SM-14): the thumbnail gate leads; the
+        // record rides EITHER the legacy carrier OR the module instance
+        // (the dual-track union — the module leg needs its tags too).
+        guard resolution != .thumbnail, let filmStore else { return nil }
+        let record: FilmRecord?
+        if let found = findSpektraFilmInstance() {
+            record = try? found.instance.params(of: SpektraFilmModule.self).record
+        } else if let url = currentImageURL, let workspace,
+            workspace.hasFilmRecord(for: url) {
+            record = workspace.filmRecord(for: url)
+        } else {
+            record = nil
+        }
+        guard let record else { return nil }
+        return Self.resolveLegTags(
+            record: record, store: filmStore,
+            rms: Self.publishedRmsForFilmStock(record.filmStock))
+    }
+
+    /// spektra-module P1 T4' (D-SM-14): the PURE tags resolver (the
+    /// :891-922 body verbatim out-of-body; the rms rides a parameter —
+    /// the memo stays inside the coordinator). The export per-target leg
+    /// (T6' R-M1) calls this per target with each sidecar's record.
+    static func resolveLegTags(
+        record: FilmRecord, store: FilmMaterialStore, rms: Int?
+    ) -> SpectralPrintBake.FilmLegRequestTags? {
         var tags = SpectralPrintBake.FilmLegRequestTags()
         var any = false
         if let grade = record.paperGrade, !grade.isEmpty,
-            let paper = filmStore.profile(id: record.paperStock),
+            let paper = store.profile(id: record.paperStock),
             let preset = PaperGradeTable.cachedTable(paper: paper)[grade] {
             tags.paperGrade = SpectralPrintBake.PaperGradeTag(
                 key: grade, magentaCC: preset.magentaCC,
@@ -895,7 +921,7 @@ final class PipeCoordinator {
             any = true
         }
         if let filterName = record.cameraFilter, !filterName.isEmpty,
-            let filter = filmStore.filters[filterName] {
+            let filter = store.filters[filterName] {
             tags.cameraFilter = SpectralPrintBake.CameraFilterTag(
                 name: filterName,
                 transmission: CameraFilterTable.alignedTransmission(
@@ -912,7 +938,7 @@ final class PipeCoordinator {
         // M8-3+ T7 self-review E3: the film's published RMS rides the
         // tags (runtime-only, no key fold — the grain npart's inversion
         // anchor; unknown = absent — the dispatch degrades per-channel).
-        if let rms = Self.publishedRmsForFilmStock(record.filmStock) {
+        if let rms {
             tags.publishedRms = rms
             any = true
         }
@@ -1025,25 +1051,74 @@ final class PipeCoordinator {
         // M9-4 T2 (D-M9SP-7 generalization, 勘误③): the gate is now the
         // TWO-SOURCE OR — a film record OR non-neutral colorWheels params
         // (a both-absent document renders the two arms bit-identically,
-        // so there is nothing to migrate).
+        // so there is nothing to migrate). spektra-module P1 T4': the
+        // THIRD source — a spektraFilm instance (the converted face).
         let hasFilm = workspace.hasFilmRecord(for: url)
         let hasCW = hasColorWheelsEdits()
-        guard hasFilm || hasCW else { return }
+        let found = findSpektraFilmInstance()
+        guard hasFilm || hasCW || found != nil else { return }
         workspace.setProcessVersion(.current, for: url)
-        // The marker's TWO forms (D-M9SP-7②): a film record in place =
-        // the M8-3 film item VERBATIM (zero diff — the M8-3 semantics
-        // unchanged); otherwise = the colorWheels params committed
-        // VERBATIM (zero params diff — the same marker semantics for the
-        // colorWheels-only documents).
-        if hasFilm {
+        // The marker's THREE forms (D-M9SP-7② + T4'): a legacy film
+        // record (and NO instance) = the M8-3 film item VERBATIM;
+        // an instance = the layer-scope params VERBATIM (the film-item
+        // marker form is BANNED here — the film record no longer owns
+        // the document); otherwise = the colorWheels VERBATIM form.
+        if hasFilm, found == nil {
             editorState.commitProcessMigrationMarker(
                 record: workspace.filmRecord(for: url),
+                label: String(localized: "history_process_migrate"))
+        } else if let found, let layerID = found.layerID {
+            editorState.recordLayerChange(
+                found.instance, layerID: layerID,
                 label: String(localized: "history_process_migrate"))
         } else if let cw = colorWheelsVerbatimInstance {
             editorState.commitProcessMigrationMarker(
                 colorWheels: cw,
                 label: String(localized: "history_process_migrate"))
         }
+        await historyDidChange()
+        scheduleSidecarWrite()
+    }
+
+    /// spektra-module P1 T4': the explicit "Convert to Film module"
+    /// action — ONE discrete user step: the pre-convert sidecar snapshot,
+    /// then the legacy record synthesizes a 46.7 instance on the TOPMOST
+    /// adjustment layer (created when absent), the legacy carrier clears,
+    /// and the persist + re-render land. Undo: 2 items with a layer in
+    /// place (structure + params), 3 without (layer creation first).
+    /// Fires ONLY from the panel's confirm sheet (the env gates the row).
+    func runFilmModuleConversion() async {
+        guard decoded != nil, let url = currentImageURL, let workspace,
+            let editorState
+        else { return }
+        guard workspace.hasLegacyFilmRecord(for: url),
+            findSpektraFilmInstance() == nil
+        else { return }
+        let legacy = workspace.filmRecord(for: url)
+        // The pre-convert snapshot (the M2-8 rotation precedent — a
+        // failed/stale same-name snapshot clears before the re-shot).
+        let sidecarURL = LightamerSidecar.sidecarURL(for: url)
+        if FileManager.default.fileExists(atPath: sidecarURL.path) {
+            let snapshotURL = sidecarURL.deletingPathExtension()
+                .appendingPathExtension("pre-convert.bak")
+            try? FileManager.default.removeItem(at: snapshotURL)
+            try? FileManager.default.copyItem(at: sidecarURL, to: snapshotURL)
+        }
+        let layer: AdjustmentLayer
+        if let top = editorState.layerStack?.compositeLayers.last
+            as? AdjustmentLayer {
+            layer = top
+        } else if let created = editorState.addAdjustmentLayer() {
+            layer = created
+        } else {
+            return
+        }
+        let template = ModuleInstance(
+            module: SpektraFilmModule.self,
+            params: SpektraFilmModule.Params(record: legacy))
+        guard editorState.addModuleToLayer(layerID: layer.id, template: template) != nil
+        else { return }
+        workspace.setSessionFilmRecord(nil, for: url)
         await historyDidChange()
         scheduleSidecarWrite()
     }
@@ -1104,6 +1179,12 @@ final class PipeCoordinator {
         workspace?.hasFilmRecord(for: url) ?? false
     }
 
+    /// spektra-module P1 T4': the legacy-film predicate (the workspace
+    /// pass-through — the convert gate's source).
+    func hasLegacyFilmRecord(for url: URL) -> Bool {
+        workspace?.hasLegacyFilmRecord(for: url) ?? false
+    }
+
     /// spektra-module P1 T3' (D-SM-8R): the spektraFilm presence predicate
     /// (the SINGLE source — presence ignores `enabled`: a disabled
     /// instance still owns the document's film identity). Scans the
@@ -1137,9 +1218,24 @@ final class PipeCoordinator {
 
     /// Inject the store (called from the composition root; a nil store =
     /// the film face dark). The store construction itself is the App's —
-    /// this face only seats it.
+    /// this face only seats it. spektra-module P1 T4' (D-SM-13): the
+    /// attach ALSO installs the FilmMaterialSeam resolver (nil store =
+    /// the absent closure — the module's identity degrade).
     func attachFilmStore(_ store: FilmMaterialStore?) {
         filmStore = store
+        if let store {
+            FilmMaterialSeam.resolver = { record in
+                guard let film = store.profile(id: record.filmStock),
+                    let paper = store.profile(id: record.paperStock)
+                else { return nil }
+                return FilmMaterialSeam.ResolvedMaterials(
+                    film: film, paper: paper,
+                    materialPairHash: FilmMaterialStore.materialPairHash(
+                        film: film, paper: paper))
+            }
+        } else {
+            FilmMaterialSeam.resolver = { _ in nil }
+        }
     }
 
     /// Navigation faces carrier re-sync (the syncDrtCarrierWithHistory

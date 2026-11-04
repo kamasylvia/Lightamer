@@ -153,4 +153,48 @@ final class ProcessMigrationGateTests: XCTestCase {
         XCTAssertNotEqual(RenderProcess.resolving(RenderProcessVersion(rawValue: 2)!), .v3)
         XCTAssertEqual(RenderProcess.resolving(RenderProcessVersion(rawValue: 3)!), .v3)
     }
+
+    // MARK: - spektra-module P1 T4' (AC-T4'-3/4): the convert gate
+
+    /// hasLegacyFilm (and no instance) earns `.convertToModule` — ahead
+    /// of the process gate; editing-in-flight still wins; an instance
+    /// already in place falls through to the process table.
+    func testConvertGatePriorityAndFallthrough() {
+        XCTAssertEqual(
+            FilmMigrationAction.evaluate(
+                processRawValue: 1, hasFilmRecord: true, editingInFlight: false,
+                hasLegacyFilm: true),
+            .convertToModule, "legacy earns the convert row first")
+        XCTAssertEqual(
+            FilmMigrationAction.evaluate(
+                processRawValue: 1, hasFilmRecord: true, editingInFlight: true,
+                hasLegacyFilm: true),
+            .editingInFlight, "the D-H1 guard wins over convert too")
+        XCTAssertEqual(
+            FilmMigrationAction.evaluate(
+                processRawValue: 1, hasFilmRecord: true, editingInFlight: false,
+                hasLegacyFilm: true, hasSpektraFilmInstance: true),
+            .migrate(targetRawValue: 3),
+            "an instance in place falls through to the process gate")
+        XCTAssertTrue(
+            FilmMigrationAction.convertToModule.migratable,
+            "convert is a visible row")
+    }
+
+    /// The M8-3/M9-4 truth table is byte-identical with the legacy pair
+    /// defaulted (the env-off face — the evaluate defaults).
+    func testLegacyDefaultsKeepTheOldTableByteIdentical() {
+        XCTAssertEqual(
+            FilmMigrationAction.evaluate(
+                processRawValue: 1, hasFilmRecord: true, editingInFlight: false),
+            .migrate(targetRawValue: 3))
+        XCTAssertEqual(
+            FilmMigrationAction.evaluate(
+                processRawValue: 3, hasFilmRecord: true, editingInFlight: false),
+            .alreadyCurrent)
+        XCTAssertEqual(
+            FilmMigrationAction.evaluate(
+                processRawValue: 1, hasFilmRecord: false, editingInFlight: false),
+            .notApplicable)
+    }
 }

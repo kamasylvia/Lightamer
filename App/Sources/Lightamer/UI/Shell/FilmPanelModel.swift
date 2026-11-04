@@ -575,19 +575,33 @@ final class FilmPanelModel {
         else { return .notApplicable }
         // M9-4 T2 (D-M9SP-7①): the TWO-SOURCE gate — a film record OR
         // non-neutral colorWheels params earns the row (the film record
-        // keeps priority for the marker form).
-        return FilmMigrationAction.evaluate(
+        // keeps priority for the marker form). spektra-module P1 T4': the
+        // legacy pair rides too — but ONLY when the env requests the
+        // module face (the row hides env-off; the already-converted render
+        // needs no gate).
+        let convertArmed = LightamerIOPRegistry.isFilmModuleRequested()
+        let action = FilmMigrationAction.evaluate(
             processRawValue: coordinator.documentProcessVersion?.rawValue,
             hasFilmRecord: coordinator.hasFilmRecord(for: url),
             hasColorWheelsEdits: coordinator.hasColorWheelsEdits(),
             editingInFlight: coordinator.filmEditInFlight
-                || coordinator.colorWheelsEditInFlight)
+                || coordinator.colorWheelsEditInFlight,
+            hasLegacyFilm: convertArmed && coordinator.hasLegacyFilmRecord(for: url),
+            hasSpektraFilmInstance: coordinator.hasSpektraFilmInstance)
+        // The M8-3/M9-4 truth table stays byte-identical env-off (the two
+        // legacy params default false there — the evaluate defaults).
+        return action
     }
 
-    /// The confirm sheet's confirm leg (the ONE production caller of the
-    /// coordinator's migration face).
+    /// The confirm sheet's confirm leg — forks on the action (the convert
+    /// arm runs the module conversion; the process arm the generation
+    /// migration). The ONE production caller of both coordinator faces.
     func runMigration() {
-        Task { await pipeCoordinator?.runProcessMigration() }
+        if case .convertToModule = migrationAction {
+            Task { await pipeCoordinator?.runFilmModuleConversion() }
+        } else {
+            Task { await pipeCoordinator?.runProcessMigration() }
+        }
     }
 
     // MARK: - The latitude section (FSIM-02, KD-3)
