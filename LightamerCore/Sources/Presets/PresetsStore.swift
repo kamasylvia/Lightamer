@@ -47,6 +47,10 @@ public enum PresetError: Error, Equatable, Sendable {
     /// skip set filtered everything — the chain is all identity defaults;
     /// an empty develop preset would apply nothing).
     case emptyComposition
+    /// spektra-module P1 T6' (R-M2): the current document carries a
+    /// LAYER-ONLY op (spektraFilm) — the layer structure cannot ride a
+    /// develop preset (P2), so creation refuses typed (never silent).
+    case layerOnlyOpPresent(opName: String)
 }
 
 /// One registered preset (the registry row; `id` = the file stem — a stable

@@ -22,13 +22,7 @@ import LightamerCore
 
 enum NodeCanvasGeometry {
 
-    /// The read-only Film projection card's fixed identity (M3-3-03 T4,
-    /// KD-4 — the PipelineDocument.displayTransformNodeID pattern: a
-    /// compile-time App-side constant, NEVER a PipelineDocument NodeKind).
-    /// The hex spells "F1LM0000-0000-0000-0000-000000000003".
-    static let filmCardID = UUID(
-        uuid: (0xF1, 0x4C, 0x4D, 0x30, 0x00, 0x00, 0x00, 0x00,
-               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03))
+    // (spektra-module P1 T6': the filmCardID constant retired — OQ-5(a).)
 
     // MARK: Layout constants (KD-1 — the single tuning table)
 
@@ -105,48 +99,22 @@ enum NodeCanvasGeometry {
     /// horizontally centered, `verticalSpacing` between cards, insets
     /// around the column. An EMPTY node list → an empty layout of height 0.
     ///
-    /// M3-3-03 T4 (KD-4): `includesFilmCard` reserves one endpoint-height
-    /// slot for the read-only Film projection card BETWEEN the grades and
-    /// the Display Transform endpoint (the film sub-run's physical seat:
-    /// after the main chain's top plane, before the display tail). The card
-    /// is NOT a PipelineDocument NodeKind (M2-4 zero-diff red line) — it is
-    /// an App-side projection keyed by `filmCardID`, carried through the
-    /// layout so the geometry source of truth owns every coordinate (the
-    /// KD-1 discipline). Default false = the pre-T4 layout byte-for-byte.
+    /// (spektra-module P1 T6': the includesFilmCard slot retired — OQ-5(a);
+    /// the film renders as the 46.7 op row inside its grade layer.)
     static func layout(
-        for nodes: [PipelineDocument.Node], width: CGFloat,
-        includesFilmCard: Bool = false
+        for nodes: [PipelineDocument.Node], width: CGFloat
     ) -> Layout {
         var frames: [UUID: CGRect] = [:]
         var order: [UUID] = []
         var grades: [UUID] = []
         var y = topInset
-        let filmSlotAfter = includesFilmCard
-            ? nodes.last(where: { $0.kind == .displayTransform })?.id
-            : nil
         for node in nodes {
-            if node.id == filmSlotAfter {
-                frames[filmCardID] = CGRect(
-                    x: (width - cardWidth) / 2, y: y, width: cardWidth,
-                    height: endpointHeight)
-                order.append(filmCardID)
-                y += endpointHeight + verticalSpacing
-            }
             let h = cardHeight(for: node.kind)
             frames[node.id] = CGRect(
                 x: (width - cardWidth) / 2, y: y, width: cardWidth, height: h)
             order.append(node.id)
             if node.kind == .grade { grades.append(node.id) }
             y += h + verticalSpacing
-        }
-        if includesFilmCard && filmSlotAfter == nil && !nodes.isEmpty {
-            // No display-transform endpoint (never in practice — the chain
-            // always ends with it): the film card trails the chain.
-            frames[filmCardID] = CGRect(
-                x: (width - cardWidth) / 2, y: y, width: cardWidth,
-                height: endpointHeight)
-            order.append(filmCardID)
-            y += endpointHeight + verticalSpacing
         }
         let height = order.isEmpty ? 0 : y - verticalSpacing + bottomInset
         return Layout(frames: frames, order: order, grades: grades, height: height)

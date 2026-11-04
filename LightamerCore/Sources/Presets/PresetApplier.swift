@@ -59,10 +59,14 @@ public enum PresetApplier {
     public static func makePayload(
         from document: LightamerPreset, copiedAt: Date
     ) -> PastePayload {
-        PastePayload(
+        // spektra-module P1 T6' (R-M2, second wall): the defense filter —
+        // a smuggled layer-only op never rides the instances face (the
+        // literal is deliberate — Core↔IOP direction, D-03).
+        let instances = document.instances.filter { $0.opName != "spektraFilm" }
+        return PastePayload(
             sourceImageID: UUID(),
             sourceURL: nil,
-            instances: document.instances,
+            instances: instances,
             layerStack: document.layerStack,
             copiedAt: copiedAt)
     }

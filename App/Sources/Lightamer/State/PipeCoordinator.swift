@@ -945,6 +945,37 @@ final class PipeCoordinator {
         return any ? tags : nil
     }
 
+    /// spektra-module P1 T6' (R-M1 甲, D-SM-14+): the SIBLING tags leg —
+    /// read the target's disk sidecar, find its spektraFilm record (the
+    /// global set ∪ every layer chain), resolve through the pure face.
+    /// No sidecar / no instance / no store = nil (the legacy face).
+    func siblingLegTags(for url: URL) -> SpectralPrintBake.FilmLegRequestTags? {
+        guard let filmStore,
+            let document = ExportRenderer.readDocument(imageURL: url)
+        else { return nil }
+        let stacks: [[ModuleInstance]] =
+            [document.history.effectiveInstances()] + layerChains(of: document)
+        for chain in stacks {
+            for record in HistoryStack.effectiveChain(chain)
+            where record.opName == SpektraFilmModule.opName {
+                guard let params = try? record.params(of: SpektraFilmModule.self)
+                else { continue }
+                return Self.resolveLegTags(
+                    record: params.record, store: filmStore,
+                    rms: Self.publishedRmsForFilmStock(params.record.filmStock))
+            }
+        }
+        return nil
+    }
+
+    /// The sidecar's layer chains (the rehydrated stack — the export
+    /// renderer's own rebuild shape, read-only here).
+    private func layerChains(of document: LightamerSidecar) -> [[ModuleInstance]] {
+        guard let record = document.layerStack else { return [] }
+        return record.snapshot.makeLayers().compactMap { $0 as? AdjustmentLayer }
+            .map(\.chain)
+    }
+
     /// The published-RMS memo (the BW calibration table loads once per
     /// process — the table is a vendored asset, never mutated at
     /// runtime; the box form follows the codebase's memo precedent).
@@ -2489,7 +2520,23 @@ final class PipeCoordinator {
         else { return nil }
         var truncated = LayerStack(baseLayer: stack.baseLayer)
         for layer in stack.compositeLayers[..<index] {
-            truncated.addAdjustment(layer)
+            // spektra-module P1 T6' (probe strip): the edge surface
+            // excludes spektraFilm (the probe reads unfilmed edges).
+            if let adjustment = layer as? AdjustmentLayer {
+                truncated.addAdjustment(AdjustmentLayer(
+                    id: adjustment.id, name: adjustment.name,
+                    isVisible: adjustment.isVisible,
+                    opacity: adjustment.opacity,
+                    blendMode: adjustment.blendMode,
+                    blendOptions: adjustment.blendOptions,
+                    enabled: adjustment.enabled,
+                    chain: adjustment.chain.filter {
+                        $0.opName != SpektraFilmModule.opName
+                    },
+                    mask: adjustment.mask))
+            } else {
+                truncated.addAdjustment(layer)
+            }
         }
         do {
             let (plane, _) = try await RenderPipeline.processComposite(
@@ -2986,10 +3033,35 @@ final class PipeCoordinator {
         let chain = chainWithSoftProof(instances, resolution: resolution)
         if let stack = currentLayerStack, !stack.compositeLayers.isEmpty,
            let registry {
+            // spektra-module P1 T6' (editor strip): the THUMBNAIL leg
+            // filters spektraFilm from a stack COPY (the live stack is
+            // untouched; LayerCompositeDriver zero-hunk).
+            let runStack: LayerStack = {
+                guard resolution == .thumbnail else { return stack }
+                var copy = LayerStack(baseLayer: stack.baseLayer)
+                for layer in stack.compositeLayers {
+                    if let adjustment = layer as? AdjustmentLayer {
+                        copy.addAdjustment(AdjustmentLayer(
+                            id: adjustment.id, name: adjustment.name,
+                            isVisible: adjustment.isVisible,
+                            opacity: adjustment.opacity,
+                            blendMode: adjustment.blendMode,
+                            blendOptions: adjustment.blendOptions,
+                            enabled: adjustment.enabled,
+                            chain: adjustment.chain.filter {
+                                $0.opName != SpektraFilmModule.opName
+                            },
+                            mask: adjustment.mask))
+                    } else {
+                        copy.addAdjustment(layer)
+                    }
+                }
+                return copy
+            }()
             let (texture, stats) = try await RenderPipeline.processComposite(
                 image: decoded,
                 instances: chain,
-                layerStack: stack,
+                layerStack: runStack,
                 registry: registry,
                 imageID: currentImageID ?? UUID(),
                 resolution: resolution,

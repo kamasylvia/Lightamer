@@ -511,7 +511,27 @@ public actor SessionThumbnailProvider {
             if let layerRecord, !layerRecord.layers.isEmpty {
                 var stack = LayerStack(baseLayer: BackgroundLayer())
                 for layer in layerRecord.runtimeLayers {
-                    stack.addAdjustment(layer)
+                    // spektra-module P1 T6' (grid strip): the thumbnail run
+                    // filters spektraFilm from each layer's chain (a FRESH
+                    // layer copy — the class is reference-typed; mutating
+                    // in place would poison the record. Phase 8 holds).
+                    // The literal is deliberate (Core↔IOP direction, D-03).
+                    if let adjustment = layer as? AdjustmentLayer {
+                        let copy = AdjustmentLayer(
+                            id: adjustment.id, name: adjustment.name,
+                            isVisible: adjustment.isVisible,
+                            opacity: adjustment.opacity,
+                            blendMode: adjustment.blendMode,
+                            blendOptions: adjustment.blendOptions,
+                            enabled: adjustment.enabled,
+                            chain: adjustment.chain.filter {
+                                $0.opName != "spektraFilm"
+                            },
+                            mask: adjustment.mask)
+                        stack.addAdjustment(copy)
+                    } else {
+                        stack.addAdjustment(layer)
+                    }
                 }
                 layerStack = stack.compositeLayers.isEmpty ? nil : stack
             }

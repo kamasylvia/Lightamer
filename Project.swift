@@ -811,6 +811,9 @@ let project = Project(
             infoPlist: .default,
             sources: [
                 "Tests/LightamerTests/Fixtures.swift",
+                // spektra-module P1 T6' (refs #21): the thumbnail strip
+                // suite (SESSIONS domain — provider-adjacent).
+                "Tests/LightamerTests/ThumbnailStripTests.swift",
                 "Tests/LightamerTests/CatalogBenchmarkHarness.swift",
                 "Tests/LightamerTests/CatalogBrowserModelTests.swift",
                 "Tests/LightamerTests/CatalogFilterSQLTests.swift",
@@ -873,6 +876,9 @@ let project = Project(
                 "Tests/LightamerTests/ExportEncoderGoldenTests.swift",
                 "Tests/LightamerTests/ExportGainMapTests.swift",
                 "Tests/LightamerTests/ExportFilmChainTests.swift",
+                // spektra-module P1 T6' (refs #21): the QL assembly suite
+                // (EXPORT domain — renderer-adjacent).
+                "Tests/LightamerTests/QuickLookFilmTests.swift",
                 "Tests/LightamerTests/ExportEncoderMetadataTests.swift",
                 "Tests/LightamerTests/ExportFileNameTemplateTests.swift",
                 "Tests/LightamerTests/ExportIccEmbedTests.swift",
@@ -986,6 +992,9 @@ let project = Project(
                 "Tests/LightamerTests/McpCullingImageBudgetTests.swift",
                 "Tests/LightamerTests/McpCullingToolsetTests.swift",
                 "Tests/LightamerTests/McpEditingToolsetTests.swift",
+                // spektra-module P1 T6' (refs #21): the MCP layer-only
+                // suite (APP domain — toolset-adjacent).
+                "Tests/LightamerTests/McpFilmTests.swift",
                 "Tests/LightamerTests/McpFinalSnapshotTests.swift",
                 "Tests/LightamerTests/McpHostTests.swift",
                 "Tests/LightamerTests/LibraryAnalysisWiringTests.swift",
@@ -1059,7 +1068,6 @@ let project = Project(
                 "Tests/LightamerTests/FilmPanelSpatialTests.swift",
                 // M9-2 T2: the BW panel faces (sections/grade picker/pristine).
                 "Tests/LightamerTests/FilmPanelBWTests.swift",
-                "Tests/LightamerTests/FilmCardTests.swift",
                 "Tests/LightamerTests/FilmLatitudePanelTests.swift",
                 "Tests/LightamerTests/DrtViewportTests.swift",
                 "Tests/LightamerTests/RasterEditFaceTests.swift",

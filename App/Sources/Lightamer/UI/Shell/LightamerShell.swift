@@ -663,6 +663,10 @@ internal struct LightamerShellFace: View {
                             seed: await seedInstances(),
                             layerStack: layerRecord)
                     }
+                    presetController.layerOnlyOpProbe = {
+                        pipeCoordinator.hasSpektraFilmInstance
+                            ? SpektraFilmModule.opName : nil
+                    }
 
                     // Plan 09-02 T3: wire the reconciler's seams (state +
                     // the real index legs; the same D-03b closure shape).

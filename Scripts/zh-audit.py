@@ -146,6 +146,12 @@ DEFAULT_ALLOWLIST: tuple[str, ...] = (
     "panel_film_migrate_button",
     "panel_film_migrate_cancel",
     "panel_film_migrate_confirm",
+    # Retired-in-place keys (spektra-module P1 T6', OQ-5(a)): the Film
+    # projection card retired — the catalog entries STAY (bytes
+    # untouched), zero source references.
+    "editor_node_film",
+    "editor_node_film_hint",
+    "editor_node_film_inactive",
 )
 
 KEY_SHAPE = re.compile(r"^[a-z][a-z0-9_]+$")

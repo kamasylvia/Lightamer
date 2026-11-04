@@ -380,7 +380,8 @@ internal struct ExportInspectorView: View {
             effectiveDrtRecord: editorState.history.effectiveDrtRecord(),
             destination: displayDestination,
             filmTailForLoaded: pipeCoordinator.filmTailPolicy(for: .export),
-            legTagsForLoaded: pipeCoordinator.filmLegRequestTags(for: .export))
+            legTagsForLoaded: pipeCoordinator.filmLegRequestTags(for: .export),
+            siblingTags: { pipeCoordinator.siblingLegTags(for: $0) })
         guard let assembly else { return }
         // M6-3-01 (KD-6/checker C-2): the run-face re-check reset the flag —
         // the toast names the blocking dimension (the gate moved on the DRT
@@ -1201,7 +1202,8 @@ final class ExportM2PanelModel {
         effectiveDrtRecord: DrtRecord?,
         destination: URL?,
         filmTailForLoaded: FilmTailParams? = nil,
-        legTagsForLoaded: SpectralPrintBake.FilmLegRequestTags? = nil
+        legTagsForLoaded: SpectralPrintBake.FilmLegRequestTags? = nil,
+        siblingTags: ((URL) -> SpectralPrintBake.FilmLegRequestTags?)? = nil
     ) -> RunAssembly? {
         guard !targets.isEmpty, let destination else { return nil }
         let subfolder: String? = {
@@ -1219,8 +1221,14 @@ final class ExportM2PanelModel {
             (url.path == loadedImageURL?.path) ? filmTailForLoaded : nil
         }
         // M9-2 T2: the loaded image's leg tags ride the same indexed shape.
+        // spektra-module P1 T6' (R-M1 甲, D-SM-14+): the SIBLING slots
+        // resolve per-target (each sidecar's spektraFilm record through
+        // the pure resolver — the supplier reads disk; nil supplier =
+        // the legacy loaded-only face). filmTails stays loaded-only
+        // (the legacy channel never carried siblings).
         let legTags: [SpectralPrintBake.FilmLegRequestTags?]? = targets.map { url in
-            (url.path == loadedImageURL?.path) ? legTagsForLoaded : nil
+            if url.path == loadedImageURL?.path { return legTagsForLoaded }
+            return siblingTags?(url) ?? nil
         }
         // M6-3-01 (KD-6/checker C-2): the run-face re-check — the peak/
         // encoding gate dimensions move on the DRT panel (no page-internal

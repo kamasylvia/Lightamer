@@ -421,4 +421,28 @@ final class PresetsStoreTests: XCTestCase {
         let good = try store.loadDocument(id: "goodexp")
         XCTAssertNoThrow(try good.exportRecipe?.first?.validate())
     }
+
+    // MARK: - spektra-module P1 T6' (AC-T6'-9/10): the layer-only faces
+
+    /// The layer-only error carries the op (the typed refusal face).
+    func testLayerOnlyErrorCarriesTheOp() {
+        let error = PresetError.layerOnlyOpPresent(opName: "spektraFilm")
+        XCTAssertEqual(error, .layerOnlyOpPresent(opName: "spektraFilm"))
+    }
+
+    /// The payload defense filter strips the layer-only op (the second
+    /// wall — a smuggled instance never rides the instances face).
+    func testPayloadDefenseFilterStripsLayerOnlyOp() throws {
+        let filmJSON =
+            "{\"id\":\"\(UUID().uuidString)\",\"opName\":\"spektraFilm\",\"multiPriority\":0,\"multiName\":\"\",\"iopOrder\":46.7,\"version\":1,\"enabled\":true,\"paramsData\":\"e30=\",\"paramsHash\":0}"
+        let film = try JSONDecoder().decode(
+            ModuleInstance.self, from: Data(filmJSON.utf8))
+        let document = LightamerPreset(
+            kind: .develop, name: "smuggled", category: nil,
+            instances: [film], layerStack: nil, exportRecipe: nil)
+        let payload = PresetApplier.makePayload(from: document, copiedAt: Date())
+        XCTAssertTrue(
+            payload.instances.isEmpty,
+            "the defense filter strips the smuggled op")
+    }
 }

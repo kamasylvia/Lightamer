@@ -99,8 +99,27 @@ internal struct InspectorView: View {
     /// seats never enumerate) and the no-layer scope carries ONLY the
     /// develop-owned panel face (zero grade-owned entries — the D4
     /// narrowing's complete expression, checker E4's new-UI branch).
+    /// spektra-module P1 T6': the spektraFilm row hides env-off AND once
+    /// an instance exists (the .oneInstance singleton face).
     private var addFaceEntries: [EditorState.AdjustmentAddEntry] {
-        editorState.addFaceEntries(layerID: activeLayerID)
+        editorState.addFaceEntries(layerID: activeLayerID).filter { entry in
+            guard entry.template.opName == SpektraFilmModule.opName else { return true }
+            guard LightamerIOPRegistry.isFilmModuleRequested() else { return false }
+            return !hasSpektraFilmInstance
+        }
+    }
+
+    /// The singleton probe (the predicate union over the live stack).
+    private var hasSpektraFilmInstance: Bool {
+        editorState.history.effectiveInstances().contains {
+            $0.opName == SpektraFilmModule.opName
+        } || (editorState.layerStack?.compositeLayers.contains {
+            ($0 as? AdjustmentLayer).map {
+                HistoryStack.effectiveChain($0.chain).contains {
+                    $0.opName == SpektraFilmModule.opName
+                }
+            } ?? false
+        } ?? false)
     }
 
     /// The catalog caption for an add entry (the catalog display name

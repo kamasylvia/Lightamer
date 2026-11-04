@@ -773,6 +773,9 @@ enum EditingToolset {
         static let imageLiveInEditor = "imageLiveInEditor"
         static let unreadableSidecar = "unreadableSidecar"
         static let internalError = "internalError"
+        /// spektra-module P1 T6' (c): the paste carries a layer-only op
+        /// the target cannot host (the fifth FIXED token).
+        static let layerOnlyOp = "layerOnlyOp"
     }
 
     /// An optional note argument (minLength 1 — the append_note face;
@@ -1066,6 +1069,24 @@ enum EditingToolset {
                                 + "under the current selection — run "
                                 + "copy_adjustments for the enumeration face")
                     }
+                    // spektra-module P1 T6' (c): a payload carrying the
+                    // layer-only op refuses (the target face cannot host
+                    // it — the prompt walks the migration confirm).
+                    if transfer.records.contains(where: {
+                        $0.opName == SpektraFilmModule.opName
+                    }) || (transfer.snapshot?.layers.contains {
+                        $0.chain.contains {
+                            $0.opName == SpektraFilmModule.opName
+                        }
+                    } ?? false) {
+                        var reasons = rejectedSnapshot
+                        for relPath in cleanTargets {
+                            reasons[relPath] = PasteRejectionReason.layerOnlyOp
+                        }
+                        return Self.pasteLedgerAnswer(
+                            targets: targets, rejected: reasons, applied: [],
+                            failed: [:], note: note)
+                    }
                     let payload = PastePayload(
                         sourceImageID: UUID(), sourceURL: nil,
                         instances: transfer.records,
@@ -1204,6 +1225,13 @@ enum EditingToolset {
     ) async throws -> [ModuleInstance] {
         var instances = current
         for op in ops {
+            // spektra-module P1 T6' (layer-only): spektraFilm is NEVER an
+            // MCP op (the layer face has no MCP addressing; remove rides
+            // the same refusal — the op is simply absent from this face).
+            if op.opName == SpektraFilmModule.opName {
+                throw McpToolError.unknownOp(
+                    "'spektraFilm' is a layer-only module — it is not addressable via apply_params")
+            }
             // Addressability FIRST (a remove of an unknown op is still an
             // unknown op to the agent's mental model).
             let registered = await modules.makeBox(opName: op.opName) != nil

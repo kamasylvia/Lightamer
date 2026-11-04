@@ -136,8 +136,7 @@ struct EditorNodesPanelView: View {
     /// (scroll back to the chain head) — the v1 honest semantic.
     private func chainView(_ document: PipelineDocument, container: CGSize) -> some View {
         let layout = NodeCanvasGeometry.layout(
-            for: document.nodes, width: container.width,
-            includesFilmCard: model.filmCard != nil)
+            for: document.nodes, width: container.width)
         let scale = NodeCanvasGeometry.fitScale(
             contentHeight: layout.height, containerHeight: container.height)
         return VStack(spacing: 0) {
@@ -258,17 +257,8 @@ struct EditorNodesPanelView: View {
                     }
                     .position(layout.center(of: node.id))
             }
-            // M3-3-03 T4 (KD-4): the read-only Film projection card — a
-            // real view at the layout's reserved slot (NOT a
-            // PipelineDocument node; the geometry owns its frame via
-            // NodeCanvasGeometry.filmCardID).
-            if let filmCard = model.filmCard,
-                let frame = layout.frames[NodeCanvasGeometry.filmCardID]
-            {
-                filmCardView(filmCard)
-                    .frame(width: NodeCanvasGeometry.cardWidth, height: frame.height)
-                    .position(x: frame.midX, y: frame.midY)
-            }
+            // (spektra-module P1 T6': the Film projection card retired —
+            // OQ-5(a); the slot reservation is gone with it.)
         }
         .coordinateSpace(.named(Self.canvasSpace))
     }
@@ -502,58 +492,6 @@ struct EditorNodesPanelView: View {
         .padding(.horizontal, 10)
     }
 
-    /// The read-only Film card (M3-3-03 T4, KD-4): the material pair's
-    /// names + the active state. NO edit face, NO commands, NO history —
-    /// the tap opens the Film page (navigation, never an edit).
-    private func filmCardView(_ card: NodesPanelModel.FilmCardProjection) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(
-                        card.isActive
-                            ? ThemeTokens.accent : ThemeTokens.textSecondary)
-                    .frame(width: 7, height: 7)
-                Text(String(
-                        localized: "editor_node_film",
-                        defaultValue: "Film Simulation"))
-                    .font(.callout)
-                    .foregroundStyle(ThemeTokens.textPrimary)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            Text(card.isActive
-                ? "\(card.filmName) · \(card.paperName)"
-                : String(
-                    localized: "editor_node_film_inactive",
-                    defaultValue: "Inactive"))
-                .font(.caption2)
-                .foregroundStyle(ThemeTokens.textSecondary)
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 10)
-        .background {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(ThemeTokens.cardSurface)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(
-                            card.isActive ? ThemeTokens.accent : ThemeTokens.cardBorder,
-                            lineWidth: card.isActive ? 1.5 : 1)
-                }
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 10))
-        .onTapGesture { inspectorState?.openFilmPage() }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier(Self.filmCardMarker)
-        .accessibilityLabel(Text(String(
-            localized: "editor_node_film", defaultValue: "Film Simulation")))
-        .accessibilityHint(Text(String(
-            localized: "editor_node_film_hint",
-            defaultValue: "Opens the film simulation panel")))
-    }
-
-    /// The Film card's AX marker (L010: a stable id).
-    static let filmCardMarker = "editor.nodes.film"
 
     // MARK: - Markers (L010: stable AX ids)
 

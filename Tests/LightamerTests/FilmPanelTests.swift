@@ -310,4 +310,100 @@ final class FilmPanelTests: XCTestCase {
         ]
         XCTAssertEqual(labels.count, 4, "the four static film labels resolve")
     }
+
+    // MARK: - spektra-module P1 T6' (AC-T6'-5): the module leg
+
+    /// The module-leg read: with an instance present the panel reads the
+    /// instance's record (usesModuleLeg true).
+    func testModuleLegReadsTheInstanceRecord() async throws {
+        try await loadGradient()
+        let layer = editorState.addAdjustmentLayer()!
+        let template = ModuleInstance(
+            module: SpektraFilmModule.self,
+            params: SpektraFilmModule.Params(record: Self.moduleRecord()))
+        let landed = editorState.addModuleToLayer(layerID: layer.id, template: template)!
+        editorState.recordLayerChange(
+            landed, layerID: layer.id,
+            label: String(localized: "history_film_enable"))
+        XCTAssertTrue(model.usesModuleLeg)
+        XCTAssertEqual(model.record, Self.moduleRecord())
+    }
+
+    /// The module-leg commit: a material change lands ONE layer item (no
+    /// filmRecord write-back).
+    func testModuleLegCommitLandsOneLayerItem() async throws {
+        try await loadGradient()
+        let layer = editorState.addAdjustmentLayer()!
+        let template = ModuleInstance(
+            module: SpektraFilmModule.self,
+            params: SpektraFilmModule.Params(record: Self.moduleRecord()))
+        let landed = editorState.addModuleToLayer(layerID: layer.id, template: template)!
+        editorState.recordLayerChange(
+            landed, layerID: layer.id,
+            label: String(localized: "history_film_enable"))
+        let before = editorState.history.items.count
+        model.setFilmStock("kodak_trix")
+        XCTAssertEqual(editorState.history.items.count, before + 1)
+        XCTAssertEqual(
+            editorState.history.items.last?.layerScope?.isEmpty, false,
+            "the module commit is layer-scoped")
+    }
+
+    /// The module-leg drag: begin → live → commit lands ONE layer item.
+    func testModuleLegDragCommitsOnce() async throws {
+        try await loadGradient()
+        let layer = editorState.addAdjustmentLayer()!
+        let template = ModuleInstance(
+            module: SpektraFilmModule.self,
+            params: SpektraFilmModule.Params(record: Self.moduleRecord()))
+        let landed = editorState.addModuleToLayer(layerID: layer.id, template: template)!
+        editorState.recordLayerChange(
+            landed, layerID: layer.id,
+            label: String(localized: "history_film_enable"))
+        let before = editorState.history.items.count
+        model.beginDrag()
+        model.setStrengthLive(0.5)
+        model.commitDrag()
+        XCTAssertEqual(editorState.history.items.count, before + 1)
+    }
+
+    /// The legacy leg stays intact (no instance ⇒ the document commit).
+    func testLegacyLegCommitsTheDocumentItem() async throws {
+        try await loadGradient()
+        XCTAssertFalse(model.usesModuleLeg)
+        let before = editorState.history.items.count
+        model.setContentAdaptive(true)
+        XCTAssertEqual(editorState.history.items.count, before + 1)
+        XCTAssertEqual(
+            editorState.history.items.last?.filmRecord?.contentAdaptiveShift, true)
+    }
+
+    /// The module D-H1 leg is generic (the live tick upserts without a
+    /// commit; the drag end commits once).
+    func testModuleLiveTickUpsertsWithoutCommit() async throws {
+        try await loadGradient()
+        let layer = editorState.addAdjustmentLayer()!
+        let template = ModuleInstance(
+            module: SpektraFilmModule.self,
+            params: SpektraFilmModule.Params(record: Self.moduleRecord()))
+        let landed = editorState.addModuleToLayer(layerID: layer.id, template: template)!
+        editorState.recordLayerChange(
+            landed, layerID: layer.id,
+            label: String(localized: "history_film_enable"))
+        let before = editorState.history.items.count
+        model.beginDrag()
+        model.setYShiftLive(10)
+        XCTAssertEqual(
+            editorState.history.items.count, before,
+            "the live tick upserts (zero items during the drag)")
+        model.commitDrag()
+        XCTAssertEqual(editorState.history.items.count, before + 1)
+    }
+
+    nonisolated private static func moduleRecord() -> FilmRecord {
+        var record = FilmRecord()
+        record.filmStock = "kodak_portra_400"
+        record.paperStock = "kodak_portra_endura"
+        return record
+    }
 }

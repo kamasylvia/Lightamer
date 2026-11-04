@@ -387,6 +387,8 @@ internal struct PresetManagerWindow: View {
             return String(localized: "preset_error_empty_recipe")
         case .emptyComposition:
             return String(localized: "preset_error_empty_composition")
+        case .layerOnlyOpPresent:
+            return String(localized: "preset_error_layer_only")
         }
     }
 }

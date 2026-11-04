@@ -362,7 +362,7 @@ LIB	14	LibraryStoreTests.swift
 LIB	12	MetadataServiceTests.swift
 LIB	11	Phase6SidecarTests.swift
 LIB	12	Phase5SidecarTests.swift
-LIB	12	PresetsStoreTests.swift
+LIB	14	PresetsStoreTests.swift
 LIB	13	ImportFilterTests.swift
 LIB	13	SidecarRoundTripTests.swift
 LIB	14	ExifFoldTests.swift
@@ -585,7 +585,7 @@ LAYERS	3	FilmPlacementDriverTests.swift
 IOP	11	FilmPlacementTests.swift
 IOPP	3	FilmPlacementKernelTests.swift
 APP	5	FilmCoordinatorTests.swift
-EXPORT	4	ExportFilmChainTests.swift
+EXPORT	8	ExportFilmChainTests.swift
 # M3-3-02 验收勘误（2026-10-09 验收 subagent）：上行四处 method 数按文件终态实数
 #   修正（FilmPrintBake 7→8、FilmPlacementDriver 4→3、FilmPlacementTests 7→11）——
 #   执行期初记值与文件 func test 实数不符（净差 -4）。相应地本批实际增量 = +44
@@ -605,14 +605,14 @@ LAYERS	5	FilmDeterminismTests.swift
 #   M3-4-01 T2 增行（2026-10-09，登记随文件同 commit）：FilmDescriptorTests =
 #   LAYERS/Core 级（descriptor 归约纯函数 + 真链 probe + 缓存键），7 法。
 LAYERS	7	FilmDescriptorTests.swift
-APP	6	FilmPanelTests.swift
+APP	11	FilmPanelTests.swift
 #   M3-4-01 T3 增行（2026-10-09，登记随文件同 commit）：FilmLatitudePanelTests =
 #   APP/App 级（占比手算/锚三态/动态最小值/§6.4 四行可写入+交叉拒绝/Fit 三分支/
 #   端点斜率/session 面/教导键静态），9 法。
 APP	11	FilmLatitudePanelTests.swift
 #   T5 勘误（同批）：上行 9→11（初记值漏计 session 面两法；文件 func test 实数
 #   11 × Project.swift 登记一致；App 执行面 675→686 = +11 两式互证）。
-APP	4	FilmCardTests.swift
+#   spektra-module P1 T6'（2026-11-04，OQ-5(a)）：FilmCardTests（APP 4）随卡退役删除。
 #   M4-2-01/02 行退役（2026-10-10，用户裁决功能删除挂待定）：RidgeExtractTests
 #   (LAYERS 21) 与 FollowEdgesRidgeCacheTests (APP 4) 随 V2 功能代码同批删除
 #   （历史增行注记 2026-10-09/10 在 git；执行面回落 Layers 394 / App 704 =
@@ -996,3 +996,11 @@ APP	8	PipeCoordinatorLegacyTests.swift
 #   spektra-module P1 T5'（2026-11-04，refs #21）：tile 政策 4 法入 LAYERS（三重否决/
 #   全帧锚/确定性重钉/腿+求解源码冻结）。
 LAYERS	4	SpektraTilePolicyTests.swift
+#   spektra-module P1 T6'（2026-11-04，refs #21）：下游 28 法——ExportFilmChainTests +4
+#   （4→8，双臂+兄弟）、FilmPanelTests +5（6→11，module 腿）、PresetsStoreTests +2
+#   （12→14，层面拒绝+防御过滤）、ThumbnailStripTests 4 法入 SESSIONS、
+#   McpFilmTests 3 法入 APP、QuickLookFilmTests 2 法入 EXPORT、FilmCardTests −4 退役、
+#   渲染入口三面/M4/paste/拖拽 8 法并入既有套件（面内断言）。
+SESS	4	ThumbnailStripTests.swift
+APP	3	McpFilmTests.swift
+EXPORT	2	QuickLookFilmTests.swift

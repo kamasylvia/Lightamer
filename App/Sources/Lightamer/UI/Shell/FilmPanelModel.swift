@@ -48,19 +48,36 @@ final class FilmPanelModel {
         self.pipeCoordinator = pipeCoordinator
     }
 
-    // MARK: - Read projection (the three-level KD-3 face)
+    // MARK: - Read projection (spektra-module P1 T6': the module leg first)
 
     var hasImage: Bool {
         pipeCoordinator?.liveImageURL != nil
     }
 
-    /// The current record — the OPEN LIVE WINDOW's pending value FIRST (the
-    /// slider binding reads back the drag's own value), then the HISTORY's
-    /// effective projection (the committed truth), then the coordinator's
-    /// CARRIER face (the sidecar restore leg primes the carrier without a
-    /// history item — the render's truth), finally the pristine default.
+    /// Whether the document's film rides the module leg (an instance is
+    /// present — the panel's read/commit legs fork on this).
+    var usesModuleLeg: Bool {
+        pipeCoordinator?.hasSpektraFilmInstance ?? false
+    }
+
+    /// The live module instance (layerID + record — nil unless present).
+    private var liveInstance: (layerID: UUID, record: ModuleInstance)? {
+        guard let found = pipeCoordinator?.findSpektraFilmInstance(),
+            let layerID = found.layerID
+        else { return nil }
+        return (layerID, found.instance)
+    }
+
+    /// The current record — the module instance's record FIRST (when
+    /// present), then the OPEN LIVE WINDOW's pending value, then the
+    /// HISTORY's effective projection, then the CARRIER face, finally
+    /// the pristine default (the legacy three-level face preserved).
     var record: FilmRecord {
         if let liveRecord { return liveRecord }
+        if let found = pipeCoordinator?.findSpektraFilmInstance(),
+            let params = try? found.instance.params(of: SpektraFilmModule.self) {
+            return params.record
+        }
         if let editorState, let effective = editorState.history.effectiveFilmRecord() {
             return effective
         }
@@ -382,23 +399,50 @@ final class FilmPanelModel {
     // MARK: - The enable entry (pristine → the default-pair record)
 
     /// Enabling = ONE commit of the default-pair record (the first sorted
-    /// film × paper — the deterministic default session). The commit makes
-    /// the document non-pristine by the key-presence gate, and the RENDER
-    /// face activates (a stock-less default record would gate off in
-    /// `filmTailPolicy` — the default PAIR is the honest enable).
+    /// film × paper — the deterministic default session). spektra-module P1
+    /// T6' (env-on): the enable lands a 46.7 instance on the TOPMOST
+    /// adjustment layer (created when absent — the addPlacement shape);
+    /// env-off keeps the legacy document commit.
     func enableFilm() {
-        guard let film = filmStocks.first, let paper = paperStocks.first else {
+        guard let film = filmStocks.first, let paper = paperStocks.first,
+            let editorState
+        else {
             return
         }
-        commit({ record in
-            record.filmStock = film.info.stock ?? ""
-            record.paperStock = paper.info.stock ?? ""
+        var record = FilmRecord()
+        record.filmStock = film.info.stock ?? ""
+        record.paperStock = paper.info.stock ?? ""
+        if LightamerIOPRegistry.isFilmModuleRequested() {
+            let layerID: UUID
+            if let top = editorState.layerStack?.adjustmentLayers.last {
+                layerID = top.id
+            } else if let created = editorState.addAdjustmentLayer() {
+                layerID = created.id
+            } else {
+                return
+            }
+            let template = ModuleInstance(
+                module: SpektraFilmModule.self,
+                params: SpektraFilmModule.Params(record: record))
+            guard let landed = editorState.addModuleToLayer(
+                layerID: layerID, template: template)
+            else { return }
+            editorState.recordLayerChange(
+                landed, layerID: layerID,
+                label: String(localized: "history_film_enable"))
+            return
+        }
+        commit({ next in
+            next.filmStock = record.filmStock
+            next.paperStock = record.paperStock
         }, label: String(localized: "history_film_enable"))
     }
 
-    // MARK: - Action faces (every write lands ONE document-level commit)
+    // MARK: - Action faces (every write lands ONE commit)
 
-    /// The ONE discrete-commit funnel (the DrtPanelModel shape).
+    /// The ONE discrete-commit funnel (the DrtPanelModel shape) — forks
+    /// on the leg: the module leg commits a layer-scope params item
+    /// (the generic D-H1 leg); the legacy leg the document film item.
     private func commit(
         _ mutate: (inout FilmRecord) -> Void, label: String
     ) {
@@ -406,7 +450,17 @@ final class FilmPanelModel {
         var next = record
         mutate(&next)
         guard next != record else { return }   // idempotent click = no item
-        editorState.recordFilmChange(next, label: label)
+        if let live = liveInstance {
+            var snapshot = live.record
+            if let encoded = try? ParamsCoding.encode(
+                SpektraFilmModule.Params(record: next)) {
+                snapshot.paramsData = encoded
+                snapshot.paramsHash = StableHash.hash(encoded)
+            }
+            editorState.recordLayerChange(snapshot, layerID: live.layerID, label: label)
+        } else {
+            editorState.recordFilmChange(next, label: label)
+        }
     }
 
     /// Film stock switch — ONE discrete commit (the solve cache re-keys on
@@ -513,20 +567,32 @@ final class FilmPanelModel {
 
     // MARK: - The D-H1 live/commit trio (the sliders)
 
-    /// The drag arm (onEditingChanged(true)): open the coordinator's film
-    /// live window (zero items during the drag).
+    /// The drag arm (onEditingChanged(true)): the module leg needs no
+    /// window (the generic upsert path); the legacy leg opens the
+    /// coordinator's film window (zero items during the drag).
     func beginDrag() {
         liveRecord = nil
-        pipeCoordinator?.beginFilmEdit()
+        if liveInstance == nil {
+            pipeCoordinator?.beginFilmEdit()
+        }
     }
 
     private func setLive(_ mutate: (inout FilmRecord) -> Void) {
-        guard let pipeCoordinator else { return }
         var next = record
         mutate(&next)
         guard next != record else { return }
         liveRecord = next
-        Task { await pipeCoordinator.setFilmLive(next) }
+        if let live = liveInstance, let editorState {
+            var snapshot = live.record
+            if let encoded = try? ParamsCoding.encode(
+                SpektraFilmModule.Params(record: next)) {
+                snapshot.paramsData = encoded
+                snapshot.paramsHash = StableHash.hash(encoded)
+            }
+            editorState.applyLiveLayerInstance(snapshot, layerID: live.layerID)
+        } else if let pipeCoordinator {
+            Task { await pipeCoordinator.setFilmLive(next) }
+        }
     }
 
     /// Y dial live tick (clamped into the CC producer range).
@@ -549,12 +615,25 @@ final class FilmPanelModel {
         setLive { $0.exposureEv = min(max(ev, Self.exposureRange.lowerBound), Self.exposureRange.upperBound) }
     }
 
-    /// The drag end (onEditingChanged(false)): exactly ONE history item when
-    /// the drag window saw a net change (the coordinator's seed gate).
+    /// The drag end (onEditingChanged(false)): the module leg lands ONE
+    /// layer item; the legacy leg ONE film item (the seed gate).
     func commitDrag() {
+        guard let pending = liveRecord else { return }
         liveRecord = nil
-        Task { await pipeCoordinator?.commitFilmEdit(
-            label: String(localized: "history_film_shift")) }
+        if let live = liveInstance, let editorState {
+            var snapshot = live.record
+            if let encoded = try? ParamsCoding.encode(
+                SpektraFilmModule.Params(record: pending)) {
+                snapshot.paramsData = encoded
+                snapshot.paramsHash = StableHash.hash(encoded)
+            }
+            editorState.recordLayerChange(
+                snapshot, layerID: live.layerID,
+                label: String(localized: "history_film_shift"))
+        } else {
+            Task { await pipeCoordinator?.commitFilmEdit(
+                label: String(localized: "history_film_shift")) }
+        }
     }
 
     // MARK: - The process migration row (Plan M8-3 T3, M6-2 §6 正主)

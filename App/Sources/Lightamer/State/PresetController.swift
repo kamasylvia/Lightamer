@@ -52,6 +52,10 @@ final class PresetController {
          _ mode: PasteMode) async -> Void
     )?
     var composeCurrent: (() async -> PastePayload?)?
+    /// spektra-module P1 T6' (R-M2): the LEVEL probe — the app root
+    /// answers whether the live stack carries a layer-only op (the
+    /// presence predicate; nil = absent — the pre-T6' callers).
+    var layerOnlyOpProbe: (() -> String?)?
     var onWrite: (() async -> Void)?
 
     func configure(
@@ -138,6 +142,9 @@ final class PresetController {
     {
         guard let presetsStore else {
             throw PresetError.notFound(id: "no-library")
+        }
+        if let op = layerOnlyOpProbe?() {
+            throw PresetError.layerOnlyOpPresent(opName: op)
         }
         guard let payload = await composeCurrent?(),
               !payload.instances.isEmpty else {

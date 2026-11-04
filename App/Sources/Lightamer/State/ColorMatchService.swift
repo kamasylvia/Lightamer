@@ -207,8 +207,29 @@ final class ColorMatchService {
         let cache = PipeCache()
         let resolution: PipeResolution = bucket == nil ? .thumbnail : .preview
         if let stack = document.layerStack, !stack.compositeLayers.isEmpty {
+            // spektra-module P1 T6' (reference strip): the追色 reference
+            // excludes spektraFilm (the legacy filmTail:nil twin — the
+            // reference sees the unfilmed composite). A stack copy.
+            var runStack = LayerStack(baseLayer: stack.baseLayer)
+            for layer in stack.compositeLayers {
+                if let adjustment = layer as? AdjustmentLayer {
+                    runStack.addAdjustment(AdjustmentLayer(
+                        id: adjustment.id, name: adjustment.name,
+                        isVisible: adjustment.isVisible,
+                        opacity: adjustment.opacity,
+                        blendMode: adjustment.blendMode,
+                        blendOptions: adjustment.blendOptions,
+                        enabled: adjustment.enabled,
+                        chain: adjustment.chain.filter {
+                            $0.opName != SpektraFilmModule.opName
+                        },
+                        mask: adjustment.mask))
+                } else {
+                    runStack.addAdjustment(layer)
+                }
+            }
             _ = try await RenderPipeline.processComposite(
-                image: document.image, instances: boxes, layerStack: stack,
+                image: document.image, instances: boxes, layerStack: runStack,
                 registry: registry, imageID: document.imageID,
                 resolution: resolution, cache: cache, metal: metal,
                 longEdge: bucket, roiHint: nil,

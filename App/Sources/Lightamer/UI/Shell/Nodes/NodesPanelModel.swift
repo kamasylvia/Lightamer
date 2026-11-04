@@ -49,40 +49,10 @@ final class NodesPanelModel {
         self.pipeCoordinator = pipeCoordinator
     }
 
-    // MARK: The read-only Film projection card (M3-3-03 T4, KD-4)
-
-    /// One read-only Film card's data face: the material pair's display
-    /// names + the active state. NOT a PipelineDocument node — no id in the
-    /// selection space, no commands, no history face (the M2-4 semantics
-    /// zero-diff guarantee); the card's tap routes to the Film page.
-    struct FilmCardProjection: Equatable {
-        let filmName: String
-        let paperName: String
-        let isActive: Bool
-    }
-
-    /// The projection: present whenever an image is open (the card always
-    /// shows, projecting the INACTIVE face when no film record exists);
-    /// nil without an image / coordinator.
-    var filmCard: FilmCardProjection? {
-        guard let coordinator = pipeCoordinator,
-            coordinator.liveImageURL != nil
-        else { return nil }
-        guard let record = coordinator.currentFilmRecord,
-            !record.filmStock.isEmpty || !record.paperStock.isEmpty
-        else {
-            return FilmCardProjection(filmName: "", paperName: "", isActive: false)
-        }
-        func name(_ stockId: String) -> String {
-            guard !stockId.isEmpty,
-                let profile = coordinator.filmMaterialStore?.profile(id: stockId)
-            else { return stockId }
-            return profile.info.name ?? stockId
-        }
-        return FilmCardProjection(
-            filmName: name(record.filmStock), paperName: name(record.paperStock),
-            isActive: true)
-    }
+    // MARK: (spektra-module P1 T6': the read-only Film projection card
+    // retired — the film now renders as the 46.7 op row inside its grade
+    // layer; the OQ-5(a) retirement. The `editor_node_film*` keys stay in
+    // the catalog unreferenced — bytes untouched.)
 
     // MARK: The projection (KD-2 — per-read pure derivation)
 

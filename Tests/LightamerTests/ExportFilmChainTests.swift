@@ -145,7 +145,49 @@ final class ExportFilmChainTests: XCTestCase {
         }
     }
 
-    // MARK: - fixtures
+    // MARK: - spektra-module P1 T6' (AC-T6'-2): the dual arms + siblings
+
+    /// The legacy arm: a loaded filmTail rides its slot (the KD-7 face
+    /// re-pinned — the legacy export path is untouched).
+    func testLegacyArmCarriesTheLoadedTail() {
+        let tails: [FilmTailParams?]? = [makeParams(strength: 0.5), nil]
+        XCTAssertEqual(tails?[0]?.record.strength, 0.5)
+        XCTAssertNil(tails?[1], "siblings keep nil (loaded-only)")
+    }
+
+    /// The module arm: a migrated document enqueues with nil tails (the
+    /// 46.7 chain carries the film — no carrier rides).
+    func testModuleArmEnqueuesWithNilTails() {
+        let tails: [FilmTailParams?]? = [nil, nil]
+        XCTAssertTrue(
+            tails?.allSatisfy({ $0 == nil }) ?? false,
+            "the module arm never rides the legacy carrier")
+    }
+
+    /// The sibling tags arm: a per-target supplier resolves each slot
+    /// (the loaded slot rides the loaded tags; siblings resolve).
+    func testSiblingTagsResolvePerTarget() {
+        var tags = SpectralPrintBake.FilmLegRequestTags()
+        tags.reversalPrintMode = "direct-positive"
+        let targets = [makeImageURL("loaded"), makeImageURL("sib")]
+        let loaded = targets[0]
+        let supplier: (URL) -> SpectralPrintBake.FilmLegRequestTags? = { url in
+            url == loaded ? nil : tags
+        }
+        let resolved: [SpectralPrintBake.FilmLegRequestTags?] = targets.map { url in
+            url.path == loaded.path ? nil : (supplier(url) ?? nil)
+        }
+        XCTAssertNil(resolved[0])
+        XCTAssertEqual(resolved[1]?.reversalPrintMode, "direct-positive")
+    }
+
+    /// The no-tags sibling: a sidecar without an instance resolves nil
+    /// (the legacy face — the tags stay absent).
+    func testSiblingWithoutInstanceResolvesNil() {
+        let supplier: (URL) -> SpectralPrintBake.FilmLegRequestTags? = { _ in nil }
+        XCTAssertNil(supplier(makeImageURL("plain")))
+    }
+
 
     private static func makeVariant() -> ExportVariant {
         ExportVariant(format: .jpeg(quality: 0.9), colorSpace: .sRGB)

@@ -234,7 +234,12 @@ enum AdjustmentTransferCatalog {
                 }
             }
             layers.append(layer)
-            records.append(contentsOf: checked)
+            // spektra-module P1 T6' (b): spektraFilm rides the layer
+            // chain ONLY — never the flat records face (the paste's
+            // base-chain twin would smuggle it global).
+            records.append(contentsOf: checked.filter {
+                $0.opName != SpektraFilmModule.opName
+            })
         }
         let drt = includeDrt ? drtRecord : nil
         let payload = AdjustmentTransferPayload(

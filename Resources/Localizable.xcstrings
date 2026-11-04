@@ -35713,6 +35713,24 @@
           }
         }
       }
+    },
+    "preset_error_layer_only": {
+      "comment": "spektra-module P1 T6' (R-M2): the layer-only refusal message.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This image uses a layer-only adjustment that presets cannot carry"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此图含有预设无法承载的层专属调整"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
