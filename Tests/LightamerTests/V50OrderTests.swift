@@ -11,17 +11,18 @@ import XCTest
 final class V50OrderTests: XCTestCase {
 
     /// The table matches Darktable's v50_order + the Lightamer-native
-    /// rows: 107 entries spanning rawprepare 1.0 → gamma 78.0, first/last
+    /// rows: 108 entries spanning rawprepare 1.0 → gamma 78.0, first/last
     /// locked (07-2: 93 → 94 with the skinSmooth 66.5 insertion — the first
     /// non-dt row; 08-5: 94 → 95 with the textOverlay 66.7 insertion — the
     /// second; M2-5-1: 95 → 105 with the ten grade rows — the acesccIn/Out
     /// envelope pair + the eight catalog ops; M3-3-02: 105 → 106 with
     /// filmPlacement 20.8 — the placement curve row; M5-1-01: 106 → 107
     /// with colormatch 36.5 — the TRACK color-transfer row; M9-3-T2:
-    /// 107 → 108 with upright 15.5 — the Guided Upright row; all flagged
-    /// in the table at the rows).
+    /// 107 → 108 with upright 15.5 — the Guided Upright row; spektra-module
+    /// P1 T1': 108 → 109 with spektraFilm 46.7 — the dt-verbatim backfill
+    /// row; all flagged in the table at the rows).
     func testEntriesCountApproximately76() {
-        XCTAssertEqual(V50Order.entries.count, 108, "93 dt-verbatim + skinSmooth + textOverlay + 10 M2-5-1 grade rows + filmPlacement + colormatch + upright")
+        XCTAssertEqual(V50Order.entries.count, 109, "93 dt-verbatim + skinSmooth + textOverlay + 10 M2-5-1 grade rows + filmPlacement + colormatch + upright + spektraFilm")
         XCTAssertEqual(V50Order.entries.first?.opName, "rawprepare")
         XCTAssertEqual(V50Order.entries.first?.order, 1.0)
         XCTAssertEqual(V50Order.entries.last?.opName, "gamma")
@@ -70,6 +71,20 @@ final class V50OrderTests: XCTestCase {
         XCTAssertEqual(V50Order.order(for: "gamma"), 78.0)
         XCTAssertNil(V50Order.order(for: "does_not_exist"))
         XCTAssertNil(V50Order.order(for: "passthrough_spike"), "spike module has no slot")
+    }
+
+    /// spektra-module P1 T1' (AC-T1'-1): the dt-verbatim spektrafilm backfill
+    /// slot — value pin + LISTING-index seat between filmicrgb and lut3d
+    /// (the C-source order port signature).
+    func testSpektraFilmSlotValueAndListingSeat() {
+        XCTAssertEqual(V50Order.order(for: "spektraFilm"), 46.7)
+        let names = V50Order.entries.map(\.opName)
+        let filmic = try? XCTUnwrap(names.firstIndex(of: "filmicrgb"))
+        let spektra = try? XCTUnwrap(names.firstIndex(of: "spektraFilm"))
+        let lut3d = try? XCTUnwrap(names.firstIndex(of: "lut3d"))
+        guard let filmic, let spektra, let lut3d else { return }
+        XCTAssertLessThan(filmic, spektra)
+        XCTAssertLessThan(spektra, lut3d)
     }
 
     /// Plan 06-06-T2: liquify's warp-slot neighborhood — clipping 17.0 <
@@ -279,7 +294,8 @@ final class V50OrderTests: XCTestCase {
 
         // Whole-table relative order: stripping ALL native rows (07-2's
         // skinSmooth, 08-5's textOverlay, M2-5-1's ten grade rows, M3-3-02's
-        // filmPlacement, M5-1-01's colormatch) must yield the pre-07-2
+        // filmPlacement, M5-1-01's colormatch, spektra-module P1's
+        // spektraFilm backfill admission) must yield the pre-07-2
         // sequence back (spot anchors on both ends).
         let nativeRows: Set<String> = [
             "skinSmooth", "textOverlay",
@@ -289,6 +305,10 @@ final class V50OrderTests: XCTestCase {
             // M9-3-T2: upright 15.5 — the 15th native row (stripping it
             // must yield the 93-row dt-verbatim table unchanged)
             "upright",
+            // spektra-module P1 T1': spektraFilm 46.7 — the dt-verbatim
+            // backfill (stripped with the native set so the sequence
+            // below re-yields the pre-backfill 93 verbatim rows).
+            "spektraFilm",
         ]
         let stripped = V50Order.entries.filter { !nativeRows.contains($0.opName) }
         XCTAssertEqual(stripped.count, 93)

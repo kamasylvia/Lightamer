@@ -229,13 +229,15 @@ final class CatalogAddFaceTests: XCTestCase {
         // binding clauses leave 13 unique-op entries; M3-3-02 T4 adds the
         // filmPlacement row and M5-1-01 T5 the colormatch row to the
         // enumeration per the identity-placeholder rulings — addable,
-        // non-editable until their panels).
+        // non-editable until their panels; spektra-module P1 T1' the
+        // spektraFilm row).
         XCTAssertEqual(
             entries.compactMap(\.catalogID),
             [
                 "cat02WhiteBalance", "exposure", "contrast", "white", "black",
                 "shadows", "curve", "hls", "saturation", "vibrance",
                 "colorWheel", "tint", "filmPlacement", "colormatch",
+                "spektraFilm",
             ])
         // LMT is NOT in any add enumeration (its seat is the LUT page).
         XCTAssertFalse(entries.contains { $0.template.opName == Lut3dModule.opName })

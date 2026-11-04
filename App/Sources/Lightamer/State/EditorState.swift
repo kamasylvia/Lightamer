@@ -1099,6 +1099,11 @@ final class EditorState {
         // silently drop the row from the menu via the compactMap below.
         case ColormatchModule.opName:
             ModuleInstance(module: ColormatchModule.self, params: ColormatchModule.Params())
+        // spektra-module P1 T1': spektraFilm joins the ADD face as the
+        // 21st row's identity template (the colormatch 注记同款 — Params()
+        // = the pristine FilmRecord = the blit identity core).
+        case SpektraFilmModule.opName:
+            ModuleInstance(module: SpektraFilmModule.self, params: SpektraFilmModule.Params())
         // The develop-owned panel face.
         case TemperatureModule.opName:
             ModuleInstance(module: TemperatureModule.self, params: TemperatureModule.Params())

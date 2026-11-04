@@ -57,6 +57,23 @@ public enum LightamerIOPRegistry {
     public static var isFullFaceRequested: Bool {
         ProcessInfo.processInfo.environment["LIGHTAMER_FULL_IOP_FACE"] == "1"
     }
+    /// spektra-module P1 (T1'): the film-module write-face gate. The
+    /// spektraFilm REGISTRATION is unconditional (makeBox resolves in both
+    /// faces — migrated archives must render with the env absent, M2 选 a);
+    /// this gate narrows ONLY the write/UI faces (the migration row, the
+    /// panel enable entry, the add-menu row — T4'/T6' wire them). Default
+    /// OFF until the GUI walkthrough + the dual-arm bridge tests pass.
+    /// The LibraryLegacyGate injection discipline (KD-1): the pure,
+    /// injectable predicate is the single evaluation point; the
+    /// parameterless wrapper reads the process environment.
+    public static let filmModuleEnvironmentKey = "LIGHTAMER_FILM_MODULE"
+
+    /// Pure predicate (the ONLY env read; tests inject literals).
+    public static func isFilmModuleRequested(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        environment[filmModuleEnvironmentKey] == "1"
+    }
 
     /// Register every LightamerIOP module into `registry`.
     ///
@@ -128,6 +145,17 @@ public enum LightamerIOPRegistry {
             ModuleBox(
                 module: ColormatchModule(resolver: ColormatchSharedResolverForward()),
                 instanceID: id)
+        }
+        // spektra-module P1 T1': spektraFilm (the dt spektrafilm port),
+        // v50 slot 46.7 — UNCONDITIONAL registration (NOT gated on
+        // isFilmModuleRequested: migrated archives must render with the
+        // env absent, M2 选 a; the env gates only the write/UI faces).
+        // Seed stays ABSENT (the CAT02/filmPlacement 注记同款 — the Film
+        // panel's enable entry is the seed moment, T6'). Default Params()
+        // = the pristine FilmRecord = the blit identity, so an added,
+        // unbound instance is pixel-safe before any material binds.
+        await registry.register(opName: SpektraFilmModule.opName) { id in
+            ModuleBox(module: SpektraFilmModule(), instanceID: id)
         }
         // M2-5-1 T3: cat02WhiteBalance (creative CAT02 WB in the ACEScc
         // grade domain, KD-4), v50 slot 41.4. Seed stays ABSENT — the grade

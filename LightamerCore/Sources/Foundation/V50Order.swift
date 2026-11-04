@@ -169,6 +169,12 @@ public enum V50Order {
         ("sigmoid", 45.3),
         ("agx", 45.5),
         ("filmicrgb", 46.0), // same, upgraded
+        // spektra-module P1 T1' (dt-verbatim row backfill — NOT a Lightamer-native
+        // invention: dt `iop_order.c` carries `spektrafilm 46.7` in all five
+        // order tables between filmicrgb 46.0 and colisa 47.0; this table is
+        // the dt table's verbatim port, so the pre-existing absence was the
+        // gap. Listed between filmicrgb and lut3d exactly as in the C source.
+        ("spektraFilm", 46.7),
         // apply a creative style or film emulation, possibly non-linear
         // (listed out of numeric order in the C source — verbatim port)
         ("lut3d", 36.0),

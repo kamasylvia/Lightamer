@@ -190,7 +190,7 @@ IOP	6	TextOverlayTests.swift
 IOP	5	TileNegotiationRegressionTests.swift
 IOP	2	TilingOverlapTests.swift
 IOP	5	TilingPlanTests.swift
-IOP	15	V50OrderTests.swift
+IOP	18	V50OrderTests.swift
 IOP	10	VibranceVelviaCommitTests.swift
 IOP	6	VignetteTests.swift
 IOP	4	VisionDetectTests.swift
@@ -244,7 +244,7 @@ APP	3	ImportProgressCoalescingTests.swift
 APP	9	MaskItemSemanticsTests.swift
 APP	9	NodeCanvasGeometryTests.swift
 APP	14	NodesPanelModelTests.swift
-APP	15	GradeCatalogTests.swift
+APP	16	GradeCatalogTests.swift
 LAYERS	5	ACESccEnvelopeTests.swift
 LAYERS	1	GradeEnvelopePerfProbeTests.swift
 IOPP	18	GradeKernelGoldenTests.swift
@@ -976,3 +976,9 @@ IOPP	2	SpectralCrossArmGoldenTests.swift
 #   v0.3.3 BW pack repair（2026-11-02）：trio 解码门 4 法入 IOP（BW 身份/null
 #   谱面逐字+钉数/中位显影列/键折面；纯 CPU 解码面非 Golden）。
 IOP	4	BWPackDecodeTests.swift
+#   spektra-module P1 T1'（2026-11-04，refs #21）：注册骨架——V50OrderTests +1
+#   （17→18；46.7 槽值+列表席位）、GradeCatalogTests +1（15→16；21 行 identity 法）、
+#   RegistryFilmModuleTests 5 法入 APP（双面注册/谓词三态/wrapper 同值/目录席位+seed
+#   缺席/默认面计数契约——IopCatalog 在 App 面故落 APP 非 IOP），CatalogAddFaceTests
+#   期望 14→15（不增法，行内 9 不动）。
+APP	5	RegistryFilmModuleTests.swift

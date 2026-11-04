@@ -94,7 +94,8 @@ public enum NodeOwnershipCatalog {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The grade catalog (Plan M2-5-1 T1, KD-1; M3-3-02 T4 adds the 19th row) —
+// The grade catalog (Plan M2-5-1 T1, KD-1; M3-3-02 T4 adds the 19th row;
+// M5-1-01 T5 the 20th; spektra-module P1 T1' the 21st) —
 // the Alcedo adjustment catalogs as a five-tuple table (D-M2-5-CONTEXT-1's on-disk carrier):
 //
 //   catalogID      — the stable Alcedo catalog id (KD-1 camelCase form,
@@ -165,10 +166,12 @@ public enum GradeCatalog {
         String(data: ParamsCoding.encode(params), encoding: .utf8) ?? ""
     }
 
-    /// The 19 catalogs — the FEATURE-MAP §2.1 table order (M2-5-1 KD-1)
-    /// with the M3-3-02 filmPlacement row appended (the Alcedo-18 model is
-    /// EXTENSIBLE: the placement op is the differentiation row, no Alcedo
-    /// counterpart — M3-3-02-DECISIONS).
+    /// The 21 catalogs — the FEATURE-MAP §2.1 table order (M2-5-1 KD-1)
+    /// with the M3-3-02 filmPlacement row + the M5-1-01 colormatch row +
+    /// the spektra-module P1 spektraFilm row appended (the Alcedo-18 model
+    /// is EXTENSIBLE: the placement op is the differentiation row, no Alcedo
+    /// counterpart — M3-3-02-DECISIONS; the colormatch row the TRACK arm;
+    /// the spektraFilm row the dt spektrafilm verbatim port).
     public static let items: [GradeCatalogItem] = [
         GradeCatalogItem(
             catalogID: "cat02WhiteBalance", opName: Cat02WBModule.opName, owner: .grade,
@@ -275,6 +278,17 @@ public enum GradeCatalog {
             catalogID: "colormatch", opName: ColormatchModule.opName, owner: .grade,
             identityJSON: json(of: ColormatchModule.Params()),
             panelExposures: ["strength"]),
+        // spektra-module P1 T1' — the 21st row: the dt spektrafilm module
+        // port (v50 slot 46.7). Owner .grade (supportsBlending = the
+        // existing layer mask chain applies as-is — the module-ization's
+        // core gain); identityJSON = Params() (the pristine FilmRecord =
+        // the blit-identity core — an added, unbound instance passes
+        // pixels through byte-exact); panelExposures names the Film panel
+        // keys (stem discipline — keyspellings zero-new this batch).
+        GradeCatalogItem(
+            catalogID: "spektraFilm", opName: SpektraFilmModule.opName, owner: .grade,
+            identityJSON: json(of: SpektraFilmModule.Params()),
+            panelExposures: ["film", "paper", "strength", "exposure"]),
     ]
 
     /// The catalog row for an op name (first match — Shadows wins the
@@ -283,8 +297,8 @@ public enum GradeCatalog {
         items.first { $0.opName == opName }
     }
 
-    /// The grade-owned rows (14 Grade items + Tint — the 19 minus the four
-    /// DRT/Post seats).
+    /// The grade-owned rows (16 Grade items + Tint — the 21 minus the four
+    /// DRT/Post seats; the Shadows/Highlights rows share the shadhi op).
     public static func gradeItems() -> [GradeCatalogItem] {
         items.filter { $0.owner == .grade }
     }

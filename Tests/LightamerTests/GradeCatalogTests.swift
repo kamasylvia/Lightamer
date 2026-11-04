@@ -36,7 +36,7 @@ final class GradeCatalogTests: XCTestCase {
     // MARK: - 1: shape
 
     func testExactlyEighteenItemsInFeatureMapOrder() {
-        XCTAssertEqual(GradeCatalog.items.count, 20)
+        XCTAssertEqual(GradeCatalog.items.count, 21)
         XCTAssertEqual(
             GradeCatalog.items.map(\.catalogID),
             [
@@ -44,15 +44,15 @@ final class GradeCatalogTests: XCTestCase {
                 "shadows", "highlights", "curve", "hls", "saturation",
                 "vibrance", "colorWheel", "lmt", "tint",
                 "clarity", "sharpen", "halation", "filmGrain",
-                "filmPlacement", "colormatch",
+                "filmPlacement", "colormatch", "spektraFilm",
             ],
-            "the FEATURE-MAP §2.1 table order + the placement and colormatch rows")
-        XCTAssertEqual(Set(GradeCatalog.items.map(\.catalogID)).count, 20, "unique ids")
+            "the FEATURE-MAP §2.1 table order + the placement, colormatch and spektraFilm rows")
+        XCTAssertEqual(Set(GradeCatalog.items.map(\.catalogID)).count, 21, "unique ids")
     }
 
     func testGradeItemsAreExactlyFourteen() {
         let grade = GradeCatalog.gradeItems()
-        XCTAssertEqual(grade.count, 16, "14 Grade ops + Tint + colormatch (M5-1-01)")
+        XCTAssertEqual(grade.count, 17, "15 Grade ops + Tint + colormatch (M5-1-01; spektra-module P1 T1')")
         XCTAssertEqual(grade.filter { $0.catalogID == "tint" }.count, 1)
         XCTAssertTrue(grade.allSatisfy { $0.owner == .grade })
         // The four DRT/Post seats never leak into the grade face.
@@ -92,7 +92,7 @@ final class GradeCatalogTests: XCTestCase {
         //       keeps a later reader from "fixing" it.
         let face = await defaultFaceRegistryOps()
         let catalogOps = Set(GradeCatalog.items.map(\.opName))
-        XCTAssertEqual(catalogOps.count, 19, "20 rows; Shadows/Highlights share the shadhi op")
+        XCTAssertEqual(catalogOps.count, 20, "21 rows; Shadows/Highlights share the shadhi op")
         // The SEED-DEFERRED ops (join the editing seed with their panels —
         // the M2-5-1 seven + the M3-3-02 placement op, whose FSIM-02 panel
         // is M3-4; each IS default-face REGISTERED, only seed membership
@@ -103,6 +103,7 @@ final class GradeCatalogTests: XCTestCase {
             ColorWheelsModule.opName, HlsModule.opName,
             FilmPlacementModule.opName,
             ColormatchModule.opName,
+            SpektraFilmModule.opName,
         ]
         let alignedOps = catalogOps.subtracting(newSevenOps)
         XCTAssertTrue(
@@ -120,7 +121,7 @@ final class GradeCatalogTests: XCTestCase {
         #endif
     }
 
-    /// DECISIONS §3 (b), the T7 closure: all 20 catalog rows' ops (19
+    /// DECISIONS §3 (b), the T7 closure: all 21 catalog rows' ops (20
     /// unique opNames — Shadows/Highlights share shadhi) RESOLVE from the
     /// default-face-populated registry. This is the strict-face narrowing
     /// precondition the P2 panels build on. Seed membership is deliberately
@@ -136,7 +137,7 @@ final class GradeCatalogTests: XCTestCase {
             XCTAssertNotNil(box, "\(item.opName) must be default-face registered")
             resolved.insert(item.opName)
         }
-        XCTAssertEqual(resolved.count, 19, "19 unique catalog ops all resolve")
+        XCTAssertEqual(resolved.count, 20, "20 unique catalog ops all resolve")
     }
 
     // MARK: - 3: the owner matrix
@@ -163,6 +164,7 @@ final class GradeCatalogTests: XCTestCase {
             "filmGrain": .drtPost,
             "filmPlacement": .grade,
             "colormatch": .grade,
+            "spektraFilm": .grade,
         ]
         for item in GradeCatalog.items {
             XCTAssertEqual(
@@ -203,6 +205,10 @@ final class GradeCatalogTests: XCTestCase {
         ("saturation", 42.2),
         ("tint", 42.4),
         ("hls", 42.6),
+        // spektra-module P1 T1': the dt-verbatim spektrafilm slot — the
+        // first dt row tracked here (the backfill lands in the same table
+        // this array guards, so the uniqueness pin must cover it).
+        ("spektraFilm", 46.7),
     ]
 
     func testLightamerRowsPresentWithPinnedValues() {
@@ -225,7 +231,7 @@ final class GradeCatalogTests: XCTestCase {
 
     func testLightamerRowsAreMutuallyUnique() {
         let orders = Self.lightamerGradeRows.map(\.1)
-        XCTAssertEqual(Set(orders).count, orders.count, "the eleven LIGHTAMER rows are unique")
+        XCTAssertEqual(Set(orders).count, orders.count, "the thirteen LIGHTAMER rows are unique")
     }
 
     func testLightamerRowsDisjointFromRegisteredOpPositions() async {
@@ -362,6 +368,16 @@ final class GradeCatalogTests: XCTestCase {
             HlsModule.Params.self,
             from: Data(try identityItem("hls").identityJSON.utf8))
         XCTAssertEqual(hls, HlsModule.Params())
+    }
+
+    /// spektra-module P1 T1': the 21st row's snapshot IS the pristine
+    /// record — the identityJSON gate for the new row (the E7 +1 method).
+    func testSpektraFilmIdentitySnapshotIsPristineRecord() throws {
+        let decoded = try JSONDecoder().decode(
+            SpektraFilmModule.Params.self,
+            from: Data(try identityItem("spektraFilm").identityJSON.utf8))
+        XCTAssertEqual(decoded, SpektraFilmModule.Params())
+        XCTAssertTrue(isFilmRecordDefault(decoded.record))
     }
 
     func testDRTPostIdentitySnapshotsAreNoOpPoints() throws {

@@ -950,6 +950,9 @@ let project = Project(
                 "Tests/LightamerTests/BeforeAfterTests.swift",
                 "Tests/LightamerTests/BuiltInLutSetTests.swift",
                 "Tests/LightamerTests/CatalogAddFaceTests.swift",
+                // spektra-module P1 T1': the spektraFilm registration + gate
+                // suite (refs #21; APP domain — the IopCatalog count pin).
+                "Tests/LightamerTests/RegistryFilmModuleTests.swift",
                 "Tests/LightamerTests/CropOverlayTests.swift",
                 // M9-3 T3: the crop-tool rotate/straighten orchestration
                 // (atomic batch + undo order + the refit predicate trio +
