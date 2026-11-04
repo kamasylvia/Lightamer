@@ -18,3 +18,30 @@
 - 允许 ΔN 大幅上修（v3 交付为准，评审估 ~75-80 减 4 退役）。
 - 封存面申报必然扩大（v2 复审已点名需增五行），按逐 hunk 申报制执行。
 - execute 分期仍按 T 序串行（commit-per-task），但**不按功能分档交付**——P1 全量 PASS 才算闭环。
+
+## D-SM-EXEC（2026-11-04 omp 执行批）：P1 全量落地注记
+
+### r4 三 minor 消解
+
+- **r4-m1**：封存结论句补记 Core Presets 非封存两小 hunk（`PresetError.layerOnlyOpPresent`
+  additive case + `PresetApplier.makePayload` 防御过滤）——过滤留 Core（App 调用点过滤会漏
+  MCP/batch 面；Core 过滤是第二道墙的第一形）。
+- **r4-m2**：D-SM-15① 装配机制 = actor-owned once-flag（`QLAssembly.shared.ensure`，两腿首用
+  调；static let 内零等待——禁令遵守）。实报见 SUMMARY。
+- **r4-m3**：AC-T6'-13 补走查兜底 + Core `QuickLookFilmResources`（Bundle 形参可测形）；
+  appex Env 接线由走查覆盖（本批走查移交 orchestrator，见偏差 1）。
+
+### 生命线终态（五条全量）
+
+1. 材料解析缝：`FilmMaterialSeam`（Core holder）+ App `attachFilmStore` 安装 + QL 独立安装。
+2. requestTags 供给：`resolveLegTags` 纯函数 + per-target 兄弟腿（R-M1）+ QL TaskLocal 直装。
+3. merge-down 语义：预检 toast + `mergeDown` refuse（⑯）+ 基链拒收（蒸发闭环）。
+4. appex 注册：QL 全量 populate + material seam + tags（D-SM-15/16；ε 带正测）。
+5. scratch 分配：自持 run-scoped 中间面（D-SM-12R）+ 计数槽 ≤1 + 8192 绝对门（探针默认 skip）。
+
+### 实数与封存
+
+- ΔN = 净增 **97**（101 − 4），分项见 SUMMARY（与 PLAN §0.2 逐位一致）。
+- 封存终态 = 实质 3 行（V50Order/GradeCatalog/LayerStack⑯）+ 1 注释例外（PixelPipe）
+  + Core Presets 两小 hunk（r4-m1）；其余 12 行零 diff（机检）。
+- 环境门：process 3 / sidecar v13 / UserDefaults 零新键 / env 默认 off 全程；G4 透明越门登记。
