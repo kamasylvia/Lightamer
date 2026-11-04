@@ -633,6 +633,10 @@ let project = Project(
                 "Tests/LightamerTests/FollowEdgesTests.swift",
                 "Tests/LightamerTests/FilmHistoryTests.swift",
                 "Tests/LightamerTests/FilmLegTests.swift",
+                // spektra-module P1 T2' (refs #21): the module body suite —
+                // LAYERS domain (the R-M3 ruling: 944MB baseline, default
+                // mid-plane fixtures + the RSS probe).
+                "Tests/LightamerTests/SpektraFilmTests.swift",
                 "Tests/LightamerTests/FilmDeterminismTests.swift",
                 "Tests/LightamerTests/FilmDescriptorTests.swift",
                 "Tests/LightamerTests/FilmPlacementDriverTests.swift",

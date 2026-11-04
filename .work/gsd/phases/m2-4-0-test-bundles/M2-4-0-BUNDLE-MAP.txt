@@ -982,3 +982,6 @@ IOP	4	BWPackDecodeTests.swift
 #   缺席/默认面计数契约——IopCatalog 在 App 面故落 APP 非 IOP），CatalogAddFaceTests
 #   期望 14→15（不增法，行内 9 不动）。
 APP	5	RegistryFilmModuleTests.swift
+#   spektra-module P1 T2'（2026-11-04，refs #21）：本体 15 法入 LAYERS（类型 2/
+#   恒等+编码 2/缝正负 2/分配+探针 2/斜率+戳记+争槽 3/工厂双臂 2/md5 双臂 2）。
+LAYERS	15	SpektraFilmTests.swift
