@@ -35623,6 +35623,24 @@
           }
         }
       }
+    },
+    "toast_layer_merge_film_refused": {
+      "comment": "spektra-module P1 T3': the layer-only refusal (base-chain recordChange reject + into-base merge pre-check).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Film lives in adjustment layers"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "胶片只能放在调整层中"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

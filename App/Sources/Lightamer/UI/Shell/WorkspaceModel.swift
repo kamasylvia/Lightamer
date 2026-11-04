@@ -338,6 +338,14 @@ final class WorkspaceModel {
         filmRecords[url.path] != nil
     }
 
+    /// spektra-module P1 T3': the legacy-film predicate — the carrier
+    /// holds a session record (the T4' dual-track gate reads this union
+    /// the presence predicate; the carrier itself is legacy-read-only
+    /// from T3' on — new writes ride module instances).
+    func hasLegacyFilmRecord(for url: URL) -> Bool {
+        hasFilmRecord(for: url)
+    }
+
     /// The raw write face (nil = pristine, drops the key), NO coordinator
     /// pass-through — the persistence hook lives in the coordinator legs.
     func setSessionFilmRecord(_ record: FilmRecord?, for url: URL) {

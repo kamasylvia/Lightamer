@@ -238,6 +238,31 @@ final class LayerCoreTests: XCTestCase {
         XCTAssertEqual(decoded.items[0].layerScope, layerID)
         XCTAssertEqual(decoded.effectiveInstances(layerScope: layerID).count, 1)
     }
+
+    /// spektra-module P1 T3' (R-M4, 封存表⑯): the into-base mergeDown
+    /// refuses a chain carrying spektraFilm (restore + nil — the defense
+    /// twin of the caller-side pre-check; the layer + chain survive
+    /// verbatim). Core-side: the record decodes from JSON (Core cannot
+    /// import the IOP module constant — D-03).
+    func testMergeDownIntoBaseRefusesSpektraFilmChain() throws {
+        var stack = LayerStack(baseLayer: BackgroundLayer())
+        let filmJSON = """
+            {"id":"\(UUID().uuidString)","opName":"spektraFilm","multiPriority":0,"multiName":"","iopOrder":46.7,"version":1,"enabled":true,"paramsData":"e30=","paramsHash":0}
+            """
+        let film = try JSONDecoder().decode(
+            ModuleInstance.self, from: Data(filmJSON.utf8))
+        let bottom = layer(name: "Bottom", chain: [film])
+        stack.addAdjustment(bottom)
+        XCTAssertNil(
+            stack.mergeDown(id: bottom.id),
+            "the into-base fold refuses the layer-only op")
+        XCTAssertEqual(stack.adjustmentLayers.count, 1)
+        XCTAssertEqual(stack.adjustmentLayers[0].id, bottom.id)
+        let restored = try XCTUnwrap(
+            stack.adjustmentLayers[0] as? AdjustmentLayer)
+        XCTAssertEqual(restored.chain.count, 1)
+        XCTAssertEqual(restored.chain[0].opName, "spektraFilm")
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

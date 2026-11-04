@@ -216,6 +216,15 @@ final class EditorState {
     /// proves cache hits).
     func recordChange(_ snapshot: ModuleInstance, label: String) {
         if projectWriteSuppressed() { return }
+        // spektra-module P1 T3' (r-m5): spektraFilm is LAYER-ONLY — the
+        // base chain typed-rejects it (a toast + no commit). ONLY this
+        // opName refuses; film-semantic ops (grain et al) are unaffected.
+        if snapshot.opName == SpektraFilmModule.opName {
+            presentToast(String(
+                localized: "toast_layer_merge_film_refused",
+                defaultValue: "Film lives in adjustment layers"))
+            return
+        }
         history.commit(snapshot, label: label)
         // M3-1-03 KD-3: a commit IS the truth landing — an armed bypass on
         // the committed instance yields here (the real flow disarms before
@@ -737,6 +746,19 @@ final class EditorState {
     /// D-06-05-T1-2; the 1-commit acceptance pins the into-layer case).
     func mergeLayerDown(id: UUID) {
         guard let layerStack else { return }
+        // spektra-module P1 T3' (R-M4 甲): the into-base merge pre-check —
+        // a target chain carrying spektraFilm refuses BEFORE mergeDown
+        // (a toast + no call — the data-plane refuse inside mergeDown is
+        // the defense-in-depth twin).
+        if layerStack.adjustmentLayers.first(where: { $0.id == id })
+            .flatMap({ $0 as? AdjustmentLayer })
+            .map({ HistoryStack.effectiveChain($0.chain) })?
+            .contains(where: { $0.opName == SpektraFilmModule.opName }) == true {
+            presentToast(String(
+                localized: "toast_layer_merge_film_refused",
+                defaultValue: "Film lives in adjustment layers"))
+            return
+        }
         var stack = layerStack
         guard let outcome = stack.mergeDown(id: id) else { return }
         self.layerStack = stack

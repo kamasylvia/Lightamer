@@ -245,4 +245,38 @@ final class FilmHistoryTests: XCTestCase {
             (object["filmRecord"] as? [String: Any])?["film_stock"] as? String,
             "kodak_portra_400")
     }
+
+    // MARK: - spektra-module P1 T3' (AC-T3'-5): legacy decode retention
+
+    /// A pre-migration film item still decodes (the undo-back-to-legacy
+    /// face — the old record survives byte-exact in the items).
+    func testLegacyFilmItemStillDecodesAfterMigration() throws {
+        var stack = HistoryStack()
+        stack.commit(makePlaceholder(), label: "base")
+        stack.commitFilm(
+            record: filmRecord(shift: 3.0), placeholder: makePlaceholder(priority: 1),
+            label: "Film")
+        let bytes = try JSONEncoder().encode(stack)
+        let decoded = try JSONDecoder().decode(HistoryStack.self, from: bytes)
+        XCTAssertEqual(
+            decoded.effectiveFilmRecord(), filmRecord(shift: 3.0),
+            "the legacy film item decodes byte-exact (T3' read-only face)")
+    }
+
+    /// The film scope marker keeps film items out of the GLOBAL projection
+    /// (the sealed-face twin of the DRT marker — HistoryStack.swift
+    /// zero-diff, behavior re-pinned). The scoped read with the document
+    /// marker answers the placeholder (the mechanical face — no layer
+    /// ever carries that scope, so no layer projection reads it).
+    func testFilmItemsStayOutOfEveryInstanceProjection() {
+        var stack = HistoryStack()
+        stack.commit(makePlaceholder(), label: "base")
+        stack.commitFilm(
+            record: filmRecord(), placeholder: makePlaceholder(priority: 1),
+            label: "Film")
+        XCTAssertEqual(stack.effectiveInstances().count, 1)
+        XCTAssertEqual(
+            stack.effectiveInstances(layerScope: HistoryStack.filmDocumentScope).count, 1,
+            "the scoped read answers the placeholder (no layer carries this scope)")
+    }
 }

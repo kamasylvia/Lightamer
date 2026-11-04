@@ -303,7 +303,7 @@ LAYERS	8	MaskRefineTests.swift
 LAYERS	10	LayerCacheTests.swift
 LAYERS	13	LayerCompositeTests.swift
 LAYERS	11	MaskCommandTests.swift
-LAYERS	16	LayerCoreTests.swift
+LAYERS	17	LayerCoreTests.swift
 LAYERS	18	HistoryStackTests.swift
 LAYERS	19	LayerUIWiringTests.swift
 LAYERS	3	AIMaskPlaneFormatTests.swift
@@ -569,8 +569,8 @@ LAYERS	9	FilmRecordTests.swift
 #   测试按 front-matter 五测试文件清单并入 FilmProfileTests，不另立文件）。
 LAYERS	21	FilmProfileTests.swift
 LAYERS	8	FilmFilterPackSolverTests.swift
-LAYERS	8	FilmHistoryTests.swift
-LIB	6	FilmSidecarTests.swift
+LAYERS	10	FilmHistoryTests.swift
+LIB	9	FilmSidecarTests.swift
 
 # M3-3-02 增行记录（2026-10-08 执行期，checker E2 测试登记纪律）：新测试文件随各自
 #   任务 commit 登记进对应 bundle（归属按 front-matter 判定：FilmLegTests /
@@ -985,3 +985,7 @@ APP	5	RegistryFilmModuleTests.swift
 #   spektra-module P1 T2'（2026-11-04，refs #21）：本体 15 法入 LAYERS（类型 2/
 #   恒等+编码 2/缝正负 2/分配+探针 2/斜率+戳记+争槽 3/工厂双臂 2/md5 双臂 2）。
 LAYERS	15	SpektraFilmTests.swift
+#   spektra-module P1 T3'（2026-11-04，refs #21）：判别 14 法——WorkspaceLegacyTests
+#   9 法入 APP（在场 3/拒收 2/门控 2/合并 2）+ FilmHistoryTests +2（8→10）+
+#   FilmSidecarTests +3（6→9）+ LayerCoreTests +1（16→17，⑯ refuse）。
+APP	9	WorkspaceLegacyTests.swift

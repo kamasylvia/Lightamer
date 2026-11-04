@@ -177,6 +177,16 @@ public extension LayerStack {
                 ($0.iopOrder, $0.multiPriority, $0.opName)
                     < ($1.iopOrder, $1.multiPriority, $1.opName)
             }
+            // spektra-module P1 T3' (R-M4 甲, 封存表⑯): the into-base merge
+            // refuses a chain carrying spektraFilm (the op is LAYER-ONLY —
+            // folding it into the global set would evaporate it through the
+            // recordChange reject). The retouch shape: restore + nil (the
+            // caller-side pre-check toast is the user face). The literal is
+            // deliberate: Core cannot import the IOP module constant (D-03).
+            if combined.contains(where: { $0.opName == "spektraFilm" }) {
+                adjustmentLayers.insert(merged, at: index)
+                return nil
+            }
             return .mergedIntoBase(chain: combined)
         }
         guard let lower = adjustmentLayers[index - 1] as? AdjustmentLayer else {

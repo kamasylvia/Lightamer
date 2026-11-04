@@ -1043,6 +1043,9 @@ let project = Project(
                 "Tests/LightamerTests/LightamerSliderScrubTests.swift",
                 "Tests/LightamerTests/SkillsReferenceTests.swift",
                 "Tests/LightamerTests/FilmCoordinatorTests.swift",
+                // spektra-module P1 T3' (refs #21): the legacy/module
+                // discriminator suite (APP domain — EditorState harness).
+                "Tests/LightamerTests/WorkspaceLegacyTests.swift",
                 "Tests/LightamerTests/DrtPanelModelTests.swift",
                 "Tests/LightamerTests/FilmPanelTests.swift",
                 "Tests/LightamerTests/FilmPanelSpectralUITests.swift",

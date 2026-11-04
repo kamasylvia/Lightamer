@@ -586,6 +586,7 @@ final class PipeCoordinator {
     func versionActionDidChange() async {
         guard decoded != nil else { return }
         syncDrtCarrierWithHistory()
+        syncFilmCarrierWithHistory()
         await historyDidChange()
         scheduleSidecarWrite()
     }
@@ -1103,6 +1104,37 @@ final class PipeCoordinator {
         workspace?.hasFilmRecord(for: url) ?? false
     }
 
+    /// spektra-module P1 T3' (D-SM-8R): the spektraFilm presence predicate
+    /// (the SINGLE source — presence ignores `enabled`: a disabled
+    /// instance still owns the document's film identity). Scans the
+    /// global effective set ∪ every composite layer's effective chain.
+    var hasSpektraFilmInstance: Bool {
+        findSpektraFilmInstance() != nil
+    }
+
+    /// The presence locator: the FIRST spektraFilm hit — global hits
+    /// report layerID nil. Zero/defensive-multiple hits = nil (the
+    /// `.oneInstance` flag owns uniqueness; this face never adjudicates).
+    func findSpektraFilmInstance() -> (layerID: UUID?, instance: ModuleInstance)? {
+        guard let editorState else { return nil }
+        var hits: [(UUID?, ModuleInstance)] = []
+        for record in editorState.history.effectiveInstances()
+        where record.opName == SpektraFilmModule.opName {
+            hits.append((nil, record))
+        }
+        if let stack = editorState.layerStack {
+            for layer in stack.compositeLayers {
+                guard let adjustment = layer as? AdjustmentLayer else { continue }
+                for record in HistoryStack.effectiveChain(adjustment.chain)
+                where record.opName == SpektraFilmModule.opName {
+                    hits.append((layer.id, record))
+                }
+            }
+        }
+        guard hits.count == 1 else { return nil }
+        return hits[0]
+    }
+
     /// Inject the store (called from the composition root; a nil store =
     /// the film face dark). The store construction itself is the App's —
     /// this face only seats it.
@@ -1112,9 +1144,16 @@ final class PipeCoordinator {
 
     /// Navigation faces carrier re-sync (the syncDrtCarrierWithHistory
     /// twin): after a pointer move the carrier re-derives from the
-    /// HISTORY's effective film record.
+    /// HISTORY's effective film record — UNLESS a spektraFilm instance is
+    /// present (spektra-module P1 T3', D-SM-10: the module owns the
+    /// document's film identity then; the legacy carrier clears so the
+    /// dual-track gate can never double-render).
     private func syncFilmCarrierWithHistory() {
         guard let editorState, let url = currentImageURL else { return }
+        if hasSpektraFilmInstance {
+            workspace?.setSessionFilmRecord(nil, for: url)
+            return
+        }
         workspace?.setSessionFilmRecord(
             editorState.history.effectiveFilmRecord(), for: url)
     }

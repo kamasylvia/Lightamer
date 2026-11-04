@@ -273,4 +273,35 @@ final class FilmSidecarTests: XCTestCase {
         XCTAssertEqual(decoded.filmRecord, document.filmRecord)
         XCTAssertEqual(decoded.history.effectiveFilmRecord(), document.filmRecord)
     }
+
+    // MARK: - spektra-module P1 T3' (AC-T3'-1/2): legacy read-only
+
+    /// schemaVersionCurrent == 13 (zero bump — the T3' environment gate).
+    func testSchemaVersionStaysThirteen() {
+        XCTAssertEqual(LightamerSidecar.schemaVersionCurrent, 13)
+    }
+
+    /// A v13 fixture carrying filmRecord decodes with the legacy face
+    /// intact (effectiveFilmRecord bit-exact — the T4' migration source).
+    func testV13FixtureWithFilmRecordDecodesLegacyFace() throws {
+        let document = makeDocument(history: makeFilmHistory())
+        let bytes = try Self.canonicalEncoder.encode(document)
+        let decoded = try Self.decoder.decode(LightamerSidecar.self, from: bytes)
+        XCTAssertEqual(decoded.schemaVersion, 13)
+        XCTAssertEqual(decoded.filmRecord, document.filmRecord)
+        XCTAssertEqual(
+            decoded.history.effectiveFilmRecord(), document.filmRecord,
+            "the legacy record survives the round-trip bit-exact")
+    }
+
+    /// The writer emits NO new keys for a legacy document (the zero-new-key
+    /// face — the on-disk key set is the frozen family + filmRecord).
+    func testWriterEmitsNoNewKeysForLegacyDocuments() throws {
+        let document = makeDocument(history: makeFilmHistory())
+        let bytes = try Self.canonicalEncoder.encode(document)
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        XCTAssertNil(object["spektraFilm"], "zero new document keys")
+        XCTAssertNotNil(object["filmRecord"], "the legacy key still rides")
+    }
 }
