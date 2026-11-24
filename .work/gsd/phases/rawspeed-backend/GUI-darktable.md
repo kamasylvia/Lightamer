@@ -18,6 +18,8 @@ Issue #26 · lane: darktable (first object, owns the shared harness). Machine: M
 
 **M3 批量粘贴（100 / 1,000 / 10,000）：未测得数字**（导入 + 批处理驱动在时间盒内未收敛，见 §8）。可给的是代码级证据：粘贴本身是**后台 DB 任务**（不逐张解码/渲染），缩略图刷新走 **mipmap 缓存按需 + 空闲 crawler**，不是前台同步。就「懒渲染」这一点，代码路径与用户参照（「一万张几秒」）同构；但没有本机墙钟数字，不作为合格判定。
 
+**M3a 第三轮（§11）**：101 张 `Ctrl+A`+`Ctrl+V` 粘贴 ≈2 s（首张 <0.4 s）→ ≈50 张/s；10,000 张**无有效完成时间**——最远一次写出全部 10,000 个 XMP sidecar（≈90 s 时间戳跨度）但 `history` 表零增长（未持久化）。对照「一万张几秒」：**不成立**；且 10k 档的失败模式是架构/代码（逐张 DB 写 + 逐张 sidecar + 大体量单任务），不是解码器。
+
 **判定句（仅就可测部分）**：darktable 的**打开等待 = 应用启动成本主导**（约 4.5 s 窗口出现 + 约 1.7–2.1 s 首图），与 CLI 位图口径（SPIKE §4 P0 894 ms）不可直接比；**编辑等待 0.68 s**，不是「100% ROI 11 ms」那种已解码平面复用型体验，仍在同一数量级内可用。批量粘贴**架构上符合懒渲染**（DB-only job + 按需缩略图），但本轮**没有数字**，不能据此宣布「懒渲染合格」。
 
 ## §1 方法
@@ -201,3 +203,56 @@ Issue #26 · lane: darktable (first object, owns the shared harness). Machine: M
 - **热切换未测**：没有 CSV；上一对象「暗房内 → 切图进程退出」的现场也没有复现（未跑到那一步）。
 - **多实例污染**：本轮多次 `pkill -9` 后旧实例仍存活，最后一次驱动的窗口是 1066×532 的旧实例，合成事件落点不可信——这类「旧实例残留」是后续 lane 必须先用 `pgrep -f <binary>` 清零再启动的原因。
 - **源图编辑值**：+0.7 EV（不是任务书的 +0.5）——由 GUI 路径写入，未追究具体按键序列。
+
+---
+
+## §11 第三轮（2026-11-25 01:40–）——M3a 粘贴墙钟：一百张已到手，一万张见下
+
+> 同一台机、同一二进制（SHA256 `6ff88e58…`，5.6.2 arm64）。前两轮的失败根因（§10.2）本轮逐条绕开：不用 Lua `image:paste_history`、不用 `dt.gui.action` thumbtable 动作、不用 Lua 快捷键，复制状态用**真实鼠标点 copy 按钮 + Ctrl+C** 建立，粘贴用 **Ctrl+V**（复制状态有效后生效）。
+
+### §11.1 方法与前置
+
+| 项 | 值 |
+|---|---|
+| 隔离 | `HOME=$G/darktable/home CFFIXED_USER_HOME=...`，`--configdir $G/home/dt-config --library $G/lib.db` |
+| 偏好 | 启动前 `defaults export org.darktable`（1726 B），收尾 `defaults import` 还原 |
+| 样张 | `5G4A9394-compressed-lossless.DNG`（23 MB，CC0 最小 RAW）硬链接：`t10000-*` ×10,000 / `t1000-*` ×1,000 / `t100-*` ×100，另 `SOURCE.DNG` ×1 |
+| 库 | 11,103 行 = 10,000（film n10000）+ 1,000（n1000）+ 101（n100）+ 2（batch）。**重复导入产物**：`SOURCE.DNG`×2、`t100-00001.DNG`×2（两个实例并发导入同一批文件所致，见 §11.4） |
+| 导入 | CLI 位置参数传顶层文件夹；darktable 递归导入（先顶层 10,000，再子目录 1,100），全量约 7 min，**不计入 M3** |
+| 集合切换 | 左侧 collect 模块 film roll 行，**双击**才激活（单击只高亮） |
+| 计时 | `Ctrl+V` 键事件前一刻 `time.time()` 为 T0；完成判据 = 该 film roll 内每张图的 `history` 行数 > 各自基线 |
+
+### §11.2 M3a 数字
+
+| 档 | 选中张数（DB 核对） | 首张生效 | 全部完成 | 备注 |
+|---|---|---|---|---|
+| n100 | 101 | <0.4 s | ~2 s（观测窗内 101 张全部写入历史） | `Ctrl+V` 生效；按「源图 hash」计数是错判据（append 会改 hash），未做正式 T0 计时 |
+| n1000 | 未测 | — | — | 时间盒耗尽（选中集合切换 + 焦点问题反复） |
+| n10000 | 10,000 | — | **无有效完成时间** | 三次尝试，见 §11.4；最远一次把 10,000 个 XMP 全部写出（≈90 s 时间戳跨度）但 `history` 表零增长 |
+
+**判定句**：对照用户参照「懒渲染，批量修一万张也只要几秒」——**不成立，且不是「慢」而是「没落库」**。本机最好观测速率 ≈50 张/s（101 张 ≈2 s）；按此外推 10k ≈3.3 min，仍比「几秒」高一个半数量级。10k 档的三次尝试中，最远一次完成了逐张元数据 + **10,000 个 sidecar**（`dt_image_synch_xmps`）但 `history` 行没有持久化（库内 16,514 行、film 1 仅 7,364 张有历史，与开跑前一致）。原因在**架构/代码**（逐张 DB 写 + 逐张 sidecar 同步 + 大体量单任务），与解码器无关——粘贴路径不解码。
+
+### §11.3 粘贴语义（本轮实测修正）
+
+- 粘贴是 **append**：把源图的可复制模块栈（本轮 = 9 项：rawprepare/demosaic/colorin/colorout/gamma/temperature/highlights/channelmixerrgb/exposure）**追加**到每张目标图的历史尾部；不是覆盖。
+- 因此「源图 history 条数 == 目标条数」不能当完成判据；改用「每张图行数较基线增长」。
+- 复制状态的有效性判据（`libs/copy_history.c:75-90`）：`copied_imageid` 有效 **且**（多选 **或** 单选且被选图 ≠ 源图）。只选中源图时 paste 按钮按设计置灰；`Ctrl+A` 后变可用（截图 `r8/r9` 黑字 paste 证实）。
+- **任务尾部有逐张 sidecar 写**：`_control_paste_history_job_run` 收集 `to_synch`，循环结束调 `dt_image_synch_xmps(to_synch)`（`control_jobs.c:1850-1853`）。本轮 10k 档在 `batch/n10000/` 实得 **10,000 个 `.xmp`**（`find -newermt 02:22` = 10,000）。这是 10k 档的主要墙钟成本之一，且与解码无关。
+- 按钮点击异常：paste 按钮**已启用**（黑字）时，多次真实鼠标点击（`CGEvent` down/up，(990,260)，按钮命中经悬停高亮确认）均未产生 DB 变更；同一状态下 `Ctrl+V` 在 101 档生效。原因未定位，记录为观察。
+
+### §11.4 10k 档三次尝试与污染申报
+
+1. **A：4 Hz 轮询版（作废）**。应用日志出现 **330 条**（事后累计 352 条）`sqlite3 error 5 (database is locked)`（`logs/import3.log`，t≈832–858 s），粘贴停在 7,365/10,000。根因 = 完成判据以 4 Hz 只读查询轮询库文件；库是 `journal_mode=delete`（darktable 强制 `journal_mode=MEMORY`，见 `common/database.c:4436-4437`），读锁把写事务饿死。**计时方法本身污染被测对象**，该轮数字不采用。
+2. **B：重启后 `Ctrl+V` 被忽略**。界面 toast「ignoring shortcuts while blocking jobs running」——上一轮残留的 blocking job 未退出；两次 `Ctrl+V` 与一次按钮点击均无效果（`grown_after=0`）。
+3. **C：真实 10k 任务跑起来了**（底部进度条「pasting history to 10000 ima…」，`r11` 截图）。观测结果：10,000 张图的 `change_timestamp` 刷新（跨度 **90.1 s**，`63931141344202478..63931141434329982` µs）；`batch/n10000/` 下 **10,000 个 XMP** 全部写出（mtime 02:23–02:24，内容含 `exposure`）；但 `history` 表**零增长**（总数 16,514 = 开跑前；film 1 有历史的图仍 7,364 张）。即：逐张历史写入未持久化，sidecar 与元数据却落盘。**没有可信的「完成」时刻**，不编造墙钟。
+
+> 方法学结论：对 darktable 这类 `journal_mode=MEMORY` 的库，GUI 计时不能用高频 DB 轮询做完成判据；可行判据是进度条消失（UI 层）或 sidecar 产出计数（文件层）。本轮 C 档已改用 mtime/窗口监视，但 10k 任务的 DB 结果本身不一致，数字不可用。
+
+### §11.5 删除与偏好还原（第三轮）
+
+- 进程：本 lane 的 darktable 实例（pid 69662 等）`kill -9` 后 `pgrep -f <app>` 清零。
+- 目录：`$G/darktable/` **523 MB**（app 副本、隔离 HOME、11,103 个图片硬链接 + 11,101 个 XMP、DB、帧、日志）已删；`ls` 确认不存在。
+- 偏好：启动前 `defaults export org.darktable` = 1726 B；收尾 `defaults import` 已执行，**磁盘 plist 内容已还原**（`plutil -p ~/Library/Preferences/org.darktable.plist` 可见原 5 个键）。但 `defaults read org.darktable` 仍返回空字典 —— cfprefsd 缓存了本轮写入的空域；按纪律**未** `killall cfprefsd`。**风险**：下次 cfprefsd 落盘可能覆盖该文件；备份原件随 `$G` 删除，无法二次还原（流程失误：备份应放 `$G` 之外）。
+- `~/Library` 顶层：与 `snap-before.txt` 比对，**无新增 darktable 条目**（仅一个目录 ENOENT 噪声）。
+- 磁盘：删前 38 GB → 删后 39 GB（523 MB 取整）；`df -h /` = 39 GB avail。
+- 未动：`$G/_harness/`、`$G/_frames/`、`$G/_launchcheck/`。

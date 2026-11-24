@@ -1,0 +1,10 @@
+# 10k paste attempt: sidecar + history evidence (2026-11-25)
+xmp_files_n10000=10000
+xmp_files_n1000=1000
+xmp_newer_than_0222=10000
+history_rows_total=16514
+history_distinct_imgid=7465
+film1_imgid_with_history=7364
+film1_change_ts_min=63931141344202478
+film1_change_ts_max=63931141434329982  # span 90.1 s
+history_before_run=16512

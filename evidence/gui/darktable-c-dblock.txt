@@ -1,0 +1,13 @@
+# darktable 5.6.2 paste — DB lock evidence (run 1, 4 Hz DB polling)
+total_lines=352
+first_10:
+690:   832.7228 [image_cache_write_release] from `(null)' sqlite3 error 5 (database is locked) for imgid 143
+691:   833.5056 [image_cache_write_release] from `(null)' sqlite3 error 5 (database is locked) for imgid 477
+692:   833.5057 [image_cache_write_release] from `update final size' sqlite3 error 5 (database is locked) for imgid 10003
+693:   833.5058 [image_cache_write_release] from `dt_image_reset_aspect_ratio' sqlite3 error 5 (database is locked) for imgid 477
+694:   834.0208 [image_cache_write_release] from `(null)' sqlite3 error 5 (database is locked) for imgid 691
+695:   834.0209 [image_cache_write_release] from `update final size' sqlite3 error 5 (database is locked) for imgid 10003
+696:   834.0211 [image_cache_write_release] from `dt_image_reset_aspect_ratio' sqlite3 error 5 (database is locked) for imgid 691
+697:   834.5311 [image_cache_write_release] from `(null)' sqlite3 error 5 (database is locked) for imgid 884
+698:   834.5312 [image_cache_write_release] from `update final size' sqlite3 error 5 (database is locked) for imgid 10003
+699:   834.5313 [image_cache_write_release] from `dt_image_reset_aspect_ratio' sqlite3 error 5 (database is locked) for imgid 884

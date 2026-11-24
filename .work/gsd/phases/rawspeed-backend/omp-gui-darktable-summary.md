@@ -1,39 +1,36 @@
-# omp GUI lane — darktable 补测批 summary (2026-11-24)
+# darktable M3a 第三轮 — 交付摘要（2026-11-25，omp）
 
 ## 结论头
 
-- **M3a/M3b/M3c：未测得**（6 条驱动路径全部未能创建粘贴任务；任务书假设的 Lua `image:paste_history` 在 5.6.2 不存在）。
-- **M1 热：未测**（时间盒耗尽）。
-- 新增硬数字：**101 张导入在主窗 4.736 s 时已完成**；**缩略图 crawler 101 张 ≤8.1 s = 12.5 张/s = 80.2 ms/张** → **全量 10k 外推 ≈802 s ≈13.4 min**（默认 `backthumbs_mipsize=never` 时不发生）。
-- 判定：粘贴仍是**DB-only 懒渲染**（代码路径不变，§3/§10.4）；但本轮**没有粘贴墙钟**，不能宣布「一万张几秒」。缩略图侧不懒：80 ms/张。
+| 档 | 选中（DB 核对） | 首张生效 | 完成 | 结果 |
+|---|---|---|---|---|
+| 101 张 | 101 | <0.4 s | ~2 s | 可用：≈50 张/s |
+| 1,000 张 | — | — | — | 未测（时间盒耗尽） |
+| 10,000 张 | 10,000 | — | **无有效完成时间** | 逐张元数据 + 10,000 个 XMP 写出（≈90 s 跨度）但 `history` 表零增长 |
 
-## 关键表
+**判定句**：对照「懒渲染，批量修一万张也只要几秒」——**不成立**。本机最好观测速率 ≈50 张/s（101 张 ≈2 s，外推 10k ≈3.3 min，已高一个半数量级）；10k 档三次尝试中，最远一次完成了 sidecar 与元数据却**没有把 history 持久化**。粘贴路径不解码，失败/慢的根源在架构/代码（逐张 DB 写 + `dt_image_synch_xmps` 逐张 sidecar + 大体量单任务），**不是解码器**。
 
-| 项 | 值 |
-|---|---|
-| 导入 101 张（窗口出现时刻） | 4.736 s |
-| 缩略图 101 张 | ≤8.1 s（12.47/s，80.2 ms/张） |
-| 10k 全量缩略图外推 | 802 s（13.37 min） |
-| 粘贴任务创建次数 | 0 / 6 次尝试 |
-| 源图 history | 11 项，exposure +0.7 EV |
+## 关键数字与证据
 
-## 失败根因（源码）
+- 库：11,103 行（10,000 / 1,000 / 101 + 2 个重复导入产物）；硬链接样张 23 MB CC0 DNG。
+- 粘贴语义 = **append**（源图 9 个可复制模块追加到目标），不是覆盖。
+- 复制状态有效判据：`libs/copy_history.c:75-90`（多选，或单选且非源图）；只选源图时 paste 按设计置灰。
+- 10k 档 A 轮：4 Hz DB 轮询 → 应用日志 **352 条** `sqlite3 error 5 (database is locked)`；库为 `journal_mode=delete`（darktable 强制 MEMORY），读锁饿死写事务 → 该轮作废（`evidence/gui/darktable-c-dblock.txt`）。
+- 10k 档 C 轮：`batch/n10000/` 实得 **10,000 个 `.xmp`**（mtime 02:23–02:24，含 exposure），10,000 张 `change_timestamp` 跨度 **90.1 s**；`history` 总数 16,514、film 1 有历史 7,364 张——与开跑前一致（`evidence/gui/darktable-c-10k-evidence.txt`）。
+- 方法学：`journal_mode=MEMORY` 的库不能用高频只读轮询做完成判据；改用 UI 进度条或 sidecar 计数。
 
-1. `release-5.6.2:src/lua/image.c` 无 `paste_history`。
-2. `dt.gui.action("views/thumbtable/paste history")` → `ret=nan`；`accelerators.c:4476-4483` view-flag 检查拒绝 thumb 动作。
-3. `events.c:666` Lua 快捷键动作无默认键。
-4. 合成 Ctrl+C 没有建立 copy 状态（`act_on.c:650` → active_images），Ctrl+V 在 `control_jobs.c:2595` guard 处直接返回。
+## 删除与偏好
 
-## 删除与收尾
+- 进程清零（`pgrep` 自证）；`$G/darktable/` **523 MB** 已删（app、隔离 HOME、11,103 硬链接、11,101 XMP、DB、帧、日志）；`df` 39 GB avail。
+- 偏好：`defaults import org.darktable` 已执行，**磁盘 plist 内容已还原**（1726 B，5 键）；但 `defaults read` 仍空（cfprefsd 缓存；按纪律未 killall cfprefsd）。风险：缓存落盘可能覆盖；备份原件随 `$G` 删除，无法二次还原。
+- `~/Library` 顶层无新增 darktable 条目。
 
-- `$G/darktable`（491 MB）已删；进程 `pgrep lightamer-gui-test` 清零。
-- `org.darktable` 已 `defaults import` 还原；`~/Library` 前后 diff 为空；`df -h /` 41 GB。
-- 自审：**脚本核对 PASS / 0 error + 0 minor**（`evidence/gui/darktable-SELFREVIEW.md`；omp 自审实例未启动，时间盒耗尽后按任务书回落）。
+## 自审
+
+`evidence/gui/darktable-c-SELFREVIEW.md`：**PASS / 0 error + 0 minor**（脚本复算：CSV 两行、targets=10000、grown_after=0、352 条锁错误、10k XMP、报告六项断言、库内皮面复核）。
 
 ## 未验项
 
-- M3a/b/c 全部；M1 热；n1000/n10000 导入与粘贴；存证帧抽检（帧已随 $G 删除）。
-
-## commit
-
-（见本提交）
+- 1,000 张档未测。
+- 10k 档「history 未持久化」只做了 DB/文件层取证，未定位到 darktable 内部具体代码路径（单事务回滚 vs 写锁失败）。
+- 粘贴按钮的真实鼠标点击在启用状态下不生效（原因未定位）；101 档靠 `Ctrl+V` 生效。
