@@ -1,0 +1,15 @@
+Working...
+复审完成，写入 `evidence/gui/rawlab-SELFREVIEW-r2.md`。首行：`FAIL / 1 error + 6 minor`。
+
+| 条 | 结论 | 关键依据 |
+|---|---|---|
+| E1 | PASS | 报告 §2 line 85 已改 `0.613–0.643`；`rawlab-m2.csv` min rep1 0.613、max rep4 0.643，`ready 1.107–1.137` 亦一致 |
+| E2 | **FAIL（部分落地）** | 来源注记只在 §3 line 89–90；§0 line 33/45、§4 line 99、§9 line 144 仍是无来源的 2.82。`$G/rawlab/logs/` 全目录 grep `2.82` 零命中；唯一 n=100 原始 JSON `m3-100b.json` 仍是 `prepare=2.65, done=2.6544`。`rawlab-m3.csv` 为 05:15 事后汇总，非独立 stdout。算术自洽（28.2/26.5/109.1 ms、3.87≈3.9×） |
+| E3 | PASS | `logs/resource-sample.txt` 存在（555 B），含 05:10:24 `ps` 95.9%/4003408 KB、05:12:56 `ps` 1410048 KB、`sysctl vm.swapusage` 6978.50/8192.00M，与报告 96%/4.0→1.4 GB/6.98/8 GB 一致；line 43/135 引用路径 |
+| E4 | PASS | 7.27 s 已入 line 20/43/83/115/144；`m1hot.json` rep1 ready=7.2705；`hot-1-ready.png` bf=0.254（spinner 帧 0.010）、md5 与 onset 相同、与重测 RAF 完整帧 r=0.983，OCR 状态栏为 `Fujifilm-GFX100S-...RAF / 1536×1152·sRGB`；≥86 s 已限定负载态 |
+
+E2 剩余回修二选一：保留 2.82 则须在 line 33/45/99/144 补来源并以 `logs/m3-100-stdout.txt` 落盘该轮 stdout；或全文改 2.65 并同步 28→26.5 ms/张、`≥3.9×`→`≥4.1×`、CSV `prepare_s`。
+
+6 个 minor：line 91 的 81% CPU 无采样支撑；line 20/83 未给采样文件路径；line 135“历史负载”超出采样内容；line 69/140“所有数字来自重测轮”与首轮 7.27 s 冲突；line 119“86 s”漏“负载态”；`m1hot.json` 其余 5 条 RAF ~1 s 为旧判据假阳性未说明。
+
+未改报告/CSV，未跑 App，零 push。

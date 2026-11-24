@@ -1,0 +1,14 @@
+rep,sample,onset_s,ready_s,note
+0,Nikon_Z8_raw_14_bit_lossless_compression.NEF,3.715614080429077,4.140023231506348,
+1,Fujifilm-GFX100S-14bits-uncompress-4_3.RAF,,,timeout25
+2,Nikon_Z8_raw_14_bit_lossless_compression.NEF,3.5890800952911377,4.027127027511597,
+3,Fujifilm-GFX100S-14bits-uncompress-4_3.RAF,,,timeout25
+4,Nikon_Z8_raw_14_bit_lossless_compression.NEF,3.486095905303955,3.92319393157959,
+5,Fujifilm-GFX100S-14bits-uncompress-4_3.RAF,,,timeout25
+6,Nikon_Z8_raw_14_bit_lossless_compression.NEF,3.635067939758301,4.072336912155151,
+7,Fujifilm-GFX100S-14bits-uncompress-4_3.RAF,,,timeout25
+8,Nikon_Z8_raw_14_bit_lossless_compression.NEF,3.592548131942749,4.042095184326172,
+9,Fujifilm-GFX100S-14bits-uncompress-4_3.RAF,,,timeout25
+10,Nikon_Z8_raw_14_bit_lossless_compression.NEF,3.501657724380493,3.9463858604431152,
+11,Fujifilm-GFX100S-14bits-uncompress-4_3.RAF,,,timeout25
+probe,Fujifilm-GFX100S,,>=86,"frozen frame, dp=0.00 for 86s"
