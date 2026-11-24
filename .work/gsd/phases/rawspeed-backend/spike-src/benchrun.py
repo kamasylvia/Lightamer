@@ -116,7 +116,7 @@ def main():
         "xcode": sh("xcodebuild -version").stdout.splitlines()[0] if sh("which xcodebuild").returncode == 0 else "",
         "mem_gb": round(int(sh("sysctl -n hw.memsize").stdout.strip()) / 2**30),
         "memory_pressure": sh("memory_pressure").stdout.strip().splitlines()[-1] if sh("which memory_pressure").returncode == 0 else "",
-        "heavy_procs": sh("pgrep -fl 'xcodebuild|test-direct|swift-build|cmake|ninja'").stdout.strip() or "none",
+        "heavy_procs": (sh("pgrep -l 'xcodebuild|test-direct|swift-build|cmake|ninja'").stdout.strip()[:400] or "none"),
     }
     print(json.dumps(env_info, ensure_ascii=False, indent=1))
 

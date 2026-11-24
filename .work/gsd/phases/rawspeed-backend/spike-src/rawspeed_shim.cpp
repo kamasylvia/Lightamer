@@ -11,7 +11,7 @@ using namespace rawspeed;
 
 struct rs_image {
     RawImage raw;
-    RawImageData* data;   // owned by `raw`; kept non-const for the plane accessors
+    RawImageData* data;   // owned by `raw`; decoder kept only for shared_ptr, never used after open (RawDecoder Buffer-contract caveat)
     std::unique_ptr<RawDecoder> decoder;
 };
 
@@ -125,7 +125,7 @@ const uint16_t *rs_mosaic(const rs_image *img) {
 }
 
 uint64_t rs_mosaic_hash(const rs_image *img) {
-    if (!img) return 0;
+    if (!img || img->data->getDataType() != RawImageType::UINT16) return 0;
     auto plane = img->data->getU16DataAsCroppedArray2DRef();
     uint64_t h = 0xcbf29ce484222325ULL;  // FNV-1a 64 offset basis
     for (int y = 0; y < plane.croppedHeight; ++y)

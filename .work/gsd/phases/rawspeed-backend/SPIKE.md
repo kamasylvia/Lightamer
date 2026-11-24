@@ -1,6 +1,6 @@
 # rawspeed backend — spike report (issue #24)
 
-执行日期 2026-11-24 · 本 lane 的提交见 `git log -- .work/gsd/phases/rawspeed-backend/`（lane 起点 `2bdc4022`） · lane = omp spike（技术验证，不做实现）
+执行日期 2026-11-24（独立复跑 2026-11-25） · spike 提交 = `8873c77c`（本文件） · 复跑记录 = `evidence/RERUN.md`（提交见 `git log -1 -- .work/gsd/phases/rawspeed-backend/omp-spike-rerun-summary.md`） · lane = omp spike（技术验证，不做实现）
 工作区：`/Volumes/UNITEK/Documents/Development/Lightamer-rawspeed-spike/`（仓外，构建/样张/DNG）；仓内只留文本证据。
 
 ## Environment
@@ -19,8 +19,8 @@
 
 ## §0 结论头
 
-- **Q1 形态：形态 A（Swift 6 直接吃 rawspeed C++ 头）不可行——能驱动、读不到、错即崩。** 解码调用链（`Buffer` → `RawParser` → `getDecoder` → `checkSupport` → `decodeRaw`）在 Swift 侧全部可用，但结果面全被封死：`RawImage::get()` 被 C++ interop 判为“可能返回 interior pointer”而**不导出**，`operator->` 不导入，像素访问器（`RawImageData::getU16DataAsCroppedArray2DRef()`，普通成员函数）又只能经那个被封死的指针到达，`RawImageData::data` 是 protected。且 rawspeed 函数被导入为**非 throwing**——坏文件实测 `SIGABRT`（`EXIT=134`，`C++ exception handling detected but the Swift runtime was compiled with exceptions disabled`）。→ **必须 C ABI 薄封装（形态 B，darktable 同款）**。置信：**高**（编译错误原文 + 运行时 abort 可复现）。
-- **Q2 体验速度（用户动作 → 位图就绪，冷启动 = 每测量独立进程，10 次中位）：现状 P0（CIRAW v8）适配屏 2560 档 **968 ms**、全分辨率 **1048 ms**（冷启动，每测量独立进程，10 次中位）；P1 首开（rawspeed → 内存 DNG → CIRAW v8DNG）同档 **447 ms / 556 ms**（快 2.2× / 1.9×）；P1 已缓存 DNG（盘上 122 MB）**374 ms / 482 ms**（快 2.6× / 2.2×）；马赛克先降档：ds1（1/4 面积）**351 / 239 ms**，ds2（1/16）**302 / 202 ms**。编辑等待（每次新曝光值）：P0 适配档 **738 ms**，P1 已缓存 DNG **13 ms**（57×）——CIRAW 对 DNG 的已解码平面可缓存，ARW 路径的编辑会重跑 RAW 解码（实测）。100% ROI 两者都 ~2 ms。**RAW 9 经 DNG 可用**（`v9DNG` 在 `supportedDecoderVersions` 里，输出与 v8DNG 不同），但每次 **3.18 s**（v8DNG 的 ~9×）——预览档不可用，导出档可选。置信：**高**（同一二进制、同一渲染腿；哈希已在计时窗外）。
+- **Q1 形态：形态 A（Swift 6 直接吃 rawspeed C++ 头）不可行——能驱动、读不到、错即崩。** 解码调用链（`Buffer` → `RawParser` → `getDecoder` → `checkSupport` → `decodeRaw`）在 Swift 侧全部可用，但结果面全被封死：`RawImage::get()` 被 C++ interop 判为“可能返回 interior pointer”而**不导出**，`operator->` 与 `operator*`/`.pointee` 都不导入（后者复跑 typecheck 补证：`evidence/rerun-t2-extra-routes.log`），像素访问器（`RawImageData::getU16DataAsCroppedArray2DRef()`，普通成员函数）又只能经那个被封死的指针到达，`RawImageData::data` 是 protected。且 rawspeed 函数被导入为**非 throwing**——坏文件实测 `SIGABRT`（`EXIT=134`，`C++ exception handling detected but the Swift runtime was compiled with exceptions disabled`）。→ **必须 C ABI 薄封装（形态 B，darktable 同款）**。置信：**高**（编译错误原文 + 运行时 abort 可复现）。
+- **Q2 体验速度（用户动作 → 位图就绪，冷启动 = 每测量独立进程，10 次中位）：现状 P0（CIRAW v8）适配屏 2560 档 **968 ms**、全分辨率 **1048 ms**（冷启动，每测量独立进程，10 次中位）；P1 首开（rawspeed → 内存 DNG → CIRAW v8DNG）同档 **447 ms / 556 ms**（快 2.2× / 1.9×）；P1 已缓存 DNG（盘上 122 MB）**374 ms / 482 ms**（快 2.6× / 2.2×；独立复跑 P0 868/939、P1a 401/461、P1b 337/391 ms，比值仍 ~2.0–2.2×，§4.9）；马赛克先降档：ds1（1/4 面积）**351 / 239 ms**，ds2（1/16）**302 / 202 ms**。编辑等待（每次新曝光值）：归档 harness 的 P0 适配档 738 ms / P1 13 ms **不是产品形态**——产品 `CIContextPool` 的 render-once memo 冻结首次输入平面（`PixelPipe.renderInputPlane` 的 `dedupeKey`），编辑只重跑管线；补测产品形态（冻结 2560 平面后做同一曝光乘法）P0 **1.69 ms**、P1 **1.76 ms**（n=10，§4.9）。→ **编辑等待不构成 CIRAW 的淘汰理由**；CIRAW 的代价集中在首开。100% ROI 两者都 ~2 ms。**RAW 9 经 DNG 可用**（`v9DNG` 在 `supportedDecoderVersions` 里，输出与 v8DNG 不同），但每次 **3.10–3.18 s**（冷进程；稳态 e2e ~2.8 s、渲染 ~2.7 s，v9 渲染段为 v8DNG 的 ~15×，§4.9）——预览档不可用，导出档可选。置信：**高**（同一二进制、同一渲染腿；哈希已在计时窗外）。
 - **Q3 取舍：抄策略，不抄自写解码器。** 最快且体验最好的组合 = **rawspeed（解码段）+ 小档解码（HALF/QUARTER/EIGHTH）+ 目标尺寸直渲 + 100% 只渲可见 ROI + 分块缓存**；这套策略在 lumen-raw（1600 px 预览 + 512 px 分块 ROI）、Alcedo（`DecodeRes` 四档解码时降采样 + 2560 快速预览 / 8192 全分辨率双档）、darktable（mipmap 金字塔：内嵌 JPEG → mip-from-mip → rawspeed+pipe）里都是同构的。**自写解码器不值**：lightcraft 的纯 Rust 自研解码器是完整的多格式 unpack + DNG + demosaic 工程；我们缺的只是「新机型支持 + 解码速度」两点，rawspeed 的解码段 34–57 ms（解码段口径，非体验口径；同文件 LibRaw unpack 634–652 ms，16×）已经解决，剩下的边界是 C++ 一层（形态 B 已证可行）。置信：**中高**（策略证据来自源码 file:line；「自写」代价是量级判断，非实测）。
 
 ---
@@ -59,8 +59,8 @@ is_cfa 1   cfa_dcraw_filter 0x94949494   cfa_pattern_2x2 0112 (RGGB)
 black_level 512 (2x2 512 512 512 512)   white_point 15360
 wb_coeffs 2536 / 1024 / 1778            color_matrix 3x3 (XYZ→camera, 见 §4 的 DNG 约定)
 mosaic_fnv1a64_cropped 0xbd81df79e1a15f93
-pass_read_ms 7.3–8.1 (warm) / 100–413 (cold page cache)   pass_decode_ms 38.6–57.6
-（`evidence/t1-a7r5-meta.txt` 是 bench.sh 每轮覆盖的探针输出：最近一次 100.8 / 43.1 ms；warm 值出自 `evidence/t1-build-facts.log` 的两次连续读）
+pass_read_ms 7.3–8.1 (warm) / 100–992 (cold page cache)   pass_decode_ms 38.6–57.6
+（`evidence/t1-a7r5-meta.txt` 是 bench.sh 每轮覆盖的探针输出：归档轮 992.1 / 40.4 ms、复跑轮 438.1 / 36.1 ms，差异是外部卷 page cache 冷读；warm 7.3–7.6 / 38.6–57.6 ms 出自 `evidence/t1-build-facts.log` 的两次连续读）
 ```
 
 **正确性交叉验证**（`bin/xcheck`，rawspeed 马赛克 vs LibRaw `raw_image`，同文件、同区域 512×512、对齐搜索 ±2 px）：
@@ -118,7 +118,7 @@ meta_loaded: true
 | 能力 | 形态 A 可行性 | 依据 |
 |---|---|---|
 | 解析文件、选解码器、checkSupport、decodeRaw | ✅ 可驱动 | 运行时 `decode_returned: true` |
-| 读 `RawImageData`（dims/cpp/CFA/black/white/WB/matrix） | ❌ | 唯一入口 `RawImage::get()` 被 interior-pointer 规则禁用；`operator->` 不导入 |
+| 读 `RawImageData`（dims/cpp/CFA/black/white/WB/matrix） | ❌ | 唯一入口 `RawImage::get()` 被 interior-pointer 规则禁用；`operator->`、`operator*`/`.pointee` 均不导入（后两者复跑 typecheck 补证：`evidence/rerun-t2-extra-routes.log`） |
 | 读像素平面 | ❌ | 访问器 `RawImageData::getU16DataAsCroppedArray2DRef()` 本身是普通成员函数，但拿 `RawImageData*` 的唯一入口 `get()`/`operator->` 被封死；`data` 成员 protected |
 | 摄像头元数据查询 | ❌ | `CameraMetaData::getCamera` 同样不导出（返回内部指针） |
 | C++ 异常 → Swift 错误 | ❌ | 函数被导入为 **非 throwing**（编译器提示 “no calls to throwing functions occur within 'try'”），异常穿帧 = `std::terminate`（实测 134） |
@@ -135,11 +135,12 @@ meta_loaded: true
 
 要点：
 
-- **不透明句柄** `typedef struct rs_image rs_image;` 持有 `RawImage` + `RawImageData*` + `unique_ptr<RawDecoder>`（保持 shared_ptr 存活）。
+- **不透明句柄** `typedef struct rs_image rs_image;` 持有 `RawImage`（shared_ptr，像素平面的真正所有者）+ `RawImageData*`；另存 `unique_ptr<RawDecoder>` 仅为保活。**风险注记（复跑核对）**：rawspeed 的 `RawDecoder` 契约要求 file `Buffer` 在 decoder 存活期间有效，而 shim 在 `rs_open` 返回时释放 `FileReader` storage；本 spike 在 open 后不再调用任何 decoder 方法、像素平面由 `RawImage` 独立持有（`rs_fill_info`/`rs_mosaic_hash` 在 storage 释放后仍正确），故实测无故障，但生产化必须去掉 decoder 或保留 file mapping。
 - **错误面**：`rs_error { int32_t code; char message[512]; }`，`rs_open` 内部 `catch (RawspeedException) / std::exception / ...` 全捕获，**异常零穿出**。
+- **异常/内存面（复跑核对）**：`rs_open`/`rs_fill_info`/`rs_build_dng` 全捕获；像素访问器 `getU16DataAsCroppedArray2DRef()` 是 `noexcept`（`RawImage.h:304`），`rs_mosaic` 另有 UINT16 类型门——异常不会穿出。DNG 字节用 `malloc`/`rs_free_bytes`、句柄用 `new`/`delete`，归属闭合。`rs_mosaic_hash` 已补 UINT16 类型门（复跑修改）；`dngwriter` 仍未做（本样张恒 UINT16；float DNG 属未覆盖输入）。
 - **字段面**：dims/crop/cpp/bpp/pitch_elems/is_cfa/is_xtrans/cfa filter+2x2/black_level(+2x2)/white_level/wb 三系数/color matrix 9 元素/make/model；
 - `rs_mosaic` 返回 cropped 平面基址（**行距 = `pitch_elems`，不是 width**——rawspeed 保留 uncropped pitch，这是与 v2 草稿的一处修正）；`rs_mosaic_hash` 便于跨实现对齐。
-- Swift 侧：`rs_image*` 作为 `UnsafeMutablePointer<rs_image>?` 传值；`Sendable` 处理 = 用 `final class RSHandle: @unchecked Sendable` 持有指针并在 `deinit` 调 `rs_free`，解码调用放 actor/后台队列（rawspeed 每 handle 独立，无共享可变态；`CameraMetaData` 是唯一共享只读对象，加载一次后只读并发安全——darktable 用 `std::call_once` 同款）。
+- Swift 侧：`rs_image*` 作为 `UnsafeMutablePointer<rs_image>?` 传值；`Sendable` 处理 = 用 `final class RSHandle: @unchecked Sendable` 持有指针并在 `deinit` 调 `rs_free`，解码调用放 actor/后台队列（rawspeed 每 handle 独立，无共享可变态；本 spike 每次 `rs_open` 各解析一份 `CameraMetaData`——线程安全但有重复解析成本；生产化建议 `std::call_once` 共享一份只读 meta（darktable 同款），共享后只读并发安全）。
 - 实测（`evidence/t3-shim.log`，Swift 6 语言模式 + 严格并发编译通过）：
 
 ```
@@ -222,6 +223,8 @@ EXIT=0                                                # 形态 A 同输入 = SIG
 | P0 CIRAW | 738 ms（378 / 748） | 2 ms（2 / 3） |
 | P1b 已缓存 DNG | 13 ms（12 / 14） | 2 ms（1 / 2） |
 
+> **口径警告（2026-11-25 复跑修订）**：本表是 harness 上界（未冻结输入平面），**不代表产品编辑等待**。归档轮 P0 fit 738 ms 在复跑同口径为 329 ms（−55%），本身不稳定；产品形态对照见 §4.9（P0 1.69 ms / P1 1.76 ms）。
+
 ### 4.4 规模阶梯（P0 vs P1a/P1b）
 
 | 输出/解码规模 | P0 冷 | P1 冷 |
@@ -247,24 +250,24 @@ EXIT=0                                                # 形态 A 同输入 = SIG
 
 1. **P0 对输出尺寸不敏感**：2560 / 1280 / 640 三档分别在 968 / 993 / 1001 ms —— CIRAW 的成本在「解文件 + demosaic」，不在输出尺寸。⇒ **降采样必须发生在解码/去马赛克之前**（改马赛克或改解码器），在 CI 层缩输出没有用。
 2. **P1 的成本随马赛克规模下降**：P1a 447 → 351（ds1）→ 302（ds2）；P1b 374 → 239 → 202 ms。
-3. **P1 的编辑等待与 P0 差近两个数量级**：738 ms vs **13 ms**（57×）（100% ROI 两者都 ~2 ms）。机制：CIRAW 把「已解码的平面」缓存住后，编辑只重跑 2560 档的渲染；ARW 路径的 RAW 解码会在每次编辑渲染时重跑（实测，非推断）。
-4. **RAW 9 经 DNG 可用但不可作预览**：3.18 s/次（≈ v8DNG 的 9–10 倍）。
+3. **归档表的 738 vs 13 不能读成产品编辑差**：它测的是「解码平面是否被冻结」——不是解码器差异。产品对 ARW/DNG 都冻结输入平面（`CIContextPool` render-once memo），补测产品形态 P0 **1.69 ms** / P1 **1.76 ms**（§4.9）。harness 的 738 是未冻结时的上界，且复跑同口径只有 329 ms（CI 有时能缓存住 100MP 平面），本身不稳定。
+4. **RAW 9 经 DNG 可用但不可作预览**：冷进程 3.10–3.18 s/次；其中稳态渲染段 ~2.70 s（v8DNG 的 ~15×），首次模型准备 ~2.1 s（一次性，系统缓存后新进程不再付）。§4.9。
 5. **内存 DNG vs 盘上 DNG**：同口径（都扣掉校验哈希）全分辨率 P1a 556 ms vs P1b 482 ms——两者**同量级**（差 ~74 ms；上一轮 550 vs 493，差 <60 ms）；早前「内存版慢 288 ms」是把含哈希的 684 与不含哈希的 396 相减得出的**错误对比**。→ 选择落盘缓存（P1b）的理由是**内存占用与跨会话复用**，不是速度。
 
 ### 4.5 P1 关键实验结果（RAW 9 与色彩）
 
 1. **A7R5 原片的 `supportedDecoderVersions` = `v7, v8, v9`** —— 本机 macOS 27.3 / Xcode 27 SDK 上 **A7R5 已支持 RAW 9**。类级名单进一步定位旧结论的偏差来源：`supportedCameraModels(with: .version9)` 共 **69** 台，其中含 **"Sony Alpha ILCE-7R V"**（不含字符串 "ILCE-7RM5"）；`version8` 名单共 **465** 台，含两者。→ AGENTS 里「A7R5 不在 CIRAW9 名单」是按型号字符串 "ILCE-7RM5" 匹配得出的**假否定**（证据：`evidence/camera-list.txt`）。RAW 9 的真实约束不是名单而是**速度**（下条）与 **V9 的绿偏缺陷**（§6.3）。
 2. **rawspeed 马赛克 DNG 的 `supportedDecoderVersions` = `v6DNG, v7DNG, v8DNG, v9DNG`** → **RAW 9 经 DNG 对非 Apple 名单来源也可用**，输出与 v8DNG **不同**（hash 与像素都不同），即真的走了 RAW 9 的 CoreML demosaic+denoise。
-3. **代价**：v9DNG 每次解码 **~3.0–3.2 s**（四轮独立测量 3026 / 3083 / 3147 / 3177 ms；新进程、进程内重复都一样），是 v8DNG 的 ~9–10×；首次进程内还额外有模型准备（6.1 s 的首发观测）。→ **RAW 9 只能用于导出档/后台档，不能进预览档**。
+3. **代价**：v9DNG 冷进程 e2e **3.10–3.18 s**（归档四轮 3026 / 3083 / 3147 / 3177；复跑冷 3100 ms），其中 **稳态渲染 ~2.70 s**（v8DNG 渲染段 ~0.18 s 的 **~15×**）、rawspeed 解码 48–72 ms、DNG 构建 22–66 ms、CI init ~17 ms；**首次模型准备 ~2.1 s 是一次性**（首进程 rep0 的 ci_init = 2107 ms；系统缓存后新进程 ci_init ~129 ms，不再付），首发 6.1 s 是更冷状态的一次性观测。→ **RAW 9 只能用于导出档/后台档，不能进预览档**。
 4. **色彩差异**：P1 与 P0 的同图 2560 位图，`mean_abs_diff = 22.8/255`（`evidence/p0-vs-p1-cmp.txt`），均值 RGB 116/144/67 vs 111/128/52（P1 偏青、绿少）。**P1 的色彩管理还没对齐**，速度结论不受影响，但「P1 输出直接上屏」还差一轮色彩标定。
-5. **DNG 封装约定（重要且反直觉）**：`ColorMatrix1` 必须写 **rawspeed 的 `metadata.colorMatrix` 原值**（rawspeed 文档称其为 XYZ→camera）。写成它的逆矩阵（按 DNG 规范字面理解 camera→XYZ + 按 D65 归一）时，CIRAW 渲染 **过曝约 2.5–3 档并全图截白**，且 `filter.neutralChromaticity` 变成 `(-0.002, 0.755)` 的垃圾值；写原值时渲染正常、`neutralChromaticity ≈ (0.335, 0.356)`，与原片 CIRAW 的 `(0.345, 0.363)` 一致（`evidence/dng-props.txt`）。→ **#24 实现时必须用色卡/受控光源复核这个方向**。
+5. **DNG 封装约定（重要且反直觉）**：`ColorMatrix1` 必须写 **rawspeed 的 `metadata.colorMatrix` 原值**（rawspeed 文档称其为 XYZ→camera）。写成它的逆矩阵（按 DNG 规范字面理解 camera→XYZ + 按 D65 归一）时，CIRAW 渲染 **过曝约 2.5–3 档并全图截白**，且 `filter.neutralChromaticity` 变成 `(-0.002, 0.755)` 的垃圾值；写原值时渲染正常、`neutralChromaticity ≈ (0.335, 0.356)`，与原片 CIRAW 的 `(0.345, 0.363)` 一致（`evidence/dng-props.txt`）。→ **方向已独立证明（复跑 2026-11-25）**：rawspeed 的 9 元素与 LibRaw `cam_xyz` 逐元素完全相同（max diff 0.000000），而 LibRaw 的 `cam_xyz` 按 `cam_xyz @ rgb2xyz`（RGB→camera）归一化求逆后与它自己的 `rgb_cam` 吻合到 1e-7——即 `cam_xyz` 确为 XYZ→camera；DNG `ColorMatrix1` 也是 XYZ→camera，故**写原值正确，不是两边抵消**（`evidence/rerun-lrmat.log`）。仍需色卡/受控光源做的是**色彩标定**（`mean_abs_diff 22.8` 的偏色），不是方向。
 6. **DNG 体积与首建成本**：ds0 = 122 MB，ds1 = 30.5 MB，ds2 = 7.6 MB。两个口径（不要混用）：**seam 内构建**（`benchlive`，不含 FNV 交叉校验）≈ 33 / 47 / 52 ms（ds0/ds1/ds2）；**`rs2dng --time` 探针**（含 FNV）≈ 137 / 74 / 41 ms。rawspeed 解码 34–57 ms 另计。注意：初版 binning 是逐样本双精度累加，ds1 实测 **855 ms**（未归档旧二进制，只能作为观测记录）——改成分块整型累加到 74 ms，像素哈希不变（`0x040b32e098206fb7`）。**降档腿必须在 GPU/Metal 或紧密循环里做，否则数百 ms 级的 CPU 开销会吃掉降档收益。**
 
 ### 4.6 解码段拆分（解释列，不进结论）
 
 | 段 | 值 |
 |---|---|
-| rawspeed 文件读取 | 7.3–8.1 ms（warm）/ 100–413 ms（冷 page cache） |
+| rawspeed 文件读取 | 7.3–8.1 ms（warm）/ 100–992 ms（冷 page cache；归档 992 / 复跑 438） |
 | rawspeed 解码（85 MB 无损压缩 ARW） | **34–43 ms**（冷进程首解可到 57 ms） |
 | 马赛克 → DNG 字节（ds0 / ds1 / ds2，内存内） | **25–30 / 68 / 38 ms**（不含落盘） |
 | LibRaw `open_file + unpack`（同文件） | **618–638 ms** |
@@ -274,7 +277,61 @@ EXIT=0                                                # 形态 A 同输入 = SIG
 
 ### 4.8 复跑
 
-`evidence/bench.sh`（单命令）：机器守卫 → 缺产物先构建（rawspeed 静态库 / rsprobe / rs2dng / lrbench / xcheck / bench / benchlive）→ T1 探针 → xcheck → 形态 B 探针（含坏输入错误腿）→ DNG 三档 → P0-vs-P1 粗差 → 全矩阵 → 写 `evidence/bench.csv`。`--quick` = 5 次。
+`evidence/bench.sh`（单命令）：机器守卫 → 缺产物先构建（rawspeed 静态库 / rsprobe / rs2dng / lrbench / xcheck / bench / benchlive）→ T1 探针 → xcheck → 形态 B 探针（含坏输入错误腿）→ DNG 三档 → P0-vs-P1 粗差 → 全矩阵 → 写 `evidence/bench.csv`（`BENCH_OUT=<path>` 可改落点；`--quick` 在归档存在时自动改写 `bench-quick-<HHMM>.csv`，不覆盖归档）。`--quick` = 5 次。复跑对照见 §4.9。
+
+### 4.9 独立复跑对账（2026-11-25）
+
+环境：Apple M4（16 GB）/ macOS 27.3 / Swift 6.4；`Scripts/machine-guard.sh` PASS（heavy=0，内存空闲 71%）；`pgrep -fl "xcodebuild|test-direct|swift-build|cmake|ninja|darktable|Lightamer"` = none；`caffeinate -i`。复跑用**未改一行的 `bench.sh`/`benchrun.py` 副本**（md5 相同），输出落 `evidence/rerun-bench.csv` / `rerun-bench.log`；归档 `bench.csv` 未被覆盖。
+
+独立复跑 `evidence/rerun-bench.csv`（26 行中 5 行偏离归档 > ±15%，全部更快）：
+
+| row | kind | 归档 ms | 复跑 ms | 偏差 | ±15% |
+|---|---|---|---|---|---|
+| P0 CIRAW v8 A7R5 fit | cold | 968.1 | 868.0 | -10.3% |  |
+| P0 CIRAW v8 A7R5 full | cold | 1048.3 | 939.1 | -10.4% |  |
+| P1a live ds0 fit (decode+DNG+CI) | cold | 446.8 | 400.8 | -10.3% |  |
+| P1a live ds0 full | cold | 555.5 | 460.8 | -17.0% | **OUT** |
+| P1a live ds1 fit | cold | 350.8 | 306.4 | -12.7% |  |
+| P1a live ds2 fit | cold | 302.2 | 273.1 | -9.6% |  |
+| P1b cached-DNG ds0 fit | cold | 373.8 | 336.7 | -9.9% |  |
+| P1b cached-DNG ds0 full | cold | 481.5 | 391.3 | -18.7% | **OUT** |
+| P1b cached-DNG ds1 fit | cold | 239.3 | 206.0 | -13.9% |  |
+| P1b cached-DNG ds2 fit | cold | 202.2 | 172.1 | -14.9% |  |
+| P0 CIRAW v8 1280 long edge | cold | 992.7 | 900.1 | -9.3% |  |
+| P0 CIRAW v8 640 long edge | cold | 1001.1 | 901.7 | -9.9% |  |
+| P1a live ds0 v9DNG fit (RAW9) | cold | 3177.3 | 3099.8 | -2.4% |  |
+| P0 CIRAW v8 A7R5 fit | hot | 759.4 | 699.4 | -7.9% |  |
+| P0 CIRAW v8 A7R5 full | hot | 835.1 | 735.3 | -12.0% |  |
+| P1b cached-DNG ds0 fit | hot | 243.7 | 221.6 | -9.1% |  |
+| P1b cached-DNG ds0 full | hot | 275.9 | 226.1 | -18.1% | **OUT** |
+| P1b cached-DNG ds1 fit | hot | 57.0 | 51.6 | -9.5% |  |
+| P0 CIRAW v8 fit | hot | 738.3 | 329.3 | -55.4% | **OUT** |
+| P0 CIRAW v8 100% ROI | hot | 1.8 | 1.9 | +5.6% |  |
+| P1 cached-DNG ds0 fit | hot | 13.3 | 10.0 | -24.8% | **OUT** |
+| P1 cached-DNG ds0 100% ROI | hot | 1.5 | 1.7 | +13.3% |  |
+| P2 LibRaw full linear | cold | 1080.5 | 1044.6 | -3.3% |  |
+| P2 LibRaw full AMaZE | cold | 1514.0 | 1424.1 | -5.9% |  |
+| P2 LibRaw half linear | cold | 698.3 | 679.1 | -2.7% |  |
+| P2 LibRaw half AMaZE | cold | 689.2 | 672.8 | -2.4% |  |
+
+产品形态 M2（冻结输入平面后做下游曝光乘法；n=10，编辑→位图）：
+
+| 输入 | 冻结（首次输入平面渲染） | 产品形态编辑 中位（min / p90） | 同探针未冻结对照 |
+|---|---|---|---|
+| P0 CIRAW v8 ARW | 679 ms | **1.69 ms**（1.59 / 4.07） | 192.3 ms |
+| P1b cached DNG ds0 | 192 ms | **1.76 ms**（1.60 / 2.77） | 12.1 ms |
+
+RAW 9（v9DNG）冷/热拆分（`evidence/rerun-v9-breakdown.log`）：
+
+| 场景 | e2e ms | 其中 CIRAWFilter init | 其中 render |
+|---|---|---|---|
+| 首进程 rep0（含模型准备） | 4938 ms | 2107 ms | 2735 ms |
+| 同进程稳态 rep1–9（中位） | 2812 ms | 18 ms | 2703 ms |
+| 独立冷进程（3 次，中位） | 2952 ms | 129 ms | 2748 ms |
+
+**口径差异（P0/P1 与产品）**：decoder version 一致（产品 automatic = v8，bench `--decoder v8`）；渲染腿不同——bench 用 `CIContext(mtlDevice:)` 默认 working space + `cacheIntermediates: true`，输出 sRGB RGBA8 CPU bitmap；产品 `CIContextPool` 用 linear Rec2020 / `workingFormat: RGBAh` / `cacheIntermediates: false`，渲染到 rgba32Float texture（无 CPU 回读）。解码+demosaic 段占 P0 的 ~700 ms，色彩空间/位深只影响其后的渲染段；P0 的 968/868 ms 是「CIRAW 解码 + 2560 渲染 + 回读」的同形近似，不是产品 GUI 的逐字节真值。**M2 是受口径影响最大的一项**（见上表），产品形态必须冻结输入平面才是可比的。哈希在计时窗外（`bench`/`benchlive` 的 `hash_ms` 单列并从冷墙钟扣除）；P1a 的 DNG 字节拷贝与 `CIRAWFilter(imageData:)` 在窗内（属 seam 本身），P1b 的读盘在窗内。
+
+**结论**：M1 的相对结论（P1 约为 P0 的 1/2）在复跑中保持；绝对值的跨轮漂移：M1/P2 −3%…−19%，M2 两行 −25%/−55%（5/26 行超 ±15%，全部更快），与 §6.5 申报的双向漂移一致。M2 的 57× 不成立，改以本表产品形态为准。RAW 9 的冷/热拆分见上表。
 
 ## §5 Q3 参考 UX 策略与横向
 
@@ -295,7 +352,7 @@ EXIT=0                                                # 形态 A 同输入 = SIG
 
 | 解码器 | ILCE-7RM5 支持 | 本机实测速度（同文件） | 许可证 | 接 Swift 的形态与代价 | 活跃度 |
 |---|---|---|---|---|---|
-| CIRAW RAW 8 | ✅（`supported=v7,v8,v9`） | 冷开 968 ms（2560）/ 1048 ms（全幅）；编辑 738 ms | 系统框架 | 原生（现状） | Apple |
+| CIRAW RAW 8 | ✅（`supported=v7,v8,v9`） | 冷开 968 ms（2560）/ 1048 ms（全幅）；编辑 738 ms（harness 上界；产品形态 ~2 ms，§4.9） | 系统框架 | 原生（现状） | Apple |
 | CIRAW **RAW 9** | ✅ 原片支持；经 DNG 也支持（v9DNG） | **3177 ms**（2560；四轮 3026–3177） | 系统框架 + 模型资源 | 原生；需模型资源准备（首发 6.1 s） | Apple |
 | **rawspeed** + DNG→CIRAW | ✅（ArwDecoder，逐像素 = LibRaw） | 解码段 **34–57 ms**；P1 首开 447 / 556 ms，缓存 DNG 374 / 482 ms | LGPL-2.1 | **C ABI shim（形态 B）**，165 行 + 头 68 行；静态链接需处理 LGPL relink | 活跃（2026-11-22 commit） |
 | LibRaw | ✅ | unpack **618–638 ms** + demosaic 428/813 ms → 1081/1514 ms | LGPL-2.1 / CDDL | C API 直连（简单） | 活跃（0.22） |
@@ -304,8 +361,8 @@ EXIT=0                                                # 形态 A 同输入 = SIG
 
 ### 5.3 判断
 
-- **最快且体验最好的一套 = rawspeed 解码 + 「小档解码 + 目标尺寸直渲 + 100% ROI 分块」策略**。它同时满足三件事：解码段 34–57 ms（比 LibRaw 的 unpack 快 16×）、可把降采样放在 demosaic 之前（P1a 302–447 ms 首开）、编辑 13 ms（P0 是 738 ms）。
-- **我们该抄什么**：① lumen-raw 的「预览档固定小尺寸 + 100% 分块 + 编辑后 tile 失效」；② Alcedo 的「2560 快速预览 / 8192 全分辨率 / ROI 三档渲染类型 + `DecodeRes` 在解码路径里降采样」；③ darktable 的「内嵌 JPEG 先上屏 → 后台补真预览」这一层（Lightamer 今天缺首屏 JPEG 快通道，`SmartPreviewStore` 只缓解码**结果**）。④ 从本次实测新增：**已解码平面的缓存决定编辑等待的数量级**（P1 13 ms vs P0 738 ms）——预览档的产物要能被下一次编辑直接复用。
+- **最快且体验最好的一套 = rawspeed 解码 + 「小档解码 + 目标尺寸直渲 + 100% ROI 分块」策略**。它同时满足三件事：解码段 34–57 ms（比 LibRaw 的 unpack 快 16×）、可把降采样放在 demosaic 之前（P1a 302–447 ms 首开）、以及首开比 CIRAW 快 ~2×（447/374 vs 968）。编辑等待**不是**它的差异化收益：产品形态下两者都 ~2 ms（§4.9）。
+- **我们该抄什么**：① lumen-raw 的「预览档固定小尺寸 + 100% 分块 + 编辑后 tile 失效」；② Alcedo 的「2560 快速预览 / 8192 全分辨率 / ROI 三档渲染类型 + `DecodeRes` 在解码路径里降采样」；③ darktable 的「内嵌 JPEG 先上屏 → 后台补真预览」这一层（Lightamer 今天缺首屏 JPEG 快通道，`SmartPreviewStore` 只缓解码**结果**）。④ 从本次实测新增：**已解码平面的冻结是编辑等待的前提，而 CIRAW 现状已有这套 memo**（`CIContextPool` render-once；P0/P1 产品形态都 ~2 ms，§4.9）——rawspeed 的收益在首开，不在编辑。
 - **rawspeed 的 C++ 边界不是「不可行」**：形态 B 已跑通（shim 165 行 + 头 68 行）、零异常穿出、字段与 T1 逐项一致。
 - **映射到 Lightamer 的落点（仓库已有件，只读核对）**：
   - 渲染腿：`LightamerCore/Sources/Metal/CIContextPool.swift:228` `renderToTexture(longEdge:)`（已在用的「按目标长边直渲」，注释已记录「绝不渲 100MP 再缩」的内存理由）+ `:286` `renderRegion`（ROI 腿已存在）——本文 P0/P1 用的正是同一形态，**这两条腿不需要新写**。
@@ -319,11 +376,11 @@ EXIT=0                                                # 形态 A 同输入 = SIG
 
 ## §6 风险与未验项
 
-1. **P1 色彩未标定**：`mean_abs_diff 22.8/255`，`ColorMatrix1` 方向与 DNG 规范字面相反（§4.5-5）。#24 实现前必须用 ColorChecker（仓内已登记缺件，`phases/evidence-legacy/plans/02-04/colorchecker-acquisition.md`）或受控光源复核。
-2. **RAW 9 速度/资源**：3.0–3.2 s/次（v9DNG 相对 v8DNG 的同一实现约 9–10×；四轮 3026–3177 ms）、首次 6.1 s（模型准备）；v9 名单仅 69 台（v8 为 465 台）——覆盖窄，不能作为格式覆盖方案。未测「模型资源是否需联网下载」（`CIRAWFilter.downloadResources(timeout:completionHandler:)` 存在）；离线场景必须假定不可用。
+1. **P1 色彩未标定**：`mean_abs_diff 22.8/255`；`ColorMatrix1` 方向已独立证明为 XYZ→camera（rawspeed 矩阵 = LibRaw `cam_xyz`，逐元素 max diff 0；§4.5-5），写原值正确。#24 实现前仍需用 ColorChecker（仓内已登记缺件，`phases/evidence-legacy/plans/02-04/colorchecker-acquisition.md`）或受控光源做**色彩标定**（不是方向复核）。
+2. **RAW 9 速度/资源**：冷进程 3.10–3.18 s/次（稳态渲染段 ~2.70 s = v8DNG 渲染段的 ~15×；四轮 3026–3177 ms）；首次模型准备 ~2.1 s 是一次性（系统缓存后新进程不再付），6.1 s 是更冷状态的首发观测；v9 名单仅 69 台（v8 为 465 台）——覆盖窄，不能作为格式覆盖方案。未测「模型资源是否需联网下载」（`CIRAWFilter.downloadResources(timeout:completionHandler:)` 存在）；离线场景必须假定不可用。
 3. **V9 的既有缺陷未复核**：`RAWDecoder.swift` 注释记载 v9 输出经 color-managed CIContext 转换后绿通道偏移（G/R≈3.9×）。本次 P1 的 v9DNG 位图未做同口径颜色检查（只看了 hash 与速度）→ 若 #24 打算用 v9DNG 出片，必须重跑该探针。
 4. **热测口径**：`clearCaches()` 只能清 CI 层缓存，RawCamera/Apple 内部解码缓存的清空不可控；热数字（P0 见 §4.2）可能仍含残留，仅作趋势参考。另：热行的进程内 e2e 从 `openFilter` **之后**起算（`open_ms` 单列：P0 ~52–57 ms、P1b ~14–15 ms），读「重开」时应把 `open_ms` 加回。
-5. **p90 尾部噪声 + 轮间漂移**：个别冷行 p90 出现 2.2–7.2 s（系统级停顿，page cache/Spotlight 类）；结论一律用中位 + min。**跨轮系统性漂移**实测存在、且**双向**：另一 lane 的 `ApplicationsStorageExtension`（~30% CPU）在场时整轮冷行慢 8–12%（个别行 +21%）；归档轮之后又观测到整体快 7–27%（同一二进制、同一机器，原因未取证，标 [推断] 为连续多轮全量矩阵后的缓存/温度尾部）。本机另一 lane 的 `omp` argv 还会污染 `pgrep` 的 heavy 检测（`bench-run.log` 的环境头里有该 argv，不含媒体/个人数据）。表内数字 = 提交进仓的 `bench.csv` 那一轮；相对结论（P1/P0 比值、编辑 57×）比绝对值稳。四轮全量的 P0 基线分别是 894 / 909 / 968 / 992 ms（差 ±5%），P1a fit 427 / 447 / 458 / 468 ms。
+5. **p90 尾部噪声 + 轮间漂移**：个别冷行 p90 出现 2.2–7.2 s（系统级停顿，page cache/Spotlight 类）；结论一律用中位 + min。**跨轮系统性漂移**实测存在、且**双向**：另一 lane 的 `ApplicationsStorageExtension`（~30% CPU）在场时整轮冷行慢 8–12%（个别行 +21%）；归档轮之后又观测到整体快 7–27%（同一二进制、同一机器，原因未取证，标 [推断] 为连续多轮全量矩阵后的缓存/温度尾部）。本机另一 lane 的 `omp` argv 还会污染 `pgrep -fl` 的 heavy 检测（`bench-run.log` 的环境头里有该 argv，不含媒体/个人数据；`benchrun.py` 已改为 `pgrep -l`，只取 comm）。表内数字 = 提交进仓的 `bench.csv` 那一轮；相对结论（P1/P0 首开比值；编辑差已被 §4.9 推翻）比绝对值稳。四轮全量的 P0 基线分别是 894 / 909 / 968 / 992 ms（差 ±5%），P1a fit 427 / 447 / 458 / 468 ms。**独立复跑（2026-11-25）**：5/26 行超 ±15%，全部更快（P1 full −17%/−19%，M2 P0 fit −55%、M2 P1 −25%）；M1 的 P1/P0 比值保持 ~2.0–2.2×。
 6. **未跑产品现状真值**：仓库有 `Tests/LightamerTests/QuickLookPerfProbeTests.swift`（`LA_QL_PERF=1`，2 样张 × 3 长边 × 冷/热）——需产品测试构建（重活，且会与基准互斥），且其口径走导出链、与本文 P0 的编辑路径不同。**决定：不跑，归 #26 或 orchestrator 排期**；本文 P0 用与产品同形的 `CIRAWFilter` + 缩放渲染调用，已能代表现状。
 7. **M2 冷启动变体未单测**（M2 的冷值 ≈ M1 冷 + M2 热，属算术）。
 8. **XCFramework 未构建**（配方见 §3），且 LGPL-2.1 静态链接的合规处置（relink 能力/动态库）需用户/法务决策。
@@ -356,6 +413,26 @@ EXIT=0                                                # 形态 A 同输入 = SIG
 
 **第二轮自审**（`evidence/SELFREVIEW-2.md`）= 3 error + 11 minor。处置：N1 `benchlive` 补 `hash_ms`（P1a 冷值不再含校验哈希）；N2 §8 草稿按 §4 重写；N3 全量再跑一轮并与报告机械同源（`evidence/tables.py` 直接从 `bench.csv` 生成 §4 表）；m1–m11 逐条改（热行 `open_ms` 单列说明、`bench.sh` 的 `REPO` 路径修正使机器守卫真正生效、p90≈max 说明、DNG 双口径、`tables-4.md` 删除、`bench-run.log` 由脚本自身 tee、HEAD 换成实际提交 SHA）。
 
+### 6.12 独立复跑修订（2026-11-25）
+
+`evidence/RERUN.md` = 独立复跑 lane（HEAD `144a76b9`）的七项核对。error 与处置：
+
+| # | 问题 | 处置 |
+|---|---|---|
+| R1 | **P0 M2 738 ms 不是产品形态**：harness 未冻结输入平面；产品 `CIContextPool` 有 render-once memo。归档的 738 vs 13（57×）是「未冻结 vs CI 命中」的错位对比 | §0 Q2 / §4.3 警告 / §4 关键读数 3 / §5.3 / §7.5 / §8 全部改写；新增 §4.9 产品形态对照（P0 1.69 ms / P1 1.76 ms） |
+| R2 | **P0 M2 自身不可复现**：归档 738 ms，复跑同口径 329 ms（−55%）；CI 能否缓存 100MP 平面受内存压力影响 | 同 R1；§6.5 补记 |
+| R3 | **RAW 9 的「新进程、进程内重复都一样」不成立**：首进程 rep0 4.94 s（ci_init 2.11 s），稳态 2.78–2.95 s；冷新进程 2.92–2.98 s | §4.5-3 / §6.2 改为冷/稳态拆分 |
+| R4 | **T1 引用数字与归档文件不符**（写 100.8/43.1，文件 992.1/40.4） | §1 改为归档 992.1/40.4、复跑 438.1/36.1，并注明 page-cache |
+| R5 | **ColorMatrix1 方向缺独立证明** | §4.5-5 加 LibRaw `cam_xyz`/`rgb_cam` 证明（max diff 0 / 1e-7） |
+| m1 | 报告头 `2bdc4022` 不存在 | 改为 `8873c77c` |
+| m6 | T1 引文不符 | 同 R4 |
+| m7 | `bench.sh` 无条件覆写归档 | `BENCH_OUT` + `--quick` 不覆盖归档 |
+| m8 | `heavy_procs` 抄入另一 lane 的 argv | `pgrep -l`（只取 comm） |
+| m9 | v9 「~9–10×」无参照 | 改为「渲染段 ~15× / 相对 P1b 总时长 9.2×」 |
+| m2/m3/m4/m10 | 已在当前版修复 | 复核通过，无改动 |
+
+复跑还补了两条 Q1/Q3 证据：`operator*`/`.pointee` 也不导入（`evidence/rerun-t2-extra-routes.log`）；shim 的 decoder 保活与 rawspeed file-Buffer 契约存在潜在冲突（open 后不再调用 decoder，实测无害，生产化须去掉或保留 mapping）。
+
 ---
 
 ## §7 推荐实现路径（#24 草案，不展开成计划）
@@ -364,30 +441,32 @@ EXIT=0                                                # 形态 A 同输入 = SIG
 2. **管线起点前移**：新增 `DecodedMosaic`（平面 + black/white/WB/matrix/CFA/crop）与 `rawprepare` 段；`DecodedImage` 增加马赛克形态（或并行的 decode 结果类型）。
 3. **预览腿（先做，收益最大）**：rawspeed → 按目标档降采样马赛克（ds1/ds2）→ 未压缩 DNG（内存）→ `CIRAWFilter(imageData:)` v8DNG → 目标尺寸直渲。预期首开 302–447 ms、缓存命中 202–374 ms（现状 968 ms）。
 4. **缓存**：DNG 落盘缓存（122/30.5/7.6 MB 三档）复用 `SmartPreviewStore` 形态；首建 = 解码 34–57 + 构建 33–52 ms（+ 落盘）。选落盘而非内存常驻的理由是 **RSS 与跨会话复用**（速度同量级，见 §4.7-5）。
-5. **编辑等待**：缓存命中后 CI 给出 13 ms（P0 738 ms）——先把「预览档产物可复用」做实，这比任何 demosaic 优化都值钱。
-6. **导出档**：可选 v9DNG（RAW 9，3.08 s/张）——先做色彩标定再启用。
+5. **编辑等待**：产品形态下 P0/P1 都 ~2 ms（§4.9）——「预览档产物可复用」CIRAW 现状已有（`CIContextPool` render-once），不是 rawspeed 的增量收益。rawspeed 的增量在首开 302–447 ms（现状 968）与机型覆盖。
+6. **导出档**：可选 v9DNG（RAW 9，3.10–3.18 s/张，稳态渲染 ~2.7 s）——先做色彩标定再启用。
 7. **中期**：自有 Metal demosaic（替换 DNG 桥），目标把预览档的 374 ms 再压到 ~150 ms 级；届时可去掉 DNG 构建与 CIRAW 依赖。注意 §4.5-6 的教训：降档 binning 必须 GPU 化，否则 855 ms 级别的 CPU 开销会吃掉全部收益。
 
 ---
 
 ## §8 issue #24 评论草稿
 
-> **Spike 结论（rawspeed 后端，2026-11-24）**
+> **Spike 结论（rawspeed 后端，2026-11-24；独立复跑 2026-11-25）**
 >
 > - **形态**：Swift 6 直接吃 rawspeed C++ 头**不可行**。`import` 与 `decodeRaw` 都通，但 `RawImage::get()` 被 interop 的 interior-pointer 规则禁用、`operator->` 不导入、像素访问器只能经那个被封死的指针到达、`RawImageData::data` protected ⇒ 读不到任何字段或像素；且 rawspeed 函数被导入为非 throwing，坏文件实测 `SIGABRT (134)`（"C++ exception handling detected but the Swift runtime was compiled with exceptions disabled"）。→ **必须 C ABI shim**（同 darktable）：本 spike 的 shim 165 行 + 头 68 行已跑通，坏输入返回 `code=2` 且进程存活，Swift 6 严格并发编译通过，马赛克与 LibRaw 逐像素相同（max abs diff 0）。
 >
 > - **速度（A7R5 CC0 85.9 MB ARW；用户动作→位图；冷启动 = 每测量独立进程，10 次中位；校验哈希在计时窗外）**：
->   - 现状 CIRAW v8：适配屏 2560 = **968 ms**，全分辨率 = **1048 ms**；编辑（每次新曝光值）**738 ms**；100% ROI 1.8 ms。
->   - rawspeed→DNG→CIRAW v8DNG：**首开 447 / 556 ms**；**缓存 DNG 命中 374 / 482 ms**；马赛克先降 1/4 = 351/239 ms、1/16 = 302/202 ms。
->   - **编辑等待差两个数量级**：P1 命中缓存后 **13 ms** vs P0 **738 ms**——原因是 CIRAW 能复用 DNG 的已解码平面，ARW 路径的编辑会重跑 RAW 解码（实测）。
+>   - 现状 CIRAW v8：适配屏 2560 = **968 ms**，全分辨率 = **1048 ms**（独立复跑 868/939）；100% ROI 1.8 ms。
+>   - rawspeed→DNG→CIRAW v8DNG：**首开 447 / 556 ms**（复跑 401/461）；**缓存 DNG 命中 374 / 482 ms**（复跑 337/391）；马赛克先降 1/4 = 351/239 ms、1/16 = 302/202 ms。
+>   - **编辑等待不构成差异**：归档 harness 的 P1 13 ms vs P0 738 ms 是「CI 命中 DNG 平面 vs 未冻结 ARW 平面」的错位；产品 `CIContextPool` 对两者都冻结首次输入平面，补测 P0 **1.69 ms** / P1 **1.76 ms**（§4.9）。rawspeed 的收益在首开 ~2×。
 >   - CIRAW 对输出尺寸不敏感（2560/1280/640 = 968/993/1001 ms）⇒ 降采样必须在解码前；rawspeed 解码段 **34–57 ms**（解码段口径，非体验口径；同文件 LibRaw unpack 618–638 ms）。
->   - **RAW 9 经 DNG 可用**（v9DNG 在 supported 列表，输出确实不同），但每次 **3.18 s**（v8DNG 的 ~9×）→ 只可作导出档。另：A7R5 原片 `supported=v7,v8,v9`，v9 名单（69 台）里有 "Sony Alpha ILCE-7R V"——旧结论「A7R5 不在 CIRAW9 名单」是按 "ILCE-7RM5" 字符串匹配的假否定。
+>   - **RAW 9 经 DNG 可用**（v9DNG 在 supported 列表，输出确实不同），但冷进程 **3.10–3.18 s**（稳态渲染 ~2.7 s = v8DNG 渲染 ~15×）→ 只可作导出档。另：A7R5 原片 `supported=v7,v8,v9`，v9 名单（69 台）里有 "Sony Alpha ILCE-7R V"——旧结论「A7R5 不在 CIRAW9 名单」是按 "ILCE-7RM5" 字符串匹配的假否定。
 >
-> - **正确性**：rawspeed 与 LibRaw 的马赛克**逐像素相同**（512×512 区域 max diff 0）。P1 与 P0 的 2560 位图 `mean_abs_diff 22.8/255` ⇒ 色彩尚未标定（`ColorMatrix1` 方向已定，需色卡复核）。
+> - **正确性**：rawspeed 与 LibRaw 的马赛克**逐像素相同**（512×512 区域 max diff 0）。P1 与 P0 的 2560 位图 `mean_abs_diff 22.8/255` ⇒ 色彩尚未标定（`ColorMatrix1` 方向已由 LibRaw `cam_xyz` 独立证明为 XYZ→camera；需色卡做色彩标定）。
+>
+> - **独立复跑**：26 格中 5 格超 ±15%（全部更快），M1 的 P1/P0 比值保持 ~2.0–2.2×；M2 的 57× 不成立（§4.9）。
 >
 > - **取舍**：抄策略不抄解码器。最优组合 = rawspeed + 「小档解码 + 目标尺寸直渲 + 100% ROI 分块 + 预览产物可复用」（lumen-raw / Alcedo / darktable 三方同构）。自写解码器不值（rawspeed 已覆盖格式，解码段比 LibRaw 快 16×）。
 >
-> 详细报告：`.work/gsd/phases/rawspeed-backend/SPIKE.md`；复跑：`evidence/bench.sh`（源码副本在 `spike-src/`）。
+> 详细报告：`.work/gsd/phases/rawspeed-backend/SPIKE.md`；复跑：`evidence/bench.sh`（`BENCH_OUT` 可改落点；独立复跑对照见 §4.9；源码副本在 `spike-src/`）。
 
 ---
 
@@ -396,6 +475,13 @@ EXIT=0                                                # 形态 A 同输入 = SIG
 | 文件 | 内容 |
 |---|---|
 | `evidence/bench.csv` / `bench-run.log` | 全矩阵（冷/热/M2/P2）+ 环境头；两者由同一次 `bench.sh` 生成（脚本自身 tee） |
+| `evidence/rerun-bench.csv` / `rerun-bench.log` | 独立复跑（2026-11-25）全矩阵原始输出；归档 `bench.csv` 未被覆盖 |
+| `evidence/rerun-compare.md` / `rerun-tables-4.9.md` | 归档 vs 复跑逐格对账 / §4.9 表（`spike-src/rerun_compare.py`、`rerun_tables.py` 机械生成） |
+| `evidence/rerun-m2-product-shape.log` | 产品形态 M2（冻结输入平面）对照 |
+| `evidence/rerun-v9-breakdown.log` | RAW 9 冷/热逐 rep 拆分 |
+| `evidence/rerun-lrmat.log` | ColorMatrix1 方向独立核对（LibRaw `cam_xyz`/`rgb_cam`） |
+| `evidence/rerun-q1.log` / `rerun-t2-extra-routes.log` | Q1 形态 A/B 重放 + `operator*`/`.pointee` typecheck |
+| `evidence/RERUN.md` | 独立复跑七项核对（结论头 + SELFREVIEW-3 余项判定） |
 | `evidence/bench.sh` / `benchrun.py` | 单命令复跑 |
 | `evidence/t1-a7r5-meta.txt` | T1 字段（rsprobe 重建版） |
 | `evidence/t2-form-a.log` | 形态 A：驱动成功 + 异常 abort |
@@ -408,6 +494,6 @@ EXIT=0                                                # 形态 A 同输入 = SIG
 | `evidence/tables.py` | 从 `bench.csv` 机械生成 §4 表格（报告与 CSV 同源） |
 | `evidence/SELFREVIEW.md` / `SELFREVIEW-2.md` / `selfreview-attempt.md` | 两轮自审 + `omp -p` 子实例不可用的记录 |
 | `evidence/dng-props.txt` | DNG 元数据回读（AsShotNeutral/Black/White/Matrix） |
-| `spike-src/` | shim、Swift 探针、两个 `Package.swift`、DNG 写入器、基准工具源，以及 `bench.sh` / `benchrun.py` 的副本（可复跑） |
+| `spike-src/` | shim、Swift 探针、两个 `Package.swift`、DNG 写入器、基准工具源，以及 `bench.sh` / `benchrun.py` 的副本（可复跑）；复跑对照工具 `m2-product-shape.swift` / `v9-breakdown.swift` / `lrmat.cpp` / `rerun_compare.py` / `rerun_tables.py` |
 
 > **提交口径说明**：`.gitignore` 第 80 行把 `.work/gsd/phases/*/evidence/` 排除在仓外（evidence bundle 走私有 `lightamer-evidence` 仓的政策）。故本 lane 的 commit 只含 `SPIKE.md` + `omp-spike-summary.md` + `spike-src/`（含全部源码与可复跑脚本）；`evidence/` 下的原始数据留在工作区，按政策由 orchestrator 打包时处理。复跑不依赖 evidence：`spike-src/bench.sh`（配合 `spike-src/benchrun.py`）即可重建全部表。

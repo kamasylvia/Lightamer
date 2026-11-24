@@ -48,7 +48,7 @@ struct Probe {
             // Evidence of the wall: every one of these is a compile error.
             //   r.get()          -> "C++ method 'get' ... may return an interior pointer" (unavailable)
             //   r.operator->()   -> not imported
-            //   r.getU16DataAsCroppedArray2DRef() -> template, not imported
+            //   r.getU16DataAsCroppedArray2DRef() -> member function; the RawImageData* is unreachable
             // RawImageData::data is protected.
         }
         print("PASS_DRIVE_ONLY")

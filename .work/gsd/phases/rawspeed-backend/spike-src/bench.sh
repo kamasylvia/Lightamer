@@ -17,6 +17,11 @@ QUICK="${1:-}"
 cd "$SPIKE_ROOT"
 
 exec > >(tee "$HERE/bench-run.log") 2>&1
+OUT="${BENCH_OUT:-$HERE/bench.csv}"
+if [ "$QUICK" = "--quick" ] && [ -z "${BENCH_OUT:-}" ] && [ -f "$HERE/bench.csv" ]; then
+  OUT="$HERE/bench-quick-$(date +%H%M).csv"
+  echo "NOTE: --quick will not overwrite the archive; writing $OUT (set BENCH_OUT to choose)"
+fi
 echo "== environment =="
 sw_vers | head -3
 swift --version 2>&1 | head -2
@@ -104,8 +109,8 @@ echo "== P1 vs P0 coarse diff (2560 render) =="
 ./bin/bench cmp samples/7RM5-LosslessCompressedLarge.ARW work/a7r5-ds0.dng | tee "$HERE/p0-vs-p1-cmp.txt"
 
 echo "== experience-speed matrix =="
-python3 "$HERE/benchrun.py" --root "$SPIKE_ROOT" --out "$HERE/bench.csv" $QUICK
+python3 "$HERE/benchrun.py" --root "$SPIKE_ROOT" --out "$OUT" $QUICK
 
 echo
 echo "== results =="
-column -s, -t < "$HERE/bench.csv" 2>/dev/null || cat "$HERE/bench.csv"
+column -s, -t < "$OUT" 2>/dev/null || cat "$OUT"
