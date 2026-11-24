@@ -1,0 +1,4 @@
+N,paste_s,changed,select_s,selection,refresh_stable_s,grid_changed_frac,renders_before,renders_after,thumbs_before,thumbs_after,open_during_refresh_s,open_cache
+100,0.018,101,0.01,101,0.53,0.5545,290,318,103,103,0.612,render
+1000,0.05,1001,0.02,1001,0.53,0.576,935,1028,617,617,0.582,render
+10000,0.347,10001,0.09,10001,0.4,0.5433,1759,1851,1152,1156,0.605,render
