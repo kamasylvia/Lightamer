@@ -275,6 +275,14 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 - 用户面向输出（问题、解释、状态总结）使用中文；代码、API 名称、文件路径、技术术语保持英文。
 - 每轮对话完成后，如有需要，更新 `.work/TODO.md` 和 AGENTS.md（继承自全局指南；TODO/LESSONS 真身在 `.work/` 下，**根目录不留垫片**——2026-09-28 用户裁决，引用一律写 `.work/` 真路径）。
 
+### 项目台账 = GitHub issues（2026-11-24 用户指令）
+
+- 本仓的开发记忆/进度/计划/教训唯一事实源 = **GitHub issues**（`gh -R kamasylvia/Lightamer`），不再写 `.work/TODO.md` / `.work/LESSONS.md`。
+- **ledger = #23（已置顶）**：精选索引（活跃 backlog 一行一链接 + 高价值教训一行一链接到归属评论），不当全文容器。
+- 新工作 issue 先行（Goal/Sketch/Acceptance）再实现；方案演进**编辑 issue 正文**；教训以**评论**贴到产出它的 issue，蒸馏 + 实测数字。
+- agent 日常自行 open/edit/close/track，属开发循环例行操作，不需逐次授权。
+- `.work/gsd/**` 等编排面产物仍是流水线内部文件（见下条提交规则），但**状态与决策记在 issue**。
+
 ### 提交与 Issue（继承全局规则；2026-10-20 用户裁「点头」补口径）
 - **产品面提交**（App/、LightamerCore/、LightamerIOP/、Tests/、Scripts/、Resources/、docs/ 等源码/构建/文档产物）：提交前确保有对应 GitHub issue，commit message 末尾用 `fixes #NN` / `closes #NN` / `refs #NN` 关联；已推送的 commit 在 issue 描述里反向引用。
 - **内部规划/账本提交免关联**：`.work/gsd/**`（规划/研究/账本/验收文档）、`.work/audits/**`、`research/*-NOTES.md` 调研笔记、`.work/config.toml` 等 orchestrator 面提交**不带 issue ref**——它们是流水线内部工作产物，非产品变更。
@@ -285,7 +293,7 @@ Lightamer 是一个 **macOS 独占的 Alcedo Studio 克隆**（**2026-09-27 用�
 - **UI**：SwiftUI 优先；Metal 视图通过 `NSViewRepresentable` 包装 `MTKView` 桥接。不引入 AppKit-only 的 UI 模式除非 SwiftUI 无法满足。
 - **色彩管线**：working space = linear Rec2020 scene-referred；pixelpipe 内部一律 float32 RGBA premultiplied-alpha。不混用半精度（half）于阴影敏感路径。
 - **iop 模块**：每个 iop 一个 `.swift`（参数 + `IOPModule` 协议实现）+ `.metal`（compute kernel）文件对；模块顺序遵循 Darktable `v50_order`。
-- **RAW 解码**：一律走 `CIRAWFilter`（macOS 27 起 opt-in RAW 9）。不引入 libraw/dcraw 作为主解码路径。
+- **RAW 解码**：`CIRAWFilter`（macOS 27 起 opt-in RAW 9）为既有路径；**rawspeed 后端按 #24 并行接入**（用户相机 A7R5/ILCE-7RM5 不在 CIRAW9 名单，且 CIRAW9 大图解码慢）。两者并存、按配置选择，不引入 libraw/dcraw。
 - **依赖最小化**：能用 Apple 原生框架（Core Image / Metal / Core Text / ImageIO / AVFoundation / ColorSync / Vision）实现的不引入第三方库。预期仅 libwebp、libavif 两个 SPM 依赖。
 - **非破坏性**：所有调整存为参数序列（history stack）+ Lightamer 自有 sidecar 格式；原文件永不被修改。sidecar 不与 Darktable 二进制兼容。
 - **测试**：iop 算法移植必须有 golden-image 测试（对照 Darktable 参考输出）；性能有 60fps@100MP 预算。**新测试文件落域规则（M2-4-0 E2）**：按 `.work/gsd/phases/m2-4-0-test-bundles/M2-4-0-BUNDLE-MAP.txt` 的域模式归入唯一 target，同批更新 `Project.swift` 对应数组（显式清单无 glob）+ `tuist generate` 恒为该批最后一个动作（L041）；跑法走 `Scripts/test-direct.sh --bundle <域>`。
