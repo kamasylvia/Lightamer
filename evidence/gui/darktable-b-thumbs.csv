@@ -1,0 +1,2 @@
+phase,n_thumbs,elapsed_s,rate_per_s,ms_per_thumb,method
+crawler_small,101,8.1,12.47,80.2,"lighttable idle; --conf backthumbs_mipsize=small backthumbs_inactivity=2; 61 MB Z8 NEF hardlinks; count of images with thumb_timestamp>0 and thumb_maxmip>=1 from 101 baseline"

@@ -1,0 +1,7 @@
+attempt,drive_path,result,evidence
+1,"synthetic Ctrl+C then Ctrl+V in lighttable","no paste job created","selected_images=101/102 reached; history distinct imgids stayed at 1 for 33 s"
+2,"lua dt.gui.action('views/thumbtable/paste history',0,'','',1)","ret=nan (DT_ACTION_NOT_VALID)","runtime log; src/gui/accelerators.c:4476-4483 view-flag check rejects thumb actions"
+3,"lua image:paste_history(src)","API does not exist in 5.6.2","git grep release-5.6.2 src/lua/image.c: no paste_history"
+4,"dt.register_event('shortcut',...,'F7') + synthetic F7/F8","callback never fired","src/lua/events.c:666 registers the lua action with no default key"
+5,"panel 'copy' button click + Ctrl+A + Ctrl+V","no paste job created","no new history rows over 180 s"
+6,"lua style-apply proxy loop","no marker written","driven app was a stale instance that had not reloaded the extended probe script"

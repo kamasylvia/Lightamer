@@ -1,0 +1,2 @@
+tier,files,window_s,db_count_at_first_poll,note
+n100,101,4.736,101,"import job finished before the main window was detected; 4.736 s is process-start to first >=1000x600 window"
