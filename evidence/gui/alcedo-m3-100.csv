@@ -1,0 +1,12 @@
+cmd,counts,files,ids,items,kind,package,ready,result_count,ret,ret_keys,ret_raw,sample_n,sec,state,status,t_session,t_win,tier,total,wait
+,,,,,launch,,,,,,,,,,,2.9090750217437744,3.2471518516540527,100,,
+,,,,,project_create,,,,"{'entered': True, 'name': 'batch100', 'path': '/Users/Shared/lightamer-gui-test/alcedo/batchproj100/batch100.alcd', 'photo_count': 0}",,,,0.07852506637573242,,,,,100,,
+0.020792007446289062,"{'completed': 100, 'excluded': 0, 'failed': 0, 'total': 100, 'unsupported': 0}",,,,import,,,,,,,,,succeeded,,,,100,,0.11643409729003906
+,,,100,,list,,,,,,,,,,,,,100,100,
+,,,,,open_source,,,,"{'element_id': 1, 'head_commit': None, 'image_id': 1, 'state': 'Interactive'}",,,,5.095627069473267,,,,,100,,
+,,,,,edit_source,,,,2,,,,0.2761871814727783,,,,,100,,
+,,,,24,copy,package-1,,,,,,,0.166093111038208,,,,,100,,
+0.21481871604919434,,,,,paste,,,,"{'task_id': 'bgtask-3', 'target_count': 99}",,,,,,,,,100,,
+,,,,,paste_task,,,"{'applied_count': 99, 'applied_ids': [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100], 'failure_count': 0, 'failures': []}",,,,,,succeeded,,,,100,,1.5155558586120605
+,,,,,m3c_open,,16.8987979888916,,,,,,14.740082263946533,,OK,,,100,,
+,,,,,thumbnails,,,,,"['failed_count', 'items', 'written_count']",,100,,,,,,100,,38.11360311508179

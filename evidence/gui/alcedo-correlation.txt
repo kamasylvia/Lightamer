@@ -1,0 +1,5 @@
+Ready-frame vs embedded JPEG preview (viewport crop, grayscale 256x256, Pearson r):
+7RM5  cold-1-{1..5}-ready.png vs samples/7RM5-LosslessCompressedLarge-preview2.jpg   r=0.9930 (all 5 reps identical)
+GFX   cold-2-{1..5}-ready.png vs samples/Fujifilm-GFX100S-14bits-uncompress-4_3-preview2.jpg  r=0.9910 (all 5)
+Z8    cold-3-{1..5}-ready.png vs samples/Nikon_Z8_raw_14_bit_lossless_compression-preview3.jpg  r=0.9355 (all 5)
+(Z8 preview2 is a corrupt/dark embedded thumbnail, r=0.1161; excluded. preview4 r=0.9331.)
