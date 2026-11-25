@@ -1,0 +1,7 @@
+segment begin..end span=0.689s
+changed=12 changed_fps=17.4
+interval med=18.68ms p95=50.90ms max=51.63ms >16.7=7 >33.3=3 n=11
+all_frames=42 med=16.58ms p95=19.70ms
+lat drag_down n=1 med=68.5ms p95=68.5ms max=68.5ms
+lat drag_step n=40 med=16.1ms p95=49.5ms max=68.5ms
+lat drag_up n=1 med=15.8ms p95=15.8ms max=15.8ms

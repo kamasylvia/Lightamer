@@ -1,6 +1,16 @@
 use std::cell::Cell;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::OnceLock;
+use std::sync::Mutex;
+use std::sync::LazyLock;
+use std::collections::HashSet;
+use std::time::Instant;
+
+static T0: OnceLock<Instant> = OnceLock::new();
+static SLIDER_MAP: LazyLock<Mutex<HashSet<(usize, usize)>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
+fn tt() -> f64 { T0.get_or_init(Instant::now).elapsed().as_secs_f64() * 1000.0 }
+fn dbg_on() -> bool { std::env::var("LIGHTAMER_MM_LOG").map(|v| v != "0").unwrap_or(false) }
 
 use gpui_kit::component::input::{Input as TextInput, InputEvent, InputState};
 use gpui_kit::component::theme::{Theme, ThemeMode};
@@ -322,6 +332,11 @@ struct Proto {
     exposure_idx: usize,
     modules_scroll: ScrollHandle,
     scroll_reported: Cell<f32>,
+    mm_recv: u32,
+    mm_applied: u32,
+    mm_skip: u32,
+    renders: u32,
+    renders_drag: u32,
 }
 
 
@@ -413,6 +428,11 @@ impl Proto {
             exposure_idx,
             modules_scroll: ScrollHandle::new(),
             scroll_reported: Cell::new(-1.0e9),
+            mm_recv: 0,
+            mm_applied: 0,
+            mm_skip: 0,
+            renders: 0,
+            renders_drag: 0,
             editor_focus,
             view_focus,
         }
@@ -526,6 +546,13 @@ impl Render for Proto {
         let size = window.viewport_size();
         self.layout_w = size.width / px(1.0);
         self.layout_h = size.height / px(1.0);
+        self.renders += 1;
+        if self.drag.is_some() {
+            self.renders_drag += 1;
+            if self.renders_drag <= 100 {
+                eprintln!("RENDER t={:.1} n={} drags={}", tt(), self.renders, self.renders_drag);
+            }
+        }
         let filter = self.module_filter(cx);
 
         div()
@@ -547,7 +574,10 @@ impl Render for Proto {
             }))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
-            .on_mouse_down(MouseButton::Left, cx.listener(|this, _, window, cx| {
+            .on_mouse_down(MouseButton::Left, cx.listener(|this, ev: &MouseDownEvent, window, cx| {
+                if dbg_on() {
+                    eprintln!("ROOT_DOWN t={:.1} pos={:.1},{:.1} clicks={}", tt(), ev.position.x / px(1.0), ev.position.y / px(1.0), ev.click_count);
+                }
                 if !this.search.read(cx).focus_handle(cx).is_focused(window) {
                     window.focus(&this.editor_focus, cx);
                 }
@@ -645,8 +675,19 @@ impl Proto {
     }
 
     fn on_mouse_move(&mut self, ev: &MouseMoveEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        let Some(drag) = &self.drag else { return };
+        self.mm_recv += 1;
+        let had_drag = self.drag.is_some();
+        let Some(drag) = &self.drag else {
+            if dbg_on() {
+                eprintln!("MM t={:.1} n={} NO_DRAG pos={:.1},{:.1} pressed={:?}", tt(), self.mm_recv, ev.position.x / px(1.0), ev.position.y / px(1.0), ev.pressed_button);
+            }
+            return;
+        };
         if ev.pressed_button != Some(MouseButton::Left) {
+            self.mm_skip += 1;
+            if dbg_on() {
+                eprintln!("MM t={:.1} n={} SKIP_BUTTON pos={:.1},{:.1} pressed={:?}", tt(), self.mm_recv, ev.position.x / px(1.0), ev.position.y / px(1.0), ev.pressed_button);
+            }
             return;
         }
         let (module, param, start_x, start_value, width) = (drag.module, drag.param, drag.start_x, drag.start_value, drag.width);
@@ -655,18 +696,23 @@ impl Proto {
         let frac = value_to_frac(start_value, &pd) + dx / width.max(1.0);
         let v = frac_to_value(frac, &pd);
         self.modules[module].params[param] = v;
+        self.mm_applied += 1;
         if let Some(d) = &mut self.drag {
             d.moved = true;
+        }
+        if dbg_on() || had_drag {
+            eprintln!("MM t={:.1} n={} APPLY pos={:.1},{:.1} sx={:.1} w={:.1} m={} p={} v={:.4} renders={} renders_drag={}", tt(), self.mm_recv, ev.position.x / px(1.0), ev.position.y / px(1.0), start_x, width, module, param, v, self.renders, self.renders_drag);
         }
         cx.notify();
     }
 
     fn on_mouse_up(&mut self, _ev: &MouseUpEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(drag) = self.drag.take() {
-            if drag.moved {
-                let pd = self.param_def(drag.module, drag.param);
-                let v = self.modules[drag.module].params[drag.param];
-                let name = self.defs[self.modules[drag.module].def].name;
+        if let Some(d) = self.drag.take() {
+            eprintln!("DRAG_SUMMARY t={:.1} mm_recv={} mm_applied={} mm_skip={} renders={} renders_drag={} module={} param={} value={:.4}", tt(), self.mm_recv, self.mm_applied, self.mm_skip, self.renders, self.renders_drag, d.module, d.param, self.modules[d.module].params[d.param]);
+            if d.moved {
+                let pd = self.param_def(d.module, d.param);
+                let v = self.modules[d.module].params[d.param];
+                let name = self.defs[self.modules[d.module].def].name;
                 self.commit(pd.name, format!("{} → {}", name, fmt_value(v, &pd)));
                 cx.notify();
             }
@@ -685,6 +731,7 @@ impl Proto {
             .border_b(px(1.))
             .border_color(rgb(C_BORDER))
             .child(div().w(px(18.)).h(px(18.)).rounded_full().bg(rgb(0x3a6ea5)))
+            .child(div().w(px(((self.renders % 16) as f32) * 6.0)).h(px(6.)).bg(rgb(0xff3b30)))
             .child(div().text_size(px(15.)).child("lightamer"))
             .child(div().text_size(px(10.)).text_color(rgb(C_DIM)).child("0.1.0 · gpui spike"))
             .child(div().flex_1())
@@ -1037,6 +1084,7 @@ impl Proto {
                     })),
             )
             .child(div().min_w(px(0.)).truncate().text_size(px(13.)).child(name))
+            .child(div().w(px(((self.renders % 16) as f32) * 6.0)).h(px(6.)).bg(rgb(0x34c759)))
             .child(div().flex_1())
             .child(icon_btn("☰", cx.listener(move |this, _, _, cx| {
                 let name = this.defs[this.modules[i].def].name;
@@ -1325,8 +1373,11 @@ impl Proto {
             .relative()
             .child(
                 canvas(
-                    move |b, _, _| cell.set(b),
+                    move |b, _, _| { cell.set(b); if dbg_on() { let mut m = SLIDER_MAP.lock().unwrap(); if m.insert((module, param)) { eprintln!("SLIDER_BOUNDS t={:.1} m={} p={} origin=({:.1},{:.1}) size={:.1}x{:.1}", tt(), module, param, b.origin.x / px(1.0), b.origin.y / px(1.0), b.size.width / px(1.0), b.size.height / px(1.0)); } } },
                     move |b, _, window, _cx| {
+                        if dbg_on() && module == 11 && param == 0 {
+                            eprintln!("CANVAS_PAINT t={:.1} frac={:.4} y={:.1} x={:.1} w={:.1}", tt(), frac, b.origin.y / px(1.0), b.origin.x / px(1.0), b.size.width / px(1.0));
+                        }
                         let bar = Bounds::new(point(b.origin.x, b.origin.y + px(3.)), size(b.size.width, px(7.)));
                         window.paint_quad(quad(bar, C_TRACK));
                         let fillw = b.size.width * frac;
@@ -1382,6 +1433,7 @@ impl Proto {
                 let width = b.size.width / px(1.0);
                 let f = (local / width.max(1.0)).clamp(0.0, 1.0);
                 let v = frac_to_value(f, &pd);
+                eprintln!("SLIDER_DOWN t={:.1} m={} p={} bounds=({:.1},{:.1} {:.1}x{:.1}) pos={:.1},{:.1} f={:.4} v={:.4}", tt(), module, param, b.origin.x / px(1.0), b.origin.y / px(1.0), b.size.width / px(1.0), b.size.height / px(1.0), ev.position.x / px(1.0), ev.position.y / px(1.0), f, v);
                 this.modules[module].params[param] = v;
                 this.drag = Some(DragState {
                     module,
