@@ -1,5 +1,7 @@
 # PLAN — Rust 全量重写的分波开发计划（darktable 功能面 + gpui 界面）
 
+> **本计划有修订，执行前必须连同 `PLAN-AMENDMENTS.md` 一起读**：基线改为上游 master 的 `679d594f5d`（不钉 `release-5.7.0` tag），阶段 A 连跑，脚本统一放 `Scripts/`，rawspeed 钉 `0c16fee77`。
+
 > 本文件是可照着派活的计划，不是调研。调研正本在上一级 `.work/gsd/phases/rust-core/`：`FEATURE-SCOPE.md`、`HISTORY-COMPAT.md`、`SPIKE-RUST-APPLE.md`、`CORE-DESIGN.md`、`VERIFY.md`；界面调研在同级的 `.work/gsd/phases/{gpui-spike,gpui-fast-scout,gpui-viewport,appkit-migration}/`（与本目录平级，不在本目录内）。
 > 落盘基线：仓库 HEAD `1f9c1adb83399b5e403a8419d5fc65859c9f5a2f`（本 lane 执行 `git rev-parse HEAD` 亲核）。
 > 上游参考：`refs/dt-master` @ `679d594f5d` = **`release-5.7.0-2234`**（即 5.7.0 之后 2,234 个提交）。**参数布局与顺序一律钉 `release-5.7.0` tag，不钉 master**（理由与证据见 §1.3）。
