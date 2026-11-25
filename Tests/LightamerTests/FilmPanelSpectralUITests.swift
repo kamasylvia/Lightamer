@@ -165,6 +165,13 @@ final class FilmPanelSpectralUITests: XCTestCase {
     /// a declared, diff-reviewed increment (the D-M8-7 revision: new
     /// OPERATORS are new controls; the zero-new-controls invariant
     /// covered the core UPGRADE, not new legs).
+    /// spektra-module T4' (`a88eb770`): the dual-track gate's CONVERT arm
+    /// mounts the SAME row/sheet shells with its own static-key fork
+    /// (`film.convert.{button,sheet,cancel,confirm}` — PLAN §T4' item 4
+    /// budgets the `film.convert.*` AX prefix; `film.migrate.*` stays the
+    /// process-migrate arm's). A declared, diff-reviewed increment: the
+    /// control COUNT is unchanged (the shells are shared), only the
+    /// per-action identifier fork is new.
     static let frozenControlInventory: Set<String> = [
         "editor.stack.film.panel",
         "film.close",
@@ -204,6 +211,10 @@ final class FilmPanelSpectralUITests: XCTestCase {
         "film.migrate.sheet",
         "film.migrate.cancel",
         "film.migrate.confirm",
+        "film.convert.button",
+        "film.convert.sheet",
+        "film.convert.cancel",
+        "film.convert.confirm",
         "film.disclosed.clamped",
         "film.reversal.picker",
         "film.reversal.manualcc",
