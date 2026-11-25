@@ -384,3 +384,48 @@ V. SpektraLab RFC-026 (agent schema tool + Agents settings + CLI shape)
      App/Sources/Lightamer/MCP/McpOneShot.swift
 
    These files are GPL-3.0 as part of Lightamer.
+
+==============================================================================
+Rust rewrite license policy (wave A1, 2026-11-26)
+==============================================================================
+
+This project is licensed under GPL-3.0-or-later (variant confirmed by the
+sole copyright holder on 2026-11-26; see README ## License). The full
+per-dependency audit is docs/LICENSE-AUDIT.md (engineering review, not
+legal advice). Policy summary:
+
+- Allow list: Scripts/licenses-allow.txt (36 license strings, exact match
+  against cargo metadata). New dependencies must hit the list.
+- Exceptions: Scripts/licenses-exceptions.txt, pinned by package name +
+  license string with reason and retirement condition; approved by the
+  sole copyright holder, recorded in issue #32.
+- Machine check: Scripts/check-licenses.sh [WORKSPACE] must exit 0.
+
+darktable attribution method (source-level porting):
+
+  Upstream: darktable master @ 679d594f5d (release-5.7.0-2234)
+  License: GPL-3.0-or-later (LICENSE = GPLv3 text; per-file headers grant
+    "either version 3 ... or (at your option) any later version").
+  Every ported file keeps the original copyright header verbatim, appends
+  "Modified for Lightamer: <date> <what>", and stays GPL-3.0-or-later.
+
+rawspeed entry:
+
+  Pinned commit: 0c16fee7772594e98897bded01fc31bc3409b4cb
+    (darktable 679d594f5d gitlink src/external/rawspeed)
+  License: LGPL-2.1-or-later (LICENSE file = LGPL-2.1 text; 244 source
+    headers "version 2 ... or any later", 8 headers "version 2.1 ... or
+    any later"). Statically linked; distributed as part of the whole
+    under GPL-3.0-or-later, same as darktable. The rawspeed LICENSE text
+    ships with distributions; the pinned source stays available.
+
+lensfun entries (code and data are separate licenses):
+
+  Code (libs/): LGPL-3.0. Data (data/ lens database): CC-BY-SA-3.0,
+    shipped as separate files with attribution and original license kept.
+  darktable pins no lensfun version (system library); our version is fixed
+  at A2 and recorded in docs/LICENSE-AUDIT.md.
+
+Third-party crate list regeneration: the published crate list is a summary
+of docs/LICENSE-AUDIT.md §4.1 + §5, regenerated from
+Scripts/check-licenses.sh output (entry count reconciles with its total=).

@@ -1,0 +1,13 @@
+# licenses-exceptions.txt — check-licenses.sh 的例外清单
+#
+# 格式（严格）：<包名> | <license 字符串或 (empty)> | <例外理由>
+# 以 `|` 分隔，恰好 3 段；包名、license、理由去除首尾空白后都不能为空。
+# 空行与 `#` 开头行忽略。其它行格式不对 → 脚本报数据文件非法并退出 1。
+# 命中规则：包名与 license 同时精确匹配才放行（license 变更即失效，需重审）。
+# (empty) 表示 `cargo metadata` 的 license 字段为空/缺失。
+# 审计依据见 docs/LICENSE-AUDIT.md §4.2（E1）与 §4 表注（W）。
+
+self_cell | Apache-2.0 OR GPL-2.0-only | E1: 双许可，合规取 Apache-2.0 分支；GPL-2.0-only 分支与 GPL-3.0 不兼容，永不取该分支（审计表 §4.2）
+lightamer-rust-spike | (empty) | W: 本项目 spike 工作区根包（项目代码 GPL-3.0-or-later），仅缺 license 字段；产品工作区建好后字段补齐即退役本条
+lightamer-bridge | (empty) | W: 本项目 spike bridge 包（项目代码 GPL-3.0-or-later），仅缺 license 字段；产品工作区建好后字段补齐即退役本条
+gpui-viewport-spike | (empty) | W: 本项目 spike 工作区根包（项目代码 GPL-3.0-or-later），仅缺 license 字段；产品工作区建好后字段补齐即退役本条

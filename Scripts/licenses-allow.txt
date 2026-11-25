@@ -1,0 +1,60 @@
+# licenses-allow.txt — check-licenses.sh 的允许清单
+#
+# 一行一个 cargo license 字符串（精确匹配 `cargo metadata` 的 packages[].license）。
+# 空行与 `#` 开头行忽略。其它行必须是非空许可表达式，否则脚本报数据文件非法。
+# 审计依据见 docs/LICENSE-AUDIT.md §4（spike 锁表）与 §5（未来依赖）。
+#
+# 生成/核对命令（2026-11-26）：
+#   cargo metadata --locked --offline --format-version 1 \
+#     --manifest-path /Volumes/UNITEK/Documents/Development/Lightamer-rust-spike/Cargo.toml \
+# 本清单 = 双 spike 并集 854 个 (name, version) 的 license 去重（36 种），
+# 减去例外清单覆盖的 1 种（Apache-2.0 OR GPL-2.0-only，见 licenses-exceptions.txt），
+# 加上 1 种已登记的未来依赖（(MIT OR Apache-2.0) AND IJG，jpeg-encoder，见审计表 §5）。
+
+# --- MIT / Apache-2.0 族（双 spike 主体，249+545 包） ---
+MIT OR Apache-2.0
+MIT
+Apache-2.0 OR MIT
+Apache-2.0
+MIT/Apache-2.0
+Apache-2.0/MIT
+MIT / Apache-2.0
+Apache-2.0 / MIT
+Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
+# --- Zlib 族（objc2 0.3 / bytemuck / zune-jpeg 等） ---
+Zlib OR Apache-2.0 OR MIT
+MIT OR Apache-2.0 OR Zlib
+MIT OR Zlib OR Apache-2.0
+Zlib
+# --- Unicode 数据（icu / unicode 表，22+2 包） ---
+Unicode-3.0
+(MIT OR Apache-2.0) AND Unicode-3.0
+# --- 公有领域类（Unlicense / CC0 / 0BSD / MIT-0 析取） ---
+Unlicense OR MIT
+Unlicense/MIT
+CC0-1.0
+CC0-1.0 OR Apache-2.0
+CC0-1.0 OR MIT-0 OR Apache-2.0
+0BSD
+0BSD OR MIT OR Apache-2.0
+# --- BSD 族 ---
+BSD-3-Clause
+BSD-2-Clause
+BSD-3-Clause OR Apache-2.0
+BSD-2-Clause OR Apache-2.0 OR MIT
+BSD-2-Clause OR MIT OR Apache-2.0
+(Apache-2.0 OR MIT) AND BSD-3-Clause
+# --- ISC 族（rustls 栈 / inotify / untrusted 等） ---
+ISC
+Apache-2.0 OR ISC OR MIT
+Apache-2.0 AND ISC
+# --- 弱 copyleft：MPL-2.0（与 GPL-3.0 兼容，见审计表 §4.2；uniffi 8 包 + cbindgen/dwrote/option-ext） ---
+MPL-2.0
+# --- 析取中含 LGPL-2.1-or-later（取 MIT/Apache 分支；r-efi 两版本） ---
+MIT OR Apache-2.0 OR LGPL-2.1-or-later
+# --- Boost 软件许可析取（ryu） ---
+Apache-2.0 OR BSL-1.0
+# --- NCSA 合取（libfuzzer-sys，仅 fuzz 构建依赖） ---
+(MIT OR Apache-2.0) AND NCSA
+# --- 未来依赖：jpeg-encoder 的 IJG 合取（已登记 §5，锁中暂无） ---
+(MIT OR Apache-2.0) AND IJG

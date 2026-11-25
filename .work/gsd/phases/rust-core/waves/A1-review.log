@@ -1,0 +1,40 @@
+PASS
+
+提交 b75404b0（docs(rust-core) A1 波）域内复审，只读方式三项全过：证据对得上、脚本行为符合预期、范围无越界。复审过程未改仓库任何文件（仅写 /tmp 日志与负例工作区），未构建、未跑产品测试、未开图形程序。
+
+## 1. 审计表抽查（§4.1，854 行）
+
+表自检：`docs/LICENSE-AUDIT.md:81` 表头起连续 `| ` 行 854 行，义务码分布 P=783、U=24、PD=22、M=11、P-isc=10、W=3、E1=1，与表注图例一致。
+
+随机抽取（`python3 random.sample`，OS 熵种子 2980546014，4×P + 1×非 P）：
+
+| md 行 | 表行 | 义务 |
+|---|---|---|
+| 130 | atspi-proxies 0.13.0 / Apache-2.0 OR MIT / V:463 | P |
+| 279 | futures-task 0.3.34 / MIT OR Apache-2.0 / V:1794 | P |
+| 751 | unicode-linebreak 0.1.5 / Apache-2.0 / V:7014 | P |
+| 509 | objc2-quartz-core 0.3.2 / Zlib OR Apache-2.0 OR MIT / V:4673 | P |
+| 90 | adler2 2.0.1 / 0BSD OR MIT OR Apache-2.0 / V:94 | PD（非 P 行） |
+
+证据核对（`sed`/`awk` 读锁行）：5 行 `V:<行>` 在仓内锁 `.work/gsd/phases/gpui-viewport/src/Cargo.lock` 均为 `[[package]]` 节起始行，其后 `name`/`version` 与表行逐字一致；同行号在外部锁 `/Volumes/UNITEK/Documents/Development/Lightamer-gpui-spike/viewport/Cargo.lock` 逐行一致；`cmp` 证实仓内/外部双锁各 IDENTICAL（V 8870 行、A 1013 行）。
+
+license 核对（`cargo metadata --locked --offline --format-version 1`，只读）：viewport 工作区 total=814，5 包 `license` 字段与表行全 MATCH；rust-spike 工作区 total=103，5 包均不在其中（与 V-only 锁列一致）。5 个 license 字符串在 `Scripts/licenses-allow.txt` 全部精确命中（含 PD 行的 `0BSD OR MIT OR Apache-2.0`）。
+
+结论：5/5 证据行号与 license 字段一致，无 error。
+
+## 2. 重跑脚本
+
+- 正例 1：`./Scripts/check-licenses.sh /Volumes/UNITEK/Documents/Development/Lightamer-rust-spike` → exit=0，`allow=101 exception=2 fail=0 total=103`，与 A1-REPORT §5 一致（2×HIT 为本工作区 W 例外，另 2 条 UNUSED 为对端工作区例外，符合共享例外清单设计）。
+- 正例 2：`./Scripts/check-licenses.sh /Volumes/UNITEK/Documents/Development/Lightamer-gpui-spike/viewport` → exit=0，`allow=812 exception=2 fail=0 total=814`，与 A1-REPORT §5 一致（HIT=self_cell E1 + gpui-viewport-spike W）。
+- 负例（自建 `/tmp/a1-lic-neg`：虚拟 workspace + `agpl-pkg` license=AGPL-3.0-only + `nolic-pkg` 无 license，`cargo generate-lockfile --offline` 预生成锁）：`./Scripts/check-licenses.sh /tmp/a1-lic-neg` → exit=1，`allow=0 exception=0 fail=2 total=2`，两包皆 FAIL 并各打印一条 `FAIL <name> <ver>: license ... not in allow list`。
+- 附带：`bash -n Scripts/check-licenses.sh` → BASH-N-OK。
+
+结论：双正例 exit 0 且计数与报告一致，负例 exit 1 且两包 FAIL，行为符合预期，无 error。
+
+## 3. 范围核对
+
+- `git show b75404b0 --name-only` 与期望 7 文件集合 `diff` → FILES-EXACT-MATCH：`.work/gsd/phases/rust-core/waves/A1-REPORT.md`、NOTICE、README.md、Scripts/check-licenses.sh、Scripts/licenses-allow.txt、Scripts/licenses-exceptions.txt、docs/LICENSE-AUDIT.md（`--stat` 亦仅此 7 个，1363+/2-）。
+- `grep -E '^(App|LightamerCore|LightamerIOP|Tests|...|Project\.swift)'` → 零命中，Swift 产品代码/Tests/Project.swift 零触碰。
+- README diff 仅一个 hunk `@@ -227,7 +227,9 @@`，改动 3 加 1 删（`GPL-3.0`→`GPL-3.0-or-later` + 2026-11-26 确认句），落在新版唯一的末节 `## License`（第 228 行起）内，仅含 1 行上节 context 行，无节外改动。
+
+结论：范围精确，无越界，无 error。
