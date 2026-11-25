@@ -9,6 +9,11 @@ fast-backend = ["gpui-kit/gpui-fast"]
 
 [dependencies]
 gpui-kit = "0.11.0"
+image = "0.25"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-foundation = { version = "0.3.2", features = ["CFDictionary", "CFString"] }
+objc2-core-video = { version = "0.3.2", features = ["CVBase", "CVBuffer", "CVImageBuffer", "CVReturn", "CVPixelBuffer", "CVPixelBufferIOSurface"] }
 
 [profile.dev]
 opt-level = 1

@@ -1,0 +1,245 @@
+SCROLL_OFFSET y=-0.0 max=0.0
+SLIDER_BOUNDS t=0.0 m=11 p=0 fixed=1 origin=(1167.0,125.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.1 m=1 p=0 fixed=0 origin=(1167.0,294.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.2 m=1 p=1 fixed=0 origin=(1167.0,334.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.3 m=11 p=0 fixed=0 origin=(1167.0,832.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.3 m=11 p=1 fixed=0 origin=(1167.0,872.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.4 m=16 p=0 fixed=0 origin=(1167.0,1149.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.4 m=16 p=1 fixed=0 origin=(1167.0,1189.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.5 m=17 p=0 fixed=0 origin=(1167.0,1282.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.5 m=17 p=1 fixed=0 origin=(1167.0,1322.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.6 m=17 p=2 fixed=0 origin=(1167.0,1362.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.6 m=18 p=0 fixed=0 origin=(1167.0,1455.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.7 m=18 p=1 fixed=0 origin=(1167.0,1495.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.7 m=18 p=2 fixed=0 origin=(1167.0,1535.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.8 m=27 p=0 fixed=0 origin=(1167.0,2082.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.9 m=27 p=1 fixed=0 origin=(1167.0,2122.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.9 m=27 p=2 fixed=0 origin=(1167.0,2162.5) size=263.0x12.0
+SLIDER_BOUNDS t=1.0 m=27 p=3 fixed=0 origin=(1167.0,2202.5) size=263.0x12.0
+SLIDER_BOUNDS t=1.0 m=27 p=4 fixed=0 origin=(1167.0,2242.5) size=263.0x12.0
+SLIDER_BOUNDS t=1.1 m=27 p=5 fixed=0 origin=(1167.0,2282.5) size=263.0x12.0
+SLIDER_BOUNDS t=1.1 m=27 p=6 fixed=0 origin=(1167.0,2322.5) size=263.0x12.0
+CANVAS_PAINT t=13.7 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=16.8 frac=0.6167 y=832.5 x=1167.0 w=263.0 fixed=0
+CANVAS_PAINT t=58.1 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=58.3 frac=0.6167 y=832.5 x=1167.0 w=263.0 fixed=0
+CANVAS_PAINT t=135.5 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=135.8 frac=0.6167 y=832.5 x=1167.0 w=263.0 fixed=0
+CANVAS_PAINT t=177.1 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=177.3 frac=0.6167 y=832.5 x=1167.0 w=263.0 fixed=0
+CANVAS_PAINT t=431.6 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=432.0 frac=0.6167 y=832.5 x=1167.0 w=263.0 fixed=0
+MM t=1085.1 n=1 NO_DRAG pos=1268.0,370.0 pressed=None
+SCROLL_OFFSET y=14.0 max=1632.0
+CANVAS_PAINT t=1394.0 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1394.3 frac=0.6167 y=818.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=28.0 max=1632.0
+CANVAS_PAINT t=1410.4 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1410.7 frac=0.6167 y=804.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=42.0 max=1632.0
+CANVAS_PAINT t=1427.3 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1427.5 frac=0.6167 y=790.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=56.0 max=1632.0
+CANVAS_PAINT t=1444.0 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1444.5 frac=0.6167 y=776.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=70.0 max=1632.0
+CANVAS_PAINT t=1461.5 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1461.7 frac=0.6167 y=762.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=84.0 max=1632.0
+CANVAS_PAINT t=1477.5 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1477.7 frac=0.6167 y=748.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=98.0 max=1632.0
+CANVAS_PAINT t=1494.2 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1494.5 frac=0.6167 y=734.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=126.0 max=1632.0
+CANVAS_PAINT t=1510.9 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1511.2 frac=0.6167 y=706.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=140.0 max=1632.0
+CANVAS_PAINT t=1527.6 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1527.9 frac=0.6167 y=692.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=154.0 max=1632.0
+CANVAS_PAINT t=1544.5 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1544.7 frac=0.6167 y=678.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=168.0 max=1632.0
+CANVAS_PAINT t=1560.3 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1560.6 frac=0.6167 y=664.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=182.0 max=1632.0
+CANVAS_PAINT t=1577.5 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1577.8 frac=0.6167 y=650.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=196.0 max=1632.0
+CANVAS_PAINT t=1593.9 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1594.2 frac=0.6167 y=636.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=210.0 max=1632.0
+CANVAS_PAINT t=1610.6 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1610.8 frac=0.6167 y=622.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=224.0 max=1632.0
+CANVAS_PAINT t=1627.2 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1627.4 frac=0.6167 y=608.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=252.0 max=1632.0
+CANVAS_PAINT t=1644.2 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1644.5 frac=0.6167 y=580.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=266.0 max=1632.0
+CANVAS_PAINT t=1660.5 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1660.6 frac=0.6167 y=566.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=280.0 max=1632.0
+CANVAS_PAINT t=1677.6 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1677.9 frac=0.6167 y=552.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=294.0 max=1632.0
+CANVAS_PAINT t=1694.5 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1694.6 frac=0.6167 y=538.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=308.0 max=1632.0
+CANVAS_PAINT t=1711.2 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1711.4 frac=0.6167 y=524.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=322.0 max=1632.0
+CANVAS_PAINT t=1727.6 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1727.8 frac=0.6167 y=510.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=336.0 max=1632.0
+CANVAS_PAINT t=1744.4 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1744.7 frac=0.6167 y=496.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=364.0 max=1632.0
+CANVAS_PAINT t=1761.2 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1761.4 frac=0.6167 y=468.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=378.0 max=1632.0
+CANVAS_PAINT t=1777.5 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1777.7 frac=0.6167 y=454.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=392.0 max=1632.0
+CANVAS_PAINT t=1794.2 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1794.5 frac=0.6167 y=440.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=406.0 max=1632.0
+CANVAS_PAINT t=1811.1 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1811.4 frac=0.6167 y=426.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=420.0 max=1632.0
+CANVAS_PAINT t=1827.4 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1827.6 frac=0.6167 y=412.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=434.0 max=1632.0
+CANVAS_PAINT t=1844.2 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1844.3 frac=0.6167 y=398.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=462.0 max=1632.0
+CANVAS_PAINT t=1860.8 frac=0.6167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1861.0 frac=0.6167 y=370.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=476.0 max=1632.0
+CANVAS_PAINT t=1877.5 frac=0.6183 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1877.6 frac=0.6183 y=356.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=490.0 max=1632.0
+CANVAS_PAINT t=1893.9 frac=0.6200 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1894.0 frac=0.6200 y=342.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=504.0 max=1632.0
+CANVAS_PAINT t=1910.8 frac=0.6200 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1911.0 frac=0.6200 y=328.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=518.0 max=1632.0
+CANVAS_PAINT t=1927.3 frac=0.6200 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1927.4 frac=0.6200 y=314.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=532.0 max=1632.0
+CANVAS_PAINT t=1943.8 frac=0.6200 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1944.0 frac=0.6200 y=300.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=560.0 max=1632.0
+CANVAS_PAINT t=1960.8 frac=0.6200 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1960.9 frac=0.6200 y=272.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=574.0 max=1632.0
+CANVAS_PAINT t=1977.3 frac=0.6200 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1977.5 frac=0.6200 y=258.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=588.0 max=1632.0
+CANVAS_PAINT t=1994.0 frac=0.6200 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=1994.1 frac=0.6200 y=244.5 x=1167.0 w=263.0 fixed=0
+SCROLL_OFFSET y=602.0 max=1632.0
+CANVAS_PAINT t=2010.6 frac=0.6200 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2010.7 frac=0.6200 y=230.5 x=1167.0 w=263.0 fixed=0
+SLIDER_DOWN t=2407.1 m=11 p=0 fixed=0 bounds=(1167.0,230.5 263.0x12.0) pos=1298.0,237.0 f=0.4981 v=-0.0100
+ROOT_DOWN t=2407.2 pos=1298.0,237.0 clicks=1
+MM t=2422.2 n=2 APPLY pos=1300.5,237.0 sx=1298.0 w=263.0 m=11 p=0 v=0.0500 renders=43 renders_drag=0
+MM t=2432.0 n=3 APPLY pos=1303.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=0.1000 renders=43 renders_drag=0
+MM t=2432.2 n=4 APPLY pos=1305.5,237.0 sx=1298.0 w=263.0 m=11 p=0 v=0.1600 renders=43 renders_drag=0
+RENDER t=2432.3 n=44 drags=1
+CANVAS_PAINT t=2434.1 frac=0.5267 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2434.3 frac=0.5267 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2442.9 n=5 APPLY pos=1308.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=0.2200 renders=44 renders_drag=1
+RENDER t=2459.0 n=45 drags=2
+CANVAS_PAINT t=2460.6 frac=0.5367 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2460.7 frac=0.5367 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2461.3 n=6 APPLY pos=1308.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=0.2200 renders=45 renders_drag=2
+MM t=2461.4 n=7 APPLY pos=1313.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=0.3300 renders=45 renders_drag=2
+RENDER t=2475.7 n=46 drags=3
+CANVAS_PAINT t=2477.4 frac=0.5550 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2477.5 frac=0.5550 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2478.1 n=8 APPLY pos=1318.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=0.4500 renders=46 renders_drag=3
+RENDER t=2492.3 n=47 drags=4
+CANVAS_PAINT t=2493.8 frac=0.5750 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2494.0 frac=0.5750 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2494.6 n=9 APPLY pos=1323.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=0.5600 renders=47 renders_drag=4
+RENDER t=2509.0 n=48 drags=5
+CANVAS_PAINT t=2510.5 frac=0.5933 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2510.6 frac=0.5933 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2511.2 n=10 APPLY pos=1323.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=0.5600 renders=48 renders_drag=5
+MM t=2511.4 n=11 APPLY pos=1325.5,237.0 sx=1298.0 w=263.0 m=11 p=0 v=0.6200 renders=48 renders_drag=5
+RENDER t=2525.7 n=49 drags=6
+CANVAS_PAINT t=2527.1 frac=0.6033 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2527.2 frac=0.6033 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2527.7 n=12 APPLY pos=1330.5,237.0 sx=1298.0 w=263.0 m=11 p=0 v=0.7300 renders=49 renders_drag=6
+RENDER t=2542.3 n=50 drags=7
+CANVAS_PAINT t=2543.7 frac=0.6217 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2543.8 frac=0.6217 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2544.4 n=13 APPLY pos=1335.5,237.0 sx=1298.0 w=263.0 m=11 p=0 v=0.8500 renders=50 renders_drag=7
+RENDER t=2559.0 n=51 drags=8
+CANVAS_PAINT t=2560.5 frac=0.6417 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2560.6 frac=0.6417 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2561.2 n=14 APPLY pos=1338.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=0.9000 renders=51 renders_drag=8
+RENDER t=2575.7 n=52 drags=9
+CANVAS_PAINT t=2577.3 frac=0.6500 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2577.4 frac=0.6500 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2578.0 n=15 APPLY pos=1343.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=1.0200 renders=52 renders_drag=9
+RENDER t=2592.3 n=53 drags=10
+CANVAS_PAINT t=2593.9 frac=0.6700 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2594.0 frac=0.6700 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2594.6 n=16 APPLY pos=1348.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=1.1300 renders=53 renders_drag=10
+RENDER t=2609.0 n=54 drags=11
+CANVAS_PAINT t=2610.4 frac=0.6883 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2610.5 frac=0.6883 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2611.1 n=17 APPLY pos=1353.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=1.2400 renders=54 renders_drag=11
+RENDER t=2625.7 n=55 drags=12
+CANVAS_PAINT t=2627.1 frac=0.7067 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2627.2 frac=0.7067 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2627.8 n=18 APPLY pos=1355.5,237.0 sx=1298.0 w=263.0 m=11 p=0 v=1.3000 renders=55 renders_drag=12
+RENDER t=2642.3 n=56 drags=13
+CANVAS_PAINT t=2643.8 frac=0.7167 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2643.9 frac=0.7167 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2644.5 n=19 APPLY pos=1360.5,237.0 sx=1298.0 w=263.0 m=11 p=0 v=1.4200 renders=56 renders_drag=13
+RENDER t=2659.0 n=57 drags=14
+CANVAS_PAINT t=2660.4 frac=0.7367 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2660.5 frac=0.7367 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2661.1 n=20 APPLY pos=1365.5,237.0 sx=1298.0 w=263.0 m=11 p=0 v=1.5300 renders=57 renders_drag=14
+RENDER t=2675.7 n=58 drags=15
+CANVAS_PAINT t=2677.1 frac=0.7550 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2677.2 frac=0.7550 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2677.8 n=21 APPLY pos=1370.5,237.0 sx=1298.0 w=263.0 m=11 p=0 v=1.6400 renders=58 renders_drag=15
+RENDER t=2692.3 n=59 drags=16
+CANVAS_PAINT t=2693.7 frac=0.7733 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2693.8 frac=0.7733 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2694.3 n=22 APPLY pos=1373.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=1.7000 renders=59 renders_drag=16
+RENDER t=2709.0 n=60 drags=17
+CANVAS_PAINT t=2710.5 frac=0.7833 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2710.7 frac=0.7833 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2711.3 n=23 APPLY pos=1373.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=1.7000 renders=60 renders_drag=17
+MM t=2711.5 n=24 APPLY pos=1378.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=1.8200 renders=60 renders_drag=17
+RENDER t=2725.7 n=61 drags=18
+CANVAS_PAINT t=2727.0 frac=0.8033 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2727.1 frac=0.8033 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2727.7 n=25 APPLY pos=1383.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=1.9300 renders=61 renders_drag=18
+RENDER t=2742.3 n=62 drags=19
+CANVAS_PAINT t=2743.6 frac=0.8217 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2743.7 frac=0.8217 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2744.3 n=26 APPLY pos=1385.5,237.0 sx=1298.0 w=263.0 m=11 p=0 v=1.9900 renders=62 renders_drag=19
+RENDER t=2759.0 n=63 drags=20
+CANVAS_PAINT t=2760.4 frac=0.8317 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2760.5 frac=0.8317 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2761.0 n=27 APPLY pos=1390.5,237.0 sx=1298.0 w=263.0 m=11 p=0 v=2.1000 renders=63 renders_drag=20
+RENDER t=2775.7 n=64 drags=21
+CANVAS_PAINT t=2777.2 frac=0.8500 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2777.3 frac=0.8500 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2777.9 n=28 APPLY pos=1395.5,237.0 sx=1298.0 w=263.0 m=11 p=0 v=2.2100 renders=64 renders_drag=21
+RENDER t=2792.3 n=65 drags=22
+CANVAS_PAINT t=2793.9 frac=0.8683 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2794.0 frac=0.8683 y=230.5 x=1167.0 w=263.0 fixed=0
+MM t=2794.6 n=29 APPLY pos=1398.0,237.0 sx=1298.0 w=263.0 m=11 p=0 v=2.2700 renders=65 renders_drag=22
+DRAG_SUMMARY t=2794.7 mm_recv=29 mm_applied=28 mm_skip=0 renders=65 renders_drag=22 module=11 param=0 value=2.2700
+CANVAS_PAINT t=2810.8 frac=0.8783 y=125.5 x=1167.0 w=263.0 fixed=1
+CANVAS_PAINT t=2810.9 frac=0.8783 y=230.5 x=1167.0 w=263.0 fixed=0

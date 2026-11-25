@@ -1,0 +1,21 @@
+LAB_LAYOUT mode=RenderImage window=1200x800 origin=40,40 content_pad=24 first_render_t=0.000
+TICK_START t=567.590 renders=4
+TICK n=0 t=568.340 renders=4 ticks=1
+TICK n=30 t=1079.081 renders=34 ticks=31
+TICK n=60 t=1608.369 renders=64 ticks=61
+TICK n=90 t=2139.991 renders=94 ticks=91
+TICK n=120 t=2651.424 renders=124 ticks=121
+TICK n=150 t=3157.411 renders=154 ticks=151
+TICK n=180 t=3682.272 renders=184 ticks=181
+TICK n=210 t=4206.947 renders=214 ticks=211
+TICK n=240 t=4730.691 renders=244 ticks=241
+TICK n=270 t=5259.158 renders=274 ticks=271
+TICK n=300 t=5788.691 renders=304 ticks=301
+TICK n=330 t=6318.315 renders=334 ticks=331
+TICK n=360 t=6846.168 renders=364 ticks=361
+TICK n=390 t=7376.407 renders=394 ticks=391
+TICK n=420 t=7905.630 renders=424 ticks=421
+TICK n=450 t=8433.846 renders=454 ticks=451
+TICK n=480 t=8952.144 renders=484 ticks=481
+TICK n=510 t=9468.969 renders=514 ticks=511
+TICK n=540 t=9992.350 renders=544 ticks=541
