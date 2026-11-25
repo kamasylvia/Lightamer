@@ -1,0 +1,30 @@
+Working...
+3 error + 13 minor
+
+**Error**
+
+1. error — Table 7「5 张顺序表各加 3 行」与 diff 矛盾。`git -C …/darktable diff github/master..HEAD -- src/common/iop_order.c` 新增行共 11 行：skinmask×5、reshape×3、skinsmooth×3；legacy/v30/v50 各+3，v30_jpg/v50_jpg 各+1（仅 skinmask 3.3，无 reshape/skinsmooth）。修订：改为「legacy/v30/v50 各+3，jpg 两表各+1（仅 skinmask）」；§0 头注「仅 iop 顺序表加 3 个新模块行」同改（11 行总数/3 个新模块，消歧义）。
+2. error — §10「`memory.history` 建表位置 not found，全仓 grep 无命中，仅 develop.c 内 DML」错。`src/common/database.c:3722` 即 `CREATE TABLE memory.history (imgid INTEGER, num INTEGER, module INTEGER, … CONSTRAINT opprio UNIQUE (operation, multi_priority))`；且 `src/common/iop_order.c:1037`、`src/common/presets.c:1860` 亦读写该表。修订：删该条 not-found，改记建表位 database.c:3722 + 三处使用者。
+3. error — §7 `DT_HISTORY_HASH_{BASIC,AUTO,CURRENT,MIPMAP}`（history.h:18-28）错。18-28 行是 license 头；枚举实际在 `src/common/history.h:37-44`（BASIC=1<<0…MIPMAP=1<<3）。修订行号为 37-44。
+
+**Minor**
+
+4. minor — `_read_history_v1` 入口。报告 §2 :4335、Tables 4335-4420；实际 `exif.cc:4313-4423`（4335 为函数内 select_node 行）。修订为 4313-4423。
+5. minor — `_read_masks` 范围。Tables 4590-4615；实际 `exif.cc:4590-4669`（4669 后即 4671 `_read_masks_v3`）。修订尾为 4669。
+6. minor — `dt_exif_xmp_decode` 范围。报告 4071-4133；实际 `exif.cc:4071-4154`（4133 落 hex 分支内）。修订尾为 4154。
+7. minor — blend 迁移链。报告 blend.c:2458-3004；3004 是 `old==14` 分支首行，链尾 ~3013、函数尾 3016。修订为 2458-3016（或链体 2458-3013）。
+8. minor — §7 `dt_image_set_history_end`（:5402）。5402 是 findKey 行，实际调用在 `exif.cc:5414`。修订为 5414（Table 1 的 5402-5406 作 findKey 块引用保留）。
+9. minor — `_set_xmp_dt_history`。Table 1 标 exif.cc:5687-5720；实际函数 `exif.cc:5576-5737`，5687-5720 只是其内 history 循环段。修订函数入口为 5576。
+10. minor — §2「非历史 17 组」与 Table 1 对不上。非历史表 13 行，按 key 数 29、按 dt_xmp_keys 非历史成员 11，皆非 17（「历史 12 组」可解释：14 行把 3 hash 并 1 组）。修订：明确计数口径或改 13 行。
+11. minor — masks 写位置内口径不一。Table 1 标 :5618-5639，Table 5 标 :5611-5639（同属 `_set_xmp_dt_history` 内 masks 段，5611=encode 首、5618=首个 snprintf）。修订：统一为 5611-5639。
+12. minor — §10「`src/common/conf.c` 不存在」误导。后端实为 `src/control/conf.c`（存在）。修订：改记真实路径，not-found 仅限 darktablerc 样例。
+13. minor — `_crawler_examine`（:218-283）。实际 `crawler.c:219-342`（283 为函数内 step2 注释，函数含关联文件检查至 342）。修订尾为 342。
+14. minor — §7「删/插 history+masks（:5124/5209/5377）」之 5377。`exif.cc:5377` 实为第二条 `INSERT INTO main.history`（xmp<4 重建路），非 masks_history 插入。修订标签或重查 masks 插入行。
+15. minor — Table 2「v1 读时按序赋值（:5245）」。5245 是 `if(xmp_version<3)` 行；实际机制为 `exif.cc:5223` BIND num + `:5281` num++。修订为 5223/5281。
+16. minor — 路径缺目录前缀三处：`sidecar_jobs.c` 实为 `src/control/jobs/sidecar_jobs.c`；`darktable.h:230-246/202-207` 实为 `src/common/darktable.h`；`module_api.h:52` 实为空行（g_module_symbol 在 51 行，±1 算对）。修订：补 `common/`/`control/jobs/` 前缀，52→51。
+
+**注记（±10 内算对）**：exposure 66-76→}在75；temperature 66-75→74；tonecurve 102-113→112；clipping 58-81→79；demosaic reload 尾 1869→1873；highlights 尾 1339→1341；develop.h 尾 52→49；mask_mode 位 100-109→99-108；history_entry_t 尾 4244→4243；parametric 尾 258→254；raster 尾 288→287；find_duplicates 首 2026→2028；写盘 3486-3488→3485-3486；serialize 尾 2672→2671；deserialize 尾 2760→2755；get_order 尾 916→915；sanity 首 2681→2682；exposure v6→7 尾 304→305/306；dt_xmp_keys 首 447→446（声明行）。
+
+**复算无误项**：Table 4 九模块 sizeof 重算全对（28/24/520/84/356/1048/520/116/24，LP64+gboolean/enum=4B，MAXNODES=20、ICC_LEN=512 双处、RETOUCH 300、MAX_NODES 100 均命中）；9 版本号与 INTROSPECTION 行号全对；9 legacy 入口行全对且分支覆盖（exposure 2-6/tonecurve 1-4 含量 2→return 1/lens 2-9 含三处 modified==0→-1/colorout V4=100 等）全对；Table 6 六字段 hex→LE float 全对（0x40A00000=5.0、0x42480000=50.0、0xC0800000=-4.0，MANUAL=首枚举=0）；§8 样例路径/5 条历史/params 原串逐字节一致，bench-null 无 exposure；41 key 同命令复现；§0 计 11 行（≤40）；Table 3 五表列名/索引逐字一致；Table 7 其余三行（exif Software hunk@3817、database 纯文案、history/blend 零 diff）一致，libs/image.c  diff 亦纯文案无格式影响；endian 大小写敏感 1 命中成立（不敏感则 3，皆 Exiv2 容器层）；params 内位域零命中成立（全为三元 `?:` 误命中且在 params 区外）；无 packed；exif.cc 内 legacy_params 零引用（XMP→DB 不做版本转换）；iop_order 读门 `xmp<4`（:5288）与永不写成立。
+
+跳过/未验：§9 选型意见（非事实）；`plugins/darkroom/workflow` 仅影响 auto-apply 的穷举（grep 量级大，未逐用点核）；Table 1 GPS/alt 写段 5884-5933 未逐行对（读段已对）。

@@ -38,3 +38,20 @@
 ## §4 lane 的自审
 
 三条 lane 各有一个独立复审实例，发现均已修订，修订后都没有再做第二轮复审：spike `PASS / 3 error + 10 minor`（撤回「ICC 确实写入」和「零拷贝」两条说法）；功能范围 6 error + 11 minor；核心盘点 `FAIL / 2 error + 8 minor`（原结论首行，修订记录在报告 §8）。
+
+## §5 追加：历史兼容调研（2026-11-25 深夜）
+
+核验对象 = `HISTORY-COMPAT.md`、`HISTORY-COMPAT-TABLES.md`。我对照官方基线工作树（`refs/dt-master`，`679d594f5d`）抽查了这些，全部对上：
+
+- 写 sidecar 的默认模式是 `on import`（`data/darktableconfig.xml.in`）。
+- XMP 版本常量是 5（`src/common/exif.cc:83`）；已知键表 `dt_xmp_keys[]` 在 `:446`，写回时只删已知键的 `_remove_known_keys` 在 `:530`。
+- 遇到不认识的模块：`iop_order == INT_MAX` 就 `continue` 跳过这一条（`src/develop/develop.c:2614-2625`）；模块版本比自己新时用默认参数并保留条目（`:2769-2782`）。
+- 顺序枚举 `CUSTOM / LEGACY / V30 / V30_JPG / V50 / V50_JPG`，默认 RAW 用 V50、非 RAW 用 V50_JPG（`src/common/iop_order.h`）；三张顺序表在 `iop_order.c:81 / 306 / 556`。
+- 参数超过 100 字节且首选项允许时，用 zlib 加 base64，带 `gz` 前缀（`exif.cc:4028`、`:4078-4085`）。
+- 曝光模块的版本号是 7（`DT_MODULE_INTROSPECTION(7, …)`）。树内样例 `src/tests/masking/flexi/xmps/G1_bare_uniform.xmp` 的曝光条目是版本 6、24 字节，我逐字节解了一遍：模式 0、黑位 0、曝光 5.0、百分位 50.0、目标 −4.0、补偿开关关，与报告一致。
+
+一处路径勘误：报告写 `develop.c` 时省略了目录，实际在 `src/develop/develop.c`，不在 `src/common/`。
+
+没有核的：九个模块的结构体大小是报告按字段推算的，没有编译验证；各处行号有约 10 行的漂移，报告自己已注明。
+
+lane 的自审：独立复审 `3 error + 13 minor`，均已修订。
