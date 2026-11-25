@@ -1,0 +1,46 @@
+# plan-review.log — 独立复审记录（PLAN.md / PLAN-TABLES.md）
+
+## 实例台账
+
+- 实例 1：`omp -p --auto-approve --thinking max`，2026-11-26 00:43 起，900 s 上限。**未产出结论**：外层 `timeout` 记 `EXIT=124`，omp 自报 `[Stopped by SIGTERM]`，日志只有 `Working...`。
+- 实例 2：同参数，1,200 s 上限，缩窄读取面（≤3 个外部文件）。**已产出**，结论 `PASS / 6 error + 12 minor`，全文在下。
+- 实例 3：同参数，420 s 上限，只查结构四项（10 字段 / lane 加总 / 依赖 / 16 条裁决）。本文件定稿时仍未产出（`Working...`），按未完成登记。
+- 并行 `reviewer` 子代理：同一清单，本文件定稿时仍在运行，按未完成登记。
+
+---
+
+## 实例 2 全文
+
+Working...
+PASS / 6 error + 12 minor
+
+1 FAIL — 16 条裁决均有表项（PLAN.md:44-59），但第 14 条「旧 Swift 冻结」的落点 §2.8/A5 全文无 Swift/冻结内容（E5）；其余 15 条落点实在（含 C-3 软打样未在该行列名，但正文在）。
+2 PASS — 29 波均具备「编号+名称」与 1–10 十项（目标/范围含「不做」/输入/产出/验收/对照/回退/估时/风险/任务书三件套），逐波机检无缺项；单 lane 最大 3 h（A4a/A4b/A7b/B4/B10/B13）。
+3 FAIL — 验收多数可机检，但 7 处不可：B6⑤（overexposed 阈值「一致」无测法）、B7⑤（迭代次数/阈值「与 dt 同」）、B10⑤（UI 标「未实现」）、B17②⑤（脚本/截图混合、②明写「人工」并排比对）、B18⑤（RSS「回落」无阈值）、B19⑤（IME「可用」）、B20⑤（Preview/Photos 打开）；另 §5.1「<5 GB」无测量方法。
+4 PASS — 无环：B14←B1、B13←B12、B16←B1/B5、B18←B1/B2/B5、B17←A3、A7b←A6；A4a⑶/A4b 对 A5 只用「手工 dt CLI」兜底（m9），无硬前向。
+5 PASS — 逐波求和 A=17、B=76、A+B=93，B 模块=38，与 §0（PLAN.md:18-20）及 T8（TABLES:207-211）全等；分项 38+5+6+5+4+3+15=76 亦对。
+6 FAIL — 实测 release-5.7.0 `iop_order.c`：两表各 93 具名+1 空哨兵、24 处优先级差、28.5 组=6，前两项计划写对；T5 的 jpg 列 5 处错（E1）、28.5 组写 7（E2）、墙钟 251.5 h≠140 h（E3）、调研 30–37/40 无落点（m12）。
+7 PASS — §6 无自动发现、§7 有「版本=1，不做 legacy 迁移」属实（CORE-DESIGN.md:155/186），计划以 §1.3+§2.2+§2.4+A3/A4b 两处覆盖；但 CORE-DESIGN 原文未回改（m10）。
+8 FAIL — 无字面「见上文」，但有 5 处指针不可解析：M2-9（PLAN.md:477）、#26/#27/#28 裸号、`darktable-config`/`accels`（:513）、「T3 的计时」（:333）、「同目录 gpui-spike/」（:3）；另 :351 误称 A4b 已读 colorspaces.c。
+
+**Errors**
+E1 PLAN-TABLES:136-146 jpg 列 5 处与 5.7.0 实表不符：lens 13.0→28.0、cacorrectrgb 13.5→28.0、exposure 21.0→28.0、crop 24.5→28.0、finalscale 69.4→69.5；且仅 ashift/flip 标「jpg 优先级不同」，表头却称「已复核」。
+E2 PLAN.md:71 与 PLAN-TABLES:87「28.5 有 7 个模块」→ 实为 6（channelmixerrgb/diffuse/censorize/negadoctor/blurs/primaries）；contrastntexture 不在 5.7.0 v50（§1.3/T10 自认 master-only），自相矛盾。
+E3 PLAN.md:18-20 与 TABLES:207-211 的 26/114/140/168 h 不可由卡片推出：A 卡合计 43.5 h、B 208 h、总 251.5 h（×1.2=302 h≈38 个 8 h 日）；T8 校准 1.5 h/lane 与卡片 2–3 h/lane 互斥。
+E4 A2「§2.1 的 16 个」（PLAN.md:195）vs T2 实列 18 crate；`dt-cli` 被 A4b/A5/B2/A7a 使用却无建波；A3 范围 `dt-registry`（:207）与验收 `-p dt-iop-order`（:210、TABLES:114/125）互指一个 T2 里不存在的 crate。
+E5 PLAN.md:58 第 14 条的落点 §2.8+A5 无 Swift/冻结/不兼容任何字样 → 16 条中唯一无实落点。
+E6 PLAN.md:210「97 条逐位」vs 夹具规格 93 条（TABLES:123/125 两链各 93 名）；97 无出处，按字面执行会误判验收。
+
+**Minors**
+m1 （见第 3 项）7 处非机检 + i18n 门「xtask check-i18n」无任何波次产出（A3 只定义 sync-check）。
+m2 B16 输入「M2-9 的尺寸解析规则」（PLAN.md:477）：无文件+节，M2-9 是旧项目代号未在本文定义；应以 dt 源为准则缺源文件。
+m3 #26/#27/#28 裸 issue 号（A7a/B15/B17/B18/B19 输入）：无仓名或文档锚点。
+m4 PLAN.md:513「dt 的快捷键表（darktable-config/accels）」两名字都不是可解析路径。
+m5 PLAN.md:3「同目录 … gpui-spike/」实际在上一级 `.work/gsd/phases/`（五个 spike 目录均如此），本目录只有四份 md。
+m6 PLAN.md:333/615「T3 的计时（MHC 43.4 ms）」指错表：T3=ModuleDesc 字段；真源是 CORE-DESIGN.md §3（§0 亦写 43.4）。
+m7 PLAN.md:351「A4b 已读 colorspaces.c」与 A4b 范围（布局/迁移/blend/masks）不符，colorspaces.c 无 lane 登记。
+m8 A4a 验收⑶「用 oracle 真重写一次」而 A5 在其后；输入只给手工兜底，输入/验收口径不一。
+m9（合并至 m8）A4a⑶ 的 dt 二进制来源也未写成具体命令。
+m10 CORE-DESIGN 原文未改（:155 仍无自动发现、:186 仍「版本=1」），且 §0「两处冲突」漏计 §1.2#13（蒙版范围 vs CORE-DESIGN §1 S6/S12）、DB 互通、XMP 库候选、`dt-blend` vs `dt-mask-blend` 命名。
+m11 CORE-DESIGN:25/197「P0 ≈52 lane」vs B 76 lane 未对账（仅模块 38 对上）；dt-history/library/export/api 为新增面。
+m12 调研 30–37/40 未落点；A7b「11 s ≥400 帧」≈36 fps 与 B18「平移 60 fps」口径不一，且 gpui 调研 60 fps 只证 UI 层（无像素管线），B18 未注该限。
