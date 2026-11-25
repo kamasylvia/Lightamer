@@ -1,0 +1,4 @@
+$ ./bin/bench cmp samples/7RM5-LosslessCompressedLarge.ARW work/a7r5-ds0.dng  # T0 baseline
+cmp dims 2560x1707 vs 2560x1706
+mean_rgb_A=115.6/144.4/66.8  mean_rgb_B=111.0/128.5/51.7
+mean_abs_diff=22.784 max_abs_diff=253.0 samples=13102080 (0..255 scale)

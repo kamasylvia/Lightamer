@@ -1,0 +1,5 @@
+mosaic: 9568x6376 cfa=0112 black=512 white=15360
+read_ms=38.0 decode_ms=50.7
+openmp: yes max_threads=10
+bilinear_ms: 57.6 29.2 23.9 27.8 23.7 median=27.8 checksum=3576.551542
+mhc5x5_ms: 45.5 48.3 43.3 43.4 41.6 median=43.4 checksum=3673.206641

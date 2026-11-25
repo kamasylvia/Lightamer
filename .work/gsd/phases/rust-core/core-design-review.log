@@ -1,0 +1,131 @@
+# core-design-review.log — 双份独立 omp 复审（A 先发 nohup 00:15 完成；B 经 harness 00:11 先交付）
+
+================ REVIEW A (PASS / 3 error + 11 minor) ================
+PASS / 3 error + 11 minor — C3/C4 的主要对照数字（demosaic、linear compare、DNG 三轮、C4 探针与像素对）全部实测复现，结论可用；3 个 error 都在证据文档/设计机制表述，修掉后才适合作为下一 lane 的输入。
+
+**复跑核对**（M4/10 核/16GB；未卸卷、未删 `/tmp/dt-oracle`、未动照片库、未开 GUI；新增文件只在 `/tmp/dt-oracle`）：
+- C3：`demosaic_bench` 5 次中位 **30.8/47.4ms**（日志 27.8/43.4，约 10% 机器态差），checksum **3576.551542/3673.206641** 与两日志及重跑逐位同；decode 46.2ms。`compare_linear.py` 重跑与 log 全值一致（0.169369/8.194610、gain 0.71251、通道均值 0.44625/0.11015/0.10181 vs 0.24510/0.38119/0.09628）；输入 732,066,816B / 963,477,504B 与维度精确。
+- DNG：`bin/bench cmp` 精确复现 **22.784 / 55.935 / 23.275**（2560x1707 vs 2560x1706，裁 1 行）；T0/T1/T2 的 AsShotNeutral、CFA、black/white、ColorMatrix1、LinearizationTable 缺席均与 T5 对齐。
+- C4：g1m 1600px → 1600x1066、IHDR=16、6.85s、通道均值 65.9/135.7/115.0（证据 65.8/135.4/114.8）；`before.plist` 在（1726B），跑后 `defaults export` 与 before 逐字节同。cmp16 复现 repeat 0/0、cpu-cl 0.0132/842/0.99999995、G0-G1 2600.87/10562、G1-G2 7747.82/62724、G0-probe vs g1m 10.14/44。
+- 表抽查：T2 21 个行数全对（合计 **37,561**）；params 28B/356B/1048B 手算一致；T6 全部尺寸 + 3 个 sha 逐位对（g0-cpu 310908453/3a471c4250c08e26、g0-cl_01 310910402/50954a186144dbbe）；iop_order 1.0/21.0/69.4/75.0/78.0；demosaic 子目录 12 文件/xtrans 120,894B；73 产品 .metal、6 个 P0 命中。
+
+**E1 [error] `CORE-DESIGN.md:123`、`:218` + `decode-oracle-evidence/CMDS.md:11`** — “`--core --conf` 不生效”不成立：实测运行期生效，只是不写回 darktablerc。证据：darktablerc `bpp=16/opencl=false` 下，`--core --conf plugins/imageio/format/png/bpp=8` 产出 IHDR bitdepth=8；`--core -d opencl --conf opencl=true` 打出 `159 out of 159 events` + `tiled direct bayer demosaic RCD`，而 darktablerc 仍 `opencl=false`。预置 darktablerc 的做法可用，但理由错，§9 的“根因未读 dt_init 覆盖序”也建立在假象上。建议：改成“--conf 运行期生效、不持久化”；若当时是 `--conf` 未跟 `--core`，应记为参数位置错，不是 --conf 无效。
+
+**E2 [error] `CMDS.md:43` + `CORE-DESIGN.md:127`** — “`iop_order_version=5` 被拒”不成立：把 g1 全量 XMP 的 4 改成 5，两次（runcpu 2.95s / 全新 HOME 5.01s）均 `exported`、rc=0；真正的 `error: can't open XMP file` 来自不存在的路径（`work/nope.xmp`，rc=1）。另外 g1m/g2m 最小 XMP 根本不含该键也能跑，所以“RAW 必须 4”也过强。建议：改为“V50 用 4；5（V50_JPG）本次实测可被接受/忽略，不作硬性拒绝”，并排查上一轮“5 被拒”是否其实是文件名/路径笔误。
+
+**E3 [error] `CORE-DESIGN.md:170-172`（C6 门控）** — 机制描述不符合 Cargo 语义：`[target.'cfg(...)'.dependencies]` 是依赖表，不能给 `workspace.members` 做条件成员；workspace 内的 path 依赖会自动成为成员，`cargo build` 在非 macOS 仍会编这个 crate。`#![cfg(target_os="macos")]` 只能把它编成空 crate，“非 macOS 构建该 crate 不存在”做不到。建议：写成 (a) dt-apple 恒为成员 + crate 根 cfg + 自身 target 依赖（非 macOS 为空）+ dt-app 的 target 依赖表；或 (b) dt-apple 放独立 workspace，仅作为 dt-app 的 macOS target 依赖。二选一，删“members 中用 target 表”。
+
+**M1 [minor] `CORE-DESIGN.md:29` + `TABLES:6`** — “回调共 56 个”是行数不是回调数：`grep -cE '^(REQUIRED|DEFAULT|OPTIONAL)\('` = **57**（3/23/31）；T1 把 5 个画布事件塞进 29-32、5 个 introspection 塞进 51-54（各 4 行），再加 `process_plain`（`imageop.h:158/299`，非 api.h）才凑成 56 行。建议：写 57（api）+1（process_plain），重编号；顺手把“DEFAULT 约20/OPTIONAL 约30”改成 23/31。
+
+**M2 [minor] `CORE-DESIGN.md:101` + `TABLES:134`** — “1/8 降采样：0.1285 vs 0.1699”无归档命令/日志：`compare_linear.py` 全文无降采样/no-WB 分支，仓内与 `/tmp` 文本里也搜不到 0.1285。我用同一对 dump 重推：全分辨率 no-WB **0.125700** / WB **0.169369**；8 取 1 **0.126338/0.165312**；8x8 面积均值 **0.124771/0.167173**——结论（no-WB 更小）成立，但引用的两个数不精确。建议：把当时的临时脚本/命令落盘，或改写为“约 0.125 vs 0.169（重推值）”并标注该对比是 ad hoc。
+
+**M3 [minor] `TABLES:137-143` + `CMDS.md`** — T5 的三轮数字在本 phase 内不可复现：CMDS 没有 `bench cmp`、`rs2dng_fix --neutral`、T0 DNG 路径。我借兄弟 lane 的 `/Volumes/.../Lightamer-rawspeed-spike/bin/bench cmp` 与 `work/a7r5-ds0.dng` + 本 lane 的 `fix-t1/t2.dng` 才能精确复现（三条共 ~134s，非 5s）。建议：在 CMDS 增一节 C3-DNG，写全 tool 路径/三条命令/DNG 位置与裁剪维数。
+
+**M4 [minor] `decode-oracle-evidence/RESULTS.md` + `/tmp/dt-oracle/out`** — ① 比对输出未归档：prompt 要求“命令、脚本和输出留在证据目录”，实际只有 RESULTS 汇总，没有 cmp16 运行记录（我已复跑，见上）。② `out/` 有 8 张全尺寸 PNG：多出一张未列入 T6 的 `g0-full-cl.png`（23:23，sha `5b3518aef0f936f8`），与 canonical `g0-full-cl_01.png`（`50954a18…`）不同；RESULTS 说“All 7 outputs”。③ g1-full-cpu 的 sha 仍写“未取”（现算 `ec9f5145288063ea`）。建议：cmp16 输出 tee 进 evidence、标注/移走那张、补 g1 sha。
+
+**M5 [minor] `CORE-DESIGN.md:224-226` + `omp-core-design-summary.md`** — 必需的 omp 域内自审未做/未归档：无 `core-design-review.log`，§10 只有“（自审后补。）”，summary 写“自审（待补）”“core-design-review.log（待）”；清理（unmount/删包/删 tmp + 报大小）也按 summary 待补（本次 review 按指令保留挂载与 /tmp，可不算 lane 的错，但应记录这一偏离）。建议：跑完自审并把结论/修订回填 §10（或由 orchestrator 明确以本次 zcode 复审替代并落档），清理后补 before/after 大小。
+
+**M6 [minor] `TABLES:110/113/114`** — “中位”口径不一致：两样本行（bilinear 29.9/26.1、MHC 43.3/43.4）填的是首个/较大值，不是中位（应 28.0/43.35）；decode 行的“~46”是 50.7/41.1 的均值，也放在“中位”列。5 次主行 27.8/43.4 与日志一致。建议：每行标 n 与统计量，或把两样本行写成“两次 29.9/26.1”并去掉“中位”列名。
+
+**M7 [minor] `RESULTS.md:29/34-36`** — “全分辨率 flip 无 1px 偏移”的证据不成立：引用的“三通道均值逐位相等/多重集不变”对水平平移不敏感（我实测 G1/G2 通道均值确实逐位相等），无法区分 0 或 1px。1600px 的偏移量级可复现（mirror(g1m) vs g2m：**1.960** vs **8.842** LSB8；我的 dx=-1 与文档 dx=+1 是锚定方向不同，文档未写符号约定）。建议：在 g1-full 与镜像 g2-full 上跑 `cmp16 --shift` 再断言“全分辨率无”；补符号约定。
+
+**M8 [minor] `TABLES:150` + `CORE-DESIGN.md:18/215`** — 标注/措辞：T5 的“偏色主因 = cameras.xml vs Apple profile 数据源差异”是因果推断，T5 未标“推断”（§3 标了）；§0/§9 把 MHC 43ms 叫“上界参考”，与 §3“RCD 预计同量级偏上”矛盾（MHC 是量级参考/偏下界）。建议：T5 加“（推断）”；“上界参考”改为“量级参考，RCD 估算偏上”。
+
+**M9 [minor] `CORE-DESIGN.md:39/98/151` + `TABLES:126`** — 三处精度：① S6 是 mask 旁路（blend mask），不是“mask 可视化”（S9 才是直方图/拾色）；② `compare_linear.py` 没有 Bradford 步骤（D65→D65 直接用标准 XYZ→sRGB 矩阵），“Bradford D65”应删或改为“D65 标准矩阵”；③ “显存/CPU 膜预算”应为“内存”。
+
+**M10 [minor] `TABLES:4/40/65/69` 与 T2 注** — 表格精度：①“Nf”列是成员数不是 float 数（exposure 7 成员/28B、lens 26/356B、rgbcurve 6/516B），改“字段/字节”；②“源码原话见 T2 注”悬空（T2 无该注），引文在 `src/iop/clipping.c:337-339`；③ `modify_roi_in` 的调用在 `pixelpipe_hb.c:2575`，不是 `:2539`（2539 是 clip/blend 段）；④“CPU/GPU 差异注释零命中”没记 grep 模式，复现不了。
+
+**M11 [minor] `CMDS.md:7-9`** — “可重复运行”缺一个坑：同一 HOME 背靠背跑第二次会撞 `database is locked ... aborting`（我遇到两次，stale pid 2627/3826）；建议注明“每次 leg 独立 HOME，或等前进程退出后重试”，并保留“输出文件 + rc 双检”。
+
+**修订清单（按严重排序）**
+1. E1：改 `--conf` 表述（`CORE-DESIGN` §4/§9 + `CMDS:11`）。
+2. E2：改 `iop_order_version` 规则（`CMDS:43` + `CORE-DESIGN:127`），并说明 rc/缺失文件。
+3. E3：重写 C6 门控（`CORE-DESIGN:170-172`）。
+4. M2：归档 1/8 命令或改成重推区间。
+5. M5：补 omp 自审/§10（+清理与大小）。
+6. M1：回调数 57+1、重编号、23/31。
+7. M7：全分辨率 shift 检查后再断言“无偏移”。
+8. M4：归档 cmp 输出、标注 stray、补 g1 sha。
+9. M3：补 C3-DNG 命令节。
+10. M6/M8/M9/M10/M11：文档/表格/复跑注记批量修。
+
+================ REVIEW B (PASS / 1 error + 10 minor) ================
+PASS / 1 error + 10 minor
+（核心数字全部复跑通过；唯一 error 是 C4 的 XMP 版本规则写错，不影响设计裁决）
+
+E1 [error] decode-oracle-evidence/CMDS.md:43（同 CORE-DESIGN.md:127、omp-core-design-summary.md:40）
+问题：`darktable:iop_order_version="4" ... "5" 被拒（error: can't open XMP file）` 不成立，且与交付的 XMP 不符。
+证据：`grep iop_order_version g1m-exposure.xmp g2m-exposure-flip.xmp` 零命中（只有 `xmp_version="4"`）；实测 6 个变体全部 exit 0 且出图——最小 XMP + iop_order_version=5、全量 9 条历史 + iop_order_version=5、去掉 xmp_version 只留 iop_order_version=5、最小/全量 + xmp_version=5、最小 + iop_order_version=4；源码 `src/common/exif.cc:5033` 只判 `<3 → LEGACY`，5 不拒；`main.c:731` 的 "can't open XMP file" 是 `dt_exif_xmp_read` 解析失败，不是版本键。
+建议：删掉该规则，改写为「最小 XMP = xmp_version=4；iop_order_version 可省略（RAW 缺省走 LEGACY→V50），省略后与 V50 同形」；若确曾观测到报错，补上那份触发文件并说明真实原因。
+
+M1 [minor] CORE-DESIGN-TABLES.md:6 / CORE-DESIGN.md:29 / summary:9
+问题：回调总数写 56，实际 57。
+证据：`grep -cE '^(OPTIONAL|REQUIRED|DEFAULT)\(' src/iop/iop_api.h` = 57；表内「29-32 画布事件」塞了 5 个名字、「51-54 introspection」塞了 5 个；第 56 行 `process_plain` 属 `imageop.h`，不在 iop_api.h。
+建议：改 57，并把 `process_plain` 单列为「非 api 表」一行。
+
+M2 [minor] CORE-DESIGN.md:32
+问题：「P0 需要 12 个」与正文清单不符。
+证据：逐项数 = name/flags/operation_tags/default_cs/input_cs/output_cs/tiling/init/commit/roi_in/roi_out/process/process_tiling = 13。
+建议：改 13，或注明 colorspace 三件合算一项的口径。
+
+M3 [minor] CORE-DESIGN.md:14、:75 / CORE-DESIGN-TABLES.md:96
+问题：`37,561 行` 只统计 21 个顶层文件，未含 demosaic 子目录与 ashift 求解器，§0/§2 读起来像模块总量。
+证据：`wc -l src/iop/demosaicing/*` = 7,722；`wc -l src/iop/ashift_lsd.c src/iop/ashift_nmsimplex.c` = 2,703；全量约 47,986。T2 的 demosaic 单元格虽注了「子目录12文件」，合计行没有注。
+建议：在合计与 §0 加「口径 = 顶层文件；+子目录/求解器共 10,425 行」。
+
+M4 [minor] CORE-DESIGN-TABLES.md:113
+问题：「2 次 中位 29.9」实为两次中的较大值。
+证据：`demosaic_bench.cpp` 的 `median()` = `v[v.size()/2]`；n=2 排序后取上中位，29.9 是 (26.1, 29.9) 的 max。
+建议：2 次样本不要叫中位，直接写两次值或均值。
+
+M5 [minor] CORE-DESIGN.md:133 / RESULTS.md:35
+问题：「全分辨率无 [1px 偏移]」的引用证据（三通道均值逐位相等）对空间平移不变，逻辑上不能证明。
+证据：我补跑全分辨率镜像（G2 水平翻转 vs G1）：dx=dy=0 时 mean=0.0000，次优 929 LSB（dy=-1）——结论为真，但原证据不足。
+建议：把这组镜像对齐测试补进证据目录并引用。
+
+M6 [minor] decode-oracle-evidence/CMDS.md
+问题：探针命令与计时命令不可从 CMDS 逐字复现。
+证据：RESULTS.md:33-36 引用 1600px 探针，CMDS 无 `--width 1600`；full-runs.log 的 real/user/sys 是 `/usr/bin/time -p` 格式，但导出命令块没有 `time`；`before.plist` 只在 `/tmp/dt-oracle`，未入证据目录。
+建议：补探针完整命令、`/usr/bin/time -p` 前缀，并把 before.plist 拷进 decode-oracle-evidence。
+
+M7 [minor] decode-oracle-evidence/（T5）
+问题：T0/T1/T2 的 bench cmp 输出没有归档，只有 dngfix-t*.log（neutral/thumb）。
+证据：我复跑 `./bin/bench cmp samples/7RM5-LosslessCompressedLarge.ARW <dng>`，得 22.784 / 55.935 / 23.275，与 T5 完全一致；但复跑要依赖仓外 rawspeed spike 工作区，证据目录内无此日志。
+建议：把三份 cmp 输出/命令落进 decode-oracle-evidence。
+
+M8 [minor] CORE-DESIGN-TABLES.md:150
+问题：T5 结论列的「偏色主因 = cameras.xml 校准数据 vs Apple 内置 A7R5 profile 数据源差异」写成事实；正文 CORE-DESIGN.md:108 标了「推断」。
+建议：表格同标（推断），或把 §3 的限定语带进表。
+
+M9 [minor] CORE-DESIGN.md:101 / TABLES:134 / summary:20
+问题：1/8 降采样数字（0.1285 vs 0.1699）无脚本、无日志；`compare_linear.py` 没有降采样代码，精确值不可复现。
+证据：全盘 grep `0.1285` 只命中报告与 summary；我按 stride8 复算得 0.126338（noWB）/0.165312（WB），block8 得 0.124771/0.167173——方向和量级对，精确值对不上（降采样/对齐口径不明）。
+建议：补原始降采样脚本与输出；若不补，把这两个数降级为「ad-hoc 观察，未归档」并把「WB 是主色偏源」标推断。
+
+M10 [minor] CORE-DESIGN.md:224 / summary:61
+问题：§10 是空占位，`core-design-review.log` 未落盘（`omp-core-design-summary.md` 已于 23:51 落盘，内容自述自审待补）。
+建议：若本报告即替代自审，§10 改写为指向本报告并记录修订；若仍计划 omp 自审，在交付清单标明 pending，避免「已交付」误读。
+
+## 复跑核验（本轮实测）
+
+- C3 bench：重跑 `demosaic_bench`（同 ARW/cameras.xml，`--iters 5`）checksum 逐位同（3576.551542 / 3673.206641）；bilinear 中位 28.4（报告 27.8）、MHC 47.4（报告 43.4，+9%）；decode 81.1ms（冷读，报告两轮 50.7/41.1）。
+- 线性对比：`compare_linear.py` 逐行复现 linear-compare.log——RAW 0.169369/8.194610、gain 0.71251、NORM 0.140293/5.551161、通道均值 (0.44625,0.11015,0.10181)/(0.2451,0.38119,0.09628)；输入尺寸 963,477,504 / 732,066,816 B 均在。
+- DNG：AsShotNeutral 标签核对 T0 (0.403785,1,0.575928)、T1 (1,1,1)、T2 (0.38772,0.88989,0.44585)；bench cmp 复跑 22.784 / 55.935 / 23.275，与 T5 一致。
+- C4：按 CMDS 隔离 env + 预置 darktablerc 复跑 g1m 1600px，real 7.45s，输出 1600x1066、IHDR bitdepth 16；新 16-bit 降 8-bit 后对归档 g1m-probe 均值 0.234/max 1，对 g0-probe 10.06/max 44（归档对 10.14/44）；flip 镜像 dx=+1 时 1.96 vs 无移 8.84。
+- 噪声底：g0 重复轮 0.0000/0.0000；G0 CPU-CL 0.0132 LSB、max 842、in_tol 0.99999995；G1/G2 CPU-CL max 904、in_tol 0.99999994；G0-G1 2600.8714、G1-G2 7747.8168，G1/G2 通道均值逐位相等。
+- 表抽查：temperature 2385 / cacorrect 1806 / colorin 2622 / ashift 6280；colorin params 1048B；programs.conf rcd#31、amaze#51、lmmse#52、cacorrect#49、cacorrectrgb#47；iop_order lens 13.0 / cacorrectrgb 13.5 / finalscale 69.4 / colorout 70.0；T6 三个 sha 与大小（g0 cpu/r2/cl_01）全对；T3 两日志 checksum 一致。
+- §0：18 行（≤45）。§9 与正文一致：RCD 未移植、ColorChecker 未标定、`--conf` 根因未查，没有写成做成。
+- 预置保护：before.plist 存在；当前 domain 规范化 XML 与 before 相同（未 import）。未 unmount、未删 /tmp/dt-oracle、未动照片库；`git status` 仅 untracked .work。
+
+## 修订清单（按严重排序）
+
+1. 改 CMDS.md:43 / CORE-DESIGN.md:127 / summary:40 的 XMP 版本规则（E1）。
+2. 归档 1/8 降采样脚本与输出，或降级为未归档观察（M9）。
+3. 归档 T0/T1/T2 三份 bench cmp 日志到 decode-oracle-evidence（M7）。
+4. CMDS 补探针 `--width 1600`、`/usr/bin/time -p`、before.plist（M6）。
+5. §10 与自审/复审日志状态对齐（M10）。
+6. 回调数 56→57、P0 12→13（M1/M2）。
+7. 37,561 行加口径脚注（M3）。
+8. 2 次样本的「中位」改值/均值（M4）。
+9. 全分辨率 flip 镜像测试入证据（M5）。
+10. T5 结论列补「推断」（M8）。

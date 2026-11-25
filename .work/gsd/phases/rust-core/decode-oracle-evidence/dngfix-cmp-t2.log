@@ -1,0 +1,4 @@
+$ ./bin/bench cmp samples/7RM5-LosslessCompressedLarge.ARW /Volumes/UNITEK/Documents/Development/Lightamer-rust-spike/core-design-spike/fix-t2-fit.dng  # T2 fitted-neutral
+cmp dims 2560x1707 vs 2560x1706
+mean_rgb_A=115.6/144.4/66.8  mean_rgb_B=102.5/126.5/65.2
+mean_abs_diff=23.275 max_abs_diff=255.0 samples=13102080 (0..255 scale)

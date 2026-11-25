@@ -1,0 +1,8 @@
+mosaic: 9568x6376 cfa=0112 black=512 white=15360
+read_ms=44.1 decode_ms=41.1
+wb: 2536.0000 1024.0000 1778.0000
+matrix: 0.820000 -0.297600 -0.071900 -0.429600 1.205300 0.253200 -0.042900 0.128200 0.577400
+openmp: yes max_threads=10
+bilinear_ms: 29.9 26.1 median=29.9 checksum=3576.551542
+mhc5x5_ms: 43.3 43.4 median=43.4 checksum=3673.206641
+dump: mhc-linear.bin bytes=732066816 (float32 RGB, MHC, black-sub+wht-normalized)

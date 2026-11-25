@@ -1,0 +1,40 @@
+=== g0-cpu 23:28:19 ===
+[opencl_synchronization_timeout] synchronization timeout set to 200
+    16.7325 [export_job] exported to `/tmp/dt-oracle/out/g0-full-cpu.png'
+[opencl_summary_statistics] device 'Apple Apple M4' id=0: NOT utilized
+real 19.85
+user 23.32
+sys 4.86
+=== g1-cpu 23:28:39 ===
+    14.4481 [export_job] exported to `/tmp/dt-oracle/out/g1-full-cpu.png'
+real 17.60
+user 22.00
+sys 1.07
+=== g2-cpu 23:28:57 ===
+    15.9657 [export_job] exported to `/tmp/dt-oracle/out/g2-full-cpu.png'
+real 18.88
+user 22.66
+sys 2.79
+=== g0-cl 23:29:16 ===
+     2.7985 OpenCL:0 tiled direct bayer demosaic RCD. tiles=10 tileheight=670 overlap=10
+    16.6039 [export_job] exported to `/tmp/dt-oracle/out/g0-full-cl_01.png'
+[opencl_summary_statistics] device 'Apple Apple M4' id=0: 161 out of 161 events were successful and 0 events lost. max event=160
+real 20.53
+user 13.68
+sys 2.06
+=== g1-cl 23:29:36 ===
+    15.5826 [export_job] exported to `/tmp/dt-oracle/out/g1-full-cl.png'
+real 20.84
+user 13.43
+sys 1.90
+=== g2-cl 23:29:57 ===
+    15.8404 [export_job] exported to `/tmp/dt-oracle/out/g2-full-cl.png'
+real 18.66
+user 13.50
+sys 1.89
+=== g0-cpu-r2 23:30:16 ===
+notice: no XMP sidecar file nor library path provided, using default settings for export
+    15.6549 [export_job] exported to `/tmp/dt-oracle/out/g0-full-cpu-r2.png'
+real 18.54
+user 22.84
+sys 1.74

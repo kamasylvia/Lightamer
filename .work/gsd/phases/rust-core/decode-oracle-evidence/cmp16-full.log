@@ -1,0 +1,42 @@
+===== cmp16 g0-full-cpu.png vs g0-full-cpu-r2.png
+tol=0.00392157 (= 257 LSB of A)
+mean_abs_diff=0.00000000 (= 0.0000 LSB)
+max_abs_diff=0.00000000 (= 0.0000 LSB)
+in_tol_fraction=1.00000000
+mean_ch_A=[0.2184344  0.48777498 0.41002302]
+mean_ch_B=[0.2184344  0.48777498 0.41002302]
+===== cmp16 g0-full-cpu.png vs g0-full-cl_01.png
+tol=0.00392157 (= 257 LSB of A)
+mean_abs_diff=0.00000020 (= 0.0132 LSB)
+max_abs_diff=0.01284810 (= 842.0000 LSB)
+in_tol_fraction=0.99999995
+mean_ch_A=[0.2184344  0.48777498 0.41002302]
+mean_ch_B=[0.21843442 0.48777496 0.41002312]
+===== cmp16 g1-full-cpu.png vs g1-full-cl.png
+tol=0.00392157 (= 257 LSB of A)
+mean_abs_diff=0.00000021 (= 0.0137 LSB)
+max_abs_diff=0.01379416 (= 904.0000 LSB)
+in_tol_fraction=0.99999994
+mean_ch_A=[0.25591075 0.5302017  0.44916749]
+mean_ch_B=[0.25591077 0.53020168 0.44916759]
+===== cmp16 g2-full-cpu.png vs g2-full-cl.png
+tol=0.00392157 (= 257 LSB of A)
+mean_abs_diff=0.00000021 (= 0.0137 LSB)
+max_abs_diff=0.01379416 (= 904.0000 LSB)
+in_tol_fraction=0.99999994
+mean_ch_A=[0.25591075 0.5302017  0.44916749]
+mean_ch_B=[0.25591077 0.53020168 0.44916759]
+===== cmp16 g0-full-cpu.png vs g1-full-cpu.png
+tol=0.00392157 (= 257 LSB of A)
+mean_abs_diff=0.03968675 (= 2600.8714 LSB)
+max_abs_diff=0.16116579 (= 10562.0000 LSB)
+in_tol_fraction=0.01953745
+mean_ch_A=[0.2184344  0.48777498 0.41002302]
+mean_ch_B=[0.25591075 0.5302017  0.44916749]
+===== cmp16 g1-full-cpu.png vs g2-full-cpu.png
+tol=0.00392157 (= 257 LSB of A)
+mean_abs_diff=0.11822411 (= 7747.8168 LSB)
+max_abs_diff=0.95710689 (= 62724.0000 LSB)
+in_tol_fraction=0.02989951
+mean_ch_A=[0.25591075 0.5302017  0.44916749]
+mean_ch_B=[0.25591075 0.5302017  0.44916749]

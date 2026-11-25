@@ -1,0 +1,8 @@
+supportedDecoderVersions: [__C.CIRAWDecoderVersion(_rawValue: 7), __C.CIRAWDecoderVersion(_rawValue: 8), __C.CIRAWDecoderVersion(_rawValue: 9)]
+decoderVersion: CIRAWDecoderVersion(_rawValue: 8)
+nativeSize: 9504 x 6336
+neutralChromaticity: (0.345350, 0.362652)
+extent: 9504 x 6336
+render_ms: 1203.1
+dump: a7r5-ciraw-linear.f32 bytes=963477504 (float32 RGBA, extended-linear-sRGB)
+thumb_mean_srgb8: 118.08 146.50 71.00

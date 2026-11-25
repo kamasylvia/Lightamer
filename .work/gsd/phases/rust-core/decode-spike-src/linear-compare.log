@@ -1,0 +1,12 @@
+ours: (6376, 9568, 3) range [-0.1000, 1.2505] mean 0.08169
+cir:  (6336, 9504, 3) range [-0.0677, 1.0598] mean 0.24086
+M(cam->lin-sRGB)=
+ [[ 3.7725  -0.31676 -0.25474]
+ [-0.41853  1.52201 -0.64757]
+ [-0.03174 -0.38962  1.99791]]
+ours->srgb range [-0.6496, 9.1948] mean 0.21860
+crop offset in ours: y=20 x=32 (centered)
+RAW mean_abs_diff=0.169369 max_abs_diff=8.194610 (linear sRGB units)
+gain_fit=0.71251 NORM mean=0.140293 max=5.551161
+mean_rgb_ours=[0.44625 0.11015 0.10181] mean_rgb_cir=[0.2451  0.38119 0.09628]
+mean_rgb_ours*gain=[0.31796 0.07848 0.07254]

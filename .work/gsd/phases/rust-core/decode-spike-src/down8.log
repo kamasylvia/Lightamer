@@ -1,0 +1,4 @@
+stride8 shapes: o=(797, 1196, 3) c=(792, 1188, 3) oy=2 ox=4
+WBx(wb/g): mean=0.1699 max=3.689 ours_mean=[0.416  0.1019 0.1358]
+WBx(g/wb): mean=0.1675 max=1.006 ours_mean=[0.0254 0.1895 0.0082]
+no-WB: mean=0.1285 max=1.078 ours_mean=[0.1365 0.161  0.0551]

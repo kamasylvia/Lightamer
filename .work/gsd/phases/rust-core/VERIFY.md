@@ -55,3 +55,20 @@
 没有核的：九个模块的结构体大小是报告按字段推算的，没有编译验证；各处行号有约 10 行的漂移，报告自己已注明。
 
 lane 的自审：独立复审 `3 error + 13 minor`，均已修订。
+
+## §6 追加：核心设计调研与两个小实测（2026-11-26 凌晨）
+
+核验对象 = `CORE-DESIGN.md`、`CORE-DESIGN-TABLES.md`、`decode-oracle-evidence/`、`decode-spike-src/`。
+
+- **rawspeed 不带拜耳去马赛克**：lane 这一条我核过源码。`rawspeed/src/librawspeed/interpolators/` 只有一个文件，是佳能 sRAW 的插值器；去马赛克在 darktable 自己的 `src/iop/demosaic.c` 和七个 `demosaic_*.cl` 里。所以 rawspeed 路径必须移植 darktable 的去马赛克。
+- **去马赛克计时**：`demosaic_bench.log` 里解码 50.7 毫秒，双线性五次中位 27.8 毫秒，MHC 43.4 毫秒，与报告一致。程序是 lane 自己写的两个基线算法，不是 darktable 的 RCD；RCD 的耗时是估算。
+- **偏色**：三组对照日志在 `dngfix-cmp-t0/t1/t2.log`。基线 22.784 复现，两次修法都没有改善。根因是 lane 的推断：rawspeed 的相机数据与 Apple 内置的相机配置不是同一个来源。**这条只影响可选的 Core Image 路径。** darktable 自己用的就是 rawspeed 的相机数据，验收对照又是 darktable，所以 darktable 兼容的路径上不存在这个问题。
+- **验收对照命令**：官方包的下载地址、大小、sha256 都在 `SOURCES.md`。后端证据行在 `full-runs.log`：CPU 那一路写的是 `NOT utilized`，OpenCL 那一路是 `RCD` 分块、161 个事件全部成功。噪声底线表在 `RESULTS.md`：重复渲染逐像素相同；CPU 与 OpenCL 的平均差约 0.013（16 位最低位），最大差 842 到 904，只落在约 10 个像素上。
+- **用户偏好没有被碰**：lane 跑完后 `defaults export org.darktable` 的结果与跑之前的备份逐字节相同。备份文件里是用户的 darktable 设置，我没有让它入库，已从证据目录删掉。
+- **清理**：挂载卷已卸载，没有残留的 darktable 进程，安装包与临时目录已删。lane 仓外的 spike 目录留有 1.9 GB，待处理。
+
+没有核的：对照渲染的输出图（约 2.4 GB）已删，我没能复跑一组，只读了日志；lane 的去马赛克基线程序没有逐行读。
+
+**与后来的裁决冲突的两处**，计划里必须改：§6 的仓库布局没有模块自动发现与注册的机制；§7 第 ① 步写的是「参数结构版本为 1、不做旧版本迁移」，与历史兼容的要求相反，参数必须按 darktable 的布局和版本迁移来。
+
+lane 的自审：两份独立复审，`PASS / 3 error + 11 minor` 与 `PASS / 1 error + 10 minor`，均已修订。
