@@ -51,6 +51,8 @@ struct ComboDef {
 
 struct ModuleDef {
     name: &'static str,
+    /// darktable 5.6.2 default (v50) pipeline order, from src/common/iop_order.c
+    order: f32,
     group: u8,
     params: Vec<ParamDef>,
     adv: Vec<ParamDef>,
@@ -60,11 +62,33 @@ struct ModuleDef {
     tabs: Vec<&'static str>,
     curve: bool,
     icons: bool,
+    expanded_default: bool,
 }
 
 impl ModuleDef {
-    fn simple(name: &'static str, group: u8, params: Vec<ParamDef>) -> Self {
-        Self { name, group, params, adv: vec![], combos: vec![], toggles: vec![], buttons: vec![], tabs: vec![], curve: false, icons: false }
+    /// One filler module: unified header + 2 or 3 sliders, collapsed by default.
+    fn filler(order: f32, name: &'static str, group: u8, sliders: u8, expanded: bool) -> Self {
+        let mut params = vec![
+            p("strength", 0.0, 2.0, 1.0, 0.01, 3, ""),
+            p("radius", 0.0, 100.0, 25.0, 0.1, 2, " px"),
+        ];
+        if sliders >= 3 {
+            params.push(p("iterations", 1.0, 8.0, 2.0, 1.0, 0, ""));
+        }
+        Self {
+            name,
+            order,
+            group,
+            params,
+            adv: vec![],
+            combos: vec![],
+            toggles: vec![],
+            buttons: vec![],
+            tabs: vec![],
+            curve: false,
+            icons: false,
+            expanded_default: expanded,
+        }
     }
 }
 
@@ -72,6 +96,7 @@ fn module_defs() -> Vec<ModuleDef> {
     let mut v: Vec<ModuleDef> = Vec::new();
     v.push(ModuleDef {
         name: "exposure",
+        order: 21.0,
         group: 1,
         params: vec![
             p("exposure", -3.0, 3.0, 0.7, 0.01, 3, " EV"),
@@ -84,9 +109,11 @@ fn module_defs() -> Vec<ModuleDef> {
         tabs: vec![],
         curve: false,
         icons: false,
+        expanded_default: true,
     });
     v.push(ModuleDef {
         name: "white balance",
+        order: 3.0,
         group: 2,
         params: vec![
             plog("temperature", 2000.0, 12500.0, 5294.0, 10.0, 0, " K"),
@@ -103,9 +130,11 @@ fn module_defs() -> Vec<ModuleDef> {
         tabs: vec![],
         curve: false,
         icons: true,
+        expanded_default: true,
     });
     v.push(ModuleDef {
         name: "filmic rgb",
+        order: 46.0,
         group: 1,
         params: vec![
             p("white relative exposure", 0.0, 20.0, 4.56, 0.01, 3, " EV"),
@@ -130,48 +159,44 @@ fn module_defs() -> Vec<ModuleDef> {
         tabs: vec!["scene", "reconstruction", "look", "display", "options"],
         curve: true,
         icons: false,
+        expanded_default: true,
     });
-    let rest: &[(&'static str, u8)] = &[
-        ("color calibration", 2),
-        ("color balance rgb", 2),
-        ("color equalizer", 2),
-        ("rgb primaries", 2),
-        ("tone equalizer", 1),
-        ("crop", 3),
-        ("rotate and perspective", 3),
-        ("lens correction", 3),
-        ("chromatic aberration", 3),
-        ("defringe", 3),
-        ("vignette", 4),
-        ("grain", 4),
-        ("sharpen", 4),
-        ("local contrast", 4),
-        ("denoise (profiled)", 4),
-        ("hot pixels", 3),
-        ("highlight reconstruction", 1),
-        ("raw black/white point", 0),
-        ("demosaic", 0),
-        ("diffuse or sharpen", 4),
-        ("bloom", 4),
-        ("color look up table", 2),
-        ("lut 3d", 2),
-        ("base curve", 1),
-        ("levels", 1),
-        ("tone curve", 1),
-        ("watermark", 4),
-        ("framing", 4),
-        ("soften", 4),
+    // 27 filler modules: display names taken verbatim from the darktable 5.6.2
+    // release tag (src/iop/*.c `name()`), placed at their v50_order positions.
+    // (order, name, group, sliders, expanded)
+    let fillers: &[(f32, &'static str, u8, u8, bool)] = &[
+        (1.0, "raw black/white point", 0, 2, false),
+        (4.0, "highlight reconstruction", 1, 3, false),
+        (5.0, "raw chromatic aberrations", 3, 2, false),
+        (6.0, "hot pixels", 3, 2, false),
+        (8.0, "demosaic", 0, 3, false),
+        (9.0, "denoise (profiled)", 4, 3, false),
+        (10.0, "surface blur", 4, 2, false),
+        (13.0, "lens correction", 3, 3, false),
+        (14.0, "haze removal", 3, 2, false),
+        (15.0, "rotate and perspective", 3, 3, false),
+        (24.0, "tone equalizer", 1, 3, false),
+        (24.5, "crop", 3, 2, false),
+        (25.0, "graduated density", 1, 3, false),
+        (27.0, "legacy equalizer", 4, 3, false),
+        (28.0, "input color profile", 2, 2, true),
+        (28.5, "color calibration", 2, 3, true),
+        (28.5, "diffuse or sharpen", 4, 3, true),
+        (28.5, "rgb primaries", 2, 3, false),
+        (31.0, "defringe", 3, 2, false),
+        (35.0, "sharpen", 4, 3, false),
+        (41.0, "color balance", 2, 3, false),
+        (41.2, "color equalizer", 2, 3, false),
+        (41.5, "color balance rgb", 2, 3, false),
+        (42.0, "rgb curve", 1, 3, false),
+        (44.0, "base curve", 1, 3, false),
+        (48.0, "tone curve", 1, 3, false),
+        (68.0, "vignette", 4, 2, false),
     ];
-    for (name, group) in rest {
-        v.push(ModuleDef::simple(
-            name,
-            *group,
-            vec![
-                p("strength", 0.0, 2.0, 1.0, 0.01, 3, ""),
-                p("radius", 0.0, 100.0, 25.0, 0.1, 2, " px"),
-            ],
-        ));
+    for &(order, name, group, sliders, expanded) in fillers {
+        v.push(ModuleDef::filler(order, name, group, sliders, expanded));
     }
+    v.sort_by(|a, b| a.order.total_cmp(&b.order));
     v
 }
 
@@ -204,7 +229,7 @@ impl ModuleState {
         Self {
             def,
             enabled: true,
-            expanded: def < 3,
+            expanded: d.expanded_default,
             advanced: false,
             params,
             combos: d.combos.iter().map(|c| c.default).collect(),
@@ -294,6 +319,9 @@ struct Proto {
     view_focus: FocusHandle,
     layout_w: f32,
     layout_h: f32,
+    exposure_idx: usize,
+    modules_scroll: ScrollHandle,
+    scroll_reported: Cell<f32>,
 }
 
 
@@ -352,6 +380,7 @@ impl Proto {
         ];
         let snaps: Vec<ModuleSnap> = modules.iter().map(|m| m.snap()).collect();
         let history = vec![HistEntry { label: "original".into(), detail: "".into(), snaps }];
+        let exposure_idx = defs.iter().position(|d| d.name == "exposure").unwrap_or(0);
         let editor_focus = cx.focus_handle();
         let view_focus = cx.focus_handle();
         let sub_search = cx.subscribe(&search, |_, _, _: &InputEvent, cx| cx.notify());
@@ -381,6 +410,9 @@ impl Proto {
             combo: None,
             layout_w: 1440.0,
             layout_h: 846.0,
+            exposure_idx,
+            modules_scroll: ScrollHandle::new(),
+            scroll_reported: Cell::new(-1.0e9),
             editor_focus,
             view_focus,
         }
@@ -822,7 +854,7 @@ impl Proto {
             .child({
                 // Exposure drives a visible viewport change, as in darktable, so that
                 // "pointer -> picture" latency measures a picture update too.
-                let ev = self.modules[0].params[0];
+                let ev = self.modules[self.exposure_idx].params[0];
                 let (color, alpha) = if ev >= 0.0 {
                     (0xffffffu32, (ev * 0.11).min(0.55))
                 } else {
@@ -899,6 +931,12 @@ impl Proto {
     }
 
     fn right_panel(&self, filter: &str, cx: &mut Context<Self>) -> impl IntoElement {
+        // Debug evidence: the real module-list scroll offset, to stderr, on every change.
+        let off = -(self.modules_scroll.offset().y / px(1.0));
+        if (off - self.scroll_reported.get()).abs() >= 0.5 {
+            self.scroll_reported.set(off);
+            eprintln!("SCROLL_OFFSET y={:.1} max={:.1}", off, self.modules_scroll.max_offset().y / px(1.0));
+        }
         let groups = ["active", "base", "tone", "color", "correct", "effects"];
         let tabs: Vec<AnyElement> = groups
             .iter()
@@ -959,7 +997,7 @@ impl Proto {
                         .bg(rgb(0x4b4b4b)),
                 ),
             )
-            .child(div().id("modules").flex_1().min_h(px(0.)).overflow_y_scroll().children(items))
+            .child(div().id("modules").flex_1().min_h(px(0.)).overflow_y_scroll().track_scroll(&self.modules_scroll).children(items))
     }
 
     fn module_view(&self, i: usize, cx: &mut Context<Self>) -> AnyElement {

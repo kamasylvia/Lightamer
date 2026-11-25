@@ -1,0 +1,25 @@
+frames=201 changed=2 span=2.976s changed_fps=0.7
+lat drag_down 69.2 ms (cb 69.6 ms)
+lat drag_step 69.2 ms (cb 69.6 ms)
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_up none
+drag0 no changed frames
+all_frames=201 med_interval=16.56ms p95=19.12ms >16.7=92

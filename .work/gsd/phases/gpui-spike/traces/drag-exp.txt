@@ -1,0 +1,5 @@
+mark begin
+wait 300
+drag 1267 190 1400 190 40 8
+mark end
+wait 500

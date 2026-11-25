@@ -1,0 +1,6 @@
+segment begin..end span=1.632s
+changed=35 changed_fps=21.4
+interval med=32.18ms p95=50.38ms max=50.52ms >16.7=30 >33.3=12 n=34
+all_frames=99 med=16.50ms p95=19.16ms
+lat move n=1 med=355.8ms p95=355.8ms max=355.8ms
+lat scroll n=36 med=20.5ms p95=40.6ms max=55.4ms
