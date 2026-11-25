@@ -1,0 +1,136 @@
+K INIT begin
+K INIT surface_id=CompositionSurfaceId(3v1) nsview=0x760888b700
+K colorspace name=Some(<CFString 0x1f01aa468 [0x1f02b6920]>{contents = "kCGColorSpaceExtendedLinearSRGB"})
+K metal device="Apple M4" layer_pixel_format=RGBA16Float layer_wants_edr=true layer_framebuffer_only=false layer_max_drawables=3
+K EDR screen_maximum_edr=1.000 screen_potential_edr=1.000
+K INIT ok
+K APP window=1200x800 layout=left:flex viewport, right:400 panel
+K drawable size=1600x1600 view_points=(0.0,0.0,800.0,800.0) scale=2.00
+K drawable texture_format=RGBA16Float texture=1600x1600
+K FRAME 0 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.000
+K OVERLAY open=false t=0.51s tick=2
+K OVERLAY open=false t=0.76s tick=3
+K OVERLAY open=false t=1.02s tick=4
+K OVERLAY open=false t=1.28s tick=5
+K READBACK frame=60 row_y=800 samples(x,value)=[(200, 0.5), (600, 0.5), (1000, 0.5), (1400, 0.5)] max=0.5000
+K OVERLAY open=false t=1.54s tick=6
+K OVERLAY open=false t=1.79s tick=7
+K OVERLAY open=false t=2.05s tick=8
+K RATE frames=119 (+119) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=2.26s
+K FRAME 120 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.560
+K OVERLAY open=false t=2.30s tick=9
+K OVERLAY open=true t=2.56s tick=10
+K OVERLAY open=true t=2.81s tick=11
+K OVERLAY open=true t=3.06s tick=12
+K OVERLAY open=true t=3.32s tick=13
+K OVERLAY open=true t=3.58s tick=14
+K OVERLAY open=true t=3.83s tick=15
+K OVERLAY open=true t=4.09s tick=16
+K RATE frames=240 (+121) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=4.28s
+K READBACK frame=240 row_y=800 samples(x,value)=[(200, 0.5), (600, 0.5), (1000, 0.5), (1400, 0.5)] max=0.5000
+K OVERLAY open=true t=4.35s tick=17
+K OVERLAY open=true t=4.60s tick=18
+K OVERLAY open=true t=4.86s tick=19
+K OVERLAY open=false t=5.11s tick=20
+K OVERLAY open=false t=5.36s tick=21
+K OVERLAY open=false t=5.62s tick=22
+K OVERLAY open=false t=5.88s tick=23
+K OVERLAY open=false t=6.14s tick=24
+K RATE frames=359 (+119) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=6.29s
+K FRAME 360 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.680
+K OVERLAY open=false t=6.39s tick=25
+K OVERLAY open=false t=6.65s tick=26
+K OVERLAY open=false t=6.90s tick=27
+K OVERLAY open=false t=7.16s tick=28
+K OVERLAY open=false t=7.41s tick=29
+K OVERLAY open=true t=7.67s tick=30
+K OVERLAY open=true t=7.93s tick=31
+K OVERLAY open=true t=8.18s tick=32
+K RATE frames=478 (+119) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=8.30s
+K FRAME 480 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.240
+K OVERLAY open=true t=8.43s tick=33
+K OVERLAY open=true t=8.69s tick=34
+K OVERLAY open=true t=8.95s tick=35
+K OVERLAY open=true t=9.20s tick=36
+K OVERLAY open=true t=9.46s tick=37
+K OVERLAY open=true t=9.71s tick=38
+K OVERLAY open=true t=9.96s tick=39
+K OVERLAY open=false t=10.22s tick=40
+K RATE frames=597 (+119) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=10.31s
+K FRAME 600 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.800
+K OVERLAY open=false t=10.48s tick=41
+K OVERLAY open=false t=10.73s tick=42
+K OVERLAY open=false t=10.98s tick=43
+K OVERLAY open=false t=11.24s tick=44
+K OVERLAY open=false t=11.49s tick=45
+K OVERLAY open=false t=11.75s tick=46
+K OVERLAY open=false t=12.00s tick=48
+K OVERLAY open=false t=12.26s tick=49
+K RATE frames=715 (+118) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=12.31s
+K FRAME 720 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.360
+K OVERLAY open=true t=12.52s tick=50
+K OVERLAY open=true t=12.78s tick=51
+K OVERLAY open=true t=13.03s tick=52
+K OVERLAY open=true t=13.28s tick=53
+K OVERLAY open=true t=13.54s tick=54
+K OVERLAY open=true t=13.80s tick=55
+K OVERLAY open=true t=14.05s tick=56
+K OVERLAY open=true t=14.31s tick=57
+K RATE frames=836 (+121) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=14.33s
+K FRAME 840 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.920
+K OVERLAY open=true t=14.57s tick=58
+K OVERLAY open=true t=14.83s tick=59
+K OVERLAY open=false t=15.09s tick=60
+K OVERLAY open=false t=15.35s tick=61
+K OVERLAY open=false t=15.60s tick=62
+K OVERLAY open=false t=15.85s tick=63
+K OVERLAY open=false t=16.11s tick=64
+K RATE frames=957 (+121) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=16.35s
+K OVERLAY open=false t=16.37s tick=65
+K FRAME 960 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.480
+K OVERLAY open=false t=16.63s tick=66
+K OVERLAY open=false t=16.89s tick=67
+K OVERLAY open=false t=17.14s tick=68
+K OVERLAY open=false t=17.40s tick=69
+K OVERLAY open=true t=17.66s tick=70
+K OVERLAY open=true t=17.91s tick=71
+K OVERLAY open=true t=18.16s tick=72
+K RATE frames=1076 (+119) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=18.35s
+K OVERLAY open=true t=18.41s tick=73
+K FRAME 1080 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.040
+K OVERLAY open=true t=18.67s tick=74
+K OVERLAY open=true t=18.93s tick=75
+K OVERLAY open=true t=19.18s tick=76
+K OVERLAY open=true t=19.44s tick=77
+K OVERLAY open=true t=19.70s tick=78
+K OVERLAY open=true t=19.95s tick=79
+K OVERLAY open=false t=20.20s tick=80
+K RATE frames=1196 (+120) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=20.36s
+K FRAME 1200 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.600
+K OVERLAY open=false t=20.46s tick=81
+K OVERLAY open=false t=20.71s tick=82
+K OVERLAY open=false t=20.96s tick=83
+K OVERLAY open=false t=21.22s tick=84
+K OVERLAY open=false t=21.48s tick=85
+K OVERLAY open=false t=21.73s tick=86
+K OVERLAY open=false t=21.99s tick=87
+K OVERLAY open=false t=22.25s tick=88
+K RATE frames=1316 (+120) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=22.36s
+K FRAME 1320 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.160
+K OVERLAY open=true t=22.50s tick=90
+K OVERLAY open=true t=22.76s tick=91
+K OVERLAY open=true t=23.02s tick=92
+K OVERLAY open=true t=23.27s tick=93
+K OVERLAY open=true t=23.53s tick=94
+K OVERLAY open=true t=23.78s tick=95
+K OVERLAY open=true t=24.03s tick=96
+K OVERLAY open=true t=24.29s tick=97
+K RATE frames=1436 (+120) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=24.38s
+K FRAME 1440 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.720
+K OVERLAY open=true t=24.55s tick=98
+K OVERLAY open=true t=24.80s tick=99
+K OVERLAY open=false t=25.06s tick=100
+K OVERLAY open=false t=25.32s tick=101
+K OVERLAY open=false t=25.58s tick=102
+K OVERLAY open=false t=25.84s tick=103
+K IDLE stop at t=26.00s (viewport stopped, window stays up)

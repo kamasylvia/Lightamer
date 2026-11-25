@@ -1,0 +1,49 @@
+K INIT begin
+K INIT surface_id=CompositionSurfaceId(3v1) nsview=0x75b0ccf700
+K colorspace name=Some(<CFString 0x1f01aa468 [0x1f02b6920]>{contents = "kCGColorSpaceExtendedLinearSRGB"})
+K metal device="Apple M4" layer_pixel_format=RGBA16Float layer_wants_edr=true layer_framebuffer_only=false layer_max_drawables=3
+K EDR screen_maximum_edr=1.000 screen_potential_edr=1.000
+K INIT ok
+K APP window=1200x800 layout=left:flex viewport, right:400 panel
+K drawable size=1600x1600 view_points=(0.0,0.0,800.0,800.0) scale=2.00
+K drawable texture_format=RGBA16Float texture=1600x1600
+K FRAME 0 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.000
+2026-11-25 22:10:37.936 gpui-viewport-spike[55879:106355760] error messaging the mach port for IMKCFRunLoopWakeUpReliable
+K OVERLAY open=false t=0.46s tick=1
+K OVERLAY open=false t=0.72s tick=2
+K OVERLAY open=false t=0.98s tick=3
+K OVERLAY open=false t=1.23s tick=4
+K READBACK frame=60 row_y=800 texture=1600x1600 samples(x,r,g,b)=[(100, 0.5, 0.5, 0.5), (300, 0.5, 0.5, 0.5), (500, 0.5, 0.5, 0.5), (700, 0.5, 0.5, 0.5), (900, 0.5, 0.5, 0.5), (1100, 0.5, 0.5, 0.5), (1300, 0.5, 0.5, 0.5), (1500, 0.5, 0.5, 0.5)] max=0.5000
+K OVERLAY open=false t=1.49s tick=5
+K OVERLAY open=false t=1.74s tick=6
+K OVERLAY open=false t=2.00s tick=8
+K RATE frames=118 (+118) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=2.21s layer_bounds=(0.0,0.0 800.0x800.0) layer_frame=(0.0,0.0 800.0x800.0) drawable_size=1600x1600 contents_scale=2.00 backing_scale=2.00
+K FRAME 120 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.560
+K OVERLAY open=false t=2.26s tick=9
+K OVERLAY open=true t=2.52s tick=10
+K OVERLAY open=true t=2.77s tick=11
+K OVERLAY open=true t=3.02s tick=12
+K OVERLAY open=true t=3.28s tick=13
+K OVERLAY open=true t=3.53s tick=14
+K OVERLAY open=true t=3.79s tick=15
+K OVERLAY open=true t=4.04s tick=16
+K RATE frames=238 (+120) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=4.22s layer_bounds=(0.0,0.0 800.0x800.0) layer_frame=(0.0,0.0 800.0x800.0) drawable_size=1600x1600 contents_scale=2.00 backing_scale=2.00
+K READBACK frame=240 row_y=800 texture=1600x1600 samples(x,r,g,b)=[(100, 0.5, 0.5, 0.5), (300, 0.5, 0.5, 0.5), (500, 0.5, 0.5, 0.5), (700, 0.5, 0.5, 0.5), (900, 0.5, 0.5, 0.5), (1100, 0.5, 0.5, 0.5), (1300, 0.5, 0.5, 0.5), (1500, 0.5, 0.5, 0.5)] max=0.5000
+K OVERLAY open=true t=4.30s tick=17
+K OVERLAY open=true t=4.56s tick=18
+K OVERLAY open=true t=4.81s tick=19
+K OVERLAY open=false t=5.07s tick=20
+K OVERLAY open=false t=5.33s tick=21
+K OVERLAY open=false t=5.58s tick=22
+K OVERLAY open=false t=5.84s tick=23
+K OVERLAY open=false t=6.09s tick=24
+K RATE frames=358 (+120) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=6.23s layer_bounds=(0.0,0.0 800.0x800.0) layer_frame=(0.0,0.0 800.0x800.0) drawable_size=1600x1600 contents_scale=2.00 backing_scale=2.00
+K FRAME 360 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.680
+K OVERLAY open=false t=6.34s tick=25
+K OVERLAY open=false t=6.60s tick=26
+K OVERLAY open=false t=6.85s tick=27
+K OVERLAY open=false t=7.11s tick=28
+K OVERLAY open=false t=7.37s tick=29
+K OVERLAY open=true t=7.62s tick=30
+K OVERLAY open=true t=7.88s tick=31
+K IDLE stop at t=8.00s (viewport stopped, window stays up)

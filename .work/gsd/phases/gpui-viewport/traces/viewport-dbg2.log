@@ -1,0 +1,35 @@
+K INIT begin
+K INIT surface_id=CompositionSurfaceId(3v1) nsview=0x74e347b700
+K colorspace name=Some(<CFString 0x1f01aa468 [0x1f02b6920]>{contents = "kCGColorSpaceExtendedLinearSRGB"})
+K metal device="Apple M4" layer_pixel_format=RGBA16Float layer_wants_edr=true layer_framebuffer_only=false layer_max_drawables=3
+K EDR screen_maximum_edr=1.000 screen_potential_edr=1.000
+K INIT ok
+K APP window=1200x800 layout=left:flex viewport, right:400 panel
+K drawable size=1600x1600 view_points=(0.0,0.0,800.0,800.0) scale=2.00
+K drawable texture_format=RGBA16Float texture=1600x1600
+K FRAME 0 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.000
+K OVERLAY open=false t=0.35s tick=1
+K OVERLAY open=false t=0.60s tick=2
+K OVERLAY open=false t=0.86s tick=3
+K OVERLAY open=false t=1.12s tick=4
+K READBACK frame=60 row_y=800 samples(x,value)=[(100, 1.5996094, 1.5996094, 0.025497437), (300, 1.5996094, 1.5996094, 0.07543945), (500, 1.5996094, 1.5996094, 0.12548828), (700, 1.5996094, 1.5996094, 0.17541504), (900, 1.5996094, 1.5996094, 0.22546387), (1100, 1.5996094, 1.5996094, 0.27539063), (1300, 1.5996094, 1.5996094, 0.32543945), (1500, 1.5996094, 1.5996094, 0.37548828)] max=1.5996
+K OVERLAY open=false t=1.38s tick=5
+K OVERLAY open=false t=1.64s tick=6
+K OVERLAY open=false t=1.89s tick=7
+K RATE frames=118 (+118) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=2.11s
+K OVERLAY open=false t=2.15s tick=8
+K FRAME 120 view=(0.0,0.0 800.0x800.0) drawable=1600x1600 marker=0.560
+K OVERLAY open=false t=2.40s tick=9
+K OVERLAY open=true t=2.65s tick=10
+K OVERLAY open=true t=2.90s tick=11
+K OVERLAY open=true t=3.15s tick=12
+K OVERLAY open=true t=3.40s tick=13
+K OVERLAY open=true t=3.66s tick=14
+K OVERLAY open=true t=3.91s tick=15
+K RATE frames=237 (+119) view_frame_points=(0.0,0.0 800.0x800.0) scale=2.00 canvas_logical=[0.0, 0.0, 800.0, 800.0] t=4.12s
+K OVERLAY open=true t=4.16s tick=16
+K READBACK frame=240 row_y=800 samples(x,value)=[(100, 1.5996094, 1.5996094, 0.025497437), (300, 1.5996094, 1.5996094, 0.07543945), (500, 1.5996094, 1.5996094, 0.12548828), (700, 1.5996094, 1.5996094, 0.17541504), (900, 1.5996094, 1.5996094, 0.22546387), (1100, 1.5996094, 1.5996094, 0.27539063), (1300, 1.5996094, 1.5996094, 0.32543945), (1500, 1.5996094, 1.5996094, 0.37548828)] max=1.5996
+K OVERLAY open=true t=4.42s tick=17
+K OVERLAY open=true t=4.68s tick=18
+K OVERLAY open=true t=4.93s tick=19
+K IDLE stop at t=5.01s (viewport stopped, window stays up)

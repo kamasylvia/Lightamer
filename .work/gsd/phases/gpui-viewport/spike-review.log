@@ -1,0 +1,17 @@
+Working...
+PASS / 3 error + 6 minor
+
+复核：①几何——整窗原图 2400×1600，y=200 行 x`0..399`=(179,179,179)、`400..1599`=(255,255,255)、`1600..2399`=(26,26,30)；y=1590 行 88/126/179/255，边界 400/800/1200；裁剪 1620×260 面板从 1600 起；drawable 1600×1600（`app-run.log:8-9`），与 800pt 视口 + 400pt 面板 @2x 一致。②EDR——`app-run.log:5/4/9/17/24` 四项原文齐全。③探针——mark `1808035.279516–1808046.282119`（11.002603s），660 帧 / 59.99fps / 中位 16.547ms / p95 19.198ms；514 / 43 / 38 / 5 / 141，最大空档 0.333092s（F160→F180），46.716/s 与 3.908/s，逐值等于 §1.3。⑥源码——`main.rs:450-456`（enable_window_composition/create_native_surface/platform_handle）、`:605`（set_bounds）、`:163-165`（CAMetalLayer）、`:237,343`（get_bytes）、`:492`（16ms）、`:518`（250ms）、`:635`（deferred）；`on_input` 全仓零命中。
+
+## error
+- [域内自审未产出，`spike-review.log` 只有 "Working..."] 证据：`spike-review.log` 11 B，xxd = `57 6f 72 6b 69 6e 67 2e 2e 2e 0a`（"Working...\n"）；`SPIKE-VIEWPORT.md:189` 把它列为“域内复审输出”；仓外 `omp-viewport-summary.md` 末行写“复审：见 `spike-review.log`（结论头 PASS/N error+M minor）”；`spike-prompt.md:51` 要求复审输出落该文件、修订记录附产物末尾，而报告末尾没有修订记录（报告 22:33 有 +250B 修订，§1.4:126）。期望：实际复审输出与修订记录，或明确改称“未复审”并撤掉该条。
+- [target 3.8G 未按 >2GB 规则删除，§5 也没有实测总大小] 证据：`du -sh /Volumes/UNITEK/Documents/Development/Lightamer-gpui-spike/viewport/target` = 3.8G（目录仍在，mtime 21:56）；`SPIKE-VIEWPORT.md:193` 写“含 `target/`，最终 `du -sh` 见交付说明；超过 2GB 已删”；`spike-prompt.md:45` 要求“`target/` 目录超过 2 GB 就删掉，列出保留内容和总大小”；`omp-viewport-summary.md` 无 du / 大小 / 清理记录。期望：删除 target 或给出保留理由与实测总大小，并在 §5 直接写出。
+- [“数字全部来自 traces”不成立：free% 与轨迹冲突，构建时长/屏幕规格等无轨迹] 证据：`traces/machine-guard.txt:1` = `GUARD PASS (heavy=0 free=72% swap=?M disk=?GB)`，报告 `SPIKE-VIEWPORT.md:26` 写 `free=71%`；`traces/` 无构建日志支撑 332s / 37–102s（`:26`）；无 trace 支撑 `BenQ PD2705U / 3008×1692 / 1504×846@60Hz`（`:73`）；§2 的 0.5/0x3800（`:155`）、1/4 与 x≈25.5（`:154`）、~3s/6 次轮询（`:156`）也无轨迹文件；但 `:4` 称“数字全部来自 `traces/` 下的原始轨迹”。期望：71→72；构建/屏幕等数字归档原始输出或改标非轨迹来源；撤回“全部来自 traces”的绝对表述。
+
+## minor
+- [drawable 尺寸来源写成 bounds，代码用 frame] 证据：`SPIKE-VIEWPORT.md:45`“`NSView.bounds() * backingScale`”；`src/main.rs:189-196` 用 `view.frame()` 与 `window.backingScaleFactor()`。该视图无变换时尺寸相同，结论不受影响。期望：改写为 frame/尺寸。
+- [层色彩空间“回读”不是层属性回读] 证据：`SPIKE-VIEWPORT.md:76` 称 `CGColorSpace::get_name` 回读确认；`src/main.rs:153-156` 是创建 colorspace、setColorspace 后打印该对象名，未读 `layer.colorspace`。期望：改称“写入的 colorspace 名”，或实际读层属性。
+- [探针窗外的 2.88s 主线程停顿未记录] 证据：`traces/app-run.log:120-122`：t=21.79s（tick 87）→ t=24.67s（RATE 1291，+99 帧），4.49s ≈22fps，期间无 OVERLAY/RATE 行；由 `kern.boottime=1793808274` 对齐，`frameprobe` 窗 = 22:18:29.28–22:18:40.28（app t≈5.6–16.6s），故 0.333s 最大空档对窗内成立，但报告未提窗外这段。期望：补记或把“持续更新”明确限定在 11s 探针窗。
+- [§3.4 “即可点”与 §4 “未点击”口径不一致] 证据：`SPIKE-VIEWPORT.md:166`“浮层…即可点”；`:174`“浮层上的点击…未点击”；`:130` 已标“代码阅读，未点击验证”。期望：改为“预期可点（未点击验证）”。
+- [“空闲”裁剪与 band 边界裁剪逐字节相同] 证据：`md5 shots/v1-band-edge-and-panel-edge.png` = `md5 shots/v1-idle-band-edge.png` = `173e708c8cf930721f570cb5588bd7f2`；`SPIKE-VIEWPORT.md:187` 把它列为 5 张中的两张。期望：删掉重复或注明“仅底部标记条移动，裁剪区逐像素相同，不构成独立证据”。
+- [§1.4 sendEvent 引用行号范围短 5 行] 证据：`SPIKE-VIEWPORT.md:123` 引 `gpui-fast-macos-0.1.19/src/fast/composition.rs:324-418`；实际 `msg_send![super(this, superclass), sendEvent: event]` 在 423 行（`PointerRoute::AppKit` 在 357）。期望：324-423 或直接引 423。
