@@ -1,0 +1,133 @@
+gpui-fast 轮 · 2026-11-25 15:09 · HEAD-of-prototype=仓外工作区（非 git）
+binary sha256 fast=6749a3ddc7e0… pre=98bb3430ba7b…
+
+=== f-e1
+segment begin..end span=0.689s
+changed=1 changed_fps=1.5
+interval n=0
+all_frames=41 med=16.65ms p95=18.67ms
+lat drag_down n=1 med=60.0ms p95=60.0ms max=60.0ms
+lat drag_step n=40 med=204.4ms p95=378.5ms max=396.5ms
+lat drag_up n=1 med=70.5ms p95=70.5ms max=70.5ms
+SCROLL_OFFSET y=602.0 max=1576.0
+DRAG_SUMMARY t=3286.5 mm_recv=32 mm_applied=31 mm_skip=0 renders=67 renders_drag=24 module=11 param=0 value=1.5800
+
+=== f-e1-nl
+segment begin..end span=0.699s
+changed=1 changed_fps=1.4
+interval n=0
+all_frames=42 med=16.53ms p95=18.24ms
+lat drag_down n=1 med=55.5ms p95=55.5ms max=55.5ms
+lat drag_step n=40 med=200.1ms p95=373.9ms max=393.4ms
+lat drag_up n=1 med=58.1ms p95=58.1ms max=58.1ms
+SCROLL_OFFSET y=602.0 max=1576.0
+DRAG_SUMMARY t=3270.2 mm_recv=35 mm_applied=34 mm_skip=0 renders=67 renders_drag=24 module=11 param=0 value=1.5800
+
+=== f-e4b
+segment begin..end span=0.702s
+changed=1 changed_fps=1.4
+interval n=0
+all_frames=42 med=16.51ms p95=19.27ms
+lat drag_down n=1 med=51.6ms p95=51.6ms max=51.6ms
+lat drag_step n=40 med=216.2ms p95=391.2ms max=410.8ms
+lat drag_up n=1 med=72.9ms p95=72.9ms max=72.9ms
+SCROLL_OFFSET y=602.0 max=1576.0
+DRAG_SUMMARY t=3367.9 mm_recv=33 mm_applied=32 mm_skip=0 renders=69 renders_drag=25 module=11 param=0 value=1.5800
+
+=== f-e4b-nl
+segment begin..end span=0.701s
+changed=1 changed_fps=1.4
+interval n=0
+all_frames=43 med=16.49ms p95=18.42ms
+lat drag_down n=1 med=39.9ms p95=39.9ms max=39.9ms
+lat drag_step n=40 med=213.5ms p95=389.7ms max=409.2ms
+lat drag_up n=1 med=61.9ms p95=61.9ms max=61.9ms
+SCROLL_OFFSET y=602.0 max=1576.0
+DRAG_SUMMARY t=3334.0 mm_recv=36 mm_applied=35 mm_skip=0 renders=69 renders_drag=25 module=11 param=0 value=1.5800
+
+=== f-e5
+segment begin..end span=0.697s
+changed=15 changed_fps=21.5
+interval med=16.96ms p95=55.19ms max=65.12ms >16.7=8 >33.3=2 n=14
+all_frames=42 med=16.59ms p95=17.67ms
+lat drag_down n=1 med=47.1ms p95=47.1ms max=47.1ms
+lat drag_step n=40 med=11.1ms p95=44.3ms max=54.2ms
+lat drag_up n=1 med=7.3ms p95=7.3ms max=7.3ms
+SCROLL_OFFSET y=602.0 max=1576.0
+
+=== f-e5-nl
+segment begin..end span=0.691s
+changed=16 changed_fps=23.2
+interval med=16.70ms p95=50.48ms max=51.82ms >16.7=8 >33.3=2 n=15
+all_frames=42 med=16.63ms p95=17.45ms
+lat drag_down n=1 med=43.8ms p95=43.8ms max=43.8ms
+lat drag_step n=40 med=9.3ms p95=44.1ms max=49.2ms
+lat drag_up n=1 med=30.2ms p95=30.2ms max=30.2ms
+SCROLL_OFFSET y=602.0 max=1576.0
+
+=== f-e1off0
+segment begin..end span=0.701s
+changed=18 changed_fps=25.7
+interval med=17.26ms p95=33.42ms max=33.66ms >16.7=9 >33.3=2 n=17
+all_frames=43 med=16.50ms p95=19.67ms
+lat drag_down n=1 med=57.3ms p95=57.3ms max=57.3ms
+lat drag_step n=40 med=9.3ms p95=38.0ms max=57.3ms
+lat drag_up n=1 med=11.2ms p95=11.2ms max=11.2ms
+SCROLL_OFFSET y=-0.0 max=0.0
+DRAG_SUMMARY t=3287.3 mm_recv=35 mm_applied=34 mm_skip=0 renders=29 renders_drag=24 module=1 param=0 value=8110.0000
+
+=== f-e1off0-nl
+segment begin..end span=0.701s
+changed=18 changed_fps=25.7
+interval med=16.83ms p95=33.33ms max=33.78ms >16.7=10 >33.3=1 n=17
+all_frames=42 med=16.71ms p95=18.73ms
+lat drag_down n=1 med=47.8ms p95=47.8ms max=47.8ms
+lat drag_step n=40 med=8.8ms p95=29.4ms max=47.8ms
+lat drag_up n=1 med=1.6ms p95=1.6ms max=1.6ms
+SCROLL_OFFSET y=-0.0 max=0.0
+DRAG_SUMMARY t=3311.0 mm_recv=38 mm_applied=37 mm_skip=0 renders=30 renders_drag=25 module=1 param=0 value=8110.0000
+
+=== pre-e1
+segment begin..end span=0.697s
+changed=1 changed_fps=1.4
+interval n=0
+all_frames=41 med=16.61ms p95=19.79ms
+lat drag_down n=1 med=42.6ms p95=42.6ms max=42.6ms
+lat drag_step n=40 med=222.7ms p95=392.2ms max=411.7ms
+lat drag_up n=1 med=67.1ms p95=67.1ms max=67.1ms
+SCROLL_OFFSET y=602.0 max=1576.0
+DRAG_SUMMARY t=3296.4 mm_recv=35 mm_applied=34 mm_skip=0 renders=66 renders_drag=25 module=11 param=0 value=1.5800
+
+=== pre-e1off0
+segment begin..end span=0.695s
+changed=19 changed_fps=27.3
+interval med=16.95ms p95=33.48ms max=34.67ms >16.7=10 >33.3=1 n=18
+all_frames=42 med=16.77ms p95=18.85ms
+lat drag_down n=1 med=50.3ms p95=50.3ms max=50.3ms
+lat drag_step n=40 med=9.5ms p95=30.8ms max=50.3ms
+lat drag_up n=1 med=6.3ms p95=6.3ms max=6.3ms
+SCROLL_OFFSET y=-0.0 max=0.0
+DRAG_SUMMARY t=3305.9 mm_recv=31 mm_applied=30 mm_skip=0 renders=30 renders_drag=25 module=1 param=0 value=8110.0000
+
+=== f-e2
+f-e2: ticks=40 offset=1782071.6913 window=0.658s
+  changed_in_window=0 changed_fps=0.0 all_frames=51
+  app_renders_in_ticker=39 (start=47 end=86)
+SCROLL_OFFSET y=602.0 max=1576.0
+
+=== f-e2-nl
+f-e2-nl: ticks=40 offset=1782079.5025 window=0.658s
+  changed_in_window=0 changed_fps=0.0 all_frames=52
+  app_renders_in_ticker=39 (start=45 end=84)
+SCROLL_OFFSET y=602.0 max=1576.0
+
+=== f-e3
+f-e3: ticks=40 offset=1782279.7829 window=0.665s
+  changed_in_window=40 changed_fps=60.2 all_frames=52
+  per_tick_lat n=40 med=3.6ms p95=26.5ms max=64.6ms min=-1.9ms
+  first5=#0:65ms #1:43ms #2:26ms #3:8ms #4:9ms
+  last5=#35:4ms #36:-2ms #37:2ms #38:1ms #39:14ms
+  changed_pts=0.065 0.081 0.097 0.115 0.129 0.147 0.163 0.179 0.193 0.211 0.227 0.246 0.262 0.277 0.295 0.311 0.329 0.345 0.361 0.377 ...
+  app_renders_in_ticker=39 (start=41 end=80)
+SCROLL_OFFSET y=602.0 max=1696.0
+

@@ -3,6 +3,10 @@ name = "lightamer_gpui_proto"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+# 打开时 gpui-kit 走 gpui-fast 0.1.19 后端；不打开保持默认 gpui-pre 0.3.14。
+fast-backend = ["gpui-kit/gpui-fast"]
+
 [dependencies]
 gpui-kit = "0.11.0"
 
