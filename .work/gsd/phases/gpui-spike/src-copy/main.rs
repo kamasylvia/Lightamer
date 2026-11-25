@@ -5,14 +5,40 @@ use std::sync::OnceLock;
 use std::sync::Mutex;
 use std::sync::LazyLock;
 use std::collections::HashSet;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 static T0: OnceLock<Instant> = OnceLock::new();
 static SLIDER_MAP: LazyLock<Mutex<HashSet<(usize, usize)>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 fn tt() -> f64 { T0.get_or_init(Instant::now).elapsed().as_secs_f64() * 1000.0 }
 fn dbg_on() -> bool { std::env::var("LIGHTAMER_MM_LOG").map(|v| v != "0").unwrap_or(false) }
+fn marker_on() -> bool { std::env::var("LIGHTAMER_MARKER").map(|v| v == "1").unwrap_or(false) }
+fn fixed_slot_env() -> bool { std::env::var("LIGHTAMER_FIXED").map(|v| v == "1").unwrap_or(false) }
+
+#[derive(Clone, Copy, PartialEq)]
+enum SliderMode { Canvas, Div, DivFlow, Kit }
+
+fn slider_mode_env() -> SliderMode {
+    match std::env::var("LIGHTAMER_SLIDER").ok().as_deref() {
+        Some("div") => SliderMode::Div,
+        Some("divflow") => SliderMode::DivFlow,
+        Some("kit") => SliderMode::Kit,
+        _ => SliderMode::Canvas,
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum TimerMode { Value, Text }
+
+fn timer_mode_env() -> Option<TimerMode> {
+    match std::env::var("LIGHTAMER_TIMER").ok().as_deref() {
+        Some("value") => Some(TimerMode::Value),
+        Some("text") => Some(TimerMode::Text),
+        _ => None,
+    }
+}
 
 use gpui_kit::component::input::{Input as TextInput, InputEvent, InputState};
+use gpui_kit::component::slider::{Slider, SliderEvent, SliderState};
 use gpui_kit::component::theme::{Theme, ThemeMode};
 use gpui_kit::prelude::*;
 use gpui_kit::*;
@@ -337,6 +363,11 @@ struct Proto {
     mm_skip: u32,
     renders: u32,
     renders_drag: u32,
+    slider_mode: SliderMode,
+    fixed_slot: bool,
+    timer_mode: Option<TimerMode>,
+    tick: u32,
+    slider_state: Option<Entity<SliderState>>,
 }
 
 
@@ -404,6 +435,34 @@ impl Proto {
                 this.commit_edit(cx);
             }
         });
+        let slider_mode = slider_mode_env();
+        let fixed_slot = fixed_slot_env();
+        let timer_mode = timer_mode_env();
+        if timer_mode.is_some() {
+            window.focus(&editor_focus, cx);
+        }
+        let slider_state = if slider_mode == SliderMode::Kit {
+            Some(cx.new(|_| SliderState::new().min(-3.0).max(3.0).step(0.01).default_value(0.7)))
+        } else {
+            None
+        };
+        let mut subs = vec![sub_search, sub_value];
+        if let Some(state) = &slider_state {
+            let ei = exposure_idx;
+            subs.push(cx.subscribe(state, move |this, _state, ev: &SliderEvent, cx| {
+                let v = match ev {
+                    SliderEvent::Change(v) => v.end(),
+                    SliderEvent::Release(v) => v.end(),
+                };
+                this.modules[ei].params[0] = v;
+                if matches!(ev, SliderEvent::Release(_)) {
+                    let pd = this.param_def(ei, 0);
+                    let name = this.defs[this.modules[ei].def].name;
+                    this.commit(pd.name, format!("{} → {}", name, fmt_value(v, &pd)));
+                }
+                cx.notify();
+            }));
+        }
         Self {
             defs,
             modules,
@@ -411,7 +470,7 @@ impl Proto {
             hist_pos: 0,
             search,
             value_input,
-            _subs: vec![sub_search, sub_value],
+            _subs: subs,
             images,
             current: 0,
             zoom: 1.0,
@@ -433,6 +492,11 @@ impl Proto {
             mm_skip: 0,
             renders: 0,
             renders_drag: 0,
+            slider_mode,
+            fixed_slot,
+            timer_mode,
+            tick: 0,
+            slider_state,
             editor_focus,
             view_focus,
         }
@@ -549,7 +613,7 @@ impl Render for Proto {
         self.renders += 1;
         if self.drag.is_some() {
             self.renders_drag += 1;
-            if self.renders_drag <= 100 {
+            if self.renders_drag <= 100 && dbg_on() {
                 eprintln!("RENDER t={:.1} n={} drags={}", tt(), self.renders, self.renders_drag);
             }
         }
@@ -598,9 +662,41 @@ impl Render for Proto {
 }
 
 impl Proto {
+    fn start_ticker(&mut self, cx: &mut Context<Self>) {
+        let Some(mode) = self.timer_mode else { return; };
+        let ei = self.exposure_idx;
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(Duration::from_millis(500)).await;
+            if let Ok(r) = this.update(cx, |this, _| this.renders) {
+                eprintln!("TICK_START t={:.1} renders={}", tt(), r);
+            }
+            for n in 0..40u32 {
+                let ok = this.update(cx, |this, cx| {
+                    match mode {
+                        TimerMode::Value => { this.modules[ei].params[0] = 0.7 + 0.05 * n as f32; }
+                        TimerMode::Text => { this.tick = n + 1; }
+                    }
+                    if dbg_on() {
+                        eprintln!("TICK n={} t={:.1} renders={} value={:.4} tick={}", n, tt(), this.renders, this.modules[ei].params[0], this.tick);
+                    }
+                    cx.notify();
+                });
+                if ok.is_err() { break; }
+                if n < 39 {
+                    cx.background_executor().timer(Duration::from_millis(16)).await;
+                }
+            }
+            if let Ok(r) = this.update(cx, |this, _| this.renders) {
+                eprintln!("TICK_END t={:.1} renders={}", tt(), r);
+            }
+        }).detach();
+    }
+
     fn on_key(&mut self, ev: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         let k = ev.keystroke.key.clone();
-        eprintln!("KEY {:?} mods_platform={}", k, ev.keystroke.modifiers.platform);
+        if dbg_on() {
+            eprintln!("KEY {:?} mods_platform={}", k, ev.keystroke.modifiers.platform);
+        }
         let key = k.as_str();
         let mods = ev.keystroke.modifiers;
 
@@ -632,7 +728,9 @@ impl Proto {
         }
 
         if key == "escape" {
-            eprintln!("MENU escape");
+            if dbg_on() {
+                eprintln!("MENU escape");
+            }
             self.menu = None;
             self.edit = None;
             self.combo = None;
@@ -652,6 +750,11 @@ impl Proto {
         if self.search.read(cx).focus_handle(cx).is_focused(window)
             || self.value_input.read(cx).focus_handle(cx).is_focused(window)
         {
+            return;
+        }
+
+        if key == "space" && self.timer_mode.is_some() {
+            self.start_ticker(cx);
             return;
         }
 
@@ -708,7 +811,9 @@ impl Proto {
 
     fn on_mouse_up(&mut self, _ev: &MouseUpEvent, _window: &mut Window, cx: &mut Context<Self>) {
         if let Some(d) = self.drag.take() {
-            eprintln!("DRAG_SUMMARY t={:.1} mm_recv={} mm_applied={} mm_skip={} renders={} renders_drag={} module={} param={} value={:.4}", tt(), self.mm_recv, self.mm_applied, self.mm_skip, self.renders, self.renders_drag, d.module, d.param, self.modules[d.module].params[d.param]);
+            if dbg_on() {
+                eprintln!("DRAG_SUMMARY t={:.1} mm_recv={} mm_applied={} mm_skip={} renders={} renders_drag={} module={} param={} value={:.4}", tt(), self.mm_recv, self.mm_applied, self.mm_skip, self.renders, self.renders_drag, d.module, d.param, self.modules[d.module].params[d.param]);
+            }
             if d.moved {
                 let pd = self.param_def(d.module, d.param);
                 let v = self.modules[d.module].params[d.param];
@@ -731,7 +836,7 @@ impl Proto {
             .border_b(px(1.))
             .border_color(rgb(C_BORDER))
             .child(div().w(px(18.)).h(px(18.)).rounded_full().bg(rgb(0x3a6ea5)))
-            .child(div().w(px(((self.renders % 16) as f32) * 6.0)).h(px(6.)).bg(rgb(0xff3b30)))
+            .when(marker_on(), |d| d.child(div().w(px(((self.renders % 16) as f32) * 6.0)).h(px(6.)).bg(rgb(0xff3b30))))
             .child(div().text_size(px(15.)).child("lightamer"))
             .child(div().text_size(px(10.)).text_color(rgb(C_DIM)).child("0.1.0 · gpui spike"))
             .child(div().flex_1())
@@ -982,7 +1087,9 @@ impl Proto {
         let off = -(self.modules_scroll.offset().y / px(1.0));
         if (off - self.scroll_reported.get()).abs() >= 0.5 {
             self.scroll_reported.set(off);
-            eprintln!("SCROLL_OFFSET y={:.1} max={:.1}", off, self.modules_scroll.max_offset().y / px(1.0));
+            if dbg_on() {
+                eprintln!("SCROLL_OFFSET y={:.1} max={:.1}", off, self.modules_scroll.max_offset().y / px(1.0));
+            }
         }
         let groups = ["active", "base", "tone", "color", "correct", "effects"];
         let tabs: Vec<AnyElement> = groups
@@ -1044,6 +1151,22 @@ impl Proto {
                         .bg(rgb(0x4b4b4b)),
                 ),
             )
+            .when(self.fixed_slot, |d| {
+                let pd = self.param_def(self.exposure_idx, 0);
+                d.child(
+                    div()
+                        .w_full()
+                        .h(px(56.))
+                        .flex()
+                        .flex_col()
+                        .justify_center()
+                        .bg(rgb(C_PANEL))
+                        .border_t(px(1.))
+                        .border_b(px(1.))
+                        .border_color(rgb(C_BORDER))
+                        .child(self.slider_row(self.exposure_idx, 0, &pd, false, cx, true)),
+                )
+            })
             .child(div().id("modules").flex_1().min_h(px(0.)).overflow_y_scroll().track_scroll(&self.modules_scroll).children(items))
     }
 
@@ -1084,7 +1207,7 @@ impl Proto {
                     })),
             )
             .child(div().min_w(px(0.)).truncate().text_size(px(13.)).child(name))
-            .child(div().w(px(((self.renders % 16) as f32) * 6.0)).h(px(6.)).bg(rgb(0x34c759)))
+            .when(marker_on(), |d| d.child(div().w(px(((self.renders % 16) as f32) * 6.0)).h(px(6.)).bg(rgb(0x34c759))))
             .child(div().flex_1())
             .child(icon_btn("☰", cx.listener(move |this, _, _, cx| {
                 let name = this.defs[this.modules[i].def].name;
@@ -1112,6 +1235,23 @@ impl Proto {
 
         let mut body = div().w_full().flex().flex_col().bg(rgb(C_BODY)).text_size(px(12.));
         if expanded {
+            if self.timer_mode == Some(TimerMode::Text) && i == self.exposure_idx {
+                body = body.child(
+                    div()
+                        .h(px(60.))
+                        .w_full()
+                        .px(px(6.))
+                        .flex()
+                        .items_center()
+                        .child(
+                            div()
+                                .font_family("Menlo")
+                                .text_size(px(48.))
+                                .text_color(rgb(C_TEXT))
+                                .child(format!("tick {:02}", self.tick)),
+                        ),
+                );
+            }
             if d.icons {
                 let icons: Vec<AnyElement> = ["camera", "picker", "sliders", "light", "person"]
                     .iter()
@@ -1273,7 +1413,24 @@ impl Proto {
                 );
             }
             for (pi, pd) in d.params.iter().enumerate() {
-                body = body.child(self.slider_row(i, pi, pd, false, cx));
+                body = body.child(self.slider_row(i, pi, pd, false, cx, false));
+                if self.timer_mode == Some(TimerMode::Text) && i == self.exposure_idx && pi == 0 {
+                    body = body.child(
+                        div()
+                            .h(px(60.))
+                            .w_full()
+                            .px(px(6.))
+                            .flex()
+                            .items_center()
+                            .child(
+                                div()
+                                    .font_family("Menlo")
+                                    .text_size(px(48.))
+                                    .text_color(rgb(C_TEXT))
+                                    .child(format!("tick {:02}", self.tick)),
+                            ),
+                    );
+                }
             }
             for b in &d.buttons {
                 let label = *b;
@@ -1321,7 +1478,7 @@ impl Proto {
                 if open {
                     let base = self.defs[self.modules[i].def].params.len();
                     for (k, pd) in adv.iter().enumerate() {
-                        body = body.child(self.slider_row(i, base + k, pd, true, cx));
+                        body = body.child(self.slider_row(i, base + k, pd, true, cx, false));
                     }
                 }
             }
@@ -1356,7 +1513,7 @@ impl Proto {
             .into_any_element()
     }
 
-    fn slider_row(&self, module: usize, param: usize, pd0: &ParamDef, advanced: bool, cx: &mut Context<Self>) -> AnyElement {
+    fn slider_row(&self, module: usize, param: usize, pd0: &ParamDef, advanced: bool, cx: &mut Context<Self>, fixed: bool) -> AnyElement {
         let pd = *pd0;
         let value = self.modules[module].params[param];
         let frac = value_to_frac(value, &pd).clamp(0.0, 1.0);
@@ -1366,38 +1523,104 @@ impl Proto {
         let text = fmt_value(value, &pd);
         let hot = self.drag.as_ref().map(|d| d.module == module && d.param == param).unwrap_or(false);
         let fill = if hot { C_FILL_HOT } else { C_FILL };
+        let mode = if module == self.exposure_idx && param == 0 { self.slider_mode } else { SliderMode::Canvas };
+        let map_module = if fixed { module + 100 } else { module };
 
-        let track = div()
-            .w_full()
-            .h(px(12.))
-            .relative()
-            .child(
-                canvas(
-                    move |b, _, _| { cell.set(b); if dbg_on() { let mut m = SLIDER_MAP.lock().unwrap(); if m.insert((module, param)) { eprintln!("SLIDER_BOUNDS t={:.1} m={} p={} origin=({:.1},{:.1}) size={:.1}x{:.1}", tt(), module, param, b.origin.x / px(1.0), b.origin.y / px(1.0), b.size.width / px(1.0), b.size.height / px(1.0)); } } },
-                    move |b, _, window, _cx| {
-                        if dbg_on() && module == 11 && param == 0 {
-                            eprintln!("CANVAS_PAINT t={:.1} frac={:.4} y={:.1} x={:.1} w={:.1}", tt(), frac, b.origin.y / px(1.0), b.origin.x / px(1.0), b.size.width / px(1.0));
-                        }
-                        let bar = Bounds::new(point(b.origin.x, b.origin.y + px(3.)), size(b.size.width, px(7.)));
-                        window.paint_quad(quad(bar, C_TRACK));
-                        let fillw = b.size.width * frac;
-                        window.paint_quad(quad(Bounds::new(bar.origin, size(fillw, px(7.))), fill));
-                        let x = b.origin.x + fillw;
-                        let mut path = PathBuilder::fill();
-                        path.move_to(point(x - px(4.), b.origin.y + px(2.)));
-                        path.line_to(point(x + px(4.), b.origin.y + px(2.)));
-                        path.line_to(point(x, b.origin.y + px(8.)));
-                        path.close();
-                        if let Ok(p) = path.build() {
-                            window.paint_path(p, rgb(0xf2f2f2));
-                        }
-                    },
+        let track: AnyElement = match mode {
+            SliderMode::Div => div()
+                .w_full()
+                .h(px(12.))
+                .relative()
+                .child(div().absolute().left(px(0.)).top(px(3.)).w_full().h(px(7.)).bg(rgb(C_TRACK)))
+                .child(div().absolute().left(px(0.)).top(px(3.)).w(relative(frac)).h(px(7.)).bg(rgb(fill)))
+                .child(
+                    div()
+                        .absolute()
+                        .left(relative(frac))
+                        .top(px(1.))
+                        .ml(px(-4.))
+                        .text_size(px(9.))
+                        .text_color(rgb(0xf2f2f2))
+                        .child("▼"),
                 )
-                .absolute()
-                .size_full(),
-            );
+                .into_any_element(),
+            SliderMode::DivFlow => div()
+                .w_full()
+                .h(px(12.))
+                .relative()
+                .child(
+                    div()
+                        .w_full()
+                        .h(px(12.))
+                        .flex()
+                        .flex_row()
+                        .items_start()
+                        .child(div().w(relative(frac)).h(px(7.)).mt(px(3.)).bg(rgb(fill)))
+                        .child(div().flex_1().h(px(7.)).mt(px(3.)).bg(rgb(C_TRACK))),
+                )
+                .child(
+                    div()
+                        .absolute()
+                        .left(relative(frac))
+                        .top(px(1.))
+                        .ml(px(-4.))
+                        .text_size(px(9.))
+                        .text_color(rgb(0xf2f2f2))
+                        .child("▼"),
+                )
+                .into_any_element(),
+            SliderMode::Kit => {
+                let logged = Rc::new(Cell::new(-1.0e9f32));
+                let state = self.slider_state.clone().expect("kit slider state");
+                let label_owned = label.to_string();
+                div()
+                    .w_full()
+                    .h(px(24.))
+                    .child(Slider::new(&state).accessibility_label(label_owned))
+                    .on_children_prepainted(move |b, _, _| {
+                        if let Some(first) = b.first() {
+                            let y = first.origin.y / px(1.0);
+                            if (y - logged.get()).abs() > 0.5 && dbg_on() {
+                                logged.set(y);
+                                eprintln!("KIT_TRACK_BOUNDS t={:.1} origin=({:.1},{:.1}) size={:.1}x{:.1}", tt(), first.origin.x / px(1.0), y, first.size.width / px(1.0), first.size.height / px(1.0));
+                            }
+                        }
+                    })
+                    .into_any_element()
+            }
+            SliderMode::Canvas => div()
+                .w_full()
+                .h(px(12.))
+                .relative()
+                .child(
+                    canvas(
+                        move |b, _, _| { cell.set(b); if dbg_on() { let mut m = SLIDER_MAP.lock().unwrap(); if m.insert((map_module, param)) { eprintln!("SLIDER_BOUNDS t={:.1} m={} p={} fixed={} origin=({:.1},{:.1}) size={:.1}x{:.1}", tt(), module, param, fixed as u8, b.origin.x / px(1.0), b.origin.y / px(1.0), b.size.width / px(1.0), b.size.height / px(1.0)); } } },
+                        move |b, _, window, _cx| {
+                            if dbg_on() && module == 11 && param == 0 {
+                                eprintln!("CANVAS_PAINT t={:.1} frac={:.4} y={:.1} x={:.1} w={:.1} fixed={}", tt(), frac, b.origin.y / px(1.0), b.origin.x / px(1.0), b.size.width / px(1.0), fixed as u8);
+                            }
+                            let bar = Bounds::new(point(b.origin.x, b.origin.y + px(3.)), size(b.size.width, px(7.)));
+                            window.paint_quad(quad(bar, C_TRACK));
+                            let fillw = b.size.width * frac;
+                            window.paint_quad(quad(Bounds::new(bar.origin, size(fillw, px(7.))), fill));
+                            let x = b.origin.x + fillw;
+                            let mut path = PathBuilder::fill();
+                            path.move_to(point(x - px(4.), b.origin.y + px(2.)));
+                            path.line_to(point(x + px(4.), b.origin.y + px(2.)));
+                            path.line_to(point(x, b.origin.y + px(8.)));
+                            path.close();
+                            if let Ok(p) = path.build() {
+                                window.paint_path(p, rgb(0xf2f2f2));
+                            }
+                        },
+                    )
+                    .absolute()
+                    .size_full(),
+                )
+                .into_any_element(),
+        };
 
-        div()
+        let row = div()
             .w_full()
             .h(px(40.))
             .px(px(6.))
@@ -1406,7 +1629,7 @@ impl Proto {
             .justify_center()
             .pr(px(10.))
             .when(advanced, |d| d.bg(rgb(0x616161)))
-            .id(("slider", module * 1000 + param))
+            .id(("slider", module * 1000 + param + if fixed { 1_000_000 } else { 0 }))
             .role(Role::Slider)
             .aria_label(label)
             .aria_numeric_value(value as f64)
@@ -1421,19 +1644,33 @@ impl Proto {
                     .child(div().flex_1())
                     .child(div().text_size(px(12.)).font_family("Menlo").text_color(rgb(C_TEXT)).child(text)),
             )
-            .child(track)
-            .on_mouse_down(MouseButton::Left, cx.listener(move |this, ev: &MouseDownEvent, window, cx| {
+            .child(track);
+
+        let row = if mode == SliderMode::Kit {
+            row.on_mouse_down(MouseButton::Left, cx.listener(move |_this, ev: &MouseDownEvent, _, _cx| {
+                if dbg_on() {
+                    eprintln!("KIT_ROW_DOWN t={:.1} pos={:.1},{:.1}", tt(), ev.position.x / px(1.0), ev.position.y / px(1.0));
+                }
+            }))
+        } else {
+            row.on_mouse_down(MouseButton::Left, cx.listener(move |this, ev: &MouseDownEvent, window, cx| {
                 window.focus(&this.editor_focus, cx);
                 if ev.click_count >= 2 {
                     this.reset_param(module, param, cx);
                     return;
                 }
-                let b = bounds_cell.get();
+                let b = if mode == SliderMode::Div || mode == SliderMode::DivFlow {
+                    Bounds::new(point(px(1167.), ev.position.y), size(px(263.), px(12.)))
+                } else {
+                    bounds_cell.get()
+                };
                 let local = (ev.position.x - b.origin.x) / px(1.0);
                 let width = b.size.width / px(1.0);
                 let f = (local / width.max(1.0)).clamp(0.0, 1.0);
                 let v = frac_to_value(f, &pd);
-                eprintln!("SLIDER_DOWN t={:.1} m={} p={} bounds=({:.1},{:.1} {:.1}x{:.1}) pos={:.1},{:.1} f={:.4} v={:.4}", tt(), module, param, b.origin.x / px(1.0), b.origin.y / px(1.0), b.size.width / px(1.0), b.size.height / px(1.0), ev.position.x / px(1.0), ev.position.y / px(1.0), f, v);
+                if dbg_on() {
+                    eprintln!("SLIDER_DOWN t={:.1} m={} p={} fixed={} bounds=({:.1},{:.1} {:.1}x{:.1}) pos={:.1},{:.1} f={:.4} v={:.4}", tt(), module, param, fixed as u8, b.origin.x / px(1.0), b.origin.y / px(1.0), b.size.width / px(1.0), b.size.height / px(1.0), ev.position.x / px(1.0), ev.position.y / px(1.0), f, v);
+                }
                 this.modules[module].params[param] = v;
                 this.drag = Some(DragState {
                     module,
@@ -1461,7 +1698,8 @@ impl Proto {
                 this.modules[module].params[param] = (cur + dir * pd.step * mult).clamp(pd.min, pd.max);
                 cx.notify();
             }))
-            .into_any_element()
+        };
+        row.into_any_element()
     }
 
     fn overlays(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {

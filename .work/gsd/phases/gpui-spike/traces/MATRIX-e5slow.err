@@ -1,0 +1,527 @@
+SCROLL_OFFSET y=-0.0 max=0.0
+SLIDER_BOUNDS t=0.0 m=1 p=0 fixed=0 origin=(1167.0,238.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.1 m=1 p=1 fixed=0 origin=(1167.0,278.5) size=263.0x12.0
+KIT_TRACK_BOUNDS t=0.2 origin=(1167.0,770.5) size=263.0x24.0
+SLIDER_BOUNDS t=0.2 m=11 p=1 fixed=0 origin=(1167.0,816.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.3 m=16 p=0 fixed=0 origin=(1167.0,1093.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.3 m=16 p=1 fixed=0 origin=(1167.0,1133.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.4 m=17 p=0 fixed=0 origin=(1167.0,1226.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.4 m=17 p=1 fixed=0 origin=(1167.0,1266.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.5 m=17 p=2 fixed=0 origin=(1167.0,1306.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.5 m=18 p=0 fixed=0 origin=(1167.0,1399.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.6 m=18 p=1 fixed=0 origin=(1167.0,1439.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.6 m=18 p=2 fixed=0 origin=(1167.0,1479.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.7 m=27 p=0 fixed=0 origin=(1167.0,2026.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.8 m=27 p=1 fixed=0 origin=(1167.0,2066.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.8 m=27 p=2 fixed=0 origin=(1167.0,2106.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.9 m=27 p=3 fixed=0 origin=(1167.0,2146.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.9 m=27 p=4 fixed=0 origin=(1167.0,2186.5) size=263.0x12.0
+SLIDER_BOUNDS t=1.0 m=27 p=5 fixed=0 origin=(1167.0,2226.5) size=263.0x12.0
+SLIDER_BOUNDS t=1.0 m=27 p=6 fixed=0 origin=(1167.0,2266.5) size=263.0x12.0
+KIT_TRACK_BOUNDS t=17.0 origin=(1167.0,770.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=78.0 origin=(1167.0,770.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=105.1 origin=(1167.0,770.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=255.1 origin=(1167.0,770.5) size=263.0x24.0
+MM t=1099.7 n=1 NO_DRAG pos=1298.0,470.0 pressed=None
+SCROLL_OFFSET y=14.0 max=1576.0
+KIT_TRACK_BOUNDS t=1407.2 origin=(1167.0,756.5) size=263.0x24.0
+SCROLL_OFFSET y=28.0 max=1576.0
+KIT_TRACK_BOUNDS t=1424.2 origin=(1167.0,742.5) size=263.0x24.0
+SCROLL_OFFSET y=42.0 max=1576.0
+KIT_TRACK_BOUNDS t=1444.2 origin=(1167.0,728.5) size=263.0x24.0
+SCROLL_OFFSET y=70.0 max=1576.0
+KIT_TRACK_BOUNDS t=1455.7 origin=(1167.0,700.5) size=263.0x24.0
+SCROLL_OFFSET y=84.0 max=1576.0
+KIT_TRACK_BOUNDS t=1475.0 origin=(1167.0,686.5) size=263.0x24.0
+SCROLL_OFFSET y=98.0 max=1576.0
+KIT_TRACK_BOUNDS t=1489.4 origin=(1167.0,672.5) size=263.0x24.0
+SCROLL_OFFSET y=112.0 max=1576.0
+KIT_TRACK_BOUNDS t=1508.1 origin=(1167.0,658.5) size=263.0x24.0
+SCROLL_OFFSET y=126.0 max=1576.0
+KIT_TRACK_BOUNDS t=1523.4 origin=(1167.0,644.5) size=263.0x24.0
+SCROLL_OFFSET y=140.0 max=1576.0
+KIT_TRACK_BOUNDS t=1541.8 origin=(1167.0,630.5) size=263.0x24.0
+SCROLL_OFFSET y=154.0 max=1576.0
+KIT_TRACK_BOUNDS t=1557.7 origin=(1167.0,616.5) size=263.0x24.0
+SCROLL_OFFSET y=168.0 max=1576.0
+KIT_TRACK_BOUNDS t=1571.8 origin=(1167.0,602.5) size=263.0x24.0
+SCROLL_OFFSET y=196.0 max=1576.0
+KIT_TRACK_BOUNDS t=1591.0 origin=(1167.0,574.5) size=263.0x24.0
+SCROLL_OFFSET y=210.0 max=1576.0
+KIT_TRACK_BOUNDS t=1605.3 origin=(1167.0,560.5) size=263.0x24.0
+SCROLL_OFFSET y=224.0 max=1576.0
+KIT_TRACK_BOUNDS t=1623.6 origin=(1167.0,546.5) size=263.0x24.0
+SCROLL_OFFSET y=238.0 max=1576.0
+KIT_TRACK_BOUNDS t=1641.5 origin=(1167.0,532.5) size=263.0x24.0
+SCROLL_OFFSET y=252.0 max=1576.0
+KIT_TRACK_BOUNDS t=1657.0 origin=(1167.0,518.5) size=263.0x24.0
+SCROLL_OFFSET y=266.0 max=1576.0
+KIT_TRACK_BOUNDS t=1672.5 origin=(1167.0,504.5) size=263.0x24.0
+SCROLL_OFFSET y=294.0 max=1576.0
+KIT_TRACK_BOUNDS t=1689.1 origin=(1167.0,476.5) size=263.0x24.0
+SCROLL_OFFSET y=308.0 max=1576.0
+KIT_TRACK_BOUNDS t=1705.9 origin=(1167.0,462.5) size=263.0x24.0
+SCROLL_OFFSET y=322.0 max=1576.0
+KIT_TRACK_BOUNDS t=1722.3 origin=(1167.0,448.5) size=263.0x24.0
+SCROLL_OFFSET y=336.0 max=1576.0
+KIT_TRACK_BOUNDS t=1739.2 origin=(1167.0,434.5) size=263.0x24.0
+SCROLL_OFFSET y=350.0 max=1576.0
+KIT_TRACK_BOUNDS t=1755.4 origin=(1167.0,420.5) size=263.0x24.0
+SCROLL_OFFSET y=364.0 max=1576.0
+KIT_TRACK_BOUNDS t=1774.4 origin=(1167.0,406.5) size=263.0x24.0
+SCROLL_OFFSET y=392.0 max=1576.0
+KIT_TRACK_BOUNDS t=1789.1 origin=(1167.0,378.5) size=263.0x24.0
+SCROLL_OFFSET y=406.0 max=1576.0
+KIT_TRACK_BOUNDS t=1805.9 origin=(1167.0,364.5) size=263.0x24.0
+SCROLL_OFFSET y=420.0 max=1576.0
+KIT_TRACK_BOUNDS t=1823.3 origin=(1167.0,350.5) size=263.0x24.0
+SCROLL_OFFSET y=434.0 max=1576.0
+KIT_TRACK_BOUNDS t=1839.4 origin=(1167.0,336.5) size=263.0x24.0
+SCROLL_OFFSET y=448.0 max=1576.0
+KIT_TRACK_BOUNDS t=1855.4 origin=(1167.0,322.5) size=263.0x24.0
+SCROLL_OFFSET y=462.0 max=1576.0
+KIT_TRACK_BOUNDS t=1872.9 origin=(1167.0,308.5) size=263.0x24.0
+SCROLL_OFFSET y=476.0 max=1576.0
+KIT_TRACK_BOUNDS t=1889.2 origin=(1167.0,294.5) size=263.0x24.0
+SCROLL_OFFSET y=504.0 max=1576.0
+KIT_TRACK_BOUNDS t=1905.2 origin=(1167.0,266.5) size=263.0x24.0
+SCROLL_OFFSET y=518.0 max=1576.0
+KIT_TRACK_BOUNDS t=1922.9 origin=(1167.0,252.5) size=263.0x24.0
+SCROLL_OFFSET y=532.0 max=1576.0
+KIT_TRACK_BOUNDS t=1938.9 origin=(1167.0,238.5) size=263.0x24.0
+SCROLL_OFFSET y=546.0 max=1576.0
+KIT_TRACK_BOUNDS t=1955.9 origin=(1167.0,224.5) size=263.0x24.0
+SCROLL_OFFSET y=574.0 max=1576.0
+KIT_TRACK_BOUNDS t=1972.6 origin=(1167.0,196.5) size=263.0x24.0
+SCROLL_OFFSET y=588.0 max=1576.0
+KIT_TRACK_BOUNDS t=1989.0 origin=(1167.0,182.5) size=263.0x24.0
+SCROLL_OFFSET y=602.0 max=1576.0
+KIT_TRACK_BOUNDS t=2007.1 origin=(1167.0,168.5) size=263.0x24.0
+KIT_ROW_DOWN t=2699.8 pos=1235.0,180.0
+ROOT_DOWN t=2699.8 pos=1235.0,180.0 clicks=1
+KIT_TRACK_BOUNDS t=2705.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2716.9 n=2 NO_DRAG pos=1238.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2721.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2733.3 n=3 NO_DRAG pos=1238.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2738.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2750.4 n=4 NO_DRAG pos=1238.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2755.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2767.5 n=5 NO_DRAG pos=1238.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2771.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2779.1 n=6 NO_DRAG pos=1241.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2788.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2795.5 n=7 NO_DRAG pos=1241.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2805.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2812.2 n=8 NO_DRAG pos=1241.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2821.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2828.8 n=9 NO_DRAG pos=1241.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2838.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2845.5 n=10 NO_DRAG pos=1241.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2855.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2861.1 n=11 NO_DRAG pos=1245.0,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2871.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2878.2 n=12 NO_DRAG pos=1245.0,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2888.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2895.3 n=13 NO_DRAG pos=1245.0,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2905.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2912.2 n=14 NO_DRAG pos=1245.0,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2921.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2928.8 n=15 NO_DRAG pos=1245.0,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2938.2 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2945.5 n=16 NO_DRAG pos=1245.0,180.0 pressed=Some(Left)
+MM t=2947.1 n=17 NO_DRAG pos=1248.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2954.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2963.3 n=18 NO_DRAG pos=1248.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2971.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2979.9 n=19 NO_DRAG pos=1248.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=2988.2 origin=(1167.0,168.5) size=263.0x24.0
+MM t=2997.0 n=20 NO_DRAG pos=1248.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3004.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3014.1 n=21 NO_DRAG pos=1248.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3021.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3031.0 n=22 NO_DRAG pos=1251.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3038.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3047.7 n=23 NO_DRAG pos=1251.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3054.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3064.8 n=24 NO_DRAG pos=1251.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3071.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3082.0 n=25 NO_DRAG pos=1251.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3088.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3099.2 n=26 NO_DRAG pos=1251.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3105.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3116.0 n=27 NO_DRAG pos=1251.6,180.0 pressed=Some(Left)
+MM t=3116.2 n=28 NO_DRAG pos=1254.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3122.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3133.2 n=29 NO_DRAG pos=1254.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3138.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3150.3 n=30 NO_DRAG pos=1254.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3155.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3167.4 n=31 NO_DRAG pos=1254.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3172.2 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3184.6 n=32 NO_DRAG pos=1254.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3188.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3201.4 n=33 NO_DRAG pos=1258.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3205.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3218.2 n=34 NO_DRAG pos=1258.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3222.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3235.4 n=35 NO_DRAG pos=1258.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3238.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3252.2 n=36 NO_DRAG pos=1258.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3258.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3269.7 n=37 NO_DRAG pos=1258.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3274.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3281.9 n=38 NO_DRAG pos=1261.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3290.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3299.2 n=39 NO_DRAG pos=1261.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3306.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3316.5 n=40 NO_DRAG pos=1261.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3324.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3333.8 n=41 NO_DRAG pos=1261.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3338.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3351.1 n=42 NO_DRAG pos=1261.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3357.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3367.1 n=43 NO_DRAG pos=1264.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3374.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3384.6 n=44 NO_DRAG pos=1264.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3390.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3402.0 n=45 NO_DRAG pos=1264.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3406.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3419.0 n=46 NO_DRAG pos=1264.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3423.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3436.2 n=47 NO_DRAG pos=1264.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3440.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3447.1 n=48 NO_DRAG pos=1268.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3455.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3464.3 n=49 NO_DRAG pos=1268.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3473.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3481.6 n=50 NO_DRAG pos=1268.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3490.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3498.4 n=51 NO_DRAG pos=1268.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3507.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3515.8 n=52 NO_DRAG pos=1268.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3523.2 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3528.9 n=53 NO_DRAG pos=1271.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3541.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3545.6 n=54 NO_DRAG pos=1271.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3556.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3562.2 n=55 NO_DRAG pos=1271.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3573.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3578.9 n=56 NO_DRAG pos=1271.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3590.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3595.6 n=57 NO_DRAG pos=1271.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3608.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3612.2 n=58 NO_DRAG pos=1271.6,180.0 pressed=Some(Left)
+MM t=3615.7 n=59 NO_DRAG pos=1274.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3621.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3632.8 n=60 NO_DRAG pos=1274.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3641.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3649.3 n=61 NO_DRAG pos=1274.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3657.2 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3666.5 n=62 NO_DRAG pos=1274.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3672.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3683.7 n=63 NO_DRAG pos=1274.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3690.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3696.8 n=64 NO_DRAG pos=1278.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3706.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3713.3 n=65 NO_DRAG pos=1278.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3723.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3729.5 n=66 NO_DRAG pos=1278.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3738.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3746.1 n=67 NO_DRAG pos=1278.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3757.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3762.7 n=68 NO_DRAG pos=1278.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3773.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3780.0 n=69 NO_DRAG pos=1278.2,180.0 pressed=Some(Left)
+MM t=3781.9 n=70 NO_DRAG pos=1281.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3789.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3799.2 n=71 NO_DRAG pos=1281.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3807.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3816.5 n=72 NO_DRAG pos=1281.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3821.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3833.6 n=73 NO_DRAG pos=1281.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3841.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3850.4 n=74 NO_DRAG pos=1281.6,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3857.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3865.7 n=75 NO_DRAG pos=1284.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3872.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3882.2 n=76 NO_DRAG pos=1284.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3890.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3898.5 n=77 NO_DRAG pos=1284.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3907.2 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3915.4 n=78 NO_DRAG pos=1284.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3922.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3932.6 n=79 NO_DRAG pos=1284.9,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3940.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3949.3 n=80 NO_DRAG pos=1288.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3956.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3966.6 n=81 NO_DRAG pos=1288.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3973.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=3983.6 n=82 NO_DRAG pos=1288.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=3990.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4001.0 n=83 NO_DRAG pos=1288.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4007.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4018.4 n=84 NO_DRAG pos=1288.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4023.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4030.5 n=85 NO_DRAG pos=1291.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4039.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4047.7 n=86 NO_DRAG pos=1291.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4057.2 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4064.4 n=87 NO_DRAG pos=1291.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4073.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4081.8 n=88 NO_DRAG pos=1291.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4090.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4099.2 n=89 NO_DRAG pos=1291.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4107.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4113.3 n=90 NO_DRAG pos=1294.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4123.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4129.9 n=91 NO_DRAG pos=1294.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4140.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4147.1 n=92 NO_DRAG pos=1294.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4156.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4164.5 n=93 NO_DRAG pos=1294.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4173.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4181.6 n=94 NO_DRAG pos=1294.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4190.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4198.4 n=95 NO_DRAG pos=1298.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4206.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4215.7 n=96 NO_DRAG pos=1298.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4223.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4233.1 n=97 NO_DRAG pos=1298.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4240.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4249.9 n=98 NO_DRAG pos=1298.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4256.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4266.4 n=99 NO_DRAG pos=1298.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4274.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4283.4 n=100 NO_DRAG pos=1301.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4289.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4300.6 n=101 NO_DRAG pos=1301.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4307.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4317.9 n=102 NO_DRAG pos=1301.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4322.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4334.9 n=103 NO_DRAG pos=1301.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4338.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4352.2 n=104 NO_DRAG pos=1301.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4355.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4369.5 n=105 NO_DRAG pos=1301.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4372.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4373.1 n=106 NO_DRAG pos=1304.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4388.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4389.9 n=107 NO_DRAG pos=1304.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4405.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4407.1 n=108 NO_DRAG pos=1304.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4422.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4424.2 n=109 NO_DRAG pos=1304.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4438.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4441.4 n=110 NO_DRAG pos=1304.8,180.0 pressed=Some(Left)
+MM t=4451.9 n=111 NO_DRAG pos=1308.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4455.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4468.3 n=112 NO_DRAG pos=1308.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4471.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4485.5 n=113 NO_DRAG pos=1308.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4489.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4502.7 n=114 NO_DRAG pos=1308.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4505.2 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4519.9 n=115 NO_DRAG pos=1308.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4522.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4536.6 n=116 NO_DRAG pos=1308.2,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4539.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4540.9 n=117 NO_DRAG pos=1311.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4556.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4558.2 n=118 NO_DRAG pos=1311.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4572.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4575.1 n=119 NO_DRAG pos=1311.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4590.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4592.3 n=120 NO_DRAG pos=1311.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4607.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4609.6 n=121 NO_DRAG pos=1311.5,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4623.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4626.9 n=122 NO_DRAG pos=1311.5,180.0 pressed=Some(Left)
+MM t=4627.2 n=123 NO_DRAG pos=1314.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4640.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4643.5 n=124 NO_DRAG pos=1314.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4657.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4660.7 n=125 NO_DRAG pos=1314.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4673.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4677.9 n=126 NO_DRAG pos=1314.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4690.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4695.2 n=127 NO_DRAG pos=1314.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4706.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4707.9 n=128 NO_DRAG pos=1318.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4723.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4726.8 n=129 NO_DRAG pos=1318.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4740.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4743.8 n=130 NO_DRAG pos=1318.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4756.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4761.1 n=131 NO_DRAG pos=1318.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4773.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4777.5 n=132 NO_DRAG pos=1318.1,180.0 pressed=Some(Left)
+MM t=4785.5 n=133 NO_DRAG pos=1321.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4790.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4802.6 n=134 NO_DRAG pos=1321.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4807.2 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4820.0 n=135 NO_DRAG pos=1321.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4823.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4837.6 n=136 NO_DRAG pos=1321.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4857.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4861.0 n=137 NO_DRAG pos=1321.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4873.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4874.5 n=138 NO_DRAG pos=1324.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4891.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4894.2 n=139 NO_DRAG pos=1324.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4907.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4910.9 n=140 NO_DRAG pos=1324.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4924.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4927.3 n=141 NO_DRAG pos=1324.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4941.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4944.6 n=142 NO_DRAG pos=1324.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4955.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4957.7 n=143 NO_DRAG pos=1328.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4974.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4977.4 n=144 NO_DRAG pos=1328.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=4991.2 origin=(1167.0,168.5) size=263.0x24.0
+MM t=4994.7 n=145 NO_DRAG pos=1328.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5007.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5012.1 n=146 NO_DRAG pos=1328.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5024.2 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5028.9 n=147 NO_DRAG pos=1328.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5040.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5044.0 n=148 NO_DRAG pos=1331.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5058.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5061.4 n=149 NO_DRAG pos=1331.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5074.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5078.8 n=150 NO_DRAG pos=1331.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5091.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5095.6 n=151 NO_DRAG pos=1331.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5107.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5112.2 n=152 NO_DRAG pos=1331.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5124.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5127.2 n=153 NO_DRAG pos=1334.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5140.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5143.6 n=154 NO_DRAG pos=1334.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5157.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5160.8 n=155 NO_DRAG pos=1334.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5174.2 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5177.5 n=156 NO_DRAG pos=1334.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5191.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5194.8 n=157 NO_DRAG pos=1334.8,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5208.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5211.4 n=158 NO_DRAG pos=1334.8,180.0 pressed=Some(Left)
+MM t=5216.1 n=159 NO_DRAG pos=1338.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5224.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5233.3 n=160 NO_DRAG pos=1338.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5241.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5250.3 n=161 NO_DRAG pos=1338.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5256.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5267.4 n=162 NO_DRAG pos=1338.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5272.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5283.7 n=163 NO_DRAG pos=1338.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5290.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5295.8 n=164 NO_DRAG pos=1341.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5306.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5312.2 n=165 NO_DRAG pos=1341.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5323.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5328.9 n=166 NO_DRAG pos=1341.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5340.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5345.5 n=167 NO_DRAG pos=1341.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5357.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5362.3 n=168 NO_DRAG pos=1341.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5373.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5377.6 n=169 NO_DRAG pos=1344.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5390.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5394.9 n=170 NO_DRAG pos=1344.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5407.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5411.6 n=171 NO_DRAG pos=1344.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5423.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5428.8 n=172 NO_DRAG pos=1344.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5441.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5445.5 n=173 NO_DRAG pos=1344.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5456.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5460.4 n=174 NO_DRAG pos=1348.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5473.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5477.7 n=175 NO_DRAG pos=1348.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5490.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5494.9 n=176 NO_DRAG pos=1348.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5505.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5512.2 n=177 NO_DRAG pos=1348.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5523.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5528.9 n=178 NO_DRAG pos=1348.1,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5540.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5545.2 n=179 NO_DRAG pos=1351.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5555.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5562.2 n=180 NO_DRAG pos=1351.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5573.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5578.9 n=181 NO_DRAG pos=1351.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5590.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5595.6 n=182 NO_DRAG pos=1351.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5607.2 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5612.3 n=183 NO_DRAG pos=1351.4,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5623.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5627.0 n=184 NO_DRAG pos=1354.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5640.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5643.5 n=185 NO_DRAG pos=1354.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5657.0 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5660.8 n=186 NO_DRAG pos=1354.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5673.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5678.0 n=187 NO_DRAG pos=1354.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5689.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5695.2 n=188 NO_DRAG pos=1354.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5707.4 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5712.2 n=189 NO_DRAG pos=1354.7,180.0 pressed=Some(Left)
+MM t=5715.5 n=190 NO_DRAG pos=1358.0,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5722.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5732.4 n=191 NO_DRAG pos=1358.0,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5740.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5749.6 n=192 NO_DRAG pos=1358.0,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5756.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5766.8 n=193 NO_DRAG pos=1358.0,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5773.2 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5783.5 n=194 NO_DRAG pos=1358.0,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5790.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5796.9 n=195 NO_DRAG pos=1361.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5807.5 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5814.1 n=196 NO_DRAG pos=1361.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5823.7 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5831.4 n=197 NO_DRAG pos=1361.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5840.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5848.4 n=198 NO_DRAG pos=1361.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5855.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5865.7 n=199 NO_DRAG pos=1361.3,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5873.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5881.8 n=200 NO_DRAG pos=1364.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5891.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5899.3 n=201 NO_DRAG pos=1364.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5907.1 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5916.5 n=202 NO_DRAG pos=1364.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5921.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5933.9 n=203 NO_DRAG pos=1364.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5940.3 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5951.3 n=204 NO_DRAG pos=1364.7,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5956.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5964.4 n=205 NO_DRAG pos=1368.0,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5972.6 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5980.9 n=206 NO_DRAG pos=1368.0,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=5990.8 origin=(1167.0,168.5) size=263.0x24.0
+MM t=5998.1 n=207 NO_DRAG pos=1368.0,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=6007.2 origin=(1167.0,168.5) size=263.0x24.0
+MM t=6015.4 n=208 NO_DRAG pos=1368.0,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=6024.9 origin=(1167.0,168.5) size=263.0x24.0
+MM t=6032.6 n=209 NO_DRAG pos=1368.0,180.0 pressed=Some(Left)
+KIT_TRACK_BOUNDS t=6038.9 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6057.2 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6074.3 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6090.8 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6108.0 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6123.9 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6140.1 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6157.7 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6174.3 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6190.9 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6207.1 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6223.7 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6239.2 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6258.1 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6273.9 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6290.8 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6307.5 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6324.1 origin=(1167.0,168.5) size=263.0x24.0
+KIT_TRACK_BOUNDS t=6341.8 origin=(1167.0,168.5) size=263.0x24.0

@@ -1,0 +1,118 @@
+SCROLL_OFFSET y=-0.0 max=0.0
+SLIDER_BOUNDS t=0.0 m=1 p=0 fixed=0 origin=(1167.0,238.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.1 m=1 p=1 fixed=0 origin=(1167.0,278.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.1 m=11 p=1 fixed=0 origin=(1167.0,816.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.2 m=16 p=0 fixed=0 origin=(1167.0,1093.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.2 m=16 p=1 fixed=0 origin=(1167.0,1133.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.3 m=17 p=0 fixed=0 origin=(1167.0,1226.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.3 m=17 p=1 fixed=0 origin=(1167.0,1266.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.4 m=17 p=2 fixed=0 origin=(1167.0,1306.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.4 m=18 p=0 fixed=0 origin=(1167.0,1399.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.5 m=18 p=1 fixed=0 origin=(1167.0,1439.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.5 m=18 p=2 fixed=0 origin=(1167.0,1479.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.6 m=27 p=0 fixed=0 origin=(1167.0,2026.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.6 m=27 p=1 fixed=0 origin=(1167.0,2066.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.6 m=27 p=2 fixed=0 origin=(1167.0,2106.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.7 m=27 p=3 fixed=0 origin=(1167.0,2146.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.7 m=27 p=4 fixed=0 origin=(1167.0,2186.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.8 m=27 p=5 fixed=0 origin=(1167.0,2226.5) size=263.0x12.0
+SLIDER_BOUNDS t=0.8 m=27 p=6 fixed=0 origin=(1167.0,2266.5) size=263.0x12.0
+MM t=1319.9 n=1 NO_DRAG pos=1298.0,470.0 pressed=None
+SCROLL_OFFSET y=14.0 max=1576.0
+SCROLL_OFFSET y=28.0 max=1576.0
+SCROLL_OFFSET y=42.0 max=1576.0
+SCROLL_OFFSET y=56.0 max=1576.0
+SCROLL_OFFSET y=70.0 max=1576.0
+SCROLL_OFFSET y=84.0 max=1576.0
+SCROLL_OFFSET y=98.0 max=1576.0
+SCROLL_OFFSET y=112.0 max=1576.0
+SCROLL_OFFSET y=126.0 max=1576.0
+SCROLL_OFFSET y=140.0 max=1576.0
+SCROLL_OFFSET y=154.0 max=1576.0
+SCROLL_OFFSET y=168.0 max=1576.0
+SCROLL_OFFSET y=182.0 max=1576.0
+SCROLL_OFFSET y=210.0 max=1576.0
+SCROLL_OFFSET y=224.0 max=1576.0
+SCROLL_OFFSET y=238.0 max=1576.0
+SCROLL_OFFSET y=252.0 max=1576.0
+SCROLL_OFFSET y=266.0 max=1576.0
+SCROLL_OFFSET y=280.0 max=1576.0
+SCROLL_OFFSET y=294.0 max=1576.0
+SCROLL_OFFSET y=322.0 max=1576.0
+SCROLL_OFFSET y=336.0 max=1576.0
+SCROLL_OFFSET y=350.0 max=1576.0
+SCROLL_OFFSET y=364.0 max=1576.0
+SCROLL_OFFSET y=378.0 max=1576.0
+SCROLL_OFFSET y=392.0 max=1576.0
+SCROLL_OFFSET y=420.0 max=1576.0
+SCROLL_OFFSET y=434.0 max=1576.0
+SCROLL_OFFSET y=448.0 max=1576.0
+SCROLL_OFFSET y=462.0 max=1576.0
+SCROLL_OFFSET y=476.0 max=1576.0
+SCROLL_OFFSET y=490.0 max=1576.0
+SCROLL_OFFSET y=504.0 max=1576.0
+SCROLL_OFFSET y=532.0 max=1576.0
+SCROLL_OFFSET y=546.0 max=1576.0
+SCROLL_OFFSET y=560.0 max=1576.0
+SCROLL_OFFSET y=574.0 max=1576.0
+SCROLL_OFFSET y=588.0 max=1576.0
+SCROLL_OFFSET y=602.0 max=1576.0
+SLIDER_DOWN t=2974.4 m=11 p=0 fixed=0 bounds=(1167.0,180.0 263.0x12.0) pos=1235.0,180.0 f=0.2586 v=-1.4500
+ROOT_DOWN t=2974.5 pos=1235.0,180.0 clicks=1
+MM t=2974.6 n=2 APPLY pos=1238.3,180.0 sx=1235.0 w=263.0 m=11 p=0 v=-1.3700 renders=44 renders_drag=0
+MM t=2974.7 n=3 APPLY pos=1241.7,180.0 sx=1235.0 w=263.0 m=11 p=0 v=-1.3000 renders=44 renders_drag=0
+RENDER t=2974.8 n=45 drags=1
+MM t=2990.9 n=4 APPLY pos=1248.3,180.0 sx=1235.0 w=263.0 m=11 p=0 v=-1.1500 renders=45 renders_drag=1
+RENDER t=3006.8 n=46 drags=2
+MM t=3008.9 n=5 APPLY pos=1248.3,180.0 sx=1235.0 w=263.0 m=11 p=0 v=-1.1500 renders=46 renders_drag=2
+MM t=3009.1 n=6 APPLY pos=1254.9,180.0 sx=1235.0 w=263.0 m=11 p=0 v=-0.9900 renders=46 renders_drag=2
+RENDER t=3023.5 n=47 drags=3
+MM t=3025.6 n=7 APPLY pos=1258.3,180.0 sx=1235.0 w=263.0 m=11 p=0 v=-0.9200 renders=47 renders_drag=3
+RENDER t=3040.2 n=48 drags=4
+MM t=3042.2 n=8 APPLY pos=1264.9,180.0 sx=1235.0 w=263.0 m=11 p=0 v=-0.7700 renders=48 renders_drag=4
+RENDER t=3056.8 n=49 drags=5
+MM t=3058.7 n=9 APPLY pos=1271.6,180.0 sx=1235.0 w=263.0 m=11 p=0 v=-0.6200 renders=49 renders_drag=5
+RENDER t=3073.6 n=50 drags=6
+MM t=3075.7 n=10 APPLY pos=1271.6,180.0 sx=1235.0 w=263.0 m=11 p=0 v=-0.6200 renders=50 renders_drag=6
+MM t=3075.8 n=11 APPLY pos=1274.9,180.0 sx=1235.0 w=263.0 m=11 p=0 v=-0.5400 renders=50 renders_drag=6
+RENDER t=3090.2 n=51 drags=7
+MM t=3092.5 n=12 APPLY pos=1274.9,180.0 sx=1235.0 w=263.0 m=11 p=0 v=-0.5400 renders=51 renders_drag=7
+MM t=3092.7 n=13 APPLY pos=1281.6,180.0 sx=1235.0 w=263.0 m=11 p=0 v=-0.3900 renders=51 renders_drag=7
+RENDER t=3106.9 n=52 drags=8
+MM t=3109.5 n=14 APPLY pos=1288.2,180.0 sx=1235.0 w=263.0 m=11 p=0 v=-0.2400 renders=52 renders_drag=8
+RENDER t=3123.5 n=53 drags=9
+MM t=3125.9 n=15 APPLY pos=1291.5,180.0 sx=1235.0 w=263.0 m=11 p=0 v=-0.1600 renders=53 renders_drag=9
+RENDER t=3140.1 n=54 drags=10
+MM t=3142.1 n=16 APPLY pos=1298.2,180.0 sx=1235.0 w=263.0 m=11 p=0 v=-0.0100 renders=54 renders_drag=10
+RENDER t=3156.9 n=55 drags=11
+MM t=3159.1 n=17 APPLY pos=1304.8,180.0 sx=1235.0 w=263.0 m=11 p=0 v=0.1400 renders=55 renders_drag=11
+RENDER t=3173.6 n=56 drags=12
+MM t=3177.2 n=18 APPLY pos=1304.8,180.0 sx=1235.0 w=263.0 m=11 p=0 v=0.1400 renders=56 renders_drag=12
+MM t=3177.4 n=19 APPLY pos=1308.2,180.0 sx=1235.0 w=263.0 m=11 p=0 v=0.2200 renders=56 renders_drag=12
+RENDER t=3190.2 n=57 drags=13
+MM t=3192.8 n=20 APPLY pos=1314.8,180.0 sx=1235.0 w=263.0 m=11 p=0 v=0.3700 renders=57 renders_drag=13
+RENDER t=3206.9 n=58 drags=14
+MM t=3210.3 n=21 APPLY pos=1314.8,180.0 sx=1235.0 w=263.0 m=11 p=0 v=0.3700 renders=58 renders_drag=14
+MM t=3210.5 n=22 APPLY pos=1321.4,180.0 sx=1235.0 w=263.0 m=11 p=0 v=0.5200 renders=58 renders_drag=14
+RENDER t=3223.6 n=59 drags=15
+MM t=3226.9 n=23 APPLY pos=1324.8,180.0 sx=1235.0 w=263.0 m=11 p=0 v=0.6000 renders=59 renders_drag=15
+RENDER t=3240.2 n=60 drags=16
+MM t=3243.8 n=24 APPLY pos=1331.4,180.0 sx=1235.0 w=263.0 m=11 p=0 v=0.7500 renders=60 renders_drag=16
+RENDER t=3256.9 n=61 drags=17
+MM t=3259.5 n=25 APPLY pos=1338.1,180.0 sx=1235.0 w=263.0 m=11 p=0 v=0.9000 renders=61 renders_drag=17
+RENDER t=3273.6 n=62 drags=18
+MM t=3276.7 n=26 APPLY pos=1338.1,180.0 sx=1235.0 w=263.0 m=11 p=0 v=0.9000 renders=62 renders_drag=18
+MM t=3276.9 n=27 APPLY pos=1341.4,180.0 sx=1235.0 w=263.0 m=11 p=0 v=0.9800 renders=62 renders_drag=18
+RENDER t=3290.2 n=63 drags=19
+MM t=3292.5 n=28 APPLY pos=1348.1,180.0 sx=1235.0 w=263.0 m=11 p=0 v=1.1300 renders=63 renders_drag=19
+RENDER t=3306.9 n=64 drags=20
+MM t=3310.2 n=29 APPLY pos=1348.1,180.0 sx=1235.0 w=263.0 m=11 p=0 v=1.1300 renders=64 renders_drag=20
+MM t=3310.3 n=30 APPLY pos=1354.7,180.0 sx=1235.0 w=263.0 m=11 p=0 v=1.2800 renders=64 renders_drag=20
+RENDER t=3323.6 n=65 drags=21
+MM t=3327.4 n=31 APPLY pos=1354.7,180.0 sx=1235.0 w=263.0 m=11 p=0 v=1.2800 renders=65 renders_drag=21
+MM t=3327.6 n=32 APPLY pos=1358.0,180.0 sx=1235.0 w=263.0 m=11 p=0 v=1.3600 renders=65 renders_drag=21
+RENDER t=3340.2 n=66 drags=22
+MM t=3342.8 n=33 APPLY pos=1364.7,180.0 sx=1235.0 w=263.0 m=11 p=0 v=1.5100 renders=66 renders_drag=22
+RENDER t=3356.9 n=67 drags=23
+MM t=3359.5 n=34 APPLY pos=1368.0,180.0 sx=1235.0 w=263.0 m=11 p=0 v=1.5800 renders=67 renders_drag=23
+DRAG_SUMMARY t=3359.7 mm_recv=34 mm_applied=33 mm_skip=0 renders=67 renders_drag=23 module=11 param=0 value=1.5800

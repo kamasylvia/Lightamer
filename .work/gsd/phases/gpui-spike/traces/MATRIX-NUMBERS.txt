@@ -1,0 +1,76 @@
+=== e1
+segment begin..end span=0.701s
+changed=1 changed_fps=1.4
+interval n=0
+all_frames=42 med=16.58ms p95=17.89ms
+lat drag_down n=1 med=42.3ms p95=42.3ms max=42.3ms
+lat drag_step n=40 med=218.5ms p95=393.6ms max=412.5ms
+lat drag_up n=1 med=65.1ms p95=65.1ms max=65.1ms
+=== e4
+segment begin..end span=0.702s
+changed=1 changed_fps=1.4
+interval n=0
+all_frames=42 med=16.54ms p95=18.16ms
+lat drag_down n=1 med=54.4ms p95=54.4ms max=54.4ms
+lat drag_step n=40 med=205.1ms p95=379.5ms max=398.0ms
+lat drag_up n=1 med=60.6ms p95=60.6ms max=60.6ms
+=== e4b
+segment begin..end span=0.699s
+changed=1 changed_fps=1.4
+interval n=0
+all_frames=42 med=16.60ms p95=19.18ms
+lat drag_down n=1 med=45.8ms p95=45.8ms max=45.8ms
+lat drag_step n=40 med=221.6ms p95=394.9ms max=413.8ms
+lat drag_up n=1 med=66.1ms p95=66.1ms max=66.1ms
+=== e5
+segment begin..end span=0.703s
+changed=14 changed_fps=19.9
+interval med=17.02ms p95=56.43ms max=64.80ms >16.7=7 >33.3=3 n=13
+all_frames=42 med=16.55ms p95=19.06ms
+lat drag_down n=1 med=54.6ms p95=54.6ms max=54.6ms
+lat drag_step n=40 med=12.6ms p95=48.3ms max=57.2ms
+lat drag_up n=1 med=27.0ms p95=27.0ms max=27.0ms
+=== e5slow
+segment begin..end span=3.646s
+changed=29 changed_fps=8.0
+interval med=84.15ms p95=250.09ms max=415.31ms >16.7=28 >33.3=28 n=28
+all_frames=218 med=16.62ms p95=19.32ms
+lat drag_down n=1 med=42.7ms p95=42.7ms max=42.7ms
+lat drag_step n=40 med=51.1ms p95=227.3ms max=382.1ms
+lat drag_up n=1 med=50.6ms p95=50.6ms max=50.6ms
+=== e6
+segment begin..end span=0.695s
+changed=18 changed_fps=25.9
+interval med=16.91ms p95=34.31ms max=38.72ms >16.7=9 >33.3=1 n=17
+all_frames=42 med=16.66ms p95=17.82ms
+lat drag_down n=1 med=50.6ms p95=50.6ms max=50.6ms
+lat drag_step n=40 med=8.8ms p95=31.1ms max=50.6ms
+lat drag_up n=1 med=10.6ms p95=10.6ms max=10.6ms
+=== e2
+e2: ticks=40 offset=1779272.2312 window=0.656s
+  changed_in_window=0 changed_fps=0.0 all_frames=52
+  app_renders_in_ticker=39 (start=45 end=84)
+=== e3
+e3: ticks=40 offset=1780470.9872 window=0.654s
+  changed_in_window=40 changed_fps=61.2 all_frames=51
+  per_tick_lat n=40 med=9.8ms p95=31.0ms max=64.3ms min=-1.8ms
+  first5=#0:64ms #1:47ms #2:30ms #3:13ms #4:14ms
+  last5=#35:7ms #36:8ms #37:8ms #38:8ms #39:8ms
+  changed_pts=0.064 0.081 0.097 0.114 0.131 0.148 0.162 0.179 0.197 0.213 0.229 0.246 0.261 0.277 0.293 0.311 0.333 0.349 0.364 0.379 ...
+  app_renders_in_ticker=39 (start=42 end=81)
+=== e7v
+e7v: ticks=40 offset=1779556.9992 window=0.662s
+  changed_in_window=39 changed_fps=58.9 all_frames=52
+  per_tick_lat n=40 med=9.2ms p95=34.8ms max=67.1ms min=-1.6ms
+  first5=#0:67ms #1:51ms #2:34ms #3:17ms #4:-1ms
+  last5=#35:5ms #36:5ms #37:5ms #38:6ms #39:4ms
+  changed_pts=0.067 0.090 0.103 0.119 0.136 0.152 0.168 0.185 0.202 0.218 0.234 0.251 0.267 0.284 0.300 0.317 0.333 0.350 0.366 0.383 ...
+  app_renders_in_ticker=39 (start=6 end=45)
+=== e7t
+e7t: ticks=40 offset=1780478.2323 window=0.657s
+  changed_in_window=24 changed_fps=36.5 all_frames=52
+  per_tick_lat n=40 med=11.3ms p95=44.4ms max=67.3ms min=6.0ms
+  first5=#0:67ms #1:46ms #2:29ms #3:12ms #4:43ms
+  last5=#35:23ms #36:6ms #37:6ms #38:28ms #39:12ms
+  changed_pts=0.067 0.115 0.133 0.164 0.184 0.219 0.235 0.285 0.300 0.333 0.351 0.381 0.398 0.451 0.466 0.499 0.514 0.547 0.564 0.613 ...
+  app_renders_in_ticker=39 (start=6 end=45)
