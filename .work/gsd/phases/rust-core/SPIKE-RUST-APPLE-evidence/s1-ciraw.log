@@ -1,0 +1,14 @@
+file: /Users/kamasylvia/Library/Application Support/Lightamer/TestRAW/7RM5-LosslessCompressedLarge.ARW
+device: Apple M4
+supportedDecoderVersions: ["7", "8", "9"]
+decoderVersion set to: 8
+nativeSize: 9504 x 6336
+render target: 9504x6336 MTLPixelFormat(115) bytes=481738752
+run 1: filter 49.4ms  full decode+render+readback 1896.0ms  extent 9504x6336
+run 2: filter 82.1ms  full decode+render+readback 945.7ms  extent 9504x6336
+run 3: filter 55.4ms  full decode+render+readback 1089.4ms  extent 9504x6336
+run 4: filter 50.7ms  full decode+render+readback 855.2ms  extent 9504x6336
+run 5: filter 50.8ms  full decode+render+readback 835.6ms  extent 9504x6336
+median decode+render+readback: 945.7 ms
+image extent: 9504x6336
+first-4KB byte sum: 300125

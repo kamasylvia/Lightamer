@@ -1,0 +1,8 @@
+public.jpeg: readback 64x48 profileName='sRGB IEC61966-2.1' colorSpaceName='kCGColorSpaceSRGB'
+public.heic: encoded 1291 bytes -> out/s3.heic
+public.heic: readback 64x48 profileName='sRGB IEC61966-2.1' colorSpaceName='kCGColorSpaceSRGB'
+public.avif: encoded 1160 bytes -> out/s3.avif
+public.avif: readback 64x48 profileName='sRGB IEC61966-2.1' colorSpaceName='kCGColorSpaceSRGB'
+ColorSync transform created: sRGB ICC -> Display P3 ICC
+ColorSyncTransformConvert(3ch float) = true
+wrote out/s3-cs-rust.bin (3072 bytes), first rgb = [0.031250,0.031250,0.017023]

@@ -1,0 +1,36 @@
+Working...
+复审完成。我按当前快照判定（复审期间产物被改写：`CORE-INVENTORY.md` mtime 21:34:23 / md5 `dc2a3c6b…`，`CORE-INVENTORY-TABLES.md` 21:33:53 / md5 `621462fd…`；21:33 前读到的 "53 目录" 已改为 "54 目录"，另新增 §2 计数口径与 §I.2 分布注记）。
+
+FAIL / 2 error + 8 minor
+
+[ERROR] CORE-INVENTORY.md:18（同 :133、:137）— 声称 MCP「13 个需控制权」；实测 14：`EditingToolset.swift:1529` 为 `refine_masks`（name 在 :1508）注册了 `requiresControl: true`，gated 集 = 13 名单 + refine_masks（editing 6 = load_image/apply_params/paste_adjustments/export_image/refine_masks/match_color；culling 6 = apply_preset + set_rating/set_flag/set_color_label/append_note/set_keywords 单 helper；project 2）；TABLES:507 自身也把 `refine_masks` 标「是」→ 正文与 TABLES 自相矛盾；命令 `grep -n 'requiresControl: true' App/Sources/Lightamer/MCP/Tools/*.swift`（10 个 gate 站点覆盖 14 工具）；建议改 14 并补 refine_masks，注明 `McpControlToolsetTests.controlCandidateTools` 的 13 是 refine_masks 之前的陈旧集（该测试名 "EXACTLY 13" 只断言候选被 gate，不排除额外 gate）。
+
+[ERROR] CORE-INVENTORY.md:3、:55（合计见 :15、:174）— 声称「App 非 UI 目录（94 文件 / 38,442 行）」+ 合计 431/156,050/100%；实测非 UI App 代码尚有 `App/Sources/Lightamer/Catalog/` 4 文件/1,229 行（4 文件均无 SwiftUI/AppKit import，仅 Foundation/LightamerCore/Observation/os）、`Settings/` 3 个非 UI 模型 818 行（AppPreferences 320 + ACASettingsModel 226 + LCRSettingsModel 272）、`App/Sources/Lightamer/EditorState+FilmMigration.swift` 77 行；命令 `for d in App/Sources/Lightamer/*/; do … find -name '*.swift' | wc -l …; done` + `grep -qE 'import (SwiftUI|AppKit)'` 逐文件筛；建议要么把 Catalog 并入 UI 档（→ 54/23,113，合计 435/157,279），要么在 §7 明列「Catalog 为 legacy feature-gated、Settings 非 UI 模型与 App 根扩展未纳入」，否则「非 UI 目录」标签与 100% 合计是过强表述（核估不受影响）。
+
+[MINOR] CORE-INVENTORY.md:151-152（TABLES:561-562）— 声称 IOPParity 83/581、IOP 101/849；实测按 Project.swift 归属 84/587 与 100/843（`LutEncodingExpansionTests`，6 方法，位于 IOPParity block `Project.swift:372`，但 BUNDLE-MAP 仍标 IOP，581/849 即由此陈旧归属产生）；命令：解析 Project.swift 各 target `sources:` + `func test` 计数；建议改 84/587、100/843，或标注「按 BUNDLE-MAP 归属」。
+
+[MINOR] CORE-INVENTORY.md:159、:161 — 声称「7 个单测 target + 未映射 3 文件 = 530 文件」；实测行合计 524+3=527，差 3 个零测试 SHARED helper（Fixtures.swift / ParityGate.swift / ChainBuilderHelpers.swift 跨 target 重复列出）；且「未映射」3 文件实际已在 `LightamerTestsLibrary`（`Project.swift:719` ImportTransportTiffTests、:723 LibraryDocumentTests、:752 MetadataTests → LIB bundle 会跑），只是 BUNDLE-MAP 无行；建议改「未登记 BUNDLE-MAP（属 LightamerTestsLibrary）」并补一行 +3 SHARED，使文件列凑足 530。
+
+[MINOR] CORE-INVENTORY.md:102 — 声称 `read_write` 2 文件（GaussianBlur、SpectralSpatial）；实测 11 文件：MaskCombine、SpectralSpatial、Ashift、Bilateral、BilateralGrid3D、GaussianBlur、DenoiseProfile、Lens、MaskPostProcess、NLMeans、Sharpen；命令 `grep -rl 'read_write' --include='*.metal' LightamerCore LightamerIOP | wc -l`；建议改 11（若原意是某特定声明形态，需写明规则）。
+
+[MINOR] CORE-INVENTORY.md:17 / TABLES:334 — 声称 CoreML 3 文件/28 处；实测字面 `MLModel` 该 3 文件为 15/9/8 = 32，全 scope 6 文件/39 处，`import CoreML` 7 文件；28 仅在「排除 `MLModelRunner` 类名引用」（15-3、9-1、8-0）时成立，且 §K 给的 `grep -rc 'MLModel'` 复现不出；建议写明该口径，或改 3/32 并附「7 文件 import」。
+
+[MINOR] CORE-INVENTORY-TABLES.md:633-634 — §K 的 metal 命令按字面从仓根跑返回 75 文件 / 13,370 行 / 188 kernels，因 `.work/gsd/phases/rust-core/SPIKE-RUST-APPLE-src/shaders/{ExposureKernels,Passthrough}.metal` 落在 `find .` 内；产品树实测 73/13,317/186（Core 13/4,531 + IOP 59/8,700 + App 1/86）；建议命令加 `-not -path './.work/*'` 或限定 `LightamerCore LightamerIOP App`。
+
+[MINOR] CORE-INVENTORY.md:128-137 — 37 键逐键均在代码中有出处（36 键 + app.cleanTerminate 各 1 命中，2 前缀成立），但「必须不变」表述下漏掉非 UI 键：`mask.behavior.default`（Settings/AppPreferences.swift:39，消费者是 in-scope 的 State/LayerEditingState.swift:372）、`catalogs.databasePath`（Catalog/CatalogPreferences.swift:33）、`organization.mode`（:37）、`keyboard.override.` 前缀（AppPreferences.swift:42），另有 UI 层 `layout.*`/`browser.mode`/`mcp_agent_*_template`；建议把 37 标注为「上述 7 目录范围内」，并把 mask.behavior.default 补入（有 in-scope 消费者）。
+
+[MINOR] CORE-INVENTORY-TABLES.md:574 — Parity 名单含不存在的 `SofteningParity`、`WhiteBlackParity`；漏列实际存在的 `TemperatureParity`、`UprightModuleParity`、`VibranceVelviaParity`（计数 34 文件/230 方法本身正确）；建议只修名单。
+
+[MINOR] CORE-INVENTORY.md:17、:85 / TABLES:267 — Metal 1,485/102 只在 `grep -oE '\bMTL[A-Z]'`（词界）下成立；其余 Apple 行用子串计数（如 CIContext 64 含 `kCIContext…`，plain 与 `\b` 差 4），plain `MTL[A-Z]` = 1,488（差 3 处来自 CIContextPool 的 `toMTLTexture`），而 §K 的 `grep -rc 'MTL[A-Z]'` 产出的是行数、两者都不是；建议 §D 注明「Metal 用词界、其余用子串」，或统一一种。
+
+已实测且成立（不报）：Core 232/80,887、IOP 105/36,719、App 94/38,442；73 .metal/13,317/186（§E 73 行逐行全对：行数与 `kernel void` 数，抽样覆盖全部）；四档 197/59,720、118/43,225、66/31,221、50/21,884 = 156,050（逐目录相加自洽；splitlines 156,050 vs wc 156,048，恰 `RasterDecoder.swift`、`StackMergeService.swift` 两个无尾换行文件解释 +1/+1）；Apple 12 族表逐行零差异（CIRAWFilter 5/18、CIContext 21/64、CIImage 13/84、CGColorSpace 40/221、CGColorConversion 2/10、VN 4/28、CGImageSource 18/95、CGImageDestination 17/71、Metal 60/60 行、UTType 9/13、CoreText 4/38、SQLite 6/117）；sidecar v13 + 22 CodingKeys、`.lalb` 6 + 13 表 + 2 FTS + 6 触发器、FNV 常量、`prettyPrinted+sortedKeys`/2s debounce/`.tmp-<uuid>`、WAL+synchronous+TRUNCATE、ExportMetadataPolicy 6 bool、11 token、MCP 34 工具；测试 530/4,623、7+1 target、Golden 28/204、Parity 34/230、并集 61/429（含 IOPP 53/374 等分布）、400/3,455、233/2,121、211 Metal/99 CI/30 ImageIO/20 UI、7 import Vision、7 import CoreML；§3 线程组 80/25/3、function_constant 4、atomic 5、texture3d 2、texture1d 1、texture2d<uint> 1、access::sample 2；CVPixelBuffer 45/3、NSFileProvider 0；§0 仅 15 行（≤40）。
+
+未覆盖：逐文件四档归类未逐文件重跑（只核目录/分档求和与 §J 相加）；§H 列清单未逐列对照 DDL；§G 34 工具主参数/schema 未逐字节核；§4.1 嵌套键只抽查 instance/layer/mask/HistoryItem；未构建/跑测试/开 GUI、未测性能、未读用户照片库。
+
+实际重跑命令（摘要）：`find … -name '*.swift' | wc -l` 与 `… | xargs cat | wc -l`（三树 + App 各目录）；`find . -name '*.metal'`、`xargs wc -l`、`grep -c 'kernel void'`（产品树与全仓对比）；Python `splitlines()/count('\n')` 431 文件；12 族 `grep -ro` 逐文件差分脚本（含 Metal 60 行 `\b` 校验）；`grep -n 'schemaVersionCurrent\|schemaVersion'`、`CREATE TABLE/VIRTUAL TABLE/TRIGGER`、StableHash 常量、`journal_mode/synchronous/TRUNCATE`、encoder 选项、debounce；37 键逐个 `grep -F` + `@AppStorage`/Key 常量/IP 前缀提取；`grep -n 'requiresControl'` 逐站点映射 + `McpFinalSnapshotTests` 34 断言 + `controlCandidateTools`；`ExportMetadataPolicy` init 默认值、`ExportFileNameTemplate` 11 case；Project.swift 解析各 target `sources:` + `func test` 计数、Golden/Parity 名称集、UI import 集；`grep -rl 'function_constant|atomic_|texture3d|texture1d|texture2d<uint|access::sample|read_write'`；`MTLSize(width: 8/16/64…` 计数；`wc -l` 最大文件与 State 行数、`@Observable` 计数；`CVPixelBuffer`/`NSFileProvider`/`import Vision|CoreML` 计数；§0 行数 `awk` 15。
+
+---
+
+## 修订状态（orchestrator，2026-11-25 21:50）
+
+2 error + 8 minor 已逐条回注，逐条对照见 `CORE-INVENTORY.md` §8；未做第二轮独立复审。复审结论保留 `FAIL / 2 error + 8 minor` 作为首轮记录。

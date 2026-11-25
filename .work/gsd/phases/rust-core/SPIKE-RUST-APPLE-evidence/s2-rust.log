@@ -1,0 +1,7 @@
+image: /Users/kamasylvia/Library/Application Support/Lightamer/TestRAW/ColorChecker.ARW
+worker thread: ThreadId(2)
+main<-channel: face completion callback on thread ThreadId(3): results=0
+main<-channel: face boxes: 0
+main<-channel: rect boxes: 1
+main<-channel: rect 0.232867,0.065037,0.251476,0.171964
+wrote out/s2-rust.txt

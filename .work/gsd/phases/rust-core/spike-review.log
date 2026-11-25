@@ -1,0 +1,60 @@
+Working...
+PASS / 3 error + 10 minor
+
+复审快照：`SPIKE-RUST-APPLE.md` @ 2026-11-25 21:34:51 / 20,518 B（复审期间仍被 omp 改写，见 m10）。复跑确认：S4 `cmp` IDENTICAL（sha `b0e01d2f…`）、S3 ColorSync `cmp` IDENTICAL（`88cffad7…`）、S2 两份 txt `cmp` IDENTICAL、S5 在 `DYLD_LIBRARY_PATH=out/bin` 下与 evidence 日志一致；S1/S1r 可执行文件也可跑。**逐字节对照本身是真的**；产品树 tracked changes = 0，HEAD 仍是 19:59 的 `671762ff`，仓内新增仅 `.work/gsd/phases/rust-core/`。
+
+## error
+
+### E1 S3「ICC 确实随文件写入」不成立
+- 证据：报告 `SPIKE-RUST-APPLE.md:98`；`src/s3/main.rs:128-130` 只调 `CGImageDestinationAddImage(..., None)`，没有传 ICC 属性。实测解析：`s3.jpg` 仅有 APP0/APP1，无 APP2 `ICC_PROFILE`；`s3.heic`/`s3.avif` 的 `colr` 是 `nclx`，无 `prof`/`rICC`（`python` 解析输出：`colrnclx…`）。`sips -g profile` 返回 `sRGB IEC61966-2.1` 只是 ImageIO 对 nclx/Exif 标准空间的映射，不是 ICC payload。
+- 建议修订：§0/§1 改为「sRGB 已知空间以 nclx/Exif 标记；ICC payload 未嵌入」；§4 增列「非 sRGB/自定义 ICC 的嵌入未验证」；用 ProPhoto 等非标准 profile 重跑并检查 JPEG APP2 / HEIF `prof`。
+
+### E2 S5「零像素拷贝」不成立
+- 证据：`bridge/src/lib.rs:81-97` 分配 `row: Vec<u8>` 并 `replaceRegion`（写入纹理 = 一次像素拷贝）；`swift-refs/s5_main.swift:43` `getBytes`（读出 = 又一次拷贝）。报告 `:18`、`:149` 的「零像素拷贝」与代码不符；`paint_texture` 只写首行（`h.min(1)`）。
+- 建议修订：改为「跨 FFI 仅传 `u64` 指针，无图像序列化；`replaceRegion`/`getBytes` 各有一次 API 拷贝，且仅首行」；§4 补「整纹理/每帧路径未验证」。
+
+### E3 rawspeed 主路径建议漏掉已知色彩未标定与 LGPL 义务
+- 证据：同目录 `rawspeed-backend/SPIKE.md:262` 明确「P1 与 P0 的 2560 位图 `mean_abs_diff 22.8/255`，P1 偏青、绿少，色彩管理还没对齐」；`:379`、`:463` 重申需 ColorChecker 标定。`:357` 记录 rawspeed = **LGPL-2.1**，静态链接需 relink 能力。新报告 `:156` 仍建议「rawspeed 作为解码主路径（速度证据充分）」，§4 `:166` 只写「许可证未复核」，未列色彩/质量与 LGPL。
+- 建议修订：§4 增列「rawspeed→DNG 输出色彩/几何未与 CIRAW 直开比对（既有证据 mean_abs_diff 22.8/255）」；§3 建议加限定「先完成色彩标定」；§1/§4 补 rawspeed LGPL-2.1 + relink。
+
+## minor
+
+### m1 S1r 的「渲染+读回」计时口径不纯
+- 证据：`src/s1r/main.rs:154` 在循环内 `vec![0u8; w*h*8]`（488 MB 分配并清零），`:170` `t_render = t_ci.elapsed()` 把它和纹理创建一起算进「渲染+读回」；S1 的 481 MB `out` 在循环外一次性分配（`src/s1/main.rs:68`）。另 `rawspeed_shim.cpp:34` 每轮 `rs_open` 都重建 `CameraMetaData`，`t_rs` 包含 cameras.xml 解析，与报告引用的上一轮 34–57 ms「解码段」不是同一口径。表内中位 54.1+11.1+14.1+306.4=385.7 ≠ 398.6（差额为未列出的 `rs_fill_info` 等）。
+- 建议：列名改「render+readback+488MB alloc/zero+texture create」；注明 S1/S1r 非严格同构；说明 398.6 是 total 列中位而非各列中位之和。
+
+### m2 S1 与上一轮 Swift 868–968 ms 不是同口径比较
+- 证据：`rawspeed-backend/SPIKE.md:23/290` 的 868/968 是 **fit 2560 + sRGB RGBA8**；S1 是 **9504×6336、RGBA16Float extended-linear sRGB + 481 MB 回读**（`src/s1/main.rs:47-68`）。报告 `:58` 由「区间一致」推出「Rust 路径没有引入额外解码开销」，缺匹配的 Swift harness。
+- 建议：标 `[推断]`，或补同输出尺寸/同像素格式的 Swift 对照；至少注明口径差异。
+
+### m3 S1r「快约 2.4×」对运行轮次敏感
+- 证据：945.7/398.6=2.37；新增复跑 890.4/356.4=2.50；上一轮 full-res P0/P1a=1048/556=1.9×（`rawspeed-backend/SPIKE.md:204-205`）。报告 `:78` 只写「约 2.4×」，未给跨轮范围。
+- 建议：写「2.1–2.5× across runs；上一轮 full-res harness 1.9×」并说明差异来源。
+
+### m4 S1r「内存峰值多 122 MB」低估
+- 证据：`rawspeed_shim.cpp:146-150` 在 `res.bytes`（122 MB）之外再 `malloc`+`memcpy`（第二份）；`src/s1r/main.rs:122` `NSData::dataWithBytes_length` 再复制（第三份）；此时 rawspeed 原始平面（122 MB）仍存活。按代码峰值至少 244–366 MB，报告 `:78` 写「内存峰值多 122 MB」。
+- 建议：改「稳态多 122 MB；峰值未实测，按代码至少 2–3 份 122 MB 并存」；若要声称峰值，补 RSS 测量。
+
+### m5 S2「VNDetectRectanglesRequest 项目未用」不成立
+- 证据：`LightamerIOP/Sources/Ashift/VisionDetect.swift:52` 使用 `VNDetectRectanglesRequest()`；同文件还用 `VNDetectHorizonRequest`。报告 `:87` 写「项目未用，仅对照」。
+- 建议：改为「项目 Ashift 亦用；本次仅作非空对照」。
+
+### m6 S2「项目实际是三类 Vision 能力」少算
+- 证据：全仓 grep 计数：`VNDetectFaceLandmarksRequest` 7、`VNDetectRectanglesRequest` 2、`VNDetectHorizonRequest` 2、`VNDetectFaceRectanglesRequest` 2、`VNGeneratePersonSegmentationRequest` 1。报告 `:144` 说「三类」，§4 也只列 landmarks/分割/抠图。
+- 建议：列实际请求集；§4 补 horizon/rectangles 未测。
+
+### m7 S3 extern 数量自相矛盾
+- 证据：`src/s3/main.rs:19-44` = 3 个 ColorSync 函数 + 6 个 `CFStringRef` 静态符号 + `CFRelease`；`:50-54` 还有 `CGColorSpaceCreateWithICCData`/`CGColorSpaceRelease`/`CFStringGetCString` 3 个。报告 `:125` 写「5 个 extern（3 函数 + 6 个静态符号）+ CFRelease」，3+6+1 已 ≥10。
+- 建议：改为「3 ColorSync 函数 + 6 静态符号 + CFRelease + 3 个 CG/CF 函数（共 13 项）」或直接列清单。
+
+### m8 若干「见日志」引用在 evidence 中不存在
+- 证据：`cs-probe.log` 只有 3 行成功输出，无「首轮失败」；`s5-bridge.log` 只有成功输出，无「编译报错原文」；报告 `:99`、`:119` 的「见日志」均无对应记录。另 `rerun-after-cleanup.log` 只有 S1 中位 890.4 / S1r 356.4，报告 `:58/:76` 同时引用的 875.7/418.9 无日志；S5 的「删 target 后复跑」也无 post-deletion 日志（`s5-bridge.log` 21:19，`out/bin` 21:21）。
+- 建议：补失败日志/复跑日志，或删「见日志」措辞并标「未留证」；S5 复跑补一份带时间戳的日志。
+
+### m9 大小声明与实测不符
+- 证据：`du -sk SPIKE-RUST-APPLE-evidence` = **84K**，报告 `:188` 写 **392 K**；Cargo.toml/lock/build.rs 实测 27,272 B（`du` 分配 36K），报告 `:178` 写 **24 K**；`target/` 已删，`:187` 的「2.2 GB 实测」无 `du` 日志可复核。
+- 建议：改 84K / ~27K；target 大小保留一行 `du` 输出或改「约 2.2 GB（已删，未留日志）」。
+
+### m10 自审未收口，报告仍在改写
+- 证据：`spike-review.log` 仍为 `Working...`；omp 进程 35843 仍在跑；报告在复审期间从 21:23 / 20,274 B 变为 21:34:51 / 20,518 B（新增 `rerun-after-cleanup.log` 引用），末尾无修订记录。任务要求「omp 域内自审 + 修订记录附在产物末尾」。
+- 建议：结束自审后 append 修订记录（至少列出 E1/E2/E3 的处置），冻结文件；在此之前不要把该报告当最终交付。

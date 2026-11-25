@@ -1,0 +1,30 @@
+=== S1 rerun after target cleanup ===
+file: /Users/kamasylvia/Library/Application Support/Lightamer/TestRAW/7RM5-LosslessCompressedLarge.ARW
+device: Apple M4
+supportedDecoderVersions: ["7", "8", "9"]
+decoderVersion set to: 8
+nativeSize: 9504 x 6336
+render target: 9504x6336 MTLPixelFormat(115) bytes=481738752
+run 1: filter 48.2ms  full decode+render+readback 1463.2ms  extent 9504x6336
+run 2: filter 57.0ms  full decode+render+readback 1154.8ms  extent 9504x6336
+run 3: filter 51.8ms  full decode+render+readback 890.4ms  extent 9504x6336
+run 4: filter 51.6ms  full decode+render+readback 876.0ms  extent 9504x6336
+run 5: filter 54.4ms  full decode+render+readback 861.2ms  extent 9504x6336
+median decode+render+readback: 890.4 ms
+image extent: 9504x6336
+first-4KB byte sum: 300125
+
+=== S1r rerun after target cleanup ===
+file: /Users/kamasylvia/Library/Application Support/Lightamer/TestRAW/7RM5-LosslessCompressedLarge.ARW
+cameras.xml: /Volumes/UNITEK/Documents/Development/Lightamer-rawspeed-spike/rawspeed/data/cameras.xml
+rawspeed: SONY ILCE-7RM5 mosaic 9568x6376 cfa=1 xtrans=0 black=512 white=15360
+supportedDecoderVersions(DNG): ["6.dng", "7.dng", "8.dng", "9.dng"]
+decoderVersion after set: 8.dng
+CIRAW nativeSize(DNG): 9568 x 6376 (488.0MB RGBA16F)
+first-4KB byte sum: 319810
+run 1: rawspeed 127.6ms  DNG build 23.2ms  CIRAW filter 177.8ms  render+readback 333.6ms  total 669.6ms (DNG 122.0MB)
+run 2: rawspeed 47.0ms  DNG build 11.7ms  CIRAW filter 12.1ms  render+readback 278.0ms  total 356.4ms (DNG 122.0MB)
+run 3: rawspeed 45.9ms  DNG build 12.6ms  CIRAW filter 12.9ms  render+readback 286.2ms  total 364.2ms (DNG 122.0MB)
+run 4: rawspeed 52.3ms  DNG build 12.7ms  CIRAW filter 12.5ms  render+readback 272.3ms  total 356.3ms (DNG 122.0MB)
+run 5: rawspeed 46.1ms  DNG build 11.8ms  CIRAW filter 12.3ms  render+readback 276.0ms  total 352.5ms (DNG 122.0MB)
+median rawspeed+in-memory-DNG+CIRAW total: 356.4 ms

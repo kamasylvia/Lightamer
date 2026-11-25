@@ -1,0 +1,6 @@
+sync: pong:swift from rust aarch64 on ThreadId(1)
+async: 42
+event: hello (thread ThreadId(3))
+textureInfo: 32x16 pixelFormat=70
+paint: true firstPixel: [12, 200, 77, 255] expected: [12, 200, 77, 255]
+ZERO-COPY TEXTURE PATH OK

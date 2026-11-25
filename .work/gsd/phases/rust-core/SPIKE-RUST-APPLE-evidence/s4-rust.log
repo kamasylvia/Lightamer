@@ -1,0 +1,4 @@
+device: Apple M4
+library compiled from source at runtime
+first texel rgba = [-0.027000, -0.027000, -0.023286, 1.0]
+wrote out/s4-rust.bin (793616 bytes)

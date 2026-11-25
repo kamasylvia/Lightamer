@@ -1,0 +1,47 @@
+Working...
+6 error + 11 minor（补记后修订；原判 5 error + 12 minor，m12 升格为 E6）
+
+## 补记：后台核查带回的决定性数据
+
+### E6（新，原 m12 升格）. 「100 个 darktable 模块 / 全量」漏掉 3 个已注册 iop（6,071 行）
+
+```
+ls src/iop/*.cc            → bilateral.cc  lens.cc  tonemap.cc   (3 个)
+wc -l 三者                  → 629         5209      233         (合计 6,071)
+cat src/iop/*.c src/iop/*.cc | wc -l  → 149,074   （报告只用了 .c 的 143,003）
+grep -nE 'add_iop\((lens|bilateral|tonemap)' src/iop/CMakeLists.txt
+  76:add_iop(tonemap  "tonemap.cc")
+  112:add_iop(bilateral "bilateral.cc")
+  195:add_iop(lens      "lens.cc" DEFAULT_VISIBLE)
+```
+
+模块身份（`description()` 自述）：`lens` = "lens correction"（**DEFAULT_VISIBLE**）；`bilateral` = "denoise (bilateral filter)"（与 `bilat.c` 是两个并列模块）；`tonemap` = "tone mapping"（deprecated）。
+
+add_iop 名单精确对账（`comm` 双向）：
+
+```
+100 个 .c 中未进 add_iop 的：ashift_lsd, ashift_nmsimplex, colorreconstruction
+101 个唯一 add_iop 名中非 .c 的：bilateral, colorreconstruct(→colorreconstruction.c), lens, tonemap
+```
+
+即真实注册模块 = **101**（98 个 `.c` 背书 + 3 个 `.cc` 背书），Table 1 实际覆盖 = 97 个注册模块 + 2 个 vendored 求解器（`ashift_lsd/nmsimplex`）+ 1 个名字变体。
+
+**受影响结论**：
+- Table 1 标题「darktable iop **全量**（100 个 `.c`）」——`全量` 不成立（103 个 C/C++ 源文件，缺 3 个模块）。
+- §0/§3 覆盖度「42 有 + 26 部分 = **68/100**」——分母应为 103；且缺的 `lens` 在 Lightamer 有现成实现（`LightamerIOP/Sources/Lens`），`bilateral` 的 Lightamer 实现已被借去给 `bilat` 行做证据，二者都可能把「有」计入。
+- §1「暗房处理链 143k（iop）」——实际 iop 总量 149,074（少 4.2%）。
+- 连带解释 E3：lensfun 的唯一 iop 消费者 `lens.cc` 根本不在表内，作者于是把 lensfun 错挂到 `cacorrect/demosaic/overlay`。
+
+### 对既有条目的确认 / 否决
+
+- **m6（域 12 缺 `gui/presenter_target.h` 91 行）确认成立**：`4,403 + 91 = 4,494` ✓。
+- **m5 / 域 11 仍不可归因**：977 行文件在 `src/libs src/dtgtk src/views src/common src/gui` 无命中（`977 ->` 空）；`+817`(libs/location.c) = 8,184、`+596`(common/gpx.c) = 7,963、`+596+817` = 8,780，均 ≠ 8,344。8,344 只能判为不可复现。
+- **m5 / 域 4 的 +378**：候选仅 `libs/recentcollect.c`(378) 与 `control/signal.h`(378)，都非导出域文件；`export_metadata.c`(356)+22 无对应文件。维持「不可从列出源码复现」，且不宜声称已找到口径。
+- `comm` 复核同时确认 Table 1 的 100 行模块名与真实 `.c` 文件名**双向零差**（此前结论不变）。
+
+## 最终判定（修订）
+
+- error 6：E1 borders 863→1,081（两处）；E2 3 crates→2；E3 lensfun 挂错模块；E4 watermark 2→3 commits；E5 Pano 7→6 文件；**E6 iop 全量清单缺 3 个 `.cc` 注册模块（6,071 行，含 DEFAULT_VISIBLE 的 lens）**。
+- minor 11：m1 口径声明（不含头文件 vs 实际含）、m2 add_iop grep -c 107/104、m3 `--no-merges` 76/75、m4 域 7 差 31 行、m5 域 4 差 378、m6 域 2/6/12 源码清单缺项、m7 MCP diffstat、m8 HEIF diffstat、m9 Watermark/Borders 证据路径、m10 `.c/.cc` 文件计数标注、m11 域 3/13 的 `~` 口径。
+
+最小修复路径：Table 1 补 3 行（`lens` 5209 / `bilateral` 629 / `tonemap` 233，状态按 Lightamer `Lens`/`Bilateral` 实况定）→ 分母改 103、重算覆盖计数 → borders 基线改 1,081 → lensfun 行改挂 `lens` → crates 改 2 → §5 口径说明改为「`.c/.cc(+.h)`」并标注 iop 行是 `.c`-only。产物未改动。

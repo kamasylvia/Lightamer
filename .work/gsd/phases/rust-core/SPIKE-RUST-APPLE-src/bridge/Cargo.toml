@@ -1,0 +1,20 @@
+[package]
+name = "lightamer-bridge"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "lightamer_bridge"
+crate-type = ["cdylib", "staticlib", "lib"]
+
+[dependencies]
+uniffi = { version = "0.32", features = ["cli"] }
+objc2 = "0.6"
+objc2-metal = "0.3"
+objc2-foundation = "0.3"
+objc2-core-foundation = "0.3"
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"

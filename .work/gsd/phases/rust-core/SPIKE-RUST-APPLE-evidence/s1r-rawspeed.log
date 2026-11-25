@@ -1,0 +1,13 @@
+file: /Users/kamasylvia/Library/Application Support/Lightamer/TestRAW/7RM5-LosslessCompressedLarge.ARW
+cameras.xml: /Volumes/UNITEK/Documents/Development/Lightamer-rawspeed-spike/rawspeed/data/cameras.xml
+rawspeed: SONY ILCE-7RM5 mosaic 9568x6376 cfa=1 xtrans=0 black=512 white=15360
+supportedDecoderVersions(DNG): ["6.dng", "7.dng", "8.dng", "9.dng"]
+decoderVersion after set: 8.dng
+CIRAW nativeSize(DNG): 9568 x 6376 (488.0MB RGBA16F)
+first-4KB byte sum: 319810
+run 1: rawspeed 47.1ms  DNG build 24.4ms  CIRAW filter 99.9ms  render+readback 359.3ms  total 538.4ms (DNG 122.0MB)
+run 2: rawspeed 54.9ms  DNG build 50.3ms  CIRAW filter 14.6ms  render+readback 294.6ms  total 431.5ms (DNG 122.0MB)
+run 3: rawspeed 62.8ms  DNG build 11.1ms  CIRAW filter 11.9ms  render+readback 306.4ms  total 398.6ms (DNG 122.0MB)
+run 4: rawspeed 54.0ms  DNG build 11.0ms  CIRAW filter 14.1ms  render+readback 294.4ms  total 382.4ms (DNG 122.0MB)
+run 5: rawspeed 54.1ms  DNG build 10.7ms  CIRAW filter 11.8ms  render+readback 312.7ms  total 395.5ms (DNG 122.0MB)
+median rawspeed+in-memory-DNG+CIRAW total: 398.6 ms

@@ -1,0 +1,4 @@
+device: Apple M4
+first texel rgba = [-0.027000, -0.027000, -0.023286, 1.0]
+wrote out/s4-swift.bin (793616 bytes)
+BYTE-IDENTICAL

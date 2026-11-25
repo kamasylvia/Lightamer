@@ -1,0 +1,12 @@
+=== S4 byte compare ===
+IDENTICAL
+b0e01d2fc92279df0749edaef793fadc8120c147f595b49a37891e07b79d3543  /Volumes/UNITEK/Documents/Development/Lightamer-rust-spike/out/s4-rust.bin
+b0e01d2fc92279df0749edaef793fadc8120c147f595b49a37891e07b79d3543  /Volumes/UNITEK/Documents/Development/Lightamer-rust-spike/out/s4-swift.bin
+
+=== S3 ColorSync compare ===
+IDENTICAL
+88cffad789429e16092e84200317bfa2b7eff095cfb60db7a526fedda8f37e62  /Volumes/UNITEK/Documents/Development/Lightamer-rust-spike/out/s3-cs-rust.bin
+88cffad789429e16092e84200317bfa2b7eff095cfb60db7a526fedda8f37e62  /Volumes/UNITEK/Documents/Development/Lightamer-rust-spike/out/s3-cs-swift.bin
+
+=== S2 diff ===
+IDENTICAL
