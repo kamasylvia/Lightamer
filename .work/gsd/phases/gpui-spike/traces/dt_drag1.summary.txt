@@ -1,0 +1,46 @@
+frames=133 changed=9 span=1.847s changed_fps=4.9
+lat move 33.5 ms (cb 34.2 ms)
+lat drag_down 95.5 ms (cb 96.2 ms)
+lat drag_step 95.5 ms (cb 96.1 ms)
+lat drag_step 85.4 ms (cb 86.1 ms)
+lat drag_step 75.3 ms (cb 76.0 ms)
+lat drag_step 65.9 ms (cb 66.6 ms)
+lat drag_step 56.8 ms (cb 57.5 ms)
+lat drag_step 46.7 ms (cb 47.4 ms)
+lat drag_step 37.1 ms (cb 37.8 ms)
+lat drag_step 27.1 ms (cb 27.8 ms)
+lat drag_step 17.0 ms (cb 17.7 ms)
+lat drag_step 7.0 ms (cb 7.7 ms)
+lat drag_step 62.2 ms (cb 62.7 ms)
+lat drag_step 52.2 ms (cb 52.7 ms)
+lat drag_step 42.2 ms (cb 42.7 ms)
+lat drag_step 31.4 ms (cb 31.9 ms)
+lat drag_step 19.8 ms (cb 20.4 ms)
+lat drag_step 9.8 ms (cb 10.3 ms)
+lat drag_step 1.0 ms (cb 1.5 ms)
+lat drag_step 24.0 ms (cb 24.6 ms)
+lat drag_step 14.6 ms (cb 15.2 ms)
+lat drag_step 4.6 ms (cb 5.2 ms)
+lat drag_step 46.0 ms (cb 47.0 ms)
+lat drag_step 35.1 ms (cb 36.1 ms)
+lat drag_step 24.7 ms (cb 25.7 ms)
+lat drag_step 16.3 ms (cb 17.3 ms)
+lat drag_step 6.3 ms (cb 7.3 ms)
+lat drag_step 26.1 ms (cb 26.5 ms)
+lat drag_step 12.6 ms (cb 13.0 ms)
+lat drag_step 2.6 ms (cb 3.0 ms)
+lat drag_step 57.9 ms (cb 58.3 ms)
+lat drag_step 47.9 ms (cb 48.3 ms)
+lat drag_step 37.9 ms (cb 38.2 ms)
+lat drag_step 27.8 ms (cb 28.2 ms)
+lat drag_step 18.3 ms (cb 18.7 ms)
+lat drag_step 8.3 ms (cb 8.7 ms)
+lat drag_step -1.7 ms (cb -1.3 ms)
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_step none
+lat drag_up none
+drag0 changed=6 fps=19.3 med=51.72ms p95=65.36ms max=65.36ms >16.7=5 >33.3=3 (all frames med=16.76ms)
+all_frames=133 med_interval=16.60ms p95=18.13ms >16.7=52

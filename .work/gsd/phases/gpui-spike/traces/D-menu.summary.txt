@@ -1,0 +1,4 @@
+frames=115 changed=10 span=1.570s changed_fps=6.4
+lat move 50.1 ms (cb 43.6 ms)
+lat rclick_down 82.7 ms (cb 69.9 ms)
+all_frames=115 med_interval=16.67ms p95=16.67ms >16.7=0

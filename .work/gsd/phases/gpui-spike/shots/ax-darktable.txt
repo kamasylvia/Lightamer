@@ -1,0 +1,8 @@
+# darktable 5.6.2 main window accessibility tree (axdump, captured 2026-11-25 before teardown)
+AXWindow/AXStandardWindow title="darktable" [32,30 1440x816]
+  AXButton/AXCloseButton [40,38 16x16]
+  AXButton/AXFullScreenButton [86,38 16x16]
+    AXGroup [87,39 14x14]
+  AXButton/AXMinimizeButton [63,38 16x16]
+  AXStaticText value="darktable" [114,38 66x16]
+# total nodes: 7 (no module panel, no slider, no combo, no history)

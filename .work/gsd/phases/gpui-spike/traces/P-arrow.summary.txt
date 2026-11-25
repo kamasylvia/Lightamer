@@ -1,0 +1,6 @@
+frames=230 changed=5 span=3.455s changed_fps=1.4
+lat move 795.7 ms (cb 796.4 ms)
+lat click_down 640.6 ms (cb 641.3 ms)
+lat key 65.6 ms (cb 66.3 ms)
+lat key 44.2 ms (cb 44.7 ms)
+all_frames=230 med_interval=16.44ms p95=23.03ms >16.7=97
