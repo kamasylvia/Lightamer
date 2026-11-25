@@ -1,0 +1,78 @@
+Working...
+`PASS / 4 error + 13 minor`
+
+HEAD 亲核：`671762ffa3a16ac3041d0b0bd60203a803e2328d`（2026-11-25 19:59:08 +0800，`docs(gpui-fast-scout)`），与产物标题一致。
+
+---
+
+## ERROR
+
+**ERROR 1: §1.3 的 SwiftUI 文件/行数 delta 混了两个population，结论方向不成立。**
+- 证据：旧研究 `research/UI-STACK-SUCCESSOR-PRE.md` §0.1 的 `106 / 34,479` 明确标的是 `App …/UI/` **目录**；本次 `123 / 46,489` 是 `rg -l '^import SwiftUI' App/Sources`（含 Library/Export/Settings/Yiyin/State 等 UI/ 之外的目录）。
+- 实测 HEAD：`UI/` 目录 = **115 文件 / 39,306 行**；`UI/` 下 `import SwiftUI` = **105 文件 / 36,559 行**；全 App `import SwiftUI` = 123 / 46,489。
+- 因此同口径 delta 是 `UI/` 目录 **+9 文件 / +4,827 行**（或 UI/ 内 SwiftUI 文件 **−1 文件 / +2,080 行**），不是 `+17 / +12,010`。产物自己的 #31 引文（`UI 105 files, Library 10, Export 4…`）也印证 123 是跨目录口径。
+- 建议修正：§1.3 该行改为两组同口径行（目录 vs 目录、`import SwiftUI` vs 不可比并标注「旧侧无同口径数据」），删掉 `+17 / +12,010`。
+
+**ERROR 2: §5.1/§8.3 把 App target 写成「显式清单无 glob」，与 HEAD 相反；132 是测试 bundle。**
+- 证据：`Project.swift:171` = `sources: ["App/Sources/**"]`（glob）。显式清单只有 7 个测试 target：IOP 103 / IOPParity 87 / Layers 69 / Library 85 / Sessions 27 / Export 42 / TestsApp 132（逐 target 从 `sources: [` 数引号）。
+- §5.1「App target = 132 source entries」把 `LightamerTestsApp`（132）当成 App target；§8.3 第 2 条「New files must be added to the App target's explicit source list (no glob)」会让每个 wave 的 lane 去改一个不存在的清单，甚至把 glob 换成显式列表（测试 target 的形态）。
+- 建议修正：改为「App/Sources 由 glob 收编，新文件只需 `tuist generate`；显式清单义务仅适用于 7 个测试 target（L041 只对测试落域成立）」。
+
+**ERROR 3: §8.1 的「最少 19 lane」与产物自己的 lane 容量模型、波次行数总量不自洽。**
+- 证据（按 §8.2 点名文件实测 `wc -l`）：wave 6 = 3,412 行（写作 ~2,800）；wave 9 = **3,622 行**（写作 ~2,300；MTKView 919 + MaskOverlay 907 + MaskToolbar 903 + Crop 677 + EDR/SoftProof 216）。两者均 ≥2× §8.1 自己给的「one medium face (1,000-1,500 lines)」上限。
+- 波次估算合计 ≈31,500 行；可迁移面 = 46,489 − 3,203(legacy) = **43,286 行** → 约 29% 无估算覆盖。另实测 9 个 inspector 文件（SkinSmooth/TextOverlay/Shadhi/Levels/ToneCurve/CropPanel/HlsPanel/LensProfileBrowser，共 **1,724 行**）在全文 0 次点名、无任何波次归属（Upright 仅以 overlay 出现）。
+- 19 × 1,500 = 28,500 行 < 43,286。结论「minimum 19 lanes」不被产物自身数据支持；`24-28 lanes` 的「realistic」也贴边。
+- 建议修正：wave 6/9 拆波或上调行数；把 9 个未分配面板补进波次；19 改为基于 43,286/每 lane 容量的推导值（≈29-31），或下调容量上限的表述。
+
+**ERROR 4: §1.3 `.inspector(` 记 0（Δ−1），HEAD 实为 1 个真实调用。**
+- 证据：`ContentView.swift:836` = `.inspector(isPresented: Binding(`（活代码，非注释）。
+- 影响：该行本意是「已退役面」清单；此条反转（未退役）。
+- 建议修正：改为 1 / Δ0，或注明它是 legacy `ContentView` 面内的存量调用。
+
+---
+
+## MINOR
+
+**MINOR 1: `Path(` 72 不可复现，正确口径 49。** 证据：`rg -o -F 'Path('` = 72，但含 `filePath(` 前缀命中；word-boundary `(?<![A-Za-z])Path\(` = **49**。建议：改用 49 并注明 token。
+
+**MINOR 2: §2.1 声明的计数方法对 `List`/drag 行不成立（结果对、方法错）。** `rg -F 'List'` = 56，13 = `List {`(3)+`List(`(10)；`rg -F 'onDrag'` = 399，2 = `onDrag {`。建议：表头改为「per-token 精确形态」并列出形态。
+
+**MINOR 3: `@State` 277 与自述 raw 方法差 1。** `rg -o -F '@State' App/Sources` = **278**（多出 `API.md:36` 文档行）；`.swift` only = 277。建议：注明「限 `*.swift`」。
+
+**MINOR 4: `.buttonStyle` 映射漏 11 个 `.borderedProminent`。** 实测 `.bordered)` = 3 ✓、`.borderedProminent)` = **11**；§2.1/§3.2 只列 65/29/3。建议：补 11 的落地（`NSButton.bezelStyle`）。
+
+**MINOR 5: §3.3 glue 表 Total 与行加总不符。** `.task` 行和 = 43（表写 50）；`.onChange` 行和 = 52（表写 56）。建议：Total 改「全局 50/56，表内仅示意」或补齐缺行。
+
+**MINOR 6: §2.3 的 `InspectorView.swift:113-127` 引错。** 该段是 `hasSpektraFilmInstance`；`editorState.instances` 的读取在 `:93`。建议：改引 `:93`。
+
+**MINOR 7: §6 的 `InspectorView.swift:380-420` 引错。** 该段是 `MetadataInfoSection`；面板选择在 `InspectorState.swift:244`（`providers[instance.opName]?.panel(...)`）。建议：改引。
+
+**MINOR 8: §9.4「Four `@FocusState` sites」随后只列三个；§2.1 自己写「3 real, 1 comment」。** 实测 4 次出现、3 个真实声明（InspectorView:397 / FilterBarView:33 / CullFaceView:29）。建议：改「three」。
+
+**MINOR 9: §4.3 spacing `2×25` 不可复现。** `rg -F 'spacing: 2'` = **27**；其余 0/4/6/8/10/12/14/16 全部逐一命中。建议：改 27 或注明口径。
+
+**MINOR 10: §5.1 Library 测试 bundle 86 vs 实测 85。** `Project.swift:696-784` 引号条目 = 85。建议：改 85。
+
+**MINOR 11: §5.3「Full suite at HEAD is ~2,080 s」的时间源是 3,991 测试的旧轮。** `acc2-round-l2.log` 末行 `TOTAL|3991/37/0|2081s`，HEAD 基线是 4,618 tests（+15.7%）；§11 已承认未重跑，但 §5.3 仍按「at HEAD」陈述。建议：降级为「下界，约 35-40 min」。
+
+**MINOR 12: §2.1「NSHostingView 9 hits / 4 files (one a doc comment)」——9 个命中里 6 个是注释，真实 mount 3 处**（LightamerShell:2407、ShellWindowControllers:52/81/117 中的三个）。建议：改「3 mounts + 6 comments」。
+
+**MINOR 13: 裁决点 D3/D4/D6 不是真需要用户定的。** D3（flag 形态）产物已给出唯一缝与代码骨架；D4 被 #31 终验（`NSHostingView` 必须归零）强制，不是选项；D6 产物已用「机械、无收益」论证推荐 W17。真正需要人裁的是 D1（顺序）、D2（删/迁 legacy）、D5（#30 怎么当门）。建议：收敛裁决点到 D1/D2/D5，其余降为「已决，留档」。
+
+---
+
+## 已复核一致（抽样，非全部）
+
+- 规模：218 / 123 / 46,489 / 470 / 81,610；`@Observable` 59 decls / 55 files / 82 occ；`State/` 24 / 10,956；`@State` 277(.swift)；`@Environment(` 156 = 151 + 4 + 1 注释；`.sheet(` 30；`.task` 61（SwiftUI 50）；`.onChange` 56；`.onAppear` 33；`PanelProvider()` 50；`LightamerSlider(` 180（40 文件）；`Slider(` 220（40 direct；8 `onEditingChanged`）；AppKit 控件 0/0/0/0（`NSSplitView` 2 命中确为 `ContentView.swift:182/190` 注释）；`NSOpenPanel` 27 / `NSSavePanel` 9；`runModal` 0。
+- INVENTORY：123 行文件名/行数逐行与 `wc -l` **全等**；Aggregate 表每列与明细加总**全等**（files 123 / 46,489 / 470 / 270 / 156 / 30 / 50 / 14 / 20 / 20）；Editor 面 24,293 = 52.2%；Library 7,907 = 17.0%。
+- 测试：531 / 187,374 / 4,626 `func test` / 0 `@Test`；SwiftUI 测试 14 / 4,655；10 个 NSHostingView 文件 66 方法且逐文件分解（6/5/9/7/9/19/2/4/2/3）全对；`AXUIElement` 5 文件 26 命中；`XCUIApplication` 1；NSMenuParityTests 677 行；`NSHostingView` 测试命中 25。
+- 引用抽查通过：`NSMenuBridge` 738 行 + `armObservation` 17 reads（:687-712）；布局 148/280（`EditorWorkspaceShellView.swift:47/:50`，库列 `WorkspaceHostView.swift:684`）；`InspectorState.registerDefaultProviders` :129-238；`InspectorView` 标签 switch :296-337；`status_toast` 两处；`InspectorRowView` 16pt/`.callout`/6/12；EDR :380-400；`WindowCapture` :233-259；`EDRHeadroomMonitor` :75-90；global drag :1960-1975；contentView 懒创建 :48-56；`SheetEnvironmentInjectionTests` :12-24；legacy 行数 1,001/658/463/397/386/298；`SettingsCatalogsPage` 1,584-1,738；`displayedPages` :103；`legacyLibraryEnabled` :203；Session 9/2,372；Catalog 4/1,229；三窗口 = Preset/MCP/Settings（`ShellWindowControllers.swift:52/81/117`）；波次算术 19 行、B 方案 2+(2..3)+(2..3)+17 = 23-25；2,081 s = 425+755+150+80+60+208+403。
+- 旧研究 19 项指标逐项与 `research/UI-STACK-SUCCESSOR-PRE.md` §0.1/§0.2 原文比对**全对**（但其 HEAD `e9034d5e` 不在本仓历史中，无法回源码复核）。
+
+## 未复核项
+
+- #24 评论里的 App 基线 `1135/6/0` 与 #27 的 2026-11-25 裁决评论（只核了 issue 存在与标题、#31 的 467、#30 的 446 s、#24 的 LGPL 验收行）。
+- #25 mask widget 形状、#27 gpui 原型代码（产物 §11 自认未读，未替其背书）。
+- 全套 wall clock 未重跑（只读 lane）。
+
+风险：ERROR 2 若不修，第一个 wave 就会产出错误的 `Project.swift` 改动；ERROR 3 不修则 19-lane 承诺在 wave 6/9 必然爆 3 h 上限。
