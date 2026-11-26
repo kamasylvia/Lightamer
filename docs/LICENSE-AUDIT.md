@@ -246,6 +246,8 @@
 | event-listener | 5.4.2 | V | Apache-2.0 OR MIT | V:1489 | https://github.com/smol-rs/event-listener | 纯 Rust 静态链接 | P |
 | event-listener-strategy | 0.5.4 | V | Apache-2.0 OR MIT | V:1499 | https://github.com/smol-rs/event-listener-strategy | 纯 Rust 静态链接 | P |
 | exr | 1.74.3 | V | BSD-3-Clause | V:1509 | https://github.com/johannesvollmer/exrs | 纯 Rust 静态链接 | P |
+| fallible-iterator | 0.3.0 | L | MIT/Apache-2.0 | L:1526 | https://github.com/sfackler/rust-fallible-iterator | 纯 Rust 静态链接 | P |
+| fallible-streaming-iterator | 0.1.9 | L | MIT/Apache-2.0 | L:1532 | https://github.com/sfackler/rust-fallible-streaming-iterator | 纯 Rust 静态链接 | P |
 | fastrand | 2.5.0 | AV | Apache-2.0 OR MIT | A:220 V:1525 | https://github.com/smol-rs/fastrand | 纯 Rust 静态链接 | P |
 | fax | 0.2.7 | V | MIT | V:1531 | https://github.com/pdf-rs/fax | 纯 Rust 静态链接 | P |
 | fdeflate | 0.3.7 | V | MIT OR Apache-2.0 | V:1537 | https://github.com/image-rs/fdeflate | 纯 Rust 静态链接 | P |
@@ -414,6 +416,7 @@
 | libloading | 0.8.9 | V | ISC | V:3784 | https://github.com/nagisa/rust_libloading/ | 纯 Rust 静态链接 | P-isc |
 | libm | 0.2.16 | V | MIT | V:3794 | https://github.com/rust-lang/compiler-builtins | 纯 Rust 静态链接 | P |
 | libredox | 0.1.25 | V | MIT | V:3800 | https://gitlab.redox-os.org/redox-os/libredox.git | 纯 Rust 静态链接 | P |
+| libsqlite3-sys | 0.40.0 | L | MIT | L:3806 | https://github.com/rusqlite/rusqlite | C bundled 静态链接（SQLite amalgamation 公有领域） | P |
 | lightamer-bridge | 0.1.0 | A | (empty) | A:305 | (workspace) | 项目源码 | W |
 | lightamer-rust-spike | 0.1.0 | A | (empty) | A:316 | (workspace) | 项目源码 | W |
 | linebender_resource_handle | 0.1.1 | V | Apache-2.0 OR MIT | V:3809 | https://github.com/linebender/raw_resource_handle | 纯 Rust 静态链接 | P |
@@ -608,6 +611,7 @@
 | ropey | 2.0.0-beta.1 | V | MIT OR Apache-2.0 | V:5651 | https://github.com/cessen/ropey | 纯 Rust 静态链接 | P |
 | roxmltree | 0.20.0 | V | MIT OR Apache-2.0 | V:5660 | https://github.com/RazrFalcon/roxmltree | 纯 Rust 静态链接 | P |
 | roxmltree | 0.21.2 | V | MIT OR Apache-2.0 | V:5666 | https://github.com/RazrFalcon/roxmltree | 纯 Rust 静态链接 | P |
+| rusqlite | 0.43.0 | L | MIT | L:5935 | https://github.com/rusqlite/rusqlite | 纯 Rust 静态链接 | P |
 | rust-embed | 8.14.0 | V | MIT | V:5675 | https://pyrossh.dev/repos/rust-embed | 纯 Rust 静态链接 | P |
 | rust-embed-impl | 8.14.0 | V | MIT | V:5686 | https://pyrossh.dev/repos/rust-embed | 纯 Rust 静态链接 | P |
 | rust-embed-utils | 8.14.0 | V | MIT | V:5701 | https://pyrossh.dev/repos/rust-embed | 纯 Rust 静态链接 | P |
@@ -773,6 +777,7 @@
 | utf_types | 1.0.0 | V | Apache-2.0 OR MIT | V:7137 | https://github.com/hsivonen/utf_types | 纯 Rust 静态链接 | P |
 | uuid | 1.29.3 | V | Apache-2.0 OR MIT | V:7143 | https://github.com/uuid-rs/uuid | 纯 Rust 静态链接 | P |
 | v_frame | 0.3.9 | V | BSD-2-Clause | V:7156 | https://github.com/rust-av/v_frame | 纯 Rust 静态链接 | P |
+| vcpkg | 0.2.15 | L | MIT/Apache-2.0 | L:7440 | https://github.com/mcgoo/vcpkg-rs | 纯 Rust 静态链接（构建期依赖） | P |
 | version_check | 0.9.5 | V | MIT/Apache-2.0 | V:7167 | https://github.com/SergioBenitez/version_check | 纯 Rust 静态链接 | P |
 | vswhom | 0.1.0 | V | MIT | V:7173 | https://github.com/nabijaczleweli/vswhom.rs | 纯 Rust 静态链接 | P |
 | vswhom-sys | 0.1.3 | V | MIT | V:7183 | https://github.com/nabijaczleweli/vswhom-sys.rs | 纯 Rust 静态链接 | P |
@@ -1104,3 +1109,23 @@
 - 4 个新行许可证（`MIT OR Apache-2.0` / `BSD-2-Clause OR Apache-2.0 OR MIT`）逐条核过，
   全部已在 `Scripts/licenses-allow.txt`；`Scripts/check-licenses.sh` 实测
   `allow=847 exception=1 fail=0`（exception 是沿用的 E1 `self_cell`），退出 0。
+
+---
+
+## §13 B12′-a 新增依赖采用记录（2026-11-26，lane B12′-a，append-only）
+
+- `lightamer-catalog` 新增 3 个直接依赖（`cargo tree -p lightamer-catalog --depth 1` 实测）：
+  外部 `rusqlite 0.43.0`（`default-features = false` + `bundled` + `backup`，T-B4 结论）、
+  `serde 1.0.229`（`derive` 特性）、`serde_json 1.0.154`；另有开发依赖 `rusqlite` 同行
+  （`bundled`，集成测试直读库断言用，不新增锁包）。`serde`/`serde_json` 已在 §4 登记且版本逐字相同。
+- 锁文件新增 5 个包（`git diff Cargo.lock` 实测）：`rusqlite 0.43.0`（MIT）、
+  `libsqlite3-sys 0.40.0`（MIT）、`fallible-iterator 0.3.0`（MIT/Apache-2.0）、
+  `fallible-streaming-iterator 0.1.9`（MIT/Apache-2.0）、`vcpkg 0.2.15`（MIT/Apache-2.0，
+  `libsqlite3-sys` 的构建期依赖，`bundled` 下不实际调用）。其余传递依赖
+  （`bitflags 2.13.2`、`smallvec 1.16.6`、`cc 1.11.3`、`find-msvc-tools 0.1.15`、
+  `shlex 2.0.1`、`pkg-config 0.3.34`）已在 §4 登记且版本逐字相同，不计入。
+- 上述 5 个已按表列格式追加表行（锁列 `L`，证据列 `L:<行>` 指本仓 `Cargo.lock` 的
+  `[[package]]` 起始行）。5 个许可证表达式（`MIT` / `MIT/Apache-2.0`）逐条核过，
+  全部已在 `Scripts/licenses-allow.txt`；`Scripts/check-licenses.sh` 实测
+  `allow=852 exception=1 fail=0`（exception 是沿用的 E1 `self_cell`），退出 0。
+- 会话 UUID 不引入 `uuid` crate：从 `/dev/urandom` 读 16 字节拼 v4（macOS/Linux 通用），零新增依赖。

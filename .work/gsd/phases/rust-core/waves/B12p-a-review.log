@@ -1,0 +1,61 @@
+PASS / 0 error + 2 minor
+# B12′-a 自审日志（复审实例只读：仅运行构建/测试，仅写本日志）
+- 复审对象：HEAD `bac7b050`（`feat(rust): B12'-a session store (tables, migrate, lock, layout)`，基线 `6c12b11a` 已核与报告一致）
+- 执行报告：`.work/gsd/phases/rust-core/waves/B12p-a-REPORT.md`
+- 复审时间：2026-11-26 21:30–22:10；机器门控：`Scripts/machine-guard.sh` → `GUARD PASS (heavy=0 free=46% swap=?M disk=?GB)`，exit 0（构建前跑过，无需 --wait）
+- 并行度：cargo 一律 -j6；禁区均未触碰（照片库/App Support/他人会话/零 push/仓库零改——除本日志外无新文件，见 §6）
+
+## error 清单（0 条）
+无。
+
+## minor 清单（2 条，均不违反任务书/计划）
+- M1：`created_by` 与 `LockOwner.version` 取 catalog 库身份而非调用程序身份。证据：`session.rs:255` `format!("lightamer-catalog {}", env!("CARGO_PKG_VERSION"))`（`program` 参数未传入）；`lock.rs:81` 同式。实测新建库 `_meta.created_by = lightamer-catalog 0.1.0`（调用方传的是 `b12review 0.1`）。T-B1 只写 `<app+版本>`，字面不违反；无测试 pin 该值；created_by 暂无下游消费者、owner 注按任务书只是 hint。建议：B12′-b 或后续把 `program`（约定含版本）传入 created_by，或在 `docs/SESSION.md` 写明此值恒为库身份。
+- M2：已提交 REPORT.md「Commit 与文件清单」「复审结论头」两节为空占位（`B12p-a-REPORT.md:192-198`），交付 §2 要求这两节有内容。复审结论客观上须待本日志之后，主进程回填即闭环（纪律"一个 commit"下应 amend；「修订记录」本次零修订可填"无"）。
+
+## 1. 第 10 节重跑（逐条）
+- `cargo test -p lightamer-catalog --locked -j6`：16/16 绿（`grep -cE '^test .* ok$'` = 16；1 lib `package_metadata_resolves` + 15 集成：create 4（含 missing_path/uuid）、adopt 1、lock 3、meta 2、migrate 3、paths 1、close 1）。PASS（§6 十五条行为均有对应测试名，见报告映射；抽查 `missing_or_corrupt_owner_note_still_opens`、`backup_captures_uncheckpointed_rows` 等确在）。
+- `cargo test --workspace --locked -j6`：`test result: ok` 67 个，`^test .* ok$` 207 行，`FAILED` 0 行。总数 207 = 192 + 15：192 = 除 15 个新增集成测试外的全部（含 catalog 原有 1 lib），15 = 本波新增集成（16 − 1 lib）。PASS。
+- 六条不崩溃 lint（§10 原命令，`-D clippy::indexing_slicing -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic -D clippy::todo -D clippy::unimplemented`）：exit 0（4m43s）。PASS。另加跑通用纪律两项：`cargo fmt --all --check` exit 0；`cargo clippy --workspace --all-targets --locked -j6 -- -D warnings` exit 0（2m31s）。PASS。
+- `cargo xtask layers` → `OK: 29 crates, no layering violations.` exit 0；`check-order-sync` → `OK (97 modules, fixture …/dt-order-679d594f5d.json)`；`check-no-iop-names` → `OK (97 names, 4 roots clean)`；`check-apple-boundary` → `OK: 29 crates, 169 rust files, no Apple-boundary violations.`；`check-i18n` → `no key-table dir 'i18n' (i18n starts at B17); nothing to compare.` exit 0。另 `cargo tree -p lightamer-catalog --depth 1 --edges normal` = rusqlite 0.43.0 / serde 1.0.229 / serde_json 1.0.154，仅此三者。PASS。
+- `Scripts/check-licenses.sh` → `allow=852 exception=1 fail=0 total=853`，exit 0；`git diff 6c12b11a HEAD --stat -- Scripts/licenses-allow.txt` 空。PASS。
+- `rg -n 'std::fs|File::|create_dir|read_dir' crates/lightamer-engine/src crates/lightamer-history/src`：零输出（exit 1）。PASS。
+- `rg -n 'refcount|reference_count' crates/lightamer-catalog`：零输出（exit 1）。PASS。
+- `git diff --stat 6c12b11a -- crates/lightamer-engine crates/lightamer-history crates/lightamer-registry 'crates/lightamer-iop-*/src/modules'`：零输出。PASS。
+- Linux 目标：`cargo check -p lightamer-catalog --all-targets --target x86_64-unknown-linux-gnu --locked -j6` 输出含 `failed to find tool "x86_64-linux-gnu-gcc": No such file or directory (os error 2)`（libsqlite3-sys 构建脚本，复现 3 处）→ 环境阻塞证据存在，按复审任务书不判 FAIL。另核 Rust 侧零 `cfg(target`/`cfg(unix)` 门（`rg 'cfg\(target|cfg\(unix' crates/lightamer-catalog` 零输出）。PASS（阻塞项）。
+- 未重跑（超出复审任务书第 1 条括号范围，如实记录）：`Scripts/rust-budget.sh --cold` 四个数、`Scripts/rust-ci-lite.sh` 全量（报告称 ALL GREEN 11m55s）。报告数字备查。
+
+## 2. 建表对照 T-B1（自建库实测）
+方法：/tmp 独立 crate（path 依赖 lightamer-catalog）调 `create_session` 建 `/tmp/b12review/T1`，`sqlite3` 直读（已清理）。
+- `SCHEMA_V1_DDL` 与 T-B1 ```sql 块：python 归一化（行尾空格）后逐字节相等（3791B）。PASS。
+- 库实测：`user_version` = 1；`journal_mode` = wal；`synchronous` = 1（NORMAL）；表 9 张（`_meta photos snapshots history_steps keywords photo_keywords albums album_photos favorites`）齐；显式索引 7 个（`idx_photos_path/rating/flag/process/captured idx_steps_hash idx_album_pos`）与 T-B1 一字同。
+- 逐表逐列：`photos` 26 列（名/序/类型/NOT NULL/默认值逐项对 T-B1：rating/label/flag 缺省 0，process 缺省 1，cursor 缺省 0，missing/is_export 缺省 0）；`history_steps` 5 列复合主键 (photo_id, idx)；`albums` 5 列、`album_photos` 3 列（position 缺省 0）、`keywords` 2 列、`photo_keywords` 2 列、`favorites` 4 列；CHECK（path_kind/rating/flag/kind）与 REFERENCES…ON DELETE CASCADE 均在 `.schema` 原文。PASS。
+- `_meta`：4 行（schema_version|1、session_uuid|v4、created_by|lightamer-catalog 0.1.0、created_at|unix 秒）；`display_aux` 缺席（符合"只建位置"）；`schema_version` 镜像 = `user_version` = 1。PASS。UUID 形 `7b917e3a-84bd-43bf-…` 版本位 4、变体位 b，v4 正确。
+- `foreign_keys` 直读为 0 系 PRAGMA 非持久（fresh 连接假象），产线连接已由测试钉死（`create.rs:80-82` 断言 journal_mode=wal、foreign_keys=1、synchronous=1，随 16/16 通过）。PASS。
+- 会话布局：Capture/Selects/Output/Trash + `T1.lmsessiondb` + `session.lock`（0B）；close 后 `session.lock.owner` 已删、`-wal` 0B（`-shm` 32K 残留系 SQLite 常态）。PASS。
+
+## 3. 迁移与备份（夹具实测）
+- 夹具哈希与 `fixtures/session/README.md` 登记一致：v0 `3feb5db8…141f13a6`（user_version 0，表 legacy_notes 三行 alpha/beta/gamma）、future `8d29e68e…07044d`（user_version 999）。PASS。
+- 迁移（`/tmp/b12mig2/M0/M0.lmsessiondb`，根名与库名一致）：open 后 `user_version` = 1、`_meta` 4 行镜像 1、legacy 三行保留、v1 九表齐 + legacy_notes 共存；`.pre-migrate.0-1.bak` 落在库旁，可打开，`user_version` = 0、仅 legacy_notes 表、三行齐 = 迁移前内容。PASS。注：.bak 与源夹具字节不同（在线备份重写页镜像），逻辑内容一致，符合"内容是迁移前"要求。
+- 在线接口：`migrate.rs:17` `use rusqlite::backup::Backup` + `backup_database`（:119-124）`Backup::new(source, &mut target)` + `run_to_completion`，非文件拷；调用点 `migrate()` :184-190 先备后迁、备份失败直接返回不迁移；空文件免备。PASS。
+- 未来版：open 报 `SchemaTooNew { found: 999, current: 1 }`，文件哈希前后同为 `8d29e68e…07044d` 逐字节不变。PASS。双保险：只读探查 `read_user_version`（:104-110）先行拒 + 读写连接内第二道臂（:166-175）。注：拒收时四个子目录 + session.lock 文件仍创建（锁已释、残留不挡重开）；"一个字节都不写"指库文件本身，已证。
+
+## 4. T1/T2 表结构
+- `snapshots` 恰两列（hash TEXT PK、json TEXT NOT NULL）；库 `.schema` 无 refcount（`grep -ci` = 0）+ 源码 `rg` 零输出（§1）；`_meta.schema_version` = `user_version`（§2 实测 1 = 1）。PASS。
+
+## 5. 测试卫生
+- `rg 'Application Support|Photos/Workspace|/Volumes/' crates/lightamer-catalog/tests/ crates/lightamer-catalog/src/`：唯一命中是 `tests/common/mod.rs:4` 注释"Nothing here ever touches the real Application Support dir or the user's photo library"（声明性注释，非路径使用）。各测试用 `ScratchDir`（`lightamer-catalog-test-<pid>-<n>-<tag>`，Drop 删，删前校验前缀）。PASS。
+- 全工作区测试跑完后 `/tmp/lightamer-catalog-test-*` 零残留（`ls` 无此文件）；`git status --porcelain` 170 条中 `grep -iE 'catalog|lightamer-catalog-test|\.lmsessiondb|session\.lock|target/'` 零命中（余者皆它波预存文件）。PASS。
+
+## 6. 提交边界
+- `git show --stat HEAD` / `--name-only`：29 文件 = `crates/lightamer-catalog/`（Cargo.toml + 7 src + 8 tests）+ `Cargo.lock` + `docs/SESSION.md` + `docs/LICENSE-AUDIT.md`（`grep -c '^-[^-]'` = 0，只追加）+ `NOTICE`（+16）+ `crates/README.md`（恰改 catalog 一行）+ `fixtures/session/`（README + 3 夹具）+ 三脚本（budget = load_busy + 四计时门包裹，门值未动；test.sh = 六 lint 开关并入；ci-lite.sh = 删重复 lint 步 + 注释更新）+ `B12p-a-REPORT.md`（+214）。零越界。PASS。
+- commit message 含 `refs #32`（尾行独立）。PASS。本日志按任务书落盘（未提交；复审实例禁 commit/push，由主进程收敛，见 M2）。
+
+## 7. 锁语义与署名抽查
+- `lock.rs`：`File::try_lock` 独占（WouldBlock → `InUse{path, owner}`，owner 缺失/损坏按 `ok()` 链容错为 None）；`TryLockError::Error` → `held=false` 无锁打开（`Session::opened_unlocked()` 上报，`session.rs:89-91`）；`release()`/`Drop` 显式 `file.unlock()` + 字节比对后删 note（防删继任者）；owner 经同目录 tmp + rename 原子写。对应测试 3/3 绿（含子进程强杀重开）。PASS。
+- 署名：`lock.rs:2` `Derived from lightcraft crates/catalog/src/lock.rs (commit afa18c675)` + 三处改造注；`NOTICE` 尾部 `LightCraft derivation (wave B12'-a, 2026-11-26)` 条目（上游 storytold/lightcraft afa18c675，MIT/Apache-2.0 任选，衍生文件 GPL-3.0）。PASS。另全部 catalog `.rs` 首行 SPDX `GPL-3.0-or-later`（逐文件核）。PASS。
+
+## 观察项（不计数，供主进程参考）
+- O1：`open_session` 传 db 文件路径时只取父目录为根、按根名拼库文件名（`SESSION.md:29` 已写明）；错名文件被静默忽略并新建规范库。调用方传规范路径即无事。
+- O2/O3：见 §3 注（拒收仍建目录/锁文件；.bak 页镜像字节不同但逻辑一致）。
+- O4：见 §2 注（fresh 连接 foreign_keys 读数假象）。
+- O5：见 §1 末（budget --cold / ci-lite 全量未重跑）。

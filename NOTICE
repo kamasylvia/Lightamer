@@ -492,3 +492,19 @@ LightCraft derivation (wave A7a, 2026-11-26):
   Each derived file carries a `Derived from lightcraft` header naming the
   upstream path and commit. These files are GPL-3.0-or-later as part of
   Lightamer.
+
+LightCraft derivation (wave B12'-a, 2026-11-26):
+
+  Upstream: LightCraft (https://github.com/storytold/lightcraft,
+  commit afa18c675; MIT or Apache-2.0 at your option — same license as
+  the A3R entry above). Derived files:
+    crates/lightamer-catalog/src/lock.rs <- crates/catalog/src/lock.rs
+      (single-writer OS lock plus hint-only owner note; reworked: session
+      directory instead of library directory, `session.lock` /
+      `session.lock.owner` names, atomic temp-plus-rename note write and
+      byte-compare removal in place of the internal `OpenedFolder::vouch`
+      check, lock-file open failure is a loud error instead of a silent
+      unlocked open).
+  The derived file carries a `Derived from lightcraft` header naming the
+  upstream path and commit. This file is GPL-3.0-or-later as part of
+  Lightamer.
