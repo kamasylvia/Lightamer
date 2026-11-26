@@ -1,0 +1,66 @@
+PASS / 0 error + 3 minor
+
+A7a 独立复审（复审实例只读，被审提交 93374d61）。工作目录 /Volumes/UNITEK/Documents/Development/Lightamer。
+先决：`git log -1 --oneline` = `93374d61 feat(rust): command dispatch with edit/history/job commands`；构建前 `Scripts/machine-guard.sh` = `GUARD PASS (heavy=0 free=73% ...)`；并行度全程 `-j6`；未跑 Swift、未碰照片库、未进 lightcraft 目录执行。
+
+## 1. 报告 §7 验收逐条重跑
+
+- `cargo test -p dt-engine --locked -j6`：`44 passed; 0 failed`，exit 0。报告称 44 ✓。
+- `cargo test -p dt-cli --locked -j6`：lib `34 passed` + bin 0 + doctest 0，exit 0。报告称 34 ✓。
+- 口径 clippy 六 `-D`（`clippy::indexing_slicing,unwrap_used,expect_used,panic,todo,unimplemented`，与 `crates/dt-engine/src/lib.rs:84-91` crate 根 deny 同集合）：
+  - `cargo clippy -p dt-engine --locked -j6 -- -D ...`（六条）：exit=101。`-->` 去重恰为 4 个越界文件 ×4 处 = 16 个 error：`crates/dt-iop-{color,display,geom,raw}/build.rs` 的 `:35`（`panic`）与 `:51,:70,:71`（`expect`）；`dt-engine` 字样在日志中 0 命中（`grep -c dt-engine` = 0）。报告方向正确（本体零命中、被 A3 build.rs 拖红），但行号只写了 `:35,51`，漏了同文件的 `:70,:71`（见 minor-2）。
+  - `cargo clippy --workspace --all-targets --locked -j6 -- -D ...`（六条）：exit=101；`-->` 去重同样只有上述 4 个 build.rs；`^error` 共 20 行 = 16 文件错 + 4 行 could-not-compile 汇总。拖红点只在越界文件 ✓。
+  - 等价覆盖成立：`Scripts/rust-ci-lite.sh` 内含 `cargo clippy --workspace --all-targets -- -D warnings`，随全绿链通过（见下），exit 0。任务书字面要求的六 `-D` 绿因越界文件未达成，但执行方按纪律无权改越界路径，且已在报告 §9「未做」如实披露 → minor-1，非执行方错误。
+- `rg -n 'thread::spawn|thread::Builder|spawn\(' crates/dt-engine/src`：仅 `jobs.rs:166,168`（池创建 `Builder::new().spawn`）✓ 与报告一致。
+- `rg -n 'std::fs|File::|std::net|TcpStream' crates/dt-engine/src`：无输出，exit=1 ✓。
+- `cargo xtask layers`：`OK: 28 crates, no layering violations.` ✓；`check-no-iop-names`：`OK (97 names, 4 roots clean)` ✓；`check-apple-boundary`：`OK: 28 crates, 153 rust files, no Apple-boundary violations.` ✓；`check-order-sync`：`OK (97 modules, ...)` ✓。四条与报告逐字一致。
+- `Scripts/check-licenses.sh`（无参数）：`allow=69 exception=0 fail=0`，exit=0 ✓；`serde 1.0.229` + `serde_json 1.0.154` 均为 `MIT OR Apache-2.0` ALLOW ✓。
+- `cargo test --workspace --locked -j6`：exit 0；`test result` 求和 passed=180 failed=0 ✓。对账：`git grep -c '#\[test\]' HEAD -- '*.rs'` 求和 177，`93374d61^` 同口径 129，delta=48；`git diff 93374d61^ HEAD -- crates/dt-engine apps/dt-cli | grep -c "^+.*#\[test\]"` = 48。48 = dt-engine 43（44 实测 − 1 壳遗留，`git show 93374d61^:crates/dt-engine/src/lib.rs | grep -c test` = 1）+ dt-cli 5（`commands.rs` 新增 5 法）。180 的构成：176 单元 + 4 doctest（`dt_apple/dt_history/dt_registry/dt_testkit` 各 1，均为 A7a 前已有；dt-engine/dt-cli doctest 均为 0）；177 属性 − 1 = 176 可运行，差的 1 个是 `capabilities.rs:158-181` 的 `apple`/`not(apple)` 互斥 cfg 测试（同一门只编其一）。基线 132 = 128 + 4 doctest，同式成立。报告「180 = 132 + 48（43 + 5）」✓。
+- `Scripts/rust-ci-lite.sh`：`rust-test: tests total passed=180` … `rust-ci-lite: ALL GREEN`，exit=0 ✓。
+- 保护路径：`git diff --stat 93374d61^ HEAD -- 'crates/dt-iop-*/src/modules' crates/dt-registry/fixtures crates/dt-history` 无输出 ✓（dt-history 零改）。
+
+## 2. LightCraft 骨架对照（LC 树只读，未执行）
+
+- `cmd/mod.rs` 实测 225 行（`wc -l`）✓。`CommandSpec{id,label,menu,shortcut,params,enabled,run,journal,explicit_targets}`（LC `:53-70`）：A7a 取 `id/enabled/run` + 查找 `find_command`（LC `:184-186` 线性查，我方 `command.rs:160-162` 同构），按任务书 drop `menu/shortcut/journal`，`params` 从 `&'static str` prose 升级为机器可读 `ParamSpec` 表（FRAMEWORK §2 点名的 LC 缺口，不继承）✓ 无抄漏。
+- `lib.rs:512-513` 唯一入口 `Session::execute` ✓ 实测存在；A7a `Engine::execute`（`engine.rs:132-167`）同为唯一入口：find → 形状/必填校验（新增，LC 无）→ `needs_session` 门 → `enabled` 门 → 快照 → run → 失败整体恢复 + 成功后按序送事件。LC `run_command` 内的 panic-guard/journal/XMP 自写/persist-NotSaved 未移植：journal 按任务书不做；XMP 本波无；persist 按 A-15 归 B12′/B13′（草稿会话无持久化已在文档写明）✓ 取舍与任务书一致。
+- `:587` `commit` 记一步 ✓ 实测存在；A7a 改历史命令每张照片恰记一步、标签=命令标识（`develop.rs` 各 run 经 `stack.commit(CMD, …)`；`mutating_commands_commit_one_labelled_step_per_photo` 钉死）✓。
+- `:724/:749` `undo_step/redo_step` ✓ 实测存在，且 `cmd/edit.rs:7,11` 的 `edit.undo/edit.redo` 命令即调此二函数（撤销重做即命令 ✓）。A7a 按任务书 §3 更名为 `history.undo/redo`（+ `history.goto`），落在 A4b per-photo 游标模型上移动游标、不记步；T-A8 只定义了 `history.goto`，未定义 undo/redo 标识，故更名与「T-A8 标识一个字不许改」无冲突（重叠的 6 个标识 `develop.set/reset/copy/paste`、`history.goto`、`process.update` 与 T-A8 逐字同；另 7 个来自任务书 §3/§5 处方）✓。
+- `:925-945` 拖动合并 ✓ 实测存在（`develop_op` + `begin_interaction` + `end_interaction`；另 `develop.rs:1137-1145` 有 `develop.beginInteraction/endInteraction/cancelInteraction` 三命令）。A7a 四命令同标识（另加 LC 以直调实现的 live 更新为显式 `develop.updateInteraction`，任务书处方）+ 结束无变不记步（`run_end` 比 `len()`，镜像 LC `end_interaction` 的 unchanged 早返）✓。
+- `activity.rs` 实测 438 行 ✓。取消/进度语义在 `jobs.rs` 成立：取消旗 `AtomicBool` 下块边界自查（`JobCtx::is_cancelled`，`worker_loop` 起跑前查 + `run_cancel` 置旗）✓；进度经结果队列 → `collect()` 收成 `JobProgress` 事件 ✓；完成带 `cancelled` ✓；panic 捕获变 `Failed` 且池存活（`panicking_job_fails_without_hurting_the_pool`）✓。一处有意偏离：LC 终态行随 Guard 释放移除，A7a 终态行保留可读（`JobStatus::is_terminal` + 文档写明），任务书 §5 未要求移除 ✓ 可接受。
+
+## 3. 出错后状态不变：13 命令 × 3 坏参数（交叉比对，非只看名）
+
+- 注册表实测 13 条：`develop::SPECS` 8（`develop.rs:22-179`）+ `history::SPECS` 4（`history.rs:18-79`，含 `process.update`）+ `jobs::SPECS` 1（`jobs.rs:387-399`）✓。
+- `bad_params_cases()`（`engine.rs:458-567`）逐字列出 13 行，标识与注册表一一对应（`develop.set/reset/copy/paste/beginInteraction/updateInteraction/endInteraction/cancelInteraction`、`history.undo/redo/goto`、`process.update`、`job.cancel`）✓；每行 3 组，第三组均为该命令真校验（`updateInteraction` 第三组为全参合法形 → 无交互错 `NoInteraction`；`history.undo/redo` 第三组为无处可去 → `Disabled`；`history.goto` 第三组 `index 99` → `BadParam`；余类推）✓。
+- 断言（`engine.rs:569-598`）：表长 == 注册数、每标识确在册、每行恰 3 组、每组 `expect_err`（必须失败）、`state()` 逐位相等 + `state_digest()` 不变 ✓。`job.cancel` 三组在空表下走 `Disabled` 门先行（仍是错误 + 原子），其 `JobNotFound` 腿由 `job_cancel_refuses_an_empty_table_and_an_unknown_job` 另覆 ✓。结论：13×3 真测 ✓。
+
+## 4. 署名 + 模块名隔离
+
+- 取用三文件头均有 `// Derived from lightcraft <路径> (commit 0da998f2) — reworked:` + 改造说明（`command.rs:2-6`、`engine.rs:2-8`、`jobs.rs:2-8`，`head -6` 实测）✓；`NOTICE:470-491` 有 A7a 条目（上游 URL + commit + MIT-or-Apache + 三文件映射），符合 FRAMEWORK-TABLES T-F10 N1 模板（`:216-221`）✓。另全部新文件带 `SPDX-License-Identifier: GPL-3.0-or-later` 首行（抽查 9 文件全有）✓。
+- 高危字面量独立抽查：`rg -n -i '"temperature"|"exposure"|"gamma"|"crop"|"flip"|"rotate"|"sharpen"' crates/dt-engine/src apps/dt-cli/src/commands.rs` 无输出 exit=1 ✓；机器门 `check-no-iop-names: OK (97 names, 4 roots clean)` ✓；报告「真实标识一处运行时取首项」指测试 `set_accepts_a_registry_id_resolved_at_runtime`（注册表运行时取，非字面量）✓。
+
+## 5. 线程/磁盘/Drop
+
+- `rg -n 'join\(|\.join\(|recv\(|std::fs|env::|process::Command' crates/dt-engine/src` 全部命中：`jobs.rs:192`（`JobPool::Drop` 内 join workers）、`jobs.rs:208`（worker 线程自身阻塞取活）、`jobs.rs:365`（`try_recv` 非阻塞）、`engine.rs:909`（测试模块内 `collect_until`  helper）、`lib.rs:111-112`（`env!` 编译期包名断言，测试内）。生产命令路径（全部 `run_*` + `execute` + `collect`）零 join/零阻塞 recv/零 fs/零 net/零运行时 env ✓。
+- `collect`（`engine.rs:225-230`）= `jobs.drain()`（`try_recv` 循环）+ `dispatch`，不执行命令 ✓。
+- `Drop`：`Engine::drop` 置全部未完旗（`cancel_all_unfinished`）→ `JobPool::drop` 置 shutdown + 丢弃发送端（排队任务跳过）+ join 运行中（`jobs.rs:186-196` + `worker_loop:213-215` 跳过臂）✓；`dropping_the_engine_stops_jobs_and_joins_workers`（200 段协作循环 + `drop(engine)` 即返）通过（在 44 内）✓。无孤儿线程 ✓。
+
+## 6. 提交面 + §5 重跑
+
+- `git show --stat 93374d61` 共 18 文件：报告 1 + `Cargo.lock` + `NOTICE` + `apps/dt-cli/{Cargo.toml,commands.rs,lib.rs,main.rs}` + `crates/README.md` + `crates/dt-engine/{Cargo.toml,command.rs,develop.rs,engine.rs,error.rs,event.rs,history.rs,jobs.rs,lib.rs}` + `docs/LICENSE-AUDIT.md`。逐项落在任务书纪律允许集内（根 `Cargo.toml` 未动是允许非必须；`A7a-review.log` 随本复审落盘）✓；message 含 `refs #32`（`git log -1 --format=%B` 实测末行）✓；零 push（复审不 push）✓。
+- `/tmp/A7a-five.jsonl` 内容与报告 §5 五行业务逐字节同；`target/debug/dt-cli run --file /tmp/A7a-five.jsonl --photos p1` 输出五行的 digest/步数/游标与报告逐位同（L1/L3 `9734988588720734966`，L2/L4/L5 `6191755046607852097`），exit=1 ✓。两次运行 md5 均为 `71afef7ab28ef98cf9a4578f2aeeab4f`，省略 `--photos` 同值 ✓（与报告 md5 一致）。坏模块复跑：L1 `FAIL ... unknown module '__no_such_module__'` + `photos=[p1:1:0]`，exit=1 ✓（L2/L3 连带 `nothing to undo/redo`、L4 goto ok、L5 空剪贴板失败，均为逐条全跑语义下的正确级联）。六行变体：6 行全 ok，paste 后 `p1:3:2`，redo digest 与 paste 行同值（`14339411454891062829`），exit=0 ✓。
+
+## 7. run/help 语义
+
+- `run_file`（`commands.rs:155-188`）：空行/`#` 跳过 → 逐行全跑 → 失败计数；`cmd_run`（`main.rs:305-332`）`failed>0` → `Failure::Check` → exit 1 ✓。报告「paste 注定失败」说明成立：五文件此前无 `copy`，空剪贴板按 §3 处方为错；且失败行状态与 L4 同 digest（原子性在 CLI 面成立）✓。
+- `help` 含 A5 五子命令（fetch/render/cmp/emit-xmp/selftest）+ `capabilities`（A6）+ `commands [ID]`/`run`（A7a）✓；`capabilities` 首行 `backend=macos`、`metal.device=Apple M4` ✓。
+
+## minor 明细（3，无 error）
+
+- minor-1：任务书验收字面要求 `cargo clippy -p dt-engine -- -D…（六条）` 绿，实测 exit=101。但 16 个 error 全在 A3 越界文件（4 个 `build.rs`），`dt-engine` 本体零命中，且 crate 根 deny + `clippy --workspace --all-targets -- -D warnings`（随 ci-lite）均为绿；执行方按路径纪律无权修越界文件，并在报告 §9 如实披露。归档为遗留债，不计执行方错误。
+- minor-2：报告 §7/§9 把拖红点写成「四个 build.rs:35,51」，实测每文件 4 处（`:35` panic + `:51,:70,:71` expect），共 16 个 error。行号引用不全，措辞级。
+- minor-3：报告 §8 的 commit 哈希与 `git show --stat` 未填（仍是 ``<hash 见 log>`` / 「（落盘后填）」占位；实测哈希 `93374d61`，stat 见本日志 §6）。任务书交付#2 要求填最终值，属报告完整性缺口；§10 修订记录亦空（本复审 0 error，无需修订回注，如需闭环可由塔台补一行注记）。
+
+## 复审用命令索引
+
+`git log -1` / `Scripts/machine-guard.sh` / `cargo test -p dt-engine --locked -j6` / `cargo test -p dt-cli --locked -j6` / `cargo clippy -p dt-engine …` + `--workspace …`（六 `-D`，日志 `/tmp/A7a-clippy-engine.log`、`/tmp/A7a-clippy-ws.log`）/ 两条 `rg`（§1）/ `cargo xtask {layers,check-no-iop-names,check-apple-boundary,check-order-sync}` / `Scripts/check-licenses.sh` / `cargo test --workspace --locked -j6`（日志 `/tmp/A7a-ws-test.log`）/ `git grep -c '#\[test\]'`（HEAD vs 父）/ `Scripts/rust-ci-lite.sh` / `git diff --stat 93374d61^ HEAD -- <保护路径>` / `git show --stat 93374d61` + `git log -1 --format=%B` / `target/debug/dt-cli run`（五/六行、坏模块、md5×3）/ `target/debug/dt-cli {help,capabilities}` / `cargo tree --depth 1 -p {dt-engine,dt-cli}` / `cargo build -p dt-cli --locked -j6`。
