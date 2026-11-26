@@ -81,6 +81,11 @@
 
 **9. 文档。** `docs/SESSION.md`（中文正文，英文标题）里你负责的一半：会话包在磁盘上长什么样、每一张表是干什么的、库的版本怎样升级、锁的语义、路径的规矩、关会话和崩溃之后各是什么样。备份、恢复、校验那几节留给下一波，你只把「备份要用在线备份接口、不许裸拷」这一条写上。`crates/README.md` 里这个 crate 的那一行改成现在的内容。
 
+## 顺手做的两件小事（都是脚本，A9 之后露出来的）
+
+1. **预算脚本在机器忙的时候不要判失败。** `Scripts/rust-budget.sh` 里「界面改一个文件之后重新构建」那一项对机器负载很敏感：同一步今天量到过 4 秒、63 秒、122 秒、267 秒，最后一次是机器上别人在跑重活时量的，判了失败，其实是噪声。改成：量之前记下系统的平均负载和守卫的结果；机器忙的时候（你自己定阈值，写明理由）打印「测不准」和当时的负载，这一项不算失败；机器空闲时照旧按门判。冷构建那几项同理。
+2. **总检查里的 lint 只跑一遍。** 现在 `Scripts/rust-ci-lite.sh` 里有一遍带六条「不崩溃」开关的 clippy，`Scripts/rust-test.sh` 里又有一遍普通的 clippy，两遍参数不同，检查器把整个工作区查了两遍，总检查从三分钟变成了近二十分钟。把那六个开关并进测试脚本里已有的那一条 clippy 命令，删掉总检查里重复的那一步。文档零警告那一步保留。
+
 ## 计划规定的通用纪律（原样保留）
 
 - 变换规则：不改任何封存面；新增依赖先过许可证的允许清单。
@@ -117,7 +122,7 @@
 
 ## 纪律
 
-- **只允许新增或修改这些路径**：`crates/lightamer-catalog/` 整个目录；根目录的 `Cargo.lock`（只有需要时才动 `Cargo.toml`）；`docs/SESSION.md`；`docs/LICENSE-AUDIT.md`（只追加行）；`NOTICE`；`crates/README.md`（只改这个 crate 的那一行）；`fixtures/session/`；`.work/gsd/phases/rust-core/waves/B12p-a-REPORT.md` 和 `B12p-a-review.log`。其它一律不动。
+- **只允许新增或修改这些路径**：`crates/lightamer-catalog/` 整个目录；根目录的 `Cargo.lock`（只有需要时才动 `Cargo.toml`）；`docs/SESSION.md`；`docs/LICENSE-AUDIT.md`（只追加行）；`NOTICE`；`crates/README.md`（只改这个 crate 的那一行）；`fixtures/session/`；`Scripts/rust-budget.sh`、`Scripts/rust-test.sh`、`Scripts/rust-ci-lite.sh`（只许做上面「顺手」的两件事）；`.work/gsd/phases/rust-core/waves/B12p-a-REPORT.md` 和 `B12p-a-review.log`。其它一律不动。
 - 一个 commit，Conventional Commits 格式，message 带 `refs #32`，逐路径 `git add`，禁 `git add -A`。**零 push。**
 - 构建之前跑一次 `Scripts/machine-guard.sh` 并记录输出。并行度 6 以内。不用 `caffeinate`；一定要用就带秒数上限，不留孤儿进程。
 - 不跑 Swift 的构建和测试，不打开任何图形程序，不运行 `darktable`，不下载安装任何软件，不安装任何编译目标。不在 LightCraft 的目录里运行任何东西。

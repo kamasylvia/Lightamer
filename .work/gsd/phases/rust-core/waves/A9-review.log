@@ -1,0 +1,117 @@
+PASS / 0 error + 3 minor
+
+A9 独立复审 log（只读复审；唯一写动作是本文件覆盖写）。
+复审 HEAD：14a9ef80 chore(rust): enforce no-panic lints workspace-wide, clear doc warnings
+父提交：285d7923 docs(rust-core): record the A8 verification（`git log -1 --format=%P HEAD` = 285d792327838a07f2222ebc792c0c69bdbac4af ✓）
+报告：.work/gsd/phases/rust-core/waves/A9-REPORT.md（101 行，已读，仅作声称清单，不轻信）。
+纪律：machine-guard 先行通过；export CARGO_BUILD_JOBS=6；重活一次一个、串行（clippy→doc→test→build→linux→ci-lite→clippy-warn，无并发重活；test/ci-lite 后台跑时只做 git/grep 轻核）。
+未碰：Swift 构建/测试、图形程序、darktable、下载安装、凭据、照片库。
+
+守门命令与输出：
+$ Scripts/machine-guard.sh; echo EXIT:$?
+GUARD PASS (heavy=0 free=63% swap=?M disk=?GB)
+EXIT:0
+
+1a. 六条 lint 全工作区（须 exit 0）——通过
+$ export CARGO_BUILD_JOBS=6
+$ cargo clippy --workspace --all-targets --locked -- -D clippy::indexing_slicing -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic -D clippy::todo -D clippy::unimplemented 2>&1 | tee /tmp/A9r-clippy.log; echo CLIPPY_EXIT:${PIPESTATUS[0]}
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 58.20s
+CLIPPY_EXIT:0
+$ grep -c "^error" /tmp/A9r-clippy.log → 0
+$ grep -c "^warning" /tmp/A9r-clippy.log → 0
+$ grep -c Checking /tmp/A9r-clippy.log → 25；另 4 行 Compiling（iop-geom/iop-color/iop-raw/iop-display，build.rs 域 crate 走编译行），25+4=29 = 工作区成员数（cargo metadata 计 29，见 4 节），全覆盖。
+
+1b. 文档零警告（须 exit 0）——通过
+$ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked 2>&1 | tee /tmp/A9r-doc.log; echo DOC_EXIT:${PIPESTATUS[0]}
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 42.76s
+Generated …/target/doc/lightamer_ai/index.html and 28 other files
+DOC_EXIT:0
+$ grep -c warning /tmp/A9r-doc.log → 0；grep -c "^error" → 0。
+
+1c. 测试（须绿且 passed≥192）——通过
+$ cargo test --workspace --locked 2>&1 | tee /tmp/A9r-test.log; echo TEST_EXIT:${PIPESTATUS[0]}
+TEST_EXIT:0
+$ grep "^test result" /tmp/A9r-test.log | grep -oE "[0-9]+ passed" | grep -oE "[0-9]+" | awk '{s+=$1} END {print s}' → 192
+failed 加总 → 0；无 FAILED/failures 行。
+
+1d. CLI 输出逐字节比对（11 项 out+err+code）——通过，11/11 全同
+$ cargo build -p lightamer-cli --locked 2>&1 | tail -5
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.82s；BUILD_EXIT:0
+基线存在性：/tmp/A9-five.jsonl（331B，5 行 JSONL）与 /tmp/a9base/（11 组 .out/.err/.code + 执行日志）在位；基线 md5 与报告 §1 表逐位一致（help 946bec58…/capabilities 6df1f547…/commands 2cdd2665…/commands_one 6feee898…/run 52434d65…/cmp_same b21dccec…/cmp_mirror 14e9b0e4…/其余空）。
+重跑 argv（BIN=target/debug/lightamer-cli，cwd=仓库根）：
+help → help；capabilities → capabilities；commands → commands；commands_one → commands develop.set；
+run → run --file /tmp/A9-five.jsonl --photos p1；
+cmp_same → cmp Resources/TestFixtures/NeutralTarget.png Resources/TestFixtures/NeutralTarget.png；
+cmp_diff → cmp Resources/TestFixtures/NeutralTarget.png Resources/TestFixtures/sample-gradient.png（160x120 RGBA，与基线 err 的 geometry mismatch 1024x1024 d16 c3 vs 160x120 d8 c4 一致）；
+cmp_tol → 同上 + --tol 0.01 --max-mean 1 --min-in-tol 0.5；
+cmp_missing → cmp /tmp/A9-nope.png Resources/TestFixtures/NeutralTarget.png；
+cmp_mirror → cmp …NeutralTarget.png …NeutralTarget.png --mirror-x；
+bad_sub → frobnicate。
+退出码：help/capabilities/commands/commands_one/cmp_same/cmp_mirror=0；run=1；cmp_diff/cmp_tol/cmp_missing/bad_sub=2，与基线值一致。
+比对（新输出落 /tmp/A9r-cli/；基线 .code 带 trailing \n 而初版复审文件无，属 harness 落盘格式差，补换行后重比）：
+$ for n in help capabilities commands commands_one run cmp_same cmp_diff cmp_tol cmp_missing cmp_mirror bad_sub; do cmp /tmp/a9base/$n.out /tmp/A9r-cli/$n.out && cmp /tmp/a9base/$n.err /tmp/A9r-cli/$n.err && cmp /tmp/a9base/$n.code /tmp/A9r-cli/$n.code && echo "$n-IDENTICAL"; done
+help-IDENTICAL / capabilities-IDENTICAL / commands-IDENTICAL / commands_one-IDENTICAL / run-IDENTICAL / cmp_same-IDENTICAL / cmp_diff-IDENTICAL / cmp_tol-IDENTICAL / cmp_missing-IDENTICAL / cmp_mirror-IDENTICAL / bad_sub-IDENTICAL
+新输出 md5 与报告 §1 表 11 项全对（非空 7 项 md5 逐位同，空 4 项 d41d8…）。
+
+1e. 26 产品 crate 根部声明计数——通过，26/26
+层表 L0–L5（crates/xtask/src/layers.rs TABLE）：L0 5 + L1 9 + L2 3 + L3 6 + L4 1 + L5 2 = 26 家（testkit/cli/xtask 不在内）。
+$ for c in <26 名>; do grep -q indexing_slicing "crates/$c/src/lib.rs" && grep -q unimplemented "crates/$c/src/lib.rs" && echo $c; done | wc -l → 26（26 名全列出，见 /tmp/A9r-26list.txt）
+逐家 grep -c：history/apple/engine 各 lint 计 1（旧式单 deny 块，A9 未动）；其余 23 家 indexing/unwrap/expect 计 2（deny 块 + #[cfg(test)] allow 行各 1）、panic/todo/unimplemented 计 1。engine 的 unimplemented 计 2（deny 块 1 + 注释提及 1）。全部持有六条。
+
+1f. xtask 四检查 + boundary——通过，全绿且数值与报告一致
+$ cargo xtask layers → OK: 29 crates, no layering violations.（LAYERS_EXIT:0）
+$ cargo xtask check-order-sync → check-order-sync: OK (97 modules, fixture …/dt-order-679d594f5d.json)（ORDER_EXIT:0）
+$ cargo xtask check-no-iop-names → check-no-iop-names: OK (97 names, 4 roots clean)（NAMES_EXIT:0）
+$ cargo xtask check-apple-boundary → OK: 29 crates, 155 rust files, no Apple-boundary violations.（APPLE_EXIT:0）
+$ Scripts/rust-apple-boundary.sh | tail -15 → STEP 7/7 PASS … ALL GREEN（BOUNDARY_EXIT:0）
+
+1g. Linux target 检查（须 exit 0 且零警告）——通过
+$ cargo check --workspace --exclude lightamer-gpui --all-targets --target x86_64-unknown-linux-gnu --locked 2>&1 | tee /tmp/A9r-linux.log; echo LINUX_EXIT:${PIPESTATUS[0]}
+Finished in 1.74s（前序 boundary 步已暖缓存）；LINUX_EXIT:0；grep -c "^warning" → 0；grep -c "^error" → 0。
+
+1h. rust-ci-lite.sh（须 exit 0，新两步可见）——通过
+$ Scripts/rust-ci-lite.sh 2>&1 | tee /tmp/A9r-cilite.log; echo CILITE_EXIT:${PIPESTATUS[0]}
+CILITE_EXIT:0；`grep -n "ALL GREEN" /tmp/A9r-cilite.log` → 1511:rust-ci-lite: ALL GREEN；rust-test: tests total passed=192。
+新两步按序可见（行号为本轮实测）：902 行 layers OK → 903 行 clippy Finished 16.21s → 904 行 doc Finished 0.80s + 905 行 Generated …/target/doc/… → 908 行 apple-boundary OK。脚本正文确认两行新增（clippy 六 lint + RUSTDOCFLAGS doc，见 2 节 diff）。注：本轮 clippy/doc 命中缓存故无 Checking 行、行号与报告（903 起 Checking/936 行 apple）漂移，属缓存 artifact，顺序与实质一致（minor2 一并记）。
+
+1i. 保护路径 + 引擎/历史只动注释——通过（实质），报告 grep 口径有 1 行偏差（minor2）
+$ git diff --stat 285d7923 HEAD -- 'crates/lightamer-iop-*/src/modules' crates/lightamer-registry/fixtures; echo DIFFSTAT_EXIT:$?
+（空输出）DIFFSTAT_EXIT:0 ✓
+$ git diff 285d7923 HEAD -- crates/lightamer-engine crates/lightamer-history
+5 文件 6 hunk：command.rs:11（[`develop`][crate::develop]/[`history`][crate::history] → `develop`/`history` 代码字体）、error.rs:4、jobs.rs:15、engine/lib.rs:48（RunCtx → command::RunCtx）、history.rs:10/36（[`Arc`](std::sync::Arc) → [`Arc`]），与报告 §5 七条一一对应（command.rs 一行承 2 条警告）。
+新增行清单（6 行）：5 行 `+//!…` + 1 行 `+    /// Full settings snapshot, shared by [`Arc`].`（history.rs 字段缩进文档注释）。
+$ git diff … | grep "^+" | grep -v "^+++" | grep -vc "^+//" → 实测 1（非报告写的 0），因为缩进 `///` 行不匹配 `^\+//`。实质仍全是注释行（minor2）。
+
+1j. HEAD 路径白名单——实质通过，1 文件在任务括号清单外（minor1）
+$ git show --name-only --pretty=format:"%H %s" HEAD → 42 文件：
+A9-REPORT.md 1 + rust-ci-lite.sh 1 + apps/lightamer-cli/src/ 9（capabilities/cmp/fetch/lib/main/render/selftest/util/xmp）+ crates/README.md 1 + 22 家 lib.rs（deny+allow；history/engine/apple/gpui 四家因父提交已有而无 deny hunk）+ engine 4（command/error/jobs/lib 文档行）+ history.rs（2 文档行）+ registry tests/discovery_probe.rs 1 + testkit lib.rs 1（+indexing_slicing 一行）+ xtask main.rs 1（allow+理由）。
+$ git show --stat HEAD → 42 files changed, 415 insertions(+), 19 deletions(-)。
+minor1：discovery_probe.rs 不在任务 1j 括号枚举（lib.rs 顶部、引擎/历史文档注释、cli、xtask main、README、ci-lite、REPORT）内，但它属于任务 2 六类之「改错误返回」（panic!→assert!，报告 §4 已声明），判任务/报告口径遗漏，不判提交越界。
+
+2. 越界核：git show 14a9ef80 全 hunk 六类归属——通过，0 超出
+hunk 头枚举（`git show 14a9ef80 --format="" -U0 | grep "^@@\|^diff --git"`，共 42 文件 70+ hunk）逐类：
+- 报告：A9-REPORT.md 新文件 101 行 ✓
+- 加两步检查：rust-ci-lite.sh 2 hunk（注释行 + 2 新增检查行）✓
+- README 规则：crates/README.md 1 hunk（21 行新节）✓
+- 补声明：22 家 lib.rs 各 2 hunk（deny 块 + test-allow；registy 含在内）+ cli lib.rs deny 1 hunk + cli main.rs allow+理由 1 hunk + xtask main.rs allow+理由 1 hunk + cli 7 测试文件各 1 allow hunk（capabilities/cmp/fetch/render/selftest/util/xmp；commands.rs 父提交已有 allow:192，经 grep 亲证）+ testkit +1 lint 1 hunk。added 行计数：`^+#![deny(` = 24（23 代码 + REPORT 引用片段 1）、`^+#![allow(` = 31（29 测试放开 + xtask/main 2 豁免），与文件清单精确吻合 ✓
+- 改错误返回：cmp.rs 3 hunk（*pair 解引用、short_accumulator/short_image 两构造器、get()/get_mut() 改写）+ util.rs 1 hunk（get().unwrap_or_default()）+ xmp.rs 3 hunk（hex_nibble 新增、DIGITS 删除、调用点）+ selftest.rs 2 hunk（unknown 计数+assert）+ xmp.rs 测试 1 hunk（assert+unwrap_or_default）+ discovery_probe.rs 1 hunk（panic→assert）✓
+- 修文档：engine 4 文件各 1 hunk + history.rs 2 hunk ✓
+结论：每个 hunk 均落六类之一，无超出，error=0。
+
+3. 私有性核——通过
+$ git diff 285d7923 HEAD | grep "^+" | grep -v "^+++" | grep -E "^\+\s*pub(\s|\(|:)" → 空；PUB_COUNT:0。无新增 pub 项。
+engine/history diff 新增 6 行全为注释（见 1i），command.rs 私有项改代码字体而非公开，与报告 §5 第 4/5 条一致。无私有类型公开。
+
+4. 数字核（报告 §1/§6 逐数）——除 minor2/历史底数说明外全复现
+§6（HEAD 可重跑）：clippy exit=0 ✓ / doc exit=0 warning=0 ✓ / test passed=192 failed=0 ✓ / cli 11 项全同 ✓ / 26 ✓ / layers 29·order 97·names 97/4 roots·apple 29/155 ✓ / linux exit=0 零警告 ✓ / ci-lite exit=0 ALL GREEN、两步按序 ✓（行号漂移 minor2）/ 保护路径空 ✓ / HEAD 42 文件 ✓ / 通用纪律：cargo fmt --all --check FMT_EXIT:0 ✓，cargo clippy --workspace --all-targets --locked -- -D warnings WARN_EXIT:0（36.42s）✓。
+§1（父提交底数，只读纪律下不切提交直接重跑，改做一致性核，全对）：按 lint 加总 23+8+9+7+1=48 ✓（python3 亲算）；父提交 probe 第 27 行确为 `other => panic!(…)`（git show 285d7923:… sed 20,30p 数得）✓；父提交 registry #[cfg(test)] 起于 ~71 行，122–251 落测试模块内 ✓；父提交 testkit deny 块 = A9 六条中五条（缺 indexing_slicing）+ 额外 unreachable，报告措辞准确 ✓；父提交 history/engine/apple 各 6 clippy 行、geom/registry/cli-lib 各 0，余 22 家无声明 ✓；doc 7 警告位置（history 10/36、engine lib 48/command 11×2/error 4/jobs 15）与 1i 的 6 改行精确对应 ✓；快照 md5 与 /tmp/a9base 基线逐位同（见 1d）✓；A9-REPORT 101 行 = stat 101 ✓。
+minor2（报告可复现命令三处不精确，实质结论全对）：(a) `grep -vc '^\+//'` 实测 1 非 0（缩进 /// 行）；(b)「第二遍 28 个全查」实测工作区 29 成员、本轮 25 Checking+4 Compiling=29（计数受缓存影响）；(c) ci-lite 行号（报告 936 行 apple-boundary）本轮为 908 行（缓存致 Checking 行缺席）。
+minor3（commit message 措辞）：message 把「四个域 build.rs 豁免」并入本波，但 diff 无 build.rs 文件——该豁免是 A8 已做（报告 §9 已澄清「无需动手」），代码面无误，属 message 措辞并入。
+
+minor 清单（3）：
+minor1：任务 1j 括号清单遗漏 discovery_probe.rs（文件合规：panic→assert 属「改错误返回」，报告 §4 已声明）。
+minor2：报告三个可复现数字/命令不精确：grep -vc 口径实测 1；「28 个全查」实测 29；ci-lite 行号漂移。均为缓存/缩进口径，实质结论（注释-only、全覆盖、全绿）复核全对。
+minor3：commit message 把 A8 的 build.rs 豁免措辞并入本波；代码 diff 无 build.rs，报告 §9 已澄清。
+
+未验（沿报告 §9，不属本波缺口）：render/selftest/fetch 需 DMG+darktable-cli 的端到端；Linux 真机运行（只到 target 检查）；compare_images 新 short_image 分支无单测（防御分支，正常构造不可达；行为变化：崩溃 exit101 → stderr+exit2，报告 §3 已披露）。
+复审原始日志：/tmp/A9r-clippy.log、/tmp/A9r-doc.log、/tmp/A9r-test.log、/tmp/A9r-linux.log、/tmp/A9r-cilite.log、/tmp/A9r-cli/（11 组新输出）、/tmp/A9r-26list.txt。
