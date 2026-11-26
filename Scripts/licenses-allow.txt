@@ -58,3 +58,5 @@ Apache-2.0 OR BSL-1.0
 (MIT OR Apache-2.0) AND NCSA
 # --- 未来依赖：jpeg-encoder 的 IJG 合取（已登记 §5，锁中暂无） ---
 (MIT OR Apache-2.0) AND IJG
+# --- 本项目自有包：工作区的 license 字段（GPL-3.0-or-later，用户 2026-11-26 确认）。同许可证的第三方 crate 也与此兼容。A1 的清单只按两个 spike 的锁表生成，漏了这一项，A2 验收时发现。 ---
+GPL-3.0-or-later
