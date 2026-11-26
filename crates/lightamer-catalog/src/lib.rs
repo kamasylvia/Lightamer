@@ -10,8 +10,9 @@
 //! append-only table in [`migrate`]. Stored photo paths convert through
 //! [`paths`]; everything that can fail surfaces as [`CatalogError`].
 //!
-//! This wave builds the store only: no history is written here (that is the
-//! next wave's write path, on top of [`Session::connection`]).
+//! This wave writes history too: [`photos`] registers the library rows and
+//! [`history_store`] pushes steps, moves the cursor, reads histories back,
+//! and collects orphan snapshots.
 // `result_large_err` is allowed crate-wide: errors here are cold paths
 // (open/migrate/lock failures), and boxing the variants would only
 // complicate matching for the engine wave. The success path copies nothing.
@@ -27,9 +28,11 @@
 
 pub mod backup;
 pub mod error;
+pub mod history_store;
 pub mod lock;
 pub mod migrate;
 pub mod paths;
+pub mod photos;
 pub mod scan;
 pub mod schema;
 pub mod session;
@@ -41,12 +44,19 @@ pub use backup::{
     restore_package,
 };
 pub use error::CatalogError;
+pub use history_store::{
+    HistoryRead, HistoryStepRead, HistoryWriter, MoveOutcome, PushOutcome, PushStats, SEED_LABEL,
+    delete_orphan_snapshots, move_cursor, orphan_snapshot_hashes, push_step, read_history,
+};
 pub use lock::{LOCK_FILE, LockOwner, OWNER_FILE, SessionLock};
 pub use migrate::{
     MIGRATIONS, MigrateReport, Migration, backup_database, backup_file_name, checkpoint,
     open_database, read_user_version,
 };
 pub use paths::{PathKind, to_absolute, to_stored};
+pub use photos::{
+    PhotoRecord, find_photo_by_id, find_photo_by_uuid, list_photo_uuids, register_photo,
+};
 pub use scan::{ScanStats, scan_missing};
 pub use schema::{
     DisplayAuxRead, META_CREATED_AT, META_CREATED_BY, META_DISPLAY_AUX, META_SCHEMA_VERSION,

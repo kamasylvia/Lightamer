@@ -29,7 +29,7 @@
 | L2 | `lightamer-registry` | 描述聚合 + 按标识查找 + raw/jpg 默认顺序链（`(prio,tie)` 排序）；夹具 `lightamer-registry/fixtures/dt-order-*.json` | A3 已填 |
 | L2 | `lightamer-history` | 照片设置（宽容 serde + 规范 JSON + FNV 缓存键）+ 快照历史栈 + 处理版本号（`HISTORY_LIMIT` 200） | A4b 已填 |
 | L2 | `lightamer-pipeline` | Frame/Roi/tiling/缓存/调度/PipeError（A3R 由 `dt-core` 改名） | B1 |
-| L3 | `lightamer-catalog` | 会话包：四目录布局 + SQLite schema v1（T-B1）+ 只追加迁移架 + 在线备份 + 单写者锁（LightCraft lock.rs 改造）+ 路径换算 + `_meta`（含 display_aux 槽位）+ B12′-b 整包备份/恢复（在线备份 + 文件拷 + 进度/取消）+ 只读校验 + 失联扫描 + 模板 + 主机名；不写历史（B13′ 接） | B12′ 已填 |
+| L3 | `lightamer-catalog` | 会话包：四目录布局 + SQLite schema v1（T-B1）+ 只追加迁移架 + 在线备份 + 单写者锁（LightCraft lock.rs 改造）+ 路径换算 + `_meta`（含 display_aux 槽位）+ B12′-b 整包备份/恢复（在线备份 + 文件拷 + 进度/取消）+ 只读校验 + 失联扫描 + 模板 + 主机名 + B13′-a 照片最小登记（照片行/默认快照/第 0 步单事务）+ 历史写路径（快照去重写 + 游标移动 + 读回 + 孤儿回收，`HistoryWriter` 单事务多推） | B12′ 已填 / B13′-a 历史落库 |
 | L3 | `lightamer-preview` | 预览缓存：内存 LRU + 磁盘缩略图 + 预取 | B15 |
 | L3 | `lightamer-apple` | Apple 边界：macOS 探针/空后端双实现 + 能力表（A6 已填；唯一可碰 Apple 绑定的 crate）+ 原生视口缝（A7b：一整数句柄 + 矩形/几何/输入纯数据类型，macOS 在 `macos.rs` 内实现，空后端报不支持） | A6 已填 / A7b 视口 |
 | L3 | `lightamer-gpu` | CPU 管线的 GPU 孪生，C 期占位 | C 期 |

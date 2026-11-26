@@ -14,7 +14,8 @@ use std::path::{Path, PathBuf};
 use crate::lock::LockOwner;
 
 /// Everything that can go wrong while creating, opening, migrating, closing,
-/// or locking a session, or while converting stored paths.
+/// or locking a session, while converting stored paths, or while reading
+/// and writing photo history.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum CatalogError {
@@ -55,6 +56,33 @@ pub enum CatalogError {
     /// A session name or stored path is malformed, or a stored path
     /// escapes the session root.
     BadPath(String),
+    /// A history call named a photo id that is not in the library.
+    /// Nothing was written.
+    UnknownPhoto(i64),
+    /// `register_photo` found the stored path already registered.
+    /// Nothing was written.
+    DuplicatePhoto {
+        /// The stored path text (`photos.path`).
+        path: String,
+        /// The stored path kind (`photos.path_kind`, 0 or 1).
+        kind: i64,
+    },
+    /// A cursor move named a step that is not there (`target < 0` or past
+    /// the last step). Nothing was written.
+    CursorOutOfRange {
+        /// The photo the move named.
+        photo_id: i64,
+        /// The requested step index.
+        target: i64,
+        /// How many steps the photo holds.
+        steps: i64,
+    },
+    /// A history write was handed settings text that does not parse as
+    /// settings. Nothing was written.
+    BadSettings {
+        /// Why the text was refused (the parser's message).
+        reason: String,
+    },
     /// A background job observed its cancel flag and stopped before doing
     /// more work. A backup or restore that stops this way removes its own
     /// partial destination before returning this.
@@ -97,6 +125,20 @@ impl fmt::Display for CatalogError {
                 write!(f, "no session at {}", path.display())
             }
             Self::BadPath(reason) => write!(f, "bad session path: {reason}"),
+            Self::UnknownPhoto(id) => write!(f, "photo {id} is not in the library"),
+            Self::DuplicatePhoto { path, kind } => write!(
+                f,
+                "photo with stored path kind {kind} and text {path:?} is already registered"
+            ),
+            Self::CursorOutOfRange {
+                photo_id,
+                target,
+                steps,
+            } => write!(
+                f,
+                "photo {photo_id} holds {steps} history steps, so step {target} is out of range"
+            ),
+            Self::BadSettings { reason } => write!(f, "settings text refused: {reason}"),
             Self::Cancelled => write!(f, "operation cancelled"),
         }
     }
@@ -113,6 +155,10 @@ impl std::error::Error for CatalogError {
             | Self::NotEmpty(_)
             | Self::Missing(_)
             | Self::BadPath(_)
+            | Self::UnknownPhoto(_)
+            | Self::DuplicatePhoto { .. }
+            | Self::CursorOutOfRange { .. }
+            | Self::BadSettings { .. }
             | Self::Cancelled => None,
         }
     }

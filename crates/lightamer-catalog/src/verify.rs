@@ -184,15 +184,7 @@ fn check_integrity(conn: &Connection, out: &mut Vec<Finding>) -> Result<(), Cata
 
 /// Snapshots no step references and no photo holds as current.
 fn check_orphan_snapshots(conn: &Connection, out: &mut Vec<Finding>) -> Result<(), CatalogError> {
-    let mut stmt = conn.prepare(
-        "SELECT hash FROM snapshots \
-         WHERE hash NOT IN (SELECT snapshot_hash FROM history_steps) \
-         AND hash NOT IN (SELECT current_hash FROM photos) \
-         ORDER BY hash",
-    )?;
-    let rows: Vec<String> = stmt
-        .query_map([], |row| row.get(0))?
-        .collect::<Result<_, _>>()?;
+    let rows = crate::history_store::orphan_snapshot_hashes(conn)?;
     let mut capped = capped(out, Severity::Info, "orphan_snapshot", "");
     for hash in rows {
         capped.push(format!(

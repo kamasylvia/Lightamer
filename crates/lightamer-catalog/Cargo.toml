@@ -7,14 +7,17 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+lightamer-history = { path = "../lightamer-history" }
 rusqlite = { version = "0.43", default-features = false, features = ["bundled", "backup"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
 
 [dev-dependencies]
 # Same rusqlite line as above (no new lock packages): integration tests open
-# databases directly to assert migration/backup contents.
-rusqlite = { version = "0.43", default-features = false, features = ["bundled"] }
+# databases directly to assert migration/backup contents. `hooks` (an API
+# switch like `backup`: `hooks = ["wal"]`, `wal = []`, zero new packages)
+# is test-only: the batch test counts commits through `commit_hook`.
+rusqlite = { version = "0.43", default-features = false, features = ["bundled", "hooks"] }
 
 [lints]
 workspace = true

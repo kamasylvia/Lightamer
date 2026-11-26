@@ -76,3 +76,51 @@ pub fn relative_file_list(dir: &Path) -> Result<Vec<String>, Box<dyn std::error:
     out.sort();
     Ok(out)
 }
+
+// Only the history tests use these; each target compiles this module
+// separately, so the imports stay inside the helpers (a top-level import
+// would warn as unused in the targets that never call them).
+#[allow(dead_code)]
+/// Canonical JSON of the default settings.
+pub fn default_settings_json() -> Result<String, Box<dyn std::error::Error>> {
+    use lightamer_history::PhotoSettings;
+
+    Ok(PhotoSettings::default().canonical_json()?)
+}
+
+#[allow(dead_code)]
+/// Canonical JSON of default settings plus one integer parameter, so each
+/// (`module`, `param`, `value`) triple is a distinct snapshot.
+pub fn settings_json(
+    module: &str,
+    param: &str,
+    value: i64,
+) -> Result<String, Box<dyn std::error::Error>> {
+    use std::collections::BTreeMap;
+
+    use lightamer_history::{ModuleInstance, PhotoSettings, SettingValue};
+
+    let mut settings = PhotoSettings::default();
+    let mut params = BTreeMap::new();
+    params.insert(param.to_owned(), SettingValue::Int(value));
+    settings.instances.upsert(ModuleInstance {
+        module: module.to_owned(),
+        multi: 0,
+        name: None,
+        enabled: true,
+        params,
+    });
+    Ok(settings.canonical_json()?)
+}
+
+#[allow(dead_code)]
+/// Canonical JSON of default settings under another process number.
+pub fn settings_json_with_process(process: u32) -> Result<String, Box<dyn std::error::Error>> {
+    use lightamer_history::{PhotoSettings, ProcessVersion};
+
+    let settings = PhotoSettings {
+        process: ProcessVersion(process),
+        ..PhotoSettings::default()
+    };
+    Ok(settings.canonical_json()?)
+}

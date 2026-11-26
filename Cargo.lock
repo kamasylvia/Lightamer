@@ -3841,6 +3841,7 @@ version = "0.1.0"
 name = "lightamer-catalog"
 version = "0.1.0"
 dependencies = [
+ "lightamer-history",
  "rusqlite",
  "serde",
  "serde_json",

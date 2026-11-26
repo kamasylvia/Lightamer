@@ -170,18 +170,26 @@ pub fn open_session(path: &Path, program: &str) -> Result<Session, CatalogError>
     open_locked(&root, program)
 }
 
-/// Closes a session: checkpoints the WAL into the database file (so `-wal`
-/// is empty or gone afterwards), then releases the lock explicitly.
+/// Closes a session: collects orphan snapshots inside one transaction, then
+/// checkpoints the WAL into the database file (so `-wal` is empty or gone
+/// afterwards), then releases the lock explicitly.
 ///
 /// # Errors
 ///
-/// [`CatalogError::Sql`] when the checkpoint is refused. The lock is still
-/// released (dropping the session releases it either way).
+/// [`CatalogError::Sql`] when the collection or the checkpoint is refused.
+/// The lock is still released (dropping the session releases it either way).
 pub fn close_session(session: Session) -> Result<(), CatalogError> {
-    let Session { conn, lock, .. } = session;
+    let Session { mut conn, lock, .. } = session;
+    let collected = (|| -> Result<u64, CatalogError> {
+        let tx = conn.transaction()?;
+        let removed = crate::history_store::delete_orphan_snapshots(&tx)?;
+        tx.commit()?;
+        Ok(removed)
+    })();
     let checkpoint_result = checkpoint(&conn);
     lock.release();
     drop(conn);
+    collected?;
     checkpoint_result
 }
 
@@ -285,7 +293,7 @@ fn ensure_session_meta(conn: &Connection, program: &str) -> Result<(), CatalogEr
 /// # Errors
 ///
 /// [`CatalogError::Io`] when the random source cannot be read.
-fn new_uuid_v4() -> Result<String, CatalogError> {
+pub(crate) fn new_uuid_v4() -> Result<String, CatalogError> {
     let random_path = Path::new("/dev/urandom");
     let mut bytes = [0_u8; 16];
     File::open(random_path)
