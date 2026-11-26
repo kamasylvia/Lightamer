@@ -1,0 +1,78 @@
+Working...
+PASS / 0 error + 5 minor
+
+HEAD 亲核：`git rev-parse HEAD` = `d65209ca5b09c2bbcd8e004e115fd97351fbd6f0`，与任务书一致。以下逐项证据。
+
+## 1. REPORT §Acceptance 11 条重跑（全过）
+
+|#|命令|输出|结论|
+|---|---|---|---|
+|1|`cargo test -p dt-history --locked -j6`|`25 passed; 0 failed` + doctest `1 passed; 0 failed`|过|
+|2a|`cargo clippy -p dt-history --all-targets -j6 -- -D clippy::indexing_slicing -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic -D clippy::todo -D clippy::unimplemented`|零 warning，exit 0|过|
+|2b|`cargo clippy --workspace --all-targets --locked -j6 -- -D warnings`|exit 0|过|
+|2c|`cargo fmt --all --check`|exit 0|过|
+|3|`cargo xtask layers`|`OK: 28 crates, no layering violations.`|过|
+|4|`cargo xtask check-no-iop-names`|`OK (97 names, 4 roots clean)`|过|
+|5a|`cargo xtask check-order-sync`|`OK (97 modules, fixture …/dt-order-679d594f5d.json)`|过|
+|5b|`Scripts/rust-discovery-probe.sh`|present PASS + absent PASS + ALL GREEN|过|
+|6|`Scripts/check-licenses.sh`（无参数）|exit 0，`allow=39 exception=0 fail=0`|过|
+|7|`rg -n 'repr\(C\)\|modversion\|legacy_params' crates/dt-history`|无输出，exit 1|过|
+|8|`cargo test --workspace --locked -j6`|各包 `test result` 累加 `passed=88 failed=0`（=62−1+25+1+1，与 REPORT 算式一致）|过|
+|9|`Scripts/rust-ci-lite.sh`|`rust-ci-lite: ALL GREEN`，exit 0|过|
+|10|`git status --short -- 'crates/dt-iop-*/src/modules' crates/dt-registry/fixtures` + `git diff --stat c16579df HEAD -- 同路径`|双空|过|
+|11|`git show --name-only HEAD`|9 路径（见 §7），全在允许集|过|
+
+构建前守门自跑：`Scripts/machine-guard.sh` → `GUARD PASS (heavy=0 free=66%)`。并行度全程 `-j6`。
+
+## 2. process-versions.md 逐规则核 settings.rs（无抄漏抄错）
+
+对照正本 `/Volumes/UNITEK/Documents/Development/lightcraft/docs/process-versions.md`：
+
+- 缺失→V1：`settings.rs:427` 字段级 `default = "ProcessVersion::legacy"`，非 struct Default；单测 `missing_or_damaged_process_reads_as_v1`（L760）断言缺失读 V1 ✓（正本 L35-37、L45）。
+- 非法→V1：`settings.rs:50-77` untagged 三臂——`Whole(u64)` 超 u32 回 legacy（L69）；`Number(f64)` 非整数/越界回 legacy（L74）；文本/null/数组/对象走 `Other(IgnoredAny)` 回 legacy（L74）；单测覆盖 `"x"/-1/1.5/2^32/null/[1]/{n:1}` 七种（L763-775）✓（正本 L68-71）。
+- 整数形浮点：L71-72 `fract()==0` + 范围内按整数收；`2.0`→`ProcessVersion(2)` 单测 L776-778 ✓（正本 L68）。
+- 新号保留不降级：`is_outdated` = `< LATEST`（L101-103），新号返回 false；`update_to_latest` 永不往旧改（L107-111）；单测 999 回写 `"process":999` 且 update 后仍 999（L782-791）✓（正本 L64-66）。
+- 只有显式升级才动：唯一写面 `update_to_latest`；`apply_copied`（L533-535）与 `apply_batch`（history.rs:259-270）均不动目标 process ✓（正本 L18-19、L54-57）。
+- Default 给最新：`PhotoSettings::default` 取 `LATEST`（L434-443）；单测 L796 断言 ✓（正本 L36-37、L44）。
+- V1 冻结、当前只有 V1 故 `LATEST=V1`：L80-83 ✓（正本 L10、L15）。
+- 损坏值不保留、存回 V1：读时即坍缩为 legacy，序列化恒写当前值 ✓（正本 L70-71）。
+- V1 省略 vs 照写：正本 L75 V1 省略；本波恒写 `"process":1`（单测 L594-597 显式断言）——REPORT §Models 已声明为有意偏离（无历史包袱），非抄错。
+- 未知号“用本机构建最新渲染”：本波无渲染器，N/A；Reset/virtual copy/crs/section-reset：本波无这些操作，REPORT §Not done 已声明只数据模型——不记缺口。
+
+## 3. 宽容读取（真保留、真忽略）
+
+- 未知顶层字段忽略：`PhotoSettings` 无 `deny_unknown_fields`（settings.rs:420-432）；单测 `unknown_fields_ignored_and_missing_take_defaults`（L603-619）喂 `top_level_future` + 实例内 `instance_future`，断言缺字段取默认（format=V1/process=V1/multi=0/name=None/enabled=true/params 空）——单跑 ok。
+- 未知模块标识保留：`InstanceList` 反序列化（L353-362）全量 insert、无过滤；`module` 为自由 `String`（L280）。未知参数名保留：`params: BTreeMap<String, SettingValue>`（L292），`validate` 只查已声明字段、未声明跳过（L313-317）。单测 `unknown_modules_and_params_are_retained`（L622-637，`mod_unknown` multi=3 + 六种值往返相等）——单跑 ok。
+
+## 4. BatchAdjustments 无 process（类型级成立）
+
+- `history.rs:240-243` 结构体仅 `instances: InstanceList` 一字段，无 process。`from_settings`（L249-253）只克隆 instances。`apply_batch`（L259-270）新 settings 取各栈 current 自身 `format_version`/`process` + 批量 instances。`apply_copied`（settings.rs:533-535）只 `clone_from` instances。
+- 单测三连单跑全 ok：`batch_carrier_has_no_process_field`（L470-479，序列化 JSON 无 `process` 键）/`copy_keeps_target_process`（L426-445，999 源拷入 V1 目标仍 V1）/`batch_gives_each_photo_one_step_and_keeps_processes`（L448-467，双栈各一步、process 各守 V1/999）。
+
+## 5. 拖动合并与空栈/越界（无静默丢 live、无崩溃路径）
+
+- `commit/undo/redo/goto/begin` 遇 open interaction 先 `end_interaction`：history.rs:130-131/148-149/163-164/178-179/192-193；`end_interaction` 有变化才压步（L218-224），与 `HistoryStack` 文档规则（L49-55）一致。唯一丢 live 路径是显式 `cancel_interaction`（L228-230，用户动作，非静默）。`update_interaction` 无 open 时返回 false 无动作（L206-214）。
+- 空栈不可构造：`new` 恒一步（L68-77），`commit` 只 push + 至多 drain 到 200（L138-141）——`steps` 永非空；`current/step` 全经 `.get`（L86/L92），`undo` 用 `checked_sub`+len 双检（L151-157），`redo` 用 `saturating_add`+len 检（L166-172），`goto` 越界返回 false 不动（L177-187）。单测 `undo_redo_goto_move_cursor`（L322-341）覆盖空移/越界 bool 返回。crate 根 deny `indexing_slicing`（lib.rs:34-41）+ clippy 零 warning 交叉确认。
+
+## 6. 任务书 10 项验收覆盖（全覆盖，零缺口）
+
+任务书正本 `waves/A4b-prompt.md` §8 第一条 10 子项 → 测试名映射：往返 `settings_write_then_read_back_equal`；忽略+默认/保留 `unknown_fields_…`+`unknown_modules_…`；类型+域外 `validation_rejects_wrong_type/nonfinite_float/empty_enum`；丢 redo/undo-redo-goto/上限 `commit_drops_redo_tail`/`undo_redo_goto_move_cursor`/`history_drops_oldest_beyond_limit`；一步/放弃 `interaction_merges_…`/`interaction_end_without_change_…`/`interaction_cancel_…`；拷贝 `copy_keeps_target_process`；批量 `batch_gives_…`+`batch_carrier_…`；V1/新号 `missing_or_damaged_…`+`newer_process_version_…`；键稳定+敏感 `same_settings_same_cache_key_param_change_changes_key`（L802-815，且 L812-814 额外覆盖 process 变更改键）；字节稳定 `insertion_order_does_not_change_canonical_bytes`。外加 `instance_list_replaces_and_removes`、`newer_format_version_is_kept`、`validation_ignores_undeclared_and_unset` 钉容器/格式/放行语义。25 单测 = settings 13 + history 12，与 REPORT 一致。
+
+## 7. lint 纪律、引号字面量、路径审计（全合规）
+
+- crate 根 deny 六条：lib.rs:34-41（indexing_slicing/unwrap_used/expect_used/panic/todo/unimplemented）✓；两单测模块 allow 仅前三条：settings.rs:540、history.rs:274 ✓（另三处 `module_name_repetitions` allow 均带理由注释，非六条内 lint）。
+- 独立 grep：从夹具读 97 名逐个 `rg -F '"<name>"' crates/dt-history` → `hits=0`（不经 xtask 独立确认；`check-no-iop-names` 源码 no_names.rs:21-35 逻辑直读无误，4 roots 由单测 `scans_all_four_core_roots` 钉死）。
+- 路径审计：`git show --name-only HEAD` 9 路径 = REPORT/Cargo.lock/NOTICE/README/dt-history×4/no_names.rs——逐条落在任务书 §纪律允许集内；`docs/LICENSE-AUDIT.md` 不在内与其“零追加”自述一致（抽查 `serde 1.0.229` L644、`serde_json 1.0.154` L650、`zmij 1.0.23` L927、`itoa/memchr` 均已在册）；根 Cargo.toml 未动；Cargo.lock diff 仅 +11 包（serde/serde_json + 报告所列 9 传递依赖，无删改）；README diff 恰 2 行（1±）；no_names diff 20+/1-（加 root + 改注释 + 加测试）；四源码文件 SPDX 头齐。
+
+## 8. 顺手 bug 猎取（0 error；5 minor）
+
+- canonical 字节稳定性：字段序=声明序（L421-432）+ 双 BTreeMap 有序 + `InstanceList` 定序序列化（L347-351）+ serde_json 确定性浮点打印；插入序无关单测覆盖 ✓。NaN 有限性门（L458-476）防 `null` 坍缩 ✓。
+- 校验无误杀/漏杀：`fields: None` 全放行（L310-312，A3 桩现状）；已声明按种校验（L159-166，Text 恒 TypeMismatch 符合“暂无 ParamType 对应”声明）；OutOfRange 仅非有限浮点/空枚举（L175-193），与任务书“超出范围”口径一致；`validate_all` 未知模块跳过（L523-527）✓。
+- serde 往返：全族 round-trip 单测覆盖；`from_json` 失败面仅 Json 变体 ✓。
+- minor M1：`redo`/`goto` 在 open interaction 下的 end-first 分支（history.rs:163-164/178-179）无单测——与已测 commit/begin/undo 三条同构，低风险。
+- minor M2：`InstanceList` 反序列化重复键 last-wins（settings.rs:353-362 文档声称）无单测；既有 `instance_list_replaces_and_removes` 只盖 upsert API。
+- minor M3：`process=u32::MAX` 边界未单测（settings.rs:68-69 `try_from` 成功边界；既有只盖 2/999/2³²+1）。
+- minor M4：`hash64` 直调 `to_string`（settings.rs:493-494）未复用 `canonical_json` 有限性门——文档已声明“只哈希已校验设置”，行为一致，双路径后续可合一。
+- minor M5（观察）：`SettingValue` 为 internally-tagged（settings.rs:122-123），未来新 `type` 标签将致整档 `from_json` 失败而非宽容忽略——FORMAT_VERSION 可兜底，非本波验收项，仅记。
+
+复审过程只读：未写文件、未改分支、未碰 LightCraft 运行/照片库/凭据；最重命令为 `cargo test --workspace` 与 workspace clippy（单重活串行，-j6）。

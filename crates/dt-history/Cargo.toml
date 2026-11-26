@@ -6,5 +6,10 @@ rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[dependencies]
+dt-iop-traits = { path = "../dt-iop-traits" }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = { version = "1" }
+
 [lints]
 workspace = true

@@ -11,12 +11,13 @@ const SCAN_ROOTS: &[&str] = &[
     "crates/dt-pipeline",
     "crates/dt-engine",
     "crates/dt-registry",
+    "crates/dt-history",
 ];
 
 /// Fails when a fixture name appears as a string literal under a scan root.
 ///
 /// The `fixtures` data directory is not source and is skipped; everything
-/// else ending in `.rs` under the three roots is scanned.
+/// else ending in `.rs` under the four roots is scanned.
 pub(crate) fn run() -> Result<(), String> {
     let root = iop_order::workspace_root();
     let names = fixture_names(&root)?;
@@ -110,4 +111,22 @@ fn scan_file(file: &Path, names: &[String]) -> Vec<(PathBuf, usize, String)> {
         }
     }
     hits
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SCAN_ROOTS;
+
+    #[test]
+    fn scans_all_four_core_roots() {
+        assert_eq!(
+            SCAN_ROOTS,
+            &[
+                "crates/dt-pipeline",
+                "crates/dt-engine",
+                "crates/dt-registry",
+                "crates/dt-history",
+            ]
+        );
+    }
 }

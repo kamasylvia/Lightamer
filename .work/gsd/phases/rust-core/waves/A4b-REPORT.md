@@ -1,0 +1,179 @@
+# A4b Report: Own History Model with Per-Photo Process Version (`dt-history`)
+
+> 起始 HEAD `c16579d11e0ccec5dc4012a6f20d999ddc25077a`（`git rev-parse HEAD` 亲核）。
+> 构建前守门：`Scripts/machine-guard.sh` → `GUARD PASS (heavy=0 free=73% swap=?M disk=?GB)`，exit 0。
+
+## Conclusion
+
+**PASS** — `dt-history` 落定照片设置模型与快照历史栈：28 单测 + 1 doctest 全绿，
+`rust-ci-lite.sh` 全链 `ALL GREEN`，工作区测试 62 → 91。
+全部命中允许清单且版本逐字已在审计表在册，`LICENSE-AUDIT.md` 零追加。
+
+## Models
+
+设置模型（`crates/dt-history/src/settings.rs`）：
+
+- `PhotoSettings` = `format_version`（恒写，当前 1；未来号保留回写）+ `process`
+  + `instances`。`Default` 是新照片（最新 process，空实例）；serde 缺字段走
+  V1/1/空（`ProcessVersion::legacy` 作字段级默认，与 LightCraft 同构）。
+- `ProcessVersion(u32)`：缺失或非法（负数、分数、超 u32、文本、null、数组…）读 V1；
+  整数形浮点（`2.0`）按整数收；不认识的新号保留、不降级；只有显式
+  `update_to_latest` 才动它，且永不把新号往旧改。当前只有 V1，故 `LATEST = V1`。
+- `ModuleInstance`：`module`（A3 描述标识）+ `multi`（多实例序号，缺省 0）+
+  可选 `name` + `enabled`（缺省 true）+ `params: BTreeMap<String, SettingValue>`。
+- `SettingValue` 六种：`Bool`/`Int(i64)`/`Float(f64)`/`Enum(String)`/`Text(String)`/
+  `Floats(Vec<f64>)`。与 A3 `ParamType` 对齐：前四种按名对应，`Floats` 承载
+  `Curve`（曲线/控制点）；`Text` 暂无 `ParamType` 对应——已声明字段配 `Text` 值
+  判类型错，自由字符串以未声明参数形态原样往返（见 §Not done）。
+- 宽容读取：未知顶层字段忽略，缺字段取默认；未知模块标识与参数名**保留**
+  （`String` 键 + 带类型值，与 LightCraft 不同，理由见下）。
+- 校验：`ModuleInstance::validate(ParamsDesc)`——`fields: None`（全部 A3 桩现状）
+  全放行；已声明字段按种校验，类型不对（`TypeMismatch`）与域外值
+  （`OutOfRange`：非有限浮点、空枚举变体）报错，不悄悄修值。
+  `PhotoSettings::validate_all(&dyn Fn(&str) -> Option<ParamsDesc>)` 逐实例查，
+  lookup 不认识的模块跳过。
+- 规范序列化：`canonical_json()`，`BTreeMap` + 固定字段序，插入顺序不影响字节；
+  前置有限性门（`serde_json` 会把 NaN 写成 `null` 从而无法原样读回，故直接拒收）。
+- 缓存键：`hash64()` = FNV-1a over 规范 JSON（设置与 process 都在 JSON 内，故都
+  算进键），另给十进制串 `hash64_decimal()`（落盘 64 位哈希一律十进制串）。
+
+历史模型（`crates/dt-history/src/history.rs`）：
+
+- `HistoryStep { label, settings: Arc<PhotoSettings> }`；`HistoryStack` = steps +
+  显式 `cursor`（恒非空、恒有效）+ 至多一个 open interaction。
+- `commit` 丢光标后全部再压栈；超 `HISTORY_LIMIT = 200`（与 LightCraft 同数）丢最旧。
+- `undo`/`redo`/`goto` 返回 bool（走不动返回 false，不崩）。
+- 拖动合并：`begin_interaction` 快照 → `update_interaction` 改 live 值（`current()`
+  读 live）→ `end_interaction` 有变化才压一步，无变化压空；`cancel_interaction`
+  丢 live 回到交互前。规则：`commit`/`undo`/`redo`/`goto`/`begin` 遇 open
+  interaction 先 end（有变化就成步），永不静默丢 live 编辑。
+- 拷贝：`PhotoSettings::apply_copied` 只换 `instances`，目标 process 与
+  format_version 不动。批量：`BatchAdjustments { instances }` 載体**类型上就没有
+  process 字段**，`apply_batch` 给每栈各压一步（各自 process + 批量 instances）。
+
+与 LightCraft 不同的一处（有意的）：未知模块标识与参数名保留而非丢弃。
+LightCraft 是固定 struct（未知字段 serde 直接忽略），我们是模块自注册：
+读设置时不认识的模块可能只是当前构建没编进去，丢弃等于删用户编辑。
+代价是校验只能覆盖已声明字段，未声明参数只保字节级往返。
+
+其他小偏离（皆有注记）：V1 照写（无历史包袱可保）；cursor 用显式 `usize`
+而非 `Option`；`canonical_json` 自带有限性门；`Text` 值暂无描述种。
+
+Lint 纪律：crate 根 `#![deny(clippy::indexing_slicing, clippy::unwrap_used,
+clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented)]`；
+单测模块内 `allow` 前三条。`check-no-iop-names` 扫描根 3 → 4（加
+`crates/dt-history`），测试全用 `mod_a…d`/`p_*` 假名。
+
+## Dependencies
+
+新增直接依赖：`serde 1.0.229`（features `derive` + `rc`，`rc` 为 `Arc` 反序列化所需）、
+`serde_json 1.0.154`、`dt-iop-traits`（工作区内）。传递依赖 9 个：
+`itoa 1.0.19`、`memchr 2.8.3`、`proc-macro2 1.0.107`、`quote 1.0.47`、
+`serde_core 1.0.229`、`serde_derive 1.0.229`、`syn 3.0.10`、
+`unicode-ident 1.0.27`、`zmij 1.0.23`（本版 `serde_json` 的数解析后端，无 `ryu`）。
+`Scripts/check-licenses.sh` 全 `ALLOW`（`allow=39 exception=0 fail=0`），11 条许可证
+表达式逐条命中 `licenses-allow.txt`；且 11 个 crate 的名称+版本在
+`LICENSE-AUDIT.md` §4.1 逐字已在册（如 `serde 1.0.229`、`serde_json 1.0.154`、
+`zmij 1.0.23`），故**零追加行**，该文件未动。
+`crates/README.md` 只改 `dt-history` 一行。取用 LightCraft 代码已按 N1 模板在
+`NOTICE` 追加 A4b 派生段（`settings.rs` ← `settings.rs` + `lib.rs`，
+`history.rs` ← `model.rs` + `lib.rs` + `engine/src/lib.rs`）。
+
+## Acceptance
+
+1. `cargo test -p dt-history --locked -j6` → 28 passed + 1 doctest，0 failed。
+   覆盖映射：`settings_write_then_read_back_equal`（往返相等）；
+   `unknown_fields_ignored_and_missing_take_defaults` +
+   `unknown_modules_and_params_are_retained`（宽容+保留）；
+   `validation_rejects_wrong_type` / `validation_rejects_nonfinite_float` /
+   `validation_rejects_empty_enum`（类型错+域外错）；
+   `commit_drops_redo_tail` / `undo_redo_goto_move_cursor` /
+   `history_drops_oldest_beyond_limit`（提交丢 redo 尾+撤销/重做/跳转+上限丢最旧）；
+   `interaction_merges_many_updates_into_one_step` /
+   `interaction_end_without_change_commits_nothing` /
+   `interaction_cancel_restores_prior_state`（一次交互一步+放弃回退）；
+   `commit_during_interaction_ends_it_first` + `begin_twice_ends_first_interaction`
+   + `undo_during_interaction_ends_it_first` + `redo_and_goto_during_interaction_ends_it_first`
+   （未 end 就提交/再 begin/再 undo/再 redo/再 goto 的规则）；`copy_keeps_target_process`（拷贝不动 process）；
+   `batch_gives_each_photo_one_step_and_keeps_processes` +
+   `batch_carrier_has_no_process_field`（批量各一步+载体无 process）；
+   `missing_or_damaged_process_reads_as_v1` / `newer_process_version_is_kept_not_downgraded` /
+   `process_u32_max_boundary_is_kept`（V1 缺省+新号保留+u32 上界）；
+   `same_settings_same_cache_key_param_change_changes_key`（键稳定+敏感）；
+   `insertion_order_does_not_change_canonical_bytes`（字节与插入序无关）；
+   另 `instance_list_replaces_and_removes`、`newer_format_version_is_kept`、
+   `instance_list_load_keeps_last_of_duplicate_keys` 钉住容器语义。
+2. `cargo clippy -p dt-history --all-targets -j6 -- -D clippy::indexing_slicing
+   -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic -D clippy::todo
+   -D clippy::unimplemented` → 零 warning；同理
+   `cargo clippy --workspace --all-targets --locked -j6 -- -D warnings` 绿
+   （crate 根 deny 已生效），`cargo fmt --all --check` 绿。
+3. `cargo xtask layers` → `OK: 28 crates, no layering violations.`，exit 0；
+   `dt-history` 唯一工作区依赖 `dt-iop-traits`（L2 → L0，合法）。
+4. `cargo xtask check-no-iop-names` →
+   `check-no-iop-names: OK (97 names, 4 roots clean)`；另以 97 名表独立 grep
+   `crates/dt-history` 引号字面量命中 0。
+5. `cargo xtask check-order-sync` →
+   `check-order-sync: OK (97 modules, fixture …/dt-order-679d594f5d.json)`；
+   `Scripts/rust-discovery-probe.sh` → present PASS + absent PASS + ALL GREEN。
+6. `Scripts/check-licenses.sh`（无参数）→ exit 0（见 §Dependencies）。
+7. `rg -n 'repr\(C\)|modversion|legacy_params' crates/dt-history` → 无输出（exit 1）。
+8. `cargo test --workspace --locked -j6` → 全绿，`passed=91`（= 62 基线
+   − 1 旧 `package_metadata_resolves` + 28 新单测 + 1 doctest + 1 xtask 新测）。
+9. `Scripts/rust-ci-lite.sh` → `rust-ci-lite: ALL GREEN`
+  （含 guard/licenses/layers/build/test/budget 全段）。
+10. `git status --short -- 'crates/dt-iop-*/src/modules'
+    crates/dt-registry/fixtures` → 空；commit 后以
+    `git diff --stat <起始> HEAD -- 同路径` 复核为空（见 §Commit）。
+11. `git show --name-only HEAD` 路径审计见 §Commit。
+
+## Commit
+
+最终哈希 `cdff61475f9809b20435b73849478b00189788ee`（`git rev-parse HEAD`），
+message `feat(history): own settings model with per-photo process version` + `refs #32`，
+零 push。`git show --stat HEAD`：10 files，+1864/−11
+（REPORT 179 + review.log 78 / Cargo.lock 101 / NOTICE 18 / README 1± /
+dt-history Cargo 5 + lib 57± + history 514 + settings 900 / no_names 21±）。
+（amend 链注记：文件自含其哈希数学无解；上行记真实存在过的值，
+终版以 `git rev-parse HEAD` 为准；参考 A3R-REPORT 同款注记。）
+`git show --name-only HEAD` 10 路径逐条落在纪律允许集内（`crates/dt-history/` 4、
+`crates/xtask/src/no_names.rs` 1、根 `Cargo.lock` 1、`NOTICE` 1、
+`crates/README.md` 1、REPORT 1、review.log 1；`docs/LICENSE-AUDIT.md` 零追加故不在内，
+根 `Cargo.toml` 未动）。
+`git diff --stat c16579df HEAD -- 'crates/dt-iop-*/src/modules'
+crates/dt-registry/fixtures` 空输出，桩与夹具零漂移。
+
+## Not done
+
+- 不接数据库、不接界面、不写管线（本波只有数据模型；`HistoryStack` 未派生
+  `Serialize`，interaction 是瞬态，会话库 shape 由 B12′ 定）。
+- `SettingValue::Text` 暂无 `ParamType` 对应种：已声明字段配 `Text` 值判类型错。
+  这是 A3 描述词汇的缺口（`ParamType` 无字符串种），待后续波扩展词汇，
+  本波只保自由字符串以未声明参数形态往返。
+- 批量语义只做全量替换（`apply_batch` 整实例表替换）；按模块/参数粒度的合并、
+  预设、section reset 归引擎波（A7a/B13）。
+
+## Not verified
+
+- 真实 21 模块的参数覆盖：A3 桩 `fields` 全空，校验路径只在合成描述上覆盖；
+  待各模块填 `params` 后由其移植波补测。
+- 未知模块「本构建缺席、后构建回迁」只验了字节保留，未做双构建对照实测。
+- 性能：本波纯内存数据模型，无 100MP/热切换门；`HISTORY_LIMIT` 200 与 `hash64`
+  开销待 B15/B20 实测。
+
+## Review revisions
+
+独立 `omp -p --auto-approve --thinking max` 复审（只读），结论头
+`PASS / 0 error + 5 minor`（`waves/A4b-review.log`，审的是 `d65209ca`）：
+11 条验收逐条重跑全过；process-versions.md 逐规则无抄漏抄错；宽容保留、
+批量载体类型级无 process、拖动合并无静默丢 live、空栈越界不崩、10 项覆盖、
+lint 纪律、引号字面量 0 命中、路径审计全合规。5 minor 回注处置——
+M1（redo/goto 的 end-first 无单测）：补 `redo_and_goto_during_interaction_ends_it_first`；
+M2（重复键 last-wins 无单测）：补 `instance_list_load_keeps_last_of_duplicate_keys`；
+M3（process=u32::MAX 上界无单测）：补 `process_u32_max_boundary_is_kept`；
+M4（hash64 未复用 canonical 门）：改走 `self.canonical_json().unwrap_or_default()`，
+文档同步为“共享规范路径（含有限性门），被拒的设置哈希空输入”；
+M5（未来新 `type` 标签致整档失败）：观察项不改——值种即类型系统，
+`FORMAT_VERSION` 是升级逃生口，与任务书宽容口径（字段/模块/参数三级）一致。
+修订后 `cargo test -p dt-history` 28+1 绿、`cargo test --workspace --locked` 91 绿、
+验收式 clippy 与 `rust-ci-lite.sh` 重跑全绿（见下），amend 进同一 commit。

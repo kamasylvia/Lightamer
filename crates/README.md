@@ -27,7 +27,7 @@
 | L1 | `dt-decode` | rawspeed C ABI shim + 栅格解码 | B2 |
 | L1 | `dt-scenes` | 成像测试共用的确定性测试场景 | A5 |
 | L2 | `dt-registry` | 描述聚合 + 按标识查找 + raw/jpg 默认顺序链（`(prio,tie)` 排序）；夹具 `dt-registry/fixtures/dt-order-*.json` | A3 已填 |
-| L2 | `dt-history` | 自有历史模型：历史栈 + 处理版本号 + 参数布局 | A4b |
+| L2 | `dt-history` | 照片设置（宽容 serde + 规范 JSON + FNV 缓存键）+ 快照历史栈 + 处理版本号（`HISTORY_LIMIT` 200） | A4b 已填 |
 | L2 | `dt-pipeline` | Frame/Roi/tiling/缓存/调度/PipeError（A3R 由 `dt-core` 改名） | B1 |
 | L3 | `dt-catalog` | 会话库 + 导入 + 缩略图（A3R 由 `dt-library` 改名） | B12′ |
 | L3 | `dt-preview` | 预览缓存：内存 LRU + 磁盘缩略图 + 预取 | B15 |

@@ -448,3 +448,21 @@ LightCraft derivation (wave A3R, 2026-11-26):
   upstream path and commit. MIT and Apache-2.0 both permit this use; this
   attribution preserves the notice. These files are GPL-3.0-or-later as
   part of Lightamer.
+
+LightCraft derivation (wave A4b, 2026-11-26):
+
+  Same upstream and license as the A3R entry above
+  (https://github.com/storytold/lightcraft, commit 0da998f2; MIT or
+  Apache-2.0 at your option). Derived files:
+    crates/dt-history/src/settings.rs <- crates/develop/src/settings.rs
+      (`ProcessVersion` lenient rules, reworked for untyped per-module maps
+      and our own V1 process line) and crates/develop/src/lib.rs (`hash64`,
+      near-verbatim FNV-1a over canonical JSON).
+    crates/dt-history/src/history.rs <- crates/catalog/src/model.rs
+      (`HistoryStep` label-plus-snapshot shape),
+      crates/catalog/src/lib.rs (`HISTORY_LIMIT` 200, push drops the redo
+      tail then the oldest), and crates/engine/src/lib.rs (drag-merge
+      begin/end/cancel; reworked onto the stack with an explicit cursor).
+  Each derived file carries a `Derived from lightcraft` header naming the
+  upstream paths and commit. These files are GPL-3.0-or-later as part of
+  Lightamer.
