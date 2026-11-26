@@ -39,7 +39,7 @@
 | L5 | `dt-mcp` | 基于引擎命令的 MCP 服务器，C 期占位 | C 期 |
 | L5 | `dt-gpui` | 界面（gpui 族）——**本波不建，A7b 建，检查表已登记** | A7b |
 | testkit | `dt-testkit` | 测试套件：skip 宏 + JSONL 记录，只许开发依赖 | A3R 已填 |
-| exempt | `dt-cli` | 命令行 + oracle 对照工具 + perf 探针（A3R 挪到 `apps/dt-cli`） | A4b（`history dump`）/ A5（`cmp`） |
+| exempt | `dt-cli` | 命令行 + oracle 对照工具（A5 已填：`fetch`/`render`/`cmp`/`emit-xmp`/`selftest`，唯一第三方依赖 `png` 0.18.1；入口 `Scripts/oracle.sh`，钉点 `Scripts/oracle.lock`）+ perf 探针（A3R 挪到 `apps/dt-cli`） | A4b（`history dump`）/ A5 已填 |
 | exempt | `xtask` | 仓库维护任务：`check-i18n`（骨架，B17 启用）；`gen-iop-stubs`（解析上游 `iop_order.c` 生成夹具+桩）/`check-order-sync`（上游×夹具×桩三方比对）/`check-no-iop-names`（核心零 op 名机检）/`layers`（分层检查，A3R 加） | A2 骨架 / A3 三子命令 / A3R layers / B17 |
 
 退役（A3R 删空壳，职责并进 `dt-engine`）：`dt-api`、`dt-app`、`dt-export`。

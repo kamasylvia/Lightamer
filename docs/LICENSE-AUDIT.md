@@ -1035,3 +1035,15 @@
 - 本表 §4.1 由 `cargo metadata --locked --offline` 生成（命令见 §4.1），锁更新后重跑 `Scripts/check-licenses.sh <workspace>`；新增 license 字符串先过 §1 政策再进允许清单。
 - C 库/数据包无 cargo 元数据，版本变更时人工更新 §3/§6 并在 `NOTICE` 同步。
 - `NOTICE` 的第三方 crate 清单 = 本表 §4.1 + §5 的发布态摘要，由脚本输出再生成（条目数对账：`check-licenses.sh` 的 `total=` 与表行数一致）。
+
+---
+
+## §9 A5 新增依赖采用记录（2026-11-26，lane A5，append-only）
+
+- `dt-cli` 新增直接依赖 `png 0.18.1`（16 位 PNG 解码，`cmp` 用；纯 Rust，无系统库）。
+- 传递引入 10 个 crate：`adler2 2.0.1`、`bitflags 2.13.2`、`cfg-if 1.0.5`、`crc32fast 1.5.6`、
+  `fdeflate 0.3.7`、`flate2 1.1.11`、`miniz_oxide 0.8.9`、`miniz_oxide 0.9.1`、
+  `simd-adler32 0.3.10`、`zlib-rs 0.6.9`（`cargo tree -p dt-cli` 实测）。
+- 上述 11 个（名，版本）**全部已在 §4.1 登记且版本逐字相同**（`png 0.18.1` 见 V:5063 行等），
+  无需追加表行；`Scripts/check-licenses.sh` 实测 `allow=50 exception=0 fail=0`，退出 0，
+  无新增 license 字符串（`MIT OR Apache-2.0` / `MIT` / `Zlib` / `0BSD OR MIT OR Apache-2.0` 均在允许清单）。

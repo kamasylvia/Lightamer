@@ -1,0 +1,130 @@
+PASS / 0 error + 0 minor
+
+A5 域内自审（只读复审 + 可跑验证）。工作目录 /Volumes/UNITEK/Documents/Development/Lightamer，HEAD 起始 74f96797。
+每步：命令 + 输出原样 + 判定。
+
+================================================================
+step 1: git status 核对 A5 路径
+命令: git status --short ; git ls-files --others --exclude-standard | grep -Ei 'oracle|dt-cli|ORACLE|fixtures|LICENSE-AUDIT|A5-REPORT|crates/README|Cargo' ; git diff --name-only
+----------------------------------------------------------------
+tracked 修改（5 个）:
+ M Cargo.lock
+ M apps/dt-cli/Cargo.toml
+ M apps/dt-cli/src/main.rs
+ M crates/README.md
+ M docs/LICENSE-AUDIT.md
+untracked 中属 A5（14 个）:
+ ?? .work/gsd/phases/rust-core/waves/A5-REPORT.md
+ ?? Scripts/oracle.lock
+ ?? Scripts/oracle.sh
+ ?? apps/dt-cli/src/cmp.rs
+ ?? apps/dt-cli/src/fetch.rs
+ ?? apps/dt-cli/src/lib.rs
+ ?? apps/dt-cli/src/render.rs
+ ?? apps/dt-cli/src/selftest.rs
+ ?? apps/dt-cli/src/util.rs
+ ?? apps/dt-cli/src/xmp.rs
+ ?? docs/ORACLE-BASELINE.md
+ ?? fixtures/oracle/README.md
+ ?? fixtures/oracle/expected-g1-exposure.xmp
+ ?? fixtures/oracle/expected-g2-exposure-flip.xmp
+其余 untracked 共 212 个，均为他人旧文件（.work 下各 lane 的 prompt/log/pid/summary、evidence/gui/* 等，如 evidence/gui/paste-tiers.csv 系 rawspeed-backend lane 2025-11-25 产物），无新增源码。
+`git diff --stat HEAD` 仅 5 个 tracked 文件（+421/-10），与上一致；工作区根 Cargo.toml 无修改（`git diff HEAD -- Cargo.toml` 为空）——允许路径写的是 Cargo.toml/Cargo.lock，实际只需锁文件，无问题。
+判定: 通过。A5 改动逐条落在允许路径内（apps/dt-cli/、Scripts/oracle.sh、Scripts/oracle.lock、fixtures/oracle/、docs/ORACLE-BASELINE.md、docs/LICENSE-AUDIT.md §9、Cargo.lock、apps/dt-cli/Cargo.toml、crates/README.md dt-cli 行、A5-REPORT.md）。
+
+================================================================
+step 2: prefs 快照 + Scripts/oracle.sh selftest
+命令: defaults export org.darktable /tmp/a5rev-before.plist
+输出: -rw-r--r-- 1 kamasylvia wheel 1726 ... /tmp/a5rev-before.plist ; sha256 f6e5d8859900317f0a12b721da8c73b583fd4462d1cbcefbf20a7878a8df338b ; 1726 字节
+命令: Scripts/oracle.sh selftest（墙钟 589.93s ≈ 9m50s）
+输出（tail-40 原样）:
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running `target/debug/dt-cli selftest`
+selftest: oracle 5.6.2 workdir /var/folders/l9/q57wlq2n7x3d_t0xb8g2jtyr0000gn/T/dt-oracle-selftest-46170-1795664530121880000-0
+selftest: rendered g0-cpu proof=[opencl_summary_statistics] device 'Apple Apple M4' id=0: NOT utilized
+selftest: rendered g0-cpu-r2 proof=[opencl_summary_statistics] device 'Apple Apple M4' id=0: NOT utilized
+selftest: rendered g0-cl proof=[opencl_summary_statistics] device 'Apple Apple M4' id=0: 161 out of 161 events were successful and 0 events lost. max event=160
+selftest: rendered g1-cpu proof=[opencl_summary_statistics] device 'Apple Apple M4' id=0: NOT utilized
+selftest: rendered g1-cpu-r2 proof=[opencl_summary_statistics] device 'Apple Apple M4' id=0: NOT utilized
+selftest: rendered g1-cl proof=[opencl_summary_statistics] device 'Apple Apple M4' id=0: 161 out of 161 events were successful and 0 events lost. max event=160
+selftest: rendered g2-cpu proof=[opencl_summary_statistics] device 'Apple Apple M4' id=0: NOT utilized
+selftest: rendered g2-cl proof=[opencl_summary_statistics] device 'Apple Apple M4' id=0: 162 out of 162 events were successful and 0 events lost. max event=161
+repeat g0-cpu vs g0-cpu-r2: mean_lsb=0.0000 max_lsb=0.0000 in_tol=1.00000000
+repeat g1-cpu vs g1-cpu-r2: mean_lsb=0.0000 max_lsb=0.0000 in_tol=1.00000000
+cpu-vs-cl g0: mean_lsb=0.0132 max_lsb=842.0000 beyond_samples=10 beyond_pixels=9
+cpu-vs-cl g1: mean_lsb=0.0137 max_lsb=904.0000 beyond_samples=11 beyond_pixels=10
+cpu-vs-cl g2: mean_lsb=0.0137 max_lsb=904.0000 beyond_samples=11 beyond_pixels=10
+exposure-effect g0 vs g1: mean_lsb=2600.8714 max_lsb=10562.0000 in_tol=0.01953888
+flip-plain g1 vs g2: mean_lsb=7747.8168 in_tol=0.02992269
+mirror g1-cpu vs g2-cpu: mean_lsb=0.0000 max_lsb=0.0000
+mirror g1-cl vs g2-cl: mean_lsb=0.0000 max_lsb=0.0000
+prefs identical=true bytes=1726
+hygiene mounts-clean=true
+hygiene no-own-darktable-cli-procs=true
+hygiene no-stale-tmp=true
+selftest: PASS
+selftest: workdir removed
+RC=0
+命令: defaults export org.darktable /tmp/a5rev-after.plist ; cmp /tmp/a5rev-before.plist /tmp/a5rev-after.plist
+输出: PREFS-IDENTICAL（无差异输出，cmp 退出 0）；两文件各 1726 字节。
+核对 A5-REPORT.md 五组数字：①两组 repeat max=0.0000 一致；②三组 cpu/cl mean 0.0132/0.0137/0.0137 且 beyond 10/11/11（≤100）一致；③exposure mean=2600.8714 一致；④双后端 mirror max=0.0000 一致；⑤prefs 1726B 相同一致。后端证据行（NOT utilized ×5，161/161 ×2，162/162 ×1）亦与报告一致。
+判定: 通过，rc=0，五组数字与 A5-REPORT 逐位相同，prefs 前后逐字节相同。
+
+================================================================
+step 3: 自检后卫生
+命令: hdiutil info | grep -c dt-oracle-run
+输出: 0（须为 0）
+命令: pgrep -f "dt-oracle-run.*darktable-cli"
+输出: 无命中（NO-OWN-PROCS）
+命令: ls -d ${TMPDIR}dt-oracle-run-* ; ls /tmp/dt-oracle-run-* ; ls /var/folders/*/T/dt-oracle-run-*
+输出: 三者均为 No such file or directory，无残留。
+判定: 通过。
+
+================================================================
+step 4: cargo test -p dt-cli --locked
+命令: cargo test -p dt-cli --locked
+输出（tail）: test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s（另 main.rs 单元 0 tests、Doc-tests 0 tests，均为 ok）
+判定: 通过，26 passed 与报告一致。
+
+================================================================
+step 5: ORACLE-BASELINE.md §2 五模块源码抽查（三版本）
+钉点：5.6.2=908607e556，5.7.0=e5330da743，master=679d594f5d；源码树 /Volumes/UNITEK/Documents/Development/Lightamer-rust-spike/refs/dt-master（git rev-parse 三 rev 均解析成功）。
+命令: for rev × for f in temperature highlights demosaic colorin exposure: git show <rev>:src/iop/<f>.c | grep DT_MODULE_INTROSPECTION
+输出:
+  908607e556: temperature v=4, highlights v=4, demosaic v=6, colorin v=7, exposure v=7
+  e5330da743: temperature v=4, highlights v=4, demosaic v=6, colorin v=7, exposure v=7
+  679d594f5d: temperature v=5, highlights v=5, demosaic v=8, colorin v=8, exposure v=7
+  与 §2 总表（temperature 4/4/5，highlights 4/4/5，demosaic 6/6/8，colorin 7/7/8，exposure 7/7/7）逐格一致。
+结构体抽查（typedef struct 段原样比对）:
+  temperature: 5.6.2 为 4×float+int=20B；master 尾部加 `gboolean late_correction; // $DEFAULT: FALSE` =24B。一致。
+  highlights: 5.6.2 含 `blendL/blendC // unused`（48B）；master 删除该两字段（40B），其余 $DEFAULT 逐行相同。一致。
+  demosaic: 5.6.2 `cs_radius // $DEFAULT: 0.0`；master `$DEFAULT: 0.5` 并加 `moire_thrs/moire_mix/dng_gainmap` 三字段（48B→60B，版本跳两级 v6→v8）。一致。
+  colorin: 5.6.2 止于 filename_work；master 尾部加 `gboolean output_rgb; // $DEFAULT: TRUE`（1044B→1048B）。一致。
+  exposure: 三版本结构体逐字相同（v7/28B）；`dng_baseline_exposure` 在 908607e556 的 exposure.c 中 grep 无命中，master 有 `d->exposure = (mono ? 0.0f : 0.7f) + self->dev->image_storage.dng_baseline_exposure;`（reload_defaults，ARW 的该值为 0 即不变）。与 §4 第 2 条一致。
+  另：五模块 5.6.2 vs 5.7.0 结构体经规范化空白后比对均为 IDENTICAL。一致。
+判定: 通过，版本号/字节变化/默认值三结论全部命中源码。
+
+================================================================
+step 6: 夹具逐字节比对
+命令: cmp fixtures/oracle/expected-g1-exposure.xmp .work/gsd/phases/rust-core/decode-oracle-evidence/g1m-exposure.xmp
+输出: G1-IDENTICAL（无差异，退出 0）
+命令: cmp fixtures/oracle/expected-g2-exposure-flip.xmp .work/gsd/phases/rust-core/decode-oracle-evidence/g2m-exposure-flip.xmp
+输出: G2-IDENTICAL（无差异，退出 0）
+（注：仓库内文件名是 expected-g1-exposure.xmp / expected-g2-exposure-flip.xmp，即任务所指 expected-g1/g2。）
+判定: 通过。
+
+================================================================
+step 7: cargo fmt --all --check 与 cargo clippy -p dt-cli --all-targets -- -D warnings
+命令: cargo fmt --all --check
+输出: （无输出）FMT_RC=0
+命令: cargo clippy -p dt-cli --all-targets -- -D warnings
+输出（tail）: Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.96s；CLIPPY_RC=0
+判定: 通过。
+
+================================================================
+附带核对（非验收，仅记录）:
+- §2 总表 `sed -n '18,50p' | grep -c "^|"` = 23 行 = 表头 2 行 + 21 模块行。一致。
+- Scripts/oracle.lock: version=5.6.2, size_bytes=88884896, sha256=6ff88e58a2a59cb07b0a1502fea7205e68cd783380a33a3ce7bda68ec29def0c。与报告一致。
+- docs/LICENSE-AUDIT.md §9 存在（A5 采用记录，png 0.18.1 + 10 个传递，§4.1 已登记，check 口径 allow=50/exception=0/fail=0）；crates/README.md dt-cli 行已填（fetch/render/cmp/emit-xmp/selftest + png 0.18.1 + Scripts/oracle.sh）。
+- 夹具行数：expected-g1 35 行 / expected-g2 45 行。
+- 未碰用户照片库、未读凭据、未 kill 非自起进程（pgrep 仅只读查询）；唯一写文件即本 log。

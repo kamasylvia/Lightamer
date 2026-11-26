@@ -6,5 +6,9 @@ rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[dependencies]
+# A5: 16-bit PNG decode for `cmp` (pure Rust, no system libs).
+png = "0.18"
+
 [lints]
 workspace = true
