@@ -25,13 +25,10 @@ use crate::error::CatalogError;
 
 /// Label of step 0, written when a photo is registered.
 ///
-/// NOTE (B13′-a finding, for B13′-b): the in-memory [`HistoryStack`] starts
-/// its first step with label `"import"`, not this. The brief mandates
-/// `"seed"` here, so the stored step 0 and a fresh in-memory step 0 differ
-/// in label today; B13′-b must reconcile them (flip one constant).
-///
-/// [`HistoryStack`]: lightamer_history::HistoryStack
-pub const SEED_LABEL: &str = "seed";
+/// Re-exported from the history model so the stored step 0 and a fresh
+/// in-memory stack share one source (B13′-b alignment, retiring the B13′-a
+/// literal).
+pub use lightamer_history::INITIAL_LABEL;
 
 /// Where one pushed step landed.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -222,6 +219,19 @@ impl<'c> HistoryWriter<'c> {
     /// [`CatalogError::Sql`] when SQLite refuses the commit.
     pub fn commit(self) -> Result<(), CatalogError> {
         Ok(self.tx.commit()?)
+    }
+
+    /// Moves a photo's cursor inside this transaction: [`move_cursor`] on the
+    /// open transaction instead of a fresh one. A command that both commits
+    /// (ending a drag) and moves (undo/redo/goto) lands both in the single
+    /// transaction the command commits.
+    ///
+    /// # Errors
+    ///
+    /// See [`move_cursor`]; a failed move writes nothing and the writer stays
+    /// usable (dropping it without [`HistoryWriter::commit`] rolls back).
+    pub fn move_cursor(&self, photo_id: i64, target: i64) -> Result<MoveOutcome, CatalogError> {
+        move_cursor(&self.tx, photo_id, target)
     }
 
     /// The phase totals of this writer's pushes so far.

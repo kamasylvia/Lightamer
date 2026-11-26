@@ -7,11 +7,14 @@
 //!
 //! # The `execute` contract
 //!
-//! * **Atomic.** A call either fully applies or changes nothing: the engine
-//!   clones the synchronous state (every photo's settings, history, cursor,
-//!   and process version, plus the clipboard) before the run function and
-//!   restores it whole on any error. [`Engine::state_digest`] hashes that
-//!   state plus the job table for tests and the CLI.
+//! * **Atomic.** A call either fully applies or changes nothing. Drafts (and
+//!   session/job commands) hold this by cloning the synchronous state (every
+//!   photo's settings, history, cursor, and process version, plus the
+//!   clipboard) before the run function and restoring it whole on any error.
+//!   Persisted commands on a real session hold it by computing the new state
+//!   first, committing one store transaction, then swapping in state that
+//!   cannot fail. [`Engine::state_digest`] hashes that state plus the job
+//!   table for tests and the CLI.
 //! * **Typed errors.** Every failure is one [`CommandError`] variant with a
 //!   human-readable line: unknown command, unknown or missing parameter, bad
 //!   value, refused enablement, no session, no photo, no interaction, empty
@@ -96,6 +99,7 @@ pub mod error;
 pub mod event;
 mod history;
 pub mod jobs;
+mod real;
 mod session;
 
 pub use command::{CommandSpec, Outcome, ParamKind, ParamSpec, command_specs, find_command};

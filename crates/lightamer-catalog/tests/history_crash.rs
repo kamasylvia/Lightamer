@@ -71,7 +71,7 @@ fn killed_after_commit_keeps_exactly_committed_steps() -> Result<(), Box<dyn std
     let labels: Vec<&str> = read.steps.iter().map(|step| step.label.as_str()).collect();
     assert_eq!(
         labels,
-        vec!["seed", "develop.set", "develop.set", "develop.set"]
+        vec!["import", "develop.set", "develop.set", "develop.set"]
     );
     assert_eq!(read.cursor, 3);
     let snapshots: i64 =
@@ -101,10 +101,10 @@ fn killed_before_commit_loses_the_open_transaction() -> Result<(), Box<dyn std::
 
     let session = open_session(&root, "crash-parent")?;
     // The registration committed, so the photo is there; the two pushed
-    // steps never committed, so only the seed step is.
+    // steps never committed, so only the initial step is.
     let read = read_history(session.connection(), 1)?;
     let labels: Vec<&str> = read.steps.iter().map(|step| step.label.as_str()).collect();
-    assert_eq!(labels, vec!["seed"]);
+    assert_eq!(labels, vec!["import"]);
     assert_eq!(read.cursor, 0);
     let snapshots: i64 =
         session

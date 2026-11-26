@@ -45,8 +45,9 @@ pub use backup::{
 };
 pub use error::CatalogError;
 pub use history_store::{
-    HistoryRead, HistoryStepRead, HistoryWriter, MoveOutcome, PushOutcome, PushStats, SEED_LABEL,
-    delete_orphan_snapshots, move_cursor, orphan_snapshot_hashes, push_step, read_history,
+    HistoryRead, HistoryStepRead, HistoryWriter, INITIAL_LABEL, MoveOutcome, PushOutcome,
+    PushStats, delete_orphan_snapshots, move_cursor, orphan_snapshot_hashes, push_step,
+    read_history,
 };
 pub use lock::{LOCK_FILE, LockOwner, OWNER_FILE, SessionLock};
 pub use migrate::{

@@ -84,6 +84,9 @@ fn run_undo(
     ctx: &mut RunCtx,
 ) -> Result<Outcome, CommandError> {
     const CMD: &str = "history.undo";
+    if engine.has_real_session() {
+        return crate::real::history_undo(engine, params, ctx);
+    }
     let id = id_req(CMD, params)?;
     let Some(stack) = engine.stack_mut(&id) else {
         return Err(CommandError::NoPhoto {
@@ -110,6 +113,9 @@ fn run_redo(
     ctx: &mut RunCtx,
 ) -> Result<Outcome, CommandError> {
     const CMD: &str = "history.redo";
+    if engine.has_real_session() {
+        return crate::real::history_redo(engine, params, ctx);
+    }
     let id = id_req(CMD, params)?;
     let Some(stack) = engine.stack_mut(&id) else {
         return Err(CommandError::NoPhoto {
@@ -136,6 +142,9 @@ fn run_goto(
     ctx: &mut RunCtx,
 ) -> Result<Outcome, CommandError> {
     const CMD: &str = "history.goto";
+    if engine.has_real_session() {
+        return crate::real::history_goto(engine, params, ctx);
+    }
     let id = id_req(CMD, params)?;
     let raw = uint_req(CMD, params, "index")?;
     let Ok(index) = usize::try_from(raw) else {
@@ -170,6 +179,9 @@ fn run_process_update(
     ctx: &mut RunCtx,
 ) -> Result<Outcome, CommandError> {
     const CMD: &str = "process.update";
+    if engine.has_real_session() {
+        return crate::real::process_update(engine, params, ctx);
+    }
     let ids = ids_req(CMD, params)?;
     for id in &ids {
         if !engine.state().photos_contains(id) {

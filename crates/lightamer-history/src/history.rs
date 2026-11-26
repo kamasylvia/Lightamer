@@ -23,7 +23,10 @@ use super::settings::{InstanceList, PhotoSettings};
 pub const HISTORY_LIMIT: usize = 200;
 
 /// Label of the step a fresh stack starts on.
-const INITIAL_LABEL: &str = "import";
+///
+/// Public so the session store and the engine name step 0 from this one
+/// source instead of repeating the literal.
+pub const INITIAL_LABEL: &str = "import";
 
 /// One undo step: the command label plus a full settings snapshot.
 #[allow(clippy::module_name_repetitions)]
@@ -120,6 +123,21 @@ impl HistoryStack {
     #[must_use]
     pub fn is_interaction_open(&self) -> bool {
         self.interaction.is_some()
+    }
+
+    /// What ending the open interaction would commit: the step label and the
+    /// live value when the drag changed anything; `None` when no interaction
+    /// is open or the live value still equals the pre-interaction settings
+    /// (ending then commits nothing). Persisted commands peek through this
+    /// before they touch the store, so the store learns exactly the step the
+    /// memory call would commit.
+    #[must_use]
+    pub fn pending_interaction(&self) -> Option<(&str, &Arc<PhotoSettings>)> {
+        let open = self.interaction.as_ref()?;
+        if open.live == open.original {
+            return None;
+        }
+        Some((open.label.as_str(), &open.live))
     }
 
     /// Commits one step: drops every step after the cursor, pushes, and moves
@@ -228,7 +246,84 @@ impl HistoryStack {
     pub fn cancel_interaction(&mut self) {
         self.interaction = None;
     }
+
+    /// Rebuilds a stack from stored steps: their labels and settings plus
+    /// where the cursor sat. The rebuilt stack equals one built step by step
+    /// (same steps, same cursor, no open interaction); the [`HISTORY_LIMIT`]
+    /// rule holds, so more stored steps than the limit is refused rather
+    /// than silently trimmed.
+    ///
+    /// # Errors
+    ///
+    /// [`RebuildError::Empty`] when no step is given; [`RebuildError::TooMany`]
+    /// when the steps exceed [`HISTORY_LIMIT`]; [`RebuildError::CursorOutOfRange`]
+    /// when the cursor names no step.
+    pub fn from_steps(steps: Vec<HistoryStep>, cursor: usize) -> Result<Self, RebuildError> {
+        if steps.is_empty() {
+            return Err(RebuildError::Empty);
+        }
+        if steps.len() > HISTORY_LIMIT {
+            return Err(RebuildError::TooMany {
+                steps: steps.len(),
+                limit: HISTORY_LIMIT,
+            });
+        }
+        if cursor >= steps.len() {
+            return Err(RebuildError::CursorOutOfRange {
+                cursor,
+                steps: steps.len(),
+            });
+        }
+        Ok(Self {
+            steps,
+            cursor,
+            interaction: None,
+        })
+    }
 }
+
+/// What is wrong with stored steps handed to [`HistoryStack::from_steps`].
+#[allow(clippy::module_name_repetitions)]
+// Public error names repeat the module by project convention (`RebuildError`
+// reads better at use sites than `Error`); the lint's rename would obscure it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RebuildError {
+    /// No step was given; a stack always holds at least one step.
+    Empty,
+    /// More steps than [`HISTORY_LIMIT`]; stored histories never exceed it.
+    TooMany {
+        /// How many steps were given.
+        steps: usize,
+        /// The limit they exceeded.
+        limit: usize,
+    },
+    /// The cursor names no step.
+    CursorOutOfRange {
+        /// The cursor that was given.
+        cursor: usize,
+        /// How many steps were given.
+        steps: usize,
+    },
+}
+
+impl std::fmt::Display for RebuildError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RebuildError::Empty => write!(f, "cannot rebuild a stack from no steps"),
+            RebuildError::TooMany { steps, limit } => {
+                write!(
+                    f,
+                    "cannot rebuild a stack from {steps} steps (limit {limit})"
+                )
+            }
+            RebuildError::CursorOutOfRange { cursor, steps } => {
+                write!(f, "cursor {cursor} names no step of {steps}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for RebuildError {}
 
 /// Adjustments copied for batch apply: module instances only.
 ///
@@ -510,5 +605,89 @@ mod tests {
         assert_eq!(moved.labels(), vec!["import", "step-a", "drag"]);
         assert_eq!(float_of(moved.current().unwrap()), 0.0);
         assert!(!moved.goto(9));
+    }
+
+    #[test]
+    fn initial_label_is_the_import_step() {
+        assert_eq!(super::INITIAL_LABEL, "import");
+        let stack = HistoryStack::new(settings_with_float(0.0));
+        assert_eq!(stack.labels(), vec![super::INITIAL_LABEL]);
+    }
+
+    #[test]
+    fn from_steps_rebuilds_exactly_the_stepwise_stack() {
+        let mut stepwise = HistoryStack::new(settings_with_float(0.0));
+        stepwise.commit("step-a", settings_with_float(1.0));
+        stepwise.commit("step-b", settings_with_float(2.0));
+        assert!(stepwise.goto(1));
+        let stored: Vec<super::HistoryStep> = stepwise
+            .labels()
+            .into_iter()
+            .enumerate()
+            .map(|(index, label)| super::HistoryStep {
+                label: label.to_owned(),
+                settings: stepwise.step(index).unwrap().settings.clone(),
+            })
+            .collect();
+        let rebuilt = HistoryStack::from_steps(stored, stepwise.cursor_index()).unwrap();
+        assert_eq!(rebuilt, stepwise);
+        assert_eq!(rebuilt.labels(), vec!["import", "step-a", "step-b"]);
+        assert_eq!(rebuilt.cursor_index(), 1);
+        assert!(!rebuilt.is_interaction_open());
+    }
+
+    #[test]
+    fn from_steps_rejects_an_out_of_range_cursor() {
+        let steps = vec![super::HistoryStep {
+            label: "import".to_owned(),
+            settings: settings_with_float(0.0),
+        }];
+        let err = HistoryStack::from_steps(steps, 1).unwrap_err();
+        assert_eq!(
+            err,
+            super::RebuildError::CursorOutOfRange {
+                cursor: 1,
+                steps: 1
+            }
+        );
+        assert_eq!(err.to_string(), "cursor 1 names no step of 1");
+    }
+
+    #[test]
+    fn from_steps_rejects_empty_and_overflowing_steps() {
+        assert_eq!(
+            HistoryStack::from_steps(vec![], 0).unwrap_err(),
+            super::RebuildError::Empty
+        );
+        let steps: Vec<super::HistoryStep> = (0..=HISTORY_LIMIT)
+            .map(|_| super::HistoryStep {
+                label: "step".to_owned(),
+                settings: settings_with_float(0.0),
+            })
+            .collect();
+        let err = HistoryStack::from_steps(steps, 0).unwrap_err();
+        assert_eq!(
+            err,
+            super::RebuildError::TooMany {
+                steps: HISTORY_LIMIT + 1,
+                limit: HISTORY_LIMIT
+            }
+        );
+    }
+
+    #[test]
+    fn pending_interaction_reports_only_a_changed_drag() {
+        let mut stack = HistoryStack::new(settings_with_float(0.0));
+        assert!(stack.pending_interaction().is_none());
+        stack.begin_interaction("drag");
+        assert!(stack.pending_interaction().is_none());
+        assert!(stack.update_interaction(settings_with_float(5.0)));
+        let pending = stack.pending_interaction();
+        assert!(pending.is_some());
+        let (label, live) = pending.unwrap();
+        assert_eq!(label, "drag");
+        assert_eq!(float_of(live), 5.0);
+        stack.end_interaction();
+        assert!(stack.pending_interaction().is_none());
     }
 }

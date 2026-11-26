@@ -12,15 +12,15 @@
 //! and a future MCP all call it. Reads bypass it through cheap snapshot
 //! accessors; notifications arrive as [`Event`]s after a call commits.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, channel};
 
-use lightamer_catalog::Session;
-use lightamer_history::{BatchAdjustments, HistoryStack, PhotoSettings};
+use lightamer_catalog::{HistoryRead, Session};
+use lightamer_history::{BatchAdjustments, HistoryStack, HistoryStep, PhotoSettings};
 use lightamer_iop_traits::ParamsDesc;
 use serde_json::Value;
 
@@ -31,6 +31,14 @@ use crate::jobs::{JobCtx, JobId, JobInfo, JobPool, JobStatus, JobTable, Task};
 
 /// A parameter lookup: module id to its declared fields, if any.
 type ParamLookup = Rc<dyn Fn(&str) -> Option<ParamsDesc>>;
+
+/// How many photo stacks the engine keeps loaded on a real session: past
+/// this many, the least-recently-used stack without an open interaction is
+/// dropped (its committed steps are already in the store, so reloading is
+/// exact). Stacks are settings-only — tens of kilobytes in practice — so 64
+/// covers interactive working sets (browsing, pair culling) in single-digit
+/// megabytes while batch commands stream through without pinning thousands.
+pub const PHOTO_CACHE_LIMIT: usize = 64;
 
 /// Everything a command may change synchronously: the photos plus the
 /// clipboard. Cloned before each call so a failure restores it whole.
@@ -81,6 +89,7 @@ pub struct Engine {
     jobs: JobTable,
     pool: JobPool,
     lookup: Option<ParamLookup>,
+    lru: VecDeque<String>,
 }
 
 impl Engine {
@@ -100,6 +109,7 @@ impl Engine {
             jobs: JobTable::new(results_rx),
             pool: JobPool::new(&results_tx),
             lookup: None,
+            lru: VecDeque::new(),
         }
     }
 
@@ -148,8 +158,12 @@ impl Engine {
     ///
     /// The call is atomic: unknown ids, bad params, refused enablement, and
     /// run failures all leave the engine exactly as it was and dispatch no
-    /// events. On success the outcome reports small facts and the collected
-    /// events dispatch in emission order, before `execute` returns.
+    /// events. Drafts (and session/job commands) hold this by cloning the
+    /// state and restoring it on error; persisted commands on a real session
+    /// hold it by computing first, committing one store transaction, then
+    /// swapping in state that cannot fail. On success the outcome reports
+    /// small facts and the collected events dispatch in emission order,
+    /// before `execute` returns.
     ///
     /// # Errors
     ///
@@ -173,6 +187,25 @@ impl Engine {
             });
         }
         self.executing = true;
+        // Persisted commands on a real session run the PLAN-B §1.8 path
+        // instead of the clone/restore below: they compute the new memory
+        // state first, commit one store transaction, then swap the computed
+        // stacks in (see `real`). The swap cannot fail, so there is nothing
+        // to restore; loading a photo only adds a mirror of committed store
+        // rows. Drafts and session/job commands keep the snapshot below.
+        if self.has_real_session() && crate::real::is_persisted(id) {
+            let mut ctx = RunCtx::default();
+            let outcome = (spec.run)(self, &checked, &mut ctx);
+            self.executing = false;
+            return match outcome {
+                Ok(value) => {
+                    let events = ctx.take();
+                    self.dispatch(&events);
+                    Ok(value)
+                }
+                Err(err) => Err(err),
+            };
+        }
         let snapshot = self.state.clone();
         let mut ctx = RunCtx::default();
         let outcome = (spec.run)(self, &checked, &mut ctx);
@@ -267,6 +300,16 @@ impl Engine {
         }
     }
 
+    /// The open real session, mutably, for in-crate run functions (the
+    /// commit half of §1.8 borrows this while the computed stacks wait in a
+    /// local, so the borrow never overlaps the swap-in).
+    pub(crate) fn real_session_mut(&mut self) -> Option<&mut Session> {
+        match &mut self.session {
+            SessionSlot::Real(session) => Some(session),
+            SessionSlot::None | SessionSlot::Draft => None,
+        }
+    }
+
     /// Installs a real session (the caller checked that none is open).
     pub(crate) fn install_real_session(&mut self, session: Session) {
         self.session = SessionSlot::Real(session);
@@ -289,6 +332,170 @@ impl Engine {
     pub(crate) fn clear_after_close(&mut self) {
         self.state.photos.clear();
         self.state.clipboard = None;
+        self.lru.clear();
+    }
+
+    /// Loads one photo's stack from the open real session's store into the
+    /// cache (a recency touch when already loaded) and returns its store id.
+    /// When every cached stack is pinned by an open interaction, the fresh
+    /// stack cannot stay cached and the call is refused instead of loading a
+    /// photo the run function can no longer find.
+    ///
+    /// # Errors
+    ///
+    /// [`CommandError::NoSession`] when no real session is open;
+    /// [`CommandError::NoPhoto`] when the store holds no such UUID (the same
+    /// error a draft reports for a photo it does not hold);
+    /// [`CommandError::Store`] when the store will not answer or its rows do
+    /// not rebuild; [`CommandError::Disabled`] when the cache is pinned full.
+    pub(crate) fn ensure_photo_loaded(&mut self, cmd: &str, id: &str) -> Result<i64, CommandError> {
+        if self.state.photos.contains_key(id) {
+            self.touch_photo(id);
+            return self.db_photo_id(cmd, id);
+        }
+        let db = self.db_photo_id(cmd, id)?;
+        let stack = self.load_stack(cmd, db)?;
+        self.state.photos.insert(id.to_owned(), stack);
+        self.touch_photo(id);
+        self.evict_photos_if_over();
+        if !self.state.photos.contains_key(id) {
+            return Err(CommandError::Disabled {
+                cmd: cmd.to_owned(),
+                reason: "the photo cache is pinned full by open interactions".to_owned(),
+            });
+        }
+        Ok(db)
+    }
+
+    /// One photo's store id for its UUID.
+    ///
+    /// # Errors
+    ///
+    /// See [`Engine::ensure_photo_loaded`].
+    pub(crate) fn db_photo_id(&self, cmd: &str, id: &str) -> Result<i64, CommandError> {
+        let Some(session) = self.real_session() else {
+            return Err(CommandError::NoSession {
+                cmd: cmd.to_owned(),
+            });
+        };
+        match lightamer_catalog::find_photo_by_uuid(session.connection(), id) {
+            Ok(Some(record)) => Ok(record.id),
+            Ok(None) => Err(CommandError::NoPhoto {
+                cmd: cmd.to_owned(),
+                photo: id.to_owned(),
+            }),
+            Err(err) => Err(CommandError::Store {
+                cmd: cmd.to_owned(),
+                reason: err.to_string(),
+            }),
+        }
+    }
+
+    /// Rebuilds one photo's stack from its stored steps (labels, settings,
+    /// cursor) without caching it; the caller inserts the result.
+    ///
+    /// # Errors
+    ///
+    /// See [`Engine::ensure_photo_loaded`].
+    fn load_stack(&self, cmd: &str, db: i64) -> Result<HistoryStack, CommandError> {
+        let store = |reason: String| CommandError::Store {
+            cmd: cmd.to_owned(),
+            reason,
+        };
+        let Some(session) = self.real_session() else {
+            return Err(CommandError::NoSession {
+                cmd: cmd.to_owned(),
+            });
+        };
+        let read = lightamer_catalog::read_history(session.connection(), db)
+            .map_err(|err| store(err.to_string()))?;
+        let mut steps = Vec::with_capacity(read.steps.len());
+        for stored in &read.steps {
+            let settings = PhotoSettings::from_json(&stored.settings_json).map_err(|err| {
+                store(format!(
+                    "stored step {} of photo {db} does not parse: {err}",
+                    stored.idx
+                ))
+            })?;
+            steps.push(HistoryStep {
+                label: stored.label.clone(),
+                settings: Arc::new(settings),
+            });
+        }
+        let cursor = usize::try_from(read.cursor).map_err(|_| {
+            store(format!(
+                "stored cursor {} of photo {db} does not fit",
+                read.cursor
+            ))
+        })?;
+        HistoryStack::from_steps(steps, cursor).map_err(|err| store(err.to_string()))
+    }
+
+    /// Swaps a computed stack into the cache (the §1.8 step 3): infallible by
+    /// construction — the stack was fully computed before the store commit.
+    pub(crate) fn insert_photo_stack(&mut self, id: &str, stack: HistoryStack) {
+        self.state.photos.insert(id.to_owned(), stack);
+        self.touch_photo(id);
+        self.evict_photos_if_over();
+    }
+
+    /// Marks one cached photo most-recently-used.
+    fn touch_photo(&mut self, id: &str) {
+        self.lru.retain(|known| known != id);
+        self.lru.push_back(id.to_owned());
+    }
+
+    /// Evicts least-recently-used cached stacks past [`PHOTO_CACHE_LIMIT`].
+    /// Drafts never evict (no store backs them); stacks with an open
+    /// interaction never evict (their live value exists only in memory), so
+    /// when every cached stack is pinned the cap yields instead of looping.
+    fn evict_photos_if_over(&mut self) {
+        if !self.has_real_session() {
+            return;
+        }
+        let mut pinned_seen = 0;
+        while self.state.photos.len() > PHOTO_CACHE_LIMIT {
+            let Some(oldest) = self.lru.pop_front() else {
+                break;
+            };
+            let pinned = self
+                .state
+                .photos
+                .get(&oldest)
+                .is_some_and(HistoryStack::is_interaction_open);
+            if pinned {
+                self.lru.push_back(oldest);
+                pinned_seen += 1;
+                if pinned_seen >= self.lru.len() {
+                    break;
+                }
+                continue;
+            }
+            pinned_seen = 0;
+            self.state.photos.remove(&oldest);
+        }
+    }
+
+    /// Whether this photo's stack is currently loaded (real sessions load on
+    /// first use; drafts hold everything from the start).
+    #[must_use]
+    pub fn is_photo_loaded(&self, id: &str) -> bool {
+        self.state.photos.contains_key(id)
+    }
+
+    /// How many photo stacks are currently loaded.
+    #[must_use]
+    pub fn loaded_photo_count(&self) -> usize {
+        self.state.photos.len()
+    }
+
+    /// One photo's stored history without caching it: `None` when the photo
+    /// is unknown or the store will not answer. Snapshot accessors serve
+    /// loaded stacks from the cache and fall back to this.
+    fn stored_history(&self, id: &str) -> Option<HistoryRead> {
+        let session = self.real_session()?;
+        let record = lightamer_catalog::find_photo_by_uuid(session.connection(), id).ok()??;
+        lightamer_catalog::read_history(session.connection(), record.id).ok()
     }
 
     /// Remembers a restore job's delivery channel until [`Engine::collect`].
@@ -402,42 +609,67 @@ impl Engine {
         self.state.clipboard.is_some()
     }
 
-    /// The open session's photo ids, in sorted order.
+    /// The open session's photo ids, in sorted order (on a real session the
+    /// store lists them, so photos never loaded still show).
     #[must_use]
     pub fn photo_ids(&self) -> Vec<String> {
-        self.state.photos.keys().cloned().collect()
+        if let Some(session) = self.real_session() {
+            match lightamer_catalog::list_photo_uuids(session.connection()) {
+                Ok(mut ids) => {
+                    ids.sort();
+                    ids
+                }
+                Err(_) => Vec::new(),
+            }
+        } else {
+            self.state.photos.keys().cloned().collect()
+        }
     }
 
-    /// One photo's current settings (the live value mid-interaction).
+    /// One photo's current settings (the live value mid-interaction). Loaded
+    /// stacks answer from the cache; the rest read through to the store.
     #[must_use]
     pub fn photo_settings(&self, id: &str) -> Option<Arc<PhotoSettings>> {
-        self.state.photos.get(id)?.current().cloned()
+        if let Some(stack) = self.state.photos.get(id) {
+            return stack.current().cloned();
+        }
+        let read = self.stored_history(id)?;
+        let cursor = usize::try_from(read.cursor).ok()?;
+        let stored = read.steps.get(cursor)?;
+        PhotoSettings::from_json(&stored.settings_json)
+            .ok()
+            .map(Arc::new)
     }
 
-    /// One photo's step labels, oldest first.
+    /// One photo's step labels, oldest first (read-through like
+    /// [`Engine::photo_settings`]).
     #[must_use]
     pub fn photo_labels(&self, id: &str) -> Option<Vec<String>> {
-        Some(
-            self.state
-                .photos
-                .get(id)?
-                .labels()
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
-        )
+        if let Some(stack) = self.state.photos.get(id) {
+            return Some(stack.labels().iter().map(ToString::to_string).collect());
+        }
+        self.stored_history(id)
+            .map(|read| read.steps.iter().map(|step| step.label.clone()).collect())
     }
 
-    /// One photo's cursor position.
+    /// One photo's cursor position (read-through like
+    /// [`Engine::photo_settings`]).
     #[must_use]
     pub fn photo_cursor(&self, id: &str) -> Option<usize> {
-        self.state.photos.get(id).map(HistoryStack::cursor_index)
+        if let Some(stack) = self.state.photos.get(id) {
+            return Some(stack.cursor_index());
+        }
+        let read = self.stored_history(id)?;
+        usize::try_from(read.cursor).ok()
     }
 
-    /// One photo's step count.
+    /// One photo's step count (read-through like [`Engine::photo_settings`]).
     #[must_use]
     pub fn photo_len(&self, id: &str) -> Option<usize> {
-        self.state.photos.get(id).map(HistoryStack::len)
+        if let Some(stack) = self.state.photos.get(id) {
+            return Some(stack.len());
+        }
+        self.stored_history(id).map(|read| read.steps.len())
     }
 
     /// The job table, oldest first.
@@ -477,12 +709,26 @@ impl Engine {
         })
     }
 
-    /// A stable digest of the whole synchronous state plus the job table:
-    /// every photo's steps (labels and canonical settings), cursors, process
-    /// versions (inside the canonical bytes), the clipboard, and the job rows.
+    /// A stable digest of the whole synchronous state plus the job table.
+    ///
+    /// Drafts hash every photo's steps (labels and canonical settings),
+    /// cursors, process versions (inside the canonical bytes), the clipboard,
+    /// and the job rows. Real sessions hash the store's committed histories
+    /// instead of the loaded mirrors — plus what memory alone holds (open
+    /// drag values, the clipboard) plus the job rows — so poking the store
+    /// behind the engine's back, or a drag update that never commits, moves
+    /// the digest, while loading or evicting a cache mirror does not.
     /// FNV-1a over the same canonical bytes [`PhotoSettings::hash64`] uses.
     #[must_use]
     pub fn state_digest(&self) -> u64 {
+        if self.has_real_session() {
+            return self.digest_real_state();
+        }
+        self.digest_draft_state()
+    }
+
+    /// The draft half of [`Engine::state_digest`]: loaded stacks verbatim.
+    fn digest_draft_state(&self) -> u64 {
         const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
         const PRIME: u64 = 0x0100_0000_01b3;
         let mut hash = OFFSET;
@@ -506,6 +752,64 @@ impl Engine {
                 }
             }
         }
+        self.mix_clipboard_and_jobs(&mut hash);
+        hash
+    }
+
+    /// The real-session half of [`Engine::state_digest`]: committed histories
+    /// from the store, open drag values from the loaded stacks, then the
+    /// shared clipboard-and-jobs tail.
+    fn digest_real_state(&self) -> u64 {
+        const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+        const PRIME: u64 = 0x0100_0000_01b3;
+        let mut hash = OFFSET;
+        let mut mix = |bytes: &[u8]| {
+            for byte in bytes {
+                hash ^= u64::from(*byte);
+                hash = hash.wrapping_mul(PRIME);
+            }
+        };
+        if let Some(session) = self.real_session() {
+            let mut ids =
+                lightamer_catalog::list_photo_uuids(session.connection()).unwrap_or_default();
+            ids.sort();
+            for id in &ids {
+                mix(id.as_bytes());
+                match self.stored_history(id) {
+                    Some(read) => {
+                        mix(&read.cursor.to_le_bytes());
+                        for step in &read.steps {
+                            mix(step.label.as_bytes());
+                            mix(step.settings_json.as_bytes());
+                        }
+                    }
+                    None => mix(b"store-unreadable"),
+                }
+            }
+        }
+        for (id, stack) in &self.state.photos {
+            if stack.is_interaction_open()
+                && let Some(live) = stack.current()
+            {
+                mix(b"live:");
+                mix(id.as_bytes());
+                mix(live.canonical_json().unwrap_or_default().as_bytes());
+            }
+        }
+        self.mix_clipboard_and_jobs(&mut hash);
+        hash
+    }
+
+    /// Mixes the clipboard and the job table into `hash` (both digests share
+    /// this tail, byte for byte).
+    fn mix_clipboard_and_jobs(&self, hash: &mut u64) {
+        const PRIME: u64 = 0x0100_0000_01b3;
+        let mut mix = |bytes: &[u8]| {
+            for byte in bytes {
+                *hash ^= u64::from(*byte);
+                *hash = hash.wrapping_mul(PRIME);
+            }
+        };
         match self.state.clipboard.as_ref() {
             Some(batch) => {
                 mix(b"clipboard:");
@@ -523,7 +827,6 @@ impl Engine {
             mix(&info.done.to_le_bytes());
             mix(&info.total.to_le_bytes());
         }
-        hash
     }
 
     /// [`Engine::state_digest`] as a decimal string (all 64-bit hashes this

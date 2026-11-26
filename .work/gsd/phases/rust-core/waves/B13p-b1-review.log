@@ -1,0 +1,156 @@
+PASS / 0 erPASS / 0 error + 2 minor
+
+B13′-b1 域内复审 log（只读复审，可构建测试，不改文件，不提交；唯一落盘即本文件）。
+复审对象 commit 067a1a73，diff 基线 0b11763b。工作目录 /Volumes/UNITEK/Documents/Development/Lightamer。
+复审时 HEAD 已在 067a1a73（任务书称起始 0b11763b，实为 diff 基线；在复审对象上重跑正确）。
+全程中文，结论头英文。并行度一律 -j6，一次一个重活（顺序执行，未并行）。
+
+0. machine-guard（构建前）
+命令：Scripts/machine-guard.sh
+输出：GUARD PASS (heavy=0 free=72% swap=?M disk=?GB)，EXIT=0
+结论：通过。轮询未触发（一次过）。
+
+1. 三包单测绿 + 行为↔测试名核对
+命令：cargo test -p lightamer-history --locked -j6
+输出：37 passed + 1 doctest，EXIT=0。其中 28 旧 + 9 新（下）。
+命令：cargo test -p lightamer-engine --locked -j6
+输出：44（lib）+ 26（atomicity）+ 1（crash）+ 23（edits）+ 13（session_commands）+ 11（session_jobs）+ 0 doctest = 118，EXIT=0。
+命令：cargo test -p lightamer-catalog --locked -j6
+输出：60 passed + 1 ignored（perf_10k），EXIT=0。分项：1+2+6+1+4+2+21+4+2+3+1+0(+1忽略)+5+2+2+4=60。
+结论：三包全绿。
+
+行为↔测试名（读 --list 全量）：
+- history 新 9：merge::tests 4（modules_replace_the_selected_instance_wholesale、modules_add_missing_and_skip_source_absent_selections、params_overwrite_only_the_named_parameters、params_create_a_missing_instance_with_only_selected_parameters）+ from_steps 3（rebuilds_exactly_the_stepwise_stack、rejects_an_out_of_range_cursor、rejects_empty_and_overflowing_steps）+ initial_label_is_the_import_step + pending_interaction_reports_only_a_changed_drag。与 REPORT §测试节“merge 4、from_steps 3、label 1、pending 1”逐名对上。
+- catalog 新 1：history_store::writer_push_and_move_land_in_one_transaction（含失败回滚下半段）。
+- engine 新 50 = edits 23 + atomicity 26 + crash 1：
+  - A7a 对等 10：set_commits_one_step_per_photo_and_persists_it、reset_commits_default_settings_as_one_step、copy_fills_the_clipboard_without_a_step、paste_commits_one_step_per_target_and_keeps_their_process、paste_with_an_empty_clipboard_fails_and_changes_nothing、drag_updates_fold_into_one_step_on_end、drag_cancel_restores_the_pre_drag_settings、undo_redo_goto_move_only_the_cursor、process_update_commits_only_outdated_photos、undo_with_nowhere_to_go_is_refused。REPORT 写“11”但括号只列 10 名，实为 10 + close_and_reopen（见 M-1 子项）。
+  - settle 2：set_during_a_drag_commits_the_drag_first、undo_after_a_drag_commits_the_drag_then_moves。
+  - 懒加载 4：unknown_uuid_reports_no_photo_like_a_draft、first_use_loads_the_photo_from_the_store、photo_ids_list_the_store_not_the_cache、evicted_photos_reload_exactly_from_the_store。
+  - 单事务 1：paste_batch_is_one_transaction（中间照片触发器拒绝，三张全滚，摘要不动，库两端复核）。
+  - trim 1、import 1（stored_step_zero_is_labelled_import）、digest 3（见语义节）、close/reopen 1。
+  - atomicity 26 = 12 坏参数（每命令 unknown/missing/bad 三形，assert_bad 比摘要+len）+ 9 事务失败（assert_store_failure 比摘要+len，断 CommandError::Store）+ 5 内存命令穿触发器成功（copy/begin-fresh/update/end-noop/cancel，证零写）。
+  - crash 1：killed_mid_drag_keeps_committed_steps_and_loses_the_live_value。
+结论：REPORT §测试节每条行为均有对应测试（命名级逐条命中；计数口径见 M-1 子项）。
+
+2. 全工作区
+命令：cargo test --workspace --locked -j6（两次：一次全输出确认零 FAILED，一次汇总）
+输出：passed=342 failed=0 ignored=1 total=343，EXIT=0。
+命令：cargo test --workspace --locked -j6 -- --list 2>/dev/null | grep -c ": test$"
+输出：343。
+结论：通过。343 = 342 通过 + 1 忽略 = 283 + 60（60 = history 9 + catalog 1 + engine 50；283 = 343 − 60，基线侧未 checkout 验证，算术一致且三包新测试逐名数出 60）。
+
+3. A7a 零改
+命令：git diff 0b11763b 067a1a73 -- crates/lightamer-engine/src/engine.rs crates/lightamer-engine/src/develop.rs crates/lightamer-engine/src/history.rs | grep -E "^[-+].*assert"
+输出：无输出（grep exit=1）。通过。
+逐 hunk 确认：develop 10 hunk（新行 ≤515，tests mod 起于 539）、engine 12 hunk（新行 ≤818，tests mod 起于 848）、history 4 hunk（新行 ≤179，tests mod 起于 216）——全部落在非测试区，无 hunk 触及 mod tests。
+内容：develop/history 侧 = 可见性放开（merged_settings/SetArgs/set_args → pub(crate)）+ 12 处 has_real_session 分发 + run_begin 的 _ctx→ctx（分发需传参）；engine.rs 侧 = 缓存/加载/摘要/会话缝（PHOTO_CACHE_LIMIT、lru、ensure_photo_loaded、stored_history、digest 三函数、execute 跳克隆臂等）。无 #[test] 下断言改动。
+附带：44 lib 测试原样通过（含于验收 1）。
+结论：通过。
+
+4. 历史只增
+命令：git diff 0b11763b 067a1a73 -- crates/lightamer-history | grep "^-[^-]"
+输出：唯一一行 `-const INITIAL_LABEL: &str = "import";`。对应 + 侧为 `pub const INITIAL_LABEL` + 文档注释（私有改公开）。
+stat：history.rs +181/-1、lib.rs +3、merge.rs +300（新文件）。
+哈希/字节稳定：settings::tests 15 全过；其中 insertion_order_does_not_change_canonical_bytes、settings_write_then_read_back_equal、same_settings_same_cache_key_param_change_changes_key 定点复跑通过。
+结论：通过。
+
+5. 字节没变（A7a 五命令复核）
+按 A7a-REPORT §5 重建 /tmp/B13p-b1-five.jsonl（rawprepare + p_gain 1.5 五行与 A7a 一字同；rawprepare 仍为注册表夹具首项，见 dt-order-679d594f5d.json:2）。
+命令：cargo build -p lightamer-cli --locked -j6（Finished，无重编，当前二进制已与源码一致）+ target/debug/lightamer-cli run --file /tmp/B13p-b1-five.jsonl --photos p1
+输出（EXIT=1，与 A7a 同语义：L5 空剪贴板注定失败）：
+line 1: develop.set ok outcome={"updated":1} photos=[p1:2:1] digest=9734988588720734966
+line 2: history.undo ok outcome={"cursor":0} photos=[p1:2:0] digest=6191755046607852097
+line 3: history.redo ok outcome={"cursor":1} photos=[p1:2:1] digest=9734988588720734966
+line 4: history.goto ok outcome={"cursor":0} photos=[p1:2:0] digest=6191755046607852097
+line 5: develop.paste FAIL develop.paste: the clipboard is empty photos=[p1:2:0] digest=6191755046607852097
+lightamer-cli: check failed: 1 of 5 lines failed
+结论：五行（outcome/photos/两摘要 9734988588720734966 / 6191755046607852097）与 A7a 报告逐位同（末行前缀 dt-cli→lightamer-cli 系更名后应有差；两次运行 md5 互同 dc89b517…，与 A7a 记录值不同仅因该前缀更名）。通过。
+
+6. lint + fmt + clippy + 文档
+命令：cargo clippy --workspace --all-targets --locked -j6 -- -D clippy::indexing_slicing -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic -D clippy::todo -D clippy::unimplemented → Finished，EXIT=0。
+命令：cargo fmt --all --check → 无输出，EXIT=0。
+命令：cargo clippy --workspace --all-targets --locked -j6 -- -D warnings → Finished，EXIT=0。
+命令：RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked -j6 → Finished，29 页生成，EXIT=0。
+结论：四项全绿（“六条”即六个 -D 旗，口径与 B13p-a-REPORT 同）。
+
+7. xtask 四项 + 边界脚本
+命令（裸调；xtask 子命令不接受 --locked/-j6，带参 exit=2 属用法错，已纠正重跑）：
+- cargo xtask layers → OK: 29 crates, no layering violations. EXIT=0。
+- cargo xtask check-order-sync → OK (97 modules, fixture dt-order-679d594f5d.json)。EXIT=0。
+- cargo xtask check-no-iop-names → OK (97 names, 4 roots clean)。EXIT=0。
+- cargo xtask check-apple-boundary → OK: 29 crates, 194 rust files, no Apple-boundary violations. EXIT=0（194 = B13p-a 时 188 + 本波 6 新文件：real.rs、merge.rs、3 测试文件、real_common/mod.rs）。
+命令：Scripts/rust-apple-boundary.sh → STEP 7/7 PASS + rust-apple-boundary: ALL GREEN，EXIT=0。
+结论：通过。
+
+8. 隔离性 rg
+命令：rg -n 'std::fs|create_dir|read_dir|std::fs::copy|fs::copy' crates/lightamer-engine/src → 无输出（exit=1）。通过。
+命令：rg -n '"seed"' crates/lightamer-catalog/src → 无输出（exit=1）。通过。
+附带：rg -i seed 在 crates/lightamer-catalog/src 零命中（含注释）；全仓唯一 "seed" 字面在 crates/lightamer-engine/src/engine.rs:1301，系 A7a 时代单测内的任意步标签（git log -S 归于更名提交 957d9110，非本波引入），与 INITIAL_LABEL 对齐无关。
+
+9. 演示脚本
+命令：Scripts/rust-session-demo.sh → demo: ALL GREEN，EXIT=0（含 double-open 拒绝/kill 重开/adopt 三节）。
+结论：通过。
+
+10. 无测试残留
+- git status --porcelain 除 .work untracked 与 evidence/gui/paste-tiers.csv（2026-11-25 旧文件，非测试产物）外干净；B13p-b1.log/.pid 系执行 lane 工作文件，非测试残留；B13p-b1-review.log 在复审开始前仅含占位行 Working...（02:05），即本文件位置。
+- /tmp 与 $TMPDIR 下 lightamer-engine-test-* 零命中（find 两级确认）。
+- $TMPDIR 下 lightamer-catalog-test-* 6 个目录时间戳 11-26 20:28 / 22:53、11-27 00:28 / 01:35，均早于本复审（02:05 后），子标签为 backup/migrate/verify/kill 等旧测试，无本波新测试残留；复审运行前后无新增。
+- 残留进程：ps 仅见执行 lane omp（71020）与本复审实例（80771），无 real_session/history_crash 等测试子进程。
+结论：通过。
+
+11. 提交路径
+命令：git show --name-only --format='' 067a1a73 → 22 文件：REPORT.md 1 + crates/README.md 1 + catalog（src 3：history_store/lib/photos；tests 4）+ engine（src 5：develop/engine/history/lib/real；tests 4：real_common + edits + atomicity + crash）+ history（src 3：history/lib/merge）+ docs/SESSION.md 1。
+- Cargo.lock：零命中（无新依赖，不碰正确）。
+- apps/lightamer-cli：零命中（CLI 走草稿路，无需跟改，正确）。
+- docs/SESSION.md：仅 seed→import 对齐段 + 新增“编辑命令怎样落库（B13′-b1）”一节。
+- crates/README.md：仅 history/catalog/engine 三行追加 B13′-b1 分句。
+- catalog src：SEED_LABEL→INITIAL_LABEL 转发 + HistoryWriter::move_cursor 新增 + photos.rs/lib.rs 机械跟改；tests 侧 seed→import 翻转 + 1 新测试 + 1 测试改名（register_writes_photo_row_seed→initial）。
+结论：只含纪律允许路径（engine/history/catalog 目录、SESSION.md、crates/README.md、REPORT.md）。通过。
+
+语义核查（读代码）
+S1. T5 次序（real.rs 全文件 675 行逐函数核）：
+- set/reset/paste（:189/:241/:307）：逐张 ensure→读栈→纯算（merged/默认/剪贴板）→canonical_json（可失败，提交前）→probe 克隆→settle（可失败，提交前）→probe.commit（内存）→记 ops/Computed；循环后 commit_ops 一次提交→swap_in。提交与换入之间无语句（commit_ops(...)?; swap_in(...) 紧邻）。事件由 Computed（probe 步数/游标）构造，不读缓存（:174-186）。
+- copy（:284）：无 ops、无提交，直写剪贴板 + ClipboardChanged。次序空真。
+- begin（:362）：probe→settle（0/1 推）→begin_interaction（内存）→commit→insert_photo_stack（无事件，emit:false 等价）。提交换入紧邻。
+- update（:396）/cancel（:466）：零提交纯内存；photo_event 读缓存但其前刚 touch（MRU）且其后无加载动作，无驱逐窗（64 钉极端除外，见 M-2）。
+- end（:432）：settle→committed 旗→commit（0/1）→swap_in（emit=committed）。紧邻。
+- goto（:511）/move_cursor 即 undo/redo（:571）：settle→goto/undo/redo 判定（BadParam/Disabled 皆在提交前，库未碰）→target 换算（提交前）→记 Move→commit→swap_in。紧邻。
+- process.update（:627）：current（live 感知，current() 取 live，history.rs:85-90）判过时，现行照片连 settle 都不碰（交互保持开，与草稿同）；过时才序列化→settle→commit→记 ops；一批一 commit→swap_in。
+- commit_ops（:123-170）：空 ops 直接返回不碰库（:124-126）；单 ops 走 push_step（自开一事务，history_store.rs:311-317）/move_cursor（单条 UPDATE 自治，:388-391）；多 ops 一 HistoryWriter（push + move_cursor）一次 commit，失败则 drop 回滚。
+- 缓存一致：settle/序列化失败发生在提交前，computed locals 丢弃，缓存仅多出已提交行的镜像（摘要中性，见 S4）；probe 系克隆，提交前缓存栈零触碰（update/cancel 系无提交命令，失败点皆在变更前）。
+结论：12 条落库命令 T5 次序成立；三形齐备；事件不读可驱逐缓存（swap_in 读 Computed，update/cancel 读刚 touch 的 MRU）。
+
+S2. 原子性矩阵（real_session_atomicity.rs 26 测试全读）：
+- 12 坏参数 ×（unknown/missing/bad）经 assert_bad（:19-35）比 state_digest + photo_len；12 命令全覆盖（set/reset/copy/paste/begin/update/end/cancel/undo/redo/goto/process）。
+- 9 事务失败经 assert_store_failure（:301-311）比摘要+len 且断 CommandError::Store；5 内存命令（copy/begin-fresh/update/end-noop/cancel）穿 refuse 触发器成功，证零写。
+- 触发器机制（real_common/mod.rs:112-125）：另连接在 history_steps INSERT / photos UPDATE 上建 refuse 触发器，确定性失败；比 chmod 只读可靠（WAL 下只读曾为 no-op 的论证应见 REPORT，但 REPORT 截断无此文，见 M-1）。
+- 深坏参（settle 后越界/Disabled）由 edits 侧 undo_with_nowhere_to_go_is_refused（摘要比）覆盖；引擎级多 ops 回滚由 paste_batch_is_one_transaction（中间照片触发器拒写，三张全滚 + 摘要 + 库两端复核）覆盖；push+move 回滚机制由 catalog writer_push_and_move 下半段覆盖。三者组合充分。
+结论：“内存和库都没变”对每命令×三坏参×事务失败确用摘要比了（另加 len/标签/库直读多腿）。
+
+S3. 崩溃测试（real_session_crash.rs 全读）：
+- 仅孵化 std::env::current_exe()（自身测试二进制）+ --exact 同名 + 环境旗（:50-58）；子进程重入同测试函数后转 kill_child_main（:30-32）。
+- 父调 child.kill()（句柄杀，即 SIGKILL）+ wait（:66-67），先 kill 后断 ready（:68），失败不留孤儿；ps 复核无残留（见验收 10）。
+- 子提交 3 步 + begin/update（live 99.0，不 end）→ signal ready → 睡眠待杀（:93-122）；父重开断言 4 步/cursor 3/标签全等/值 3.0（live 99.0 丢失）（:73-85）。
+结论：强杀的是自己起的子进程（句柄定向，非 pid 猜测/批量杀）。
+
+S4. 摘要（engine.rs:714-821 + 3 测试）：
+- digest_draft_state（:722-747）：BTreeMap 有序迭代（photos 为 BTreeMap，:49-52）+ 游标 LE + 逐 label + 规范 JSON + 共享尾；CLI 五数逐位同为最强等价证据（见验收 5）。
+- digest_real_state（:753-792）：库 uuid 排序→游标 LE + 逐 label + 快照字节；已加载栈仅混入未结束拖动的 live（live: 标记，:781-789）；读库失败混 store-unreadable（:777）。加载/驱逐不动（仅 live 入账）。
+- mix_clipboard_and_jobs（:796-821）：两臂共享尾，逐字节同。
+- 3 测试：poke（库背写则动）、drag round-trip（update 动/cancel 回初值）、churn（69 轮 begin+cancel 穿缓存越 64 上限后摘要回初值，且 pinned 锚点 live 完好）。
+结论：草稿值不变、真实覆盖库+live、加载/驱逐不动，三条皆有实现与测试对应。
+
+S5. catalog 小修唯一性：
+- §2（第 0 步对齐）之外唯一新增 = HistoryWriter::move_cursor（history_store.rs:224-235，委托同文件 move_cursor 于 open tx 上，失败零写、writer 仍可用）；其余为 SEED_LABEL→INITIAL_LABEL 转发及 tests 翻转（见验收 11）。
+- “确有需要”：undo/redo/goto 在拖动 settle 时需 push+move 同一事务，无它则两事务，违 T5。单 move 走自治 UPDATE，多形走 writer，职责清晰。
+结论：唯一性成立，合理性成立。
+
+Findings
+M-1（minor，文档）：.work/gsd/phases/rust-core/waves/B13p-b1-REPORT.md（B13p-b1-REPORT.md:66-67）提交态截断——正文止于“- 字节没变：A7a 五”，末行系字面量 ...[18379 chars truncated]（blob 共 67 行，已用 git show 确认非读取器截断）。缺失：§7 后半证据（lint/xtask/rg/demo/残留/路径）、commit 哈希、“未做/未验”、“给用户看的汇报”。连带：任务书指引的“WAL 下只读 no-op 见报告”在提交态报告中无此文（触发器方案本身正确，见 S2）。影响缓释：本复审独立重跑 §7 全部 11 条皆绿，本 log 即完整证据。子瑕：REPORT:63 “A7a 对等 11”括号仅列 10 名（close_and_reopen 计入未列名），计数 60 本身无误。
+M-2（minor，极端前置鲁棒性）：engine.rs:443-468 evict_photos_if_over 在 64 栈全 pinned 时不对上限让位给新来者——新加载的未 pinned 栈（LRU 尾）会被当轮驱逐（pinned 逐个转回队尾后轮到它）。后果：real.rs 批循环（develop_set:201-206、develop_reset:252-254、develop_paste:323-328、process_update:639-644 的 stack_mut→None→continue）静默跳过该照片但 outcome 照计（set/reset/paste 按 ids.len. 计数）；单照片命令（develop_begin:370-375 等）则对存在的照片报 spurious NoPhoto（失败在提交前，原子性仍成立，仅错误错）。前置 = 64 个并发未结束拖动，无测试覆盖。建议：驱逐豁免刚 touch 的 id，或将静默 continue 改为 Store 错误。未达 error（行为验收全绿，前置病态）。
+
+观察（不分级）：merge_adjustments 本波零调用者（仅 lib.rs 重出 + 4 测试），系任务书 §历史模型明令的 b2 预置接口，非死代码违规；A7a md5 与本波不同仅因末行 dt-cli→lightamer-cli 更名；engine.rs:1301 的 "seed" 系 A7a 旧单测任意标签，非本波引入；xtask 子命令不接受 --locked/-j6（复审已裸调重跑）。
+
+复审方式：验收 1-11 逐条重跑（命令与输出见上），real.rs/engine.rs/history.rs/merge.rs/history_store.rs/三测试文件/real_common 全读。发现 error 本应只报告不修——本次 0 error。
+
+（上文与 .work/gsd/phases/rust-core/waves/B13p-b1-review.log 落盘内容一致，154 行。）

@@ -55,7 +55,7 @@ fn verify_healthy_session_reports_nothing() -> Result<(), Box<dyn std::error::Er
         0,
     )?;
     session.connection().execute(
-        "INSERT INTO history_steps (photo_id, idx, label, snapshot_hash, created_at) VALUES (1, 0, 'seed', 'h1', 1)",
+        "INSERT INTO history_steps (photo_id, idx, label, snapshot_hash, created_at) VALUES (1, 0, 'import', 'h1', 1)",
         [],
     )?;
     std::fs::write(session.root().join("Capture/a1.arw"), "raw")?;
@@ -77,7 +77,7 @@ fn verify_reports_each_planted_problem() -> Result<(), Box<dyn std::error::Error
     // the file is absent from disk.
     insert_photo(conn, "uuid-1", "Capture/gone.arw", 0, "h-current", 1, 5)?;
     conn.execute(
-        "INSERT INTO history_steps (photo_id, idx, label, snapshot_hash, created_at) VALUES (1, 0, 'seed', 'h-step', 1)",
+        "INSERT INTO history_steps (photo_id, idx, label, snapshot_hash, created_at) VALUES (1, 0, 'import', 'h-step', 1)",
         [],
     )?;
     conn.execute(
@@ -91,11 +91,11 @@ fn verify_reports_each_planted_problem() -> Result<(), Box<dyn std::error::Error
         let raw = rusqlite::Connection::open(session.db_path())?;
         raw.execute("PRAGMA foreign_keys = OFF", [])?;
         raw.execute(
-            "INSERT INTO history_steps (photo_id, idx, label, snapshot_hash, created_at) VALUES (1, 1, 'seed', 'h-gone', 1)",
+            "INSERT INTO history_steps (photo_id, idx, label, snapshot_hash, created_at) VALUES (1, 1, 'import', 'h-gone', 1)",
             [],
         )?;
         raw.execute(
-            "INSERT INTO history_steps (photo_id, idx, label, snapshot_hash, created_at) VALUES (999, 0, 'seed', 'h-step', 1)",
+            "INSERT INTO history_steps (photo_id, idx, label, snapshot_hash, created_at) VALUES (999, 0, 'import', 'h-step', 1)",
             [],
         )?;
         raw.execute(

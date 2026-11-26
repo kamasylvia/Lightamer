@@ -41,9 +41,12 @@
 )]
 
 pub mod history;
+pub mod merge;
 pub mod settings;
 
 pub use history::{BatchAdjustments, HISTORY_LIMIT, HistoryStack, HistoryStep, apply_batch};
+pub use history::{INITIAL_LABEL, RebuildError};
+pub use merge::{MergeSelection, ModuleParams, ModuleRef, merge_adjustments};
 pub use settings::{
     FORMAT_VERSION, InstanceList, ModuleInstance, PhotoSettings, ProcessVersion, SettingValue,
     SettingsError,

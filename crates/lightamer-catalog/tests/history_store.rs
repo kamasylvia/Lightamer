@@ -8,9 +8,9 @@ mod common;
 use std::sync::Arc;
 
 use lightamer_catalog::{
-    CatalogError, HistoryWriter, PhotoRecord, SEED_LABEL, Session, close_session, create_session,
-    move_cursor, open_session, orphan_snapshot_hashes, push_step, read_history, register_photo,
-    verify_session,
+    CatalogError, HistoryWriter, INITIAL_LABEL, PhotoRecord, Session, close_session,
+    create_session, move_cursor, open_session, orphan_snapshot_hashes, push_step, read_history,
+    register_photo, verify_session,
 };
 use lightamer_history::{HistoryStack, PhotoSettings};
 
@@ -103,7 +103,7 @@ fn push_changes_snapshot_step_and_photo_row_in_one_transaction()
     assert_eq!(
         step_rows(conn, record.id)?,
         vec![
-            (0, SEED_LABEL.to_owned(), default_key),
+            (0, INITIAL_LABEL.to_owned(), default_key),
             (1, "develop.set".to_owned(), key.clone()),
         ]
     );
@@ -225,7 +225,7 @@ fn past_200_steps_oldest_trim_and_renumber_from_zero() -> Result<(), Box<dyn std
     let Some(last) = read.steps.last() else {
         return Err("trimmed history is empty".into());
     };
-    // 1 seed + 205 pushes = 206 steps; the 6 oldest (seed..step-5) dropped.
+    // 1 import + 205 pushes = 206 steps; the 6 oldest (import..step-5) dropped.
     assert_eq!(first.label, "step-6");
     assert_eq!(last.label, "step-205");
     assert_eq!(db_counts(session.connection())?, (1, 200, 206));
@@ -336,7 +336,7 @@ fn injected_key_collision_stores_two_rows_and_reports() -> Result<(), Box<dyn st
         vec![
             (
                 0,
-                SEED_LABEL.to_owned(),
+                INITIAL_LABEL.to_owned(),
                 PhotoSettings::default().hash64_decimal()
             ),
             (1, "develop.set".to_owned(), "7".to_owned()),
@@ -395,14 +395,14 @@ fn read_returns_steps_labels_and_cursor_for_rebuild() -> Result<(), Box<dyn std:
     let labels: Vec<&str> = read.steps.iter().map(|step| step.label.as_str()).collect();
     assert_eq!(
         labels,
-        vec![SEED_LABEL, "develop.set", "develop.reset", "develop.set"]
+        vec![INITIAL_LABEL, "develop.set", "develop.reset", "develop.set"]
     );
-    // Step 0's stored label is the seed label (it differs from a fresh
-    // in-memory stack's "import": the SEED_LABEL finding, for B13′-b).
+    // Step 0's stored label is the history model's initial label (B13′-b
+    // alignment: store and memory share the one source now).
     let Some(stored_first) = read.steps.first() else {
         return Err("history came back empty".into());
     };
-    assert_eq!(stored_first.label, SEED_LABEL);
+    assert_eq!(stored_first.label, INITIAL_LABEL);
 
     let Some(first) = read.steps.first() else {
         return Err("history came back empty".into());
@@ -452,7 +452,7 @@ fn redo_steps_drop_on_push_after_undo() -> Result<(), Box<dyn std::error::Error>
     assert_eq!((outcome.cursor, outcome.steps), (1, 2));
     let read = read_history(session.connection(), record.id)?;
     let labels: Vec<&str> = read.steps.iter().map(|step| step.label.as_str()).collect();
-    assert_eq!(labels, vec![SEED_LABEL, "develop.reset"]);
+    assert_eq!(labels, vec![INITIAL_LABEL, "develop.reset"]);
     let orphans = orphan_snapshot_hashes(session.connection())?;
     assert!(orphans.contains(&first_key));
     assert!(orphans.contains(&second_key));
@@ -599,7 +599,7 @@ fn close_collects_only_orphans() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .map(|step| step.label.as_str())
         .collect();
-    assert_eq!(labels_a, vec![SEED_LABEL, "develop.reset"]);
+    assert_eq!(labels_a, vec![INITIAL_LABEL, "develop.reset"]);
     let read_b = read_history(conn, photo_b)?;
     assert_eq!(read_b.steps.len(), 2);
     close_session(session)?;
@@ -686,6 +686,35 @@ fn bad_settings_text_is_refused_before_any_write() -> Result<(), Box<dyn std::er
     }
     assert_eq!(db_counts(session.connection())?, before);
     assert_eq!(photo_row(session.connection(), record.id)?, photo_before);
+    close_session(session)?;
+    Ok(())
+}
+
+#[test]
+fn writer_push_and_move_land_in_one_transaction() -> Result<(), Box<dyn std::error::Error>> {
+    let (_scratch, mut session, record) = setup_one("writer-move")?;
+    let first = settings_json("mod_a", "p_x", 1)?;
+    let second = settings_json("mod_a", "p_x", 2)?;
+    let mut writer = HistoryWriter::begin(session.connection_mut())?;
+    writer.push(record.id, "develop.set", &first)?;
+    writer.push(record.id, "develop.set", &second)?;
+    let moved = writer.move_cursor(record.id, 1)?;
+    assert_eq!((moved.cursor, moved.steps), (1, 3));
+    assert_eq!(moved.settings_json, first);
+    writer.commit()?;
+    let read = read_history(session.connection(), record.id)?;
+    assert_eq!(read.cursor, 1);
+    assert_eq!(read.steps.len(), 3);
+    assert_mirror(session.connection(), record.id)?;
+    // A failed move inside the writer rolls back its pushes with it.
+    let mut writer = HistoryWriter::begin(session.connection_mut())?;
+    let third = settings_json("mod_a", "p_x", 3)?;
+    writer.push(record.id, "develop.set", &third)?;
+    let result = writer.move_cursor(record.id, 99);
+    assert!(matches!(result, Err(CatalogError::CursorOutOfRange { .. })));
+    drop(writer);
+    let read = read_history(session.connection(), record.id)?;
+    assert_eq!((read.cursor, read.steps.len()), (1, 3));
     close_session(session)?;
     Ok(())
 }

@@ -5,7 +5,7 @@
 //! A photo's outside identity is its UUID (text); the integer `id` is
 //! internal to the database. Registering a photo writes three things in one
 //! transaction — the photo row (with the converted stored path), the default
-//! settings' snapshot row, and step 0 (label [`SEED_LABEL`], the default
+//! settings' snapshot row, and step 0 (label [`INITIAL_LABEL`], the default
 //! snapshot) — and points the photo row's cursor (0), current snapshot, and
 //! process mirror at that step, so the row is never left without history.
 //!
@@ -19,7 +19,7 @@ use lightamer_history::PhotoSettings;
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::error::CatalogError;
-use crate::history_store::{SEED_LABEL, now_unix, settings_process, store_snapshot};
+use crate::history_store::{INITIAL_LABEL, now_unix, settings_process, store_snapshot};
 use crate::paths::{PathKind, to_stored};
 use crate::session::new_uuid_v4;
 
@@ -101,7 +101,7 @@ pub fn register_photo(
     tx.execute(
         "INSERT INTO history_steps (photo_id, idx, label, snapshot_hash, created_at) \
          VALUES (?1, 0, ?2, ?3, ?4)",
-        params![id, SEED_LABEL, snapshot.key, now],
+        params![id, INITIAL_LABEL, snapshot.key, now],
     )?;
     tx.commit()?;
     Ok(PhotoRecord {

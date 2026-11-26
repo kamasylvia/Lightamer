@@ -5,14 +5,14 @@
 mod common;
 
 use lightamer_catalog::{
-    CatalogError, PathKind, SEED_LABEL, close_session, create_session, find_photo_by_id,
+    CatalogError, INITIAL_LABEL, PathKind, close_session, create_session, find_photo_by_id,
     find_photo_by_uuid, list_photo_uuids, register_photo,
 };
 
 use common::{ScratchDir, default_settings_json};
 
 #[test]
-fn register_writes_photo_row_seed_step_and_default_snapshot()
+fn register_writes_photo_row_initial_step_and_default_snapshot()
 -> Result<(), Box<dyn std::error::Error>> {
     let scratch = ScratchDir::new("register")?;
     let mut session = create_session(scratch.path(), "Shoot", "photos-test")?;
@@ -71,7 +71,7 @@ fn register_writes_photo_row_seed_step_and_default_snapshot()
         [record.id],
         |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
     )?;
-    assert_eq!(step, (0, SEED_LABEL.to_owned(), default_key.clone()));
+    assert_eq!(step, (0, INITIAL_LABEL.to_owned(), default_key.clone()));
 
     let stored: String = conn.query_row(
         "SELECT json FROM snapshots WHERE hash = ?1",

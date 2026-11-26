@@ -232,7 +232,7 @@ fn checked_instance(
 
 /// Merges one validated instance over `current`: named parameters overwrite,
 /// unmentioned ones survive, and the switch applies only when given.
-fn merged_settings(
+pub(crate) fn merged_settings(
     current: &PhotoSettings,
     module: &str,
     multi: u32,
@@ -262,14 +262,14 @@ fn merged_settings(
 }
 
 /// Extracts the shared `set`/`update` arguments: module, multi, switch, patch.
-struct SetArgs {
-    module: String,
-    multi: u32,
-    enabled: Option<bool>,
-    patch: Vec<(String, SettingValue)>,
+pub(crate) struct SetArgs {
+    pub(crate) module: String,
+    pub(crate) multi: u32,
+    pub(crate) enabled: Option<bool>,
+    pub(crate) patch: Vec<(String, SettingValue)>,
 }
 
-fn set_args(
+pub(crate) fn set_args(
     engine: &Engine,
     cmd: &str,
     params: &Map<String, Value>,
@@ -294,6 +294,9 @@ fn run_set(
     ctx: &mut RunCtx,
 ) -> Result<Outcome, CommandError> {
     const CMD: &str = "develop.set";
+    if engine.has_real_session() {
+        return crate::real::develop_set(engine, params, ctx);
+    }
     let ids = ids_req(CMD, params)?;
     let args = set_args(engine, CMD, params)?;
     for id in &ids {
@@ -332,6 +335,9 @@ fn run_reset(
     ctx: &mut RunCtx,
 ) -> Result<Outcome, CommandError> {
     const CMD: &str = "develop.reset";
+    if engine.has_real_session() {
+        return crate::real::develop_reset(engine, params, ctx);
+    }
     let ids = ids_req(CMD, params)?;
     for id in &ids {
         if !engine.state().photos_contains(id) {
@@ -358,6 +364,9 @@ fn run_copy(
     ctx: &mut RunCtx,
 ) -> Result<Outcome, CommandError> {
     const CMD: &str = "develop.copy";
+    if engine.has_real_session() {
+        return crate::real::develop_copy(engine, params, ctx);
+    }
     let id = id_req(CMD, params)?;
     let Some(current) = engine.photo_settings(&id) else {
         return Err(CommandError::NoPhoto {
@@ -378,6 +387,9 @@ fn run_paste(
     ctx: &mut RunCtx,
 ) -> Result<Outcome, CommandError> {
     const CMD: &str = "develop.paste";
+    if engine.has_real_session() {
+        return crate::real::develop_paste(engine, params, ctx);
+    }
     let ids = ids_req(CMD, params)?;
     let Some(batch) = engine.clipboard_mut().clone() else {
         return Err(CommandError::EmptyClipboard {
@@ -415,9 +427,12 @@ fn run_paste(
 fn run_begin(
     engine: &mut Engine,
     params: &Map<String, Value>,
-    _ctx: &mut RunCtx,
+    ctx: &mut RunCtx,
 ) -> Result<Outcome, CommandError> {
     const CMD: &str = "develop.beginInteraction";
+    if engine.has_real_session() {
+        return crate::real::develop_begin(engine, params, ctx);
+    }
     let id = id_req(CMD, params)?;
     let Some(stack) = engine.stack_mut(&id) else {
         return Err(CommandError::NoPhoto {
@@ -437,6 +452,9 @@ fn run_update(
     ctx: &mut RunCtx,
 ) -> Result<Outcome, CommandError> {
     const CMD: &str = "develop.updateInteraction";
+    if engine.has_real_session() {
+        return crate::real::develop_update(engine, params, ctx);
+    }
     let id = id_req(CMD, params)?;
     let args = set_args(engine, CMD, params)?;
     let Some(stack) = engine.stack_mut(&id) else {
@@ -469,6 +487,9 @@ fn run_end(
     ctx: &mut RunCtx,
 ) -> Result<Outcome, CommandError> {
     const CMD: &str = "develop.endInteraction";
+    if engine.has_real_session() {
+        return crate::real::develop_end(engine, params, ctx);
+    }
     let id = id_req(CMD, params)?;
     let Some(stack) = engine.stack_mut(&id) else {
         return Err(CommandError::NoPhoto {
@@ -494,6 +515,9 @@ fn run_cancel(
     ctx: &mut RunCtx,
 ) -> Result<Outcome, CommandError> {
     const CMD: &str = "develop.cancelInteraction";
+    if engine.has_real_session() {
+        return crate::real::develop_cancel(engine, params, ctx);
+    }
     let id = id_req(CMD, params)?;
     let Some(stack) = engine.stack_mut(&id) else {
         return Err(CommandError::NoPhoto {
