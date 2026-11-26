@@ -1,10 +1,10 @@
 # 执行 lane A7b（omp）：gpui 窗口里的自有视口，实测输入归属
 
-> **这一波是项目里唯一的例外：要开一个图形窗口，还要合成指针事件。** 塔台是在拿到用户的口令之后才派你的。机器必须空闲：用户不在操作，也没有别的重活在跑。这两条不满足就停下报告，不要等，也不要自己判断「应该没事」。
+> **这一波是项目里唯一的例外：要开一个图形窗口，还要合成指针事件。** 用户 2026-11-26 下午给了口令。开窗口的那一刻机器必须空闲：用户不在操作，也没有别的重活在跑。所以顺序是：先把构建、移植和不开窗口的测试都做完，到最后才去开窗口；到了那一步如果机器不空闲，就等（第 5 节写了怎样等、最多等多久），不要自己判断「应该没事」。
 
 ## 背景
 
-阶段 A 在连跑。A1 到 A6、A7a 已完成。工作区按层摆好，共 28 个包，全工作区有 __TESTS__ 个测试通过。A6 定下了 Apple 模块的边界：Apple 的代码和依赖只在 `dt-apple`，别的 crate 不许碰，有检查守着。A7a 定下了命令分发口：界面只走 `execute` 和快照。
+阶段 A 在连跑。A1 到 A6、A7a 已完成。工作区按层摆好，共 28 个包，全工作区有 180 个测试通过。A6 定下了 Apple 模块的边界：Apple 的代码和依赖只在 `dt-apple`，别的 crate 不许碰，有检查守着。A7a 定下了命令分发口：界面只走 `execute` 和快照。
 
 用户的裁决（已定，不要重开）：
 
@@ -22,7 +22,7 @@
 - `.work/gsd/phases/rust-core/waves/A7a-prompt.md` 和 `waves/VERIFY.md` 的 A6、A7a 两节。
 - `.work/gsd/phases/rust-core/PLAN-AMENDMENTS.md`，全部。`PLAN.md` 里 A7b 那张卡是旧的，以这份任务书为准：它写的输入「到达核心」是按旧设计说的，现在意思是到达我们自己的视口模块。
 
-工作目录 `/Volumes/UNITEK/Documents/Development/Lightamer`。HEAD 先亲核并记录（塔台派你时是 `__HEAD__`）。全程中文，代码注释和标识符英文，commit message 英文。
+工作目录 `/Volumes/UNITEK/Documents/Development/Lightamer`。HEAD 先亲核并记录。它应该是 `git log` 里标题为 `docs(rust-core): A7b brief finalised after the user's go` 的那一次提交；如果不是，照实记下你看到的，并在报告里说一句。全程中文，代码注释和标识符英文，commit message 英文。
 
 ## 探针工具的四个坑，之前都踩过
 
@@ -57,7 +57,7 @@
 
 **5. 探针脚本 `Scripts/rust-gui-viewport-probe.sh`。** 一条命令跑完，任何一步不过就退出非零：
 
-- 开头：跑 `Scripts/machine-guard.sh`；**确认用户没有在操作**（系统的空闲时间够长，比如不少于 5 分钟），不满足就退出，什么都不开；确认没有别的 `dt-gpui` 在跑。
+- 开头：跑 `Scripts/machine-guard.sh`；确认没有别的 `dt-gpui` 在跑；**确认用户没有在操作**（系统的空闲时间不少于 5 分钟），并且没有别的重活在跑（别人的构建、`darktable-cli`、别的 omp 会话在做构建或渲染；塔台同时派了一条只读的调研 lane，它不构建，不算）。不满足就每分钟看一次，最多等 90 分钟：等到了就跑；等不到就退出非零，把当时的数字写进输出，窗口始终不开。
 - 起动我们自己的窗口，认「新出现的那个窗口」，把它放到前面。
 - 帧差探针自检（见上面的坑）。
 - **① 几何**：从程序的日志里取四个数——布局给 `canvas` 的矩形、原生视图的框架、图层的边界、可绘制表面的尺寸除以缩放——必须一致，视口没有超出也没有缩进布局区。
@@ -95,10 +95,11 @@
 - `cargo xtask check-apple-boundary` 通过，并且它的输出里能看到 `dt-gpui` 被查了；`Scripts/rust-apple-boundary.sh` 退出 0。
 - `rg -n 'objc2|core_foundation|core_graphics|cfg\(target_os|NSView|CAMetalLayer' crates/dt-gpui/src` 没有输出。文档注释里提到这些词不算，但源码里一行都不许有。
 - `cargo tree --locked -e normal --target x86_64-unknown-linux-gnu -p dt-apple --prefix none` 仍然只有 `dt-apple` 自己一行。
+- 非 macOS 上真的能编：本机现在装了 `x86_64-unknown-linux-gnu` 这个目标（塔台今天装的）。`cargo check --workspace --all-targets --target x86_64-unknown-linux-gnu --locked` 必须通过——你加了视口模块之后，Apple 的代码有没有真的全被门在外面，这一条就是直接的证据。再把它接进 `Scripts/rust-apple-boundary.sh`：目标装了就跑 `cargo check -p dt-apple --target x86_64-unknown-linux-gnu --locked` 这一步，没装就打印「跳过」和那条命令。
 - `rg -n 'unsafe' crates/dt-apple/src` 的每一处命中都在 macOS 后端的模块里；新增的每一处都带安全说明。
 - `cargo xtask layers`、`cargo xtask check-order-sync`、`cargo xtask check-no-iop-names` 仍然通过。
 - `Scripts/check-licenses.sh` 不带参数，退出 0。
-- `cargo test --workspace --locked` 绿，测试数不少于 __TESTS__ 个加上这一波新增的，没有一个测试开窗口。
+- `cargo test --workspace --locked` 绿，测试数不少于 180 个加上这一波新增的，没有一个测试开窗口。
 - `Scripts/rust-budget.sh --cold` 退出 0，输出里有核心冷构建、界面重新构建、界面冷构建、界面二进制体积四行各自的数和门。
 - `Scripts/rust-ci-lite.sh` 从头到尾退出 0。
 - 探针跑完之后：没有 `dt-gpui` 进程，没有残留的临时文件。
@@ -113,7 +114,7 @@
 
 ## 纪律
 
-- **只允许新增或修改这些路径**：`crates/dt-gpui/` 整个目录；`crates/dt-apple/`（只许加视口模块和它的依赖）；根目录的 `Cargo.toml`（只许加成员）和 `Cargo.lock`；`crates/README.md`（只改 `dt-gpui` 和 `dt-apple` 的行）；`docs/APPLE-BOUNDARY.md`；`docs/LICENSE-AUDIT.md`（只追加行）；`Scripts/rust-gui-viewport-probe.sh`；`Scripts/rust-budget.sh`；探针工具如果需要小改，改后的副本放进 `crates/dt-gpui/probes/`（原始的侦察目录不动）；`.work/gsd/phases/rust-core/waves/A7b-REPORT.md`、`A7b-review.log`，以及 `.work/gsd/phases/rust-core/waves/A7b-evidence/` 下的证据文件。其它一律不动。
+- **只允许新增或修改这些路径**：`crates/dt-gpui/` 整个目录；`crates/dt-apple/`（只许加视口模块和它的依赖）；根目录的 `Cargo.toml`（只许加成员）和 `Cargo.lock`；`crates/README.md`（只改 `dt-gpui` 和 `dt-apple` 的行）；`docs/APPLE-BOUNDARY.md`；`docs/LICENSE-AUDIT.md`（只追加行）；`Scripts/rust-gui-viewport-probe.sh`；`Scripts/rust-budget.sh`；`Scripts/rust-apple-boundary.sh`（只许加那一步非 macOS 的真实编译检查）；探针工具如果需要小改，改后的副本放进 `crates/dt-gpui/probes/`（原始的侦察目录不动）；`.work/gsd/phases/rust-core/waves/A7b-REPORT.md`、`A7b-review.log`，以及 `.work/gsd/phases/rust-core/waves/A7b-evidence/` 下的证据文件。其它一律不动。
 - 一个 commit，Conventional Commits 格式，message 带 `refs #32` 和 `refs #33`，逐路径 `git add`，禁 `git add -A`。**零 push。**
 - 构建之前跑一次 `Scripts/machine-guard.sh` 并记录输出。并行度 6 以内。gpui 的首次构建是重活：跑之前确认机器上没有别的重活。
 - **窗口**：只开我们自己这一个窗口，探针一跑完就让它退出。不碰别的程序的窗口，不往别的程序里发任何输入。不用 `caffeinate`；一定要用就带秒数上限，不留孤儿进程。
