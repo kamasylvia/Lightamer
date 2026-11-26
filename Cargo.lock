@@ -3872,9 +3872,11 @@ version = "0.1.0"
 name = "lightamer-engine"
 version = "0.1.0"
 dependencies = [
+ "lightamer-catalog",
  "lightamer-history",
  "lightamer-iop-traits",
  "lightamer-registry",
+ "rusqlite",
  "serde",
  "serde_json",
 ]

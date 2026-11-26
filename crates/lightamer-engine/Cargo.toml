@@ -11,8 +11,14 @@ publish.workspace = true
 lightamer-iop-traits = { path = "../lightamer-iop-traits" }
 lightamer-registry = { path = "../lightamer-registry" }
 lightamer-history = { path = "../lightamer-history" }
+lightamer-catalog = { path = "../lightamer-catalog" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
+
+[dev-dependencies]
+# Same rusqlite line as lightamer-catalog's dev-dependency (no new lock
+# packages): integration tests open databases directly to plant fixtures.
+rusqlite = { version = "0.43", default-features = false, features = ["bundled"] }
 
 [lints]
 workspace = true

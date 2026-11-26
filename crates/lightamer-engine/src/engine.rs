@@ -13,11 +13,13 @@
 //! accessors; notifications arrive as [`Event`]s after a call commits.
 
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{Receiver, channel};
 
+use lightamer_catalog::Session;
 use lightamer_history::{BatchAdjustments, HistoryStack, PhotoSettings};
 use lightamer_iop_traits::ParamsDesc;
 use serde_json::Value;
@@ -25,7 +27,7 @@ use serde_json::Value;
 use crate::command::{self, Outcome, RunCtx, checked_params};
 use crate::error::CommandError;
 use crate::event::{Event, Listener, ListenerId};
-use crate::jobs::{JobCtx, JobId, JobInfo, JobPool, JobTable, Task};
+use crate::jobs::{JobCtx, JobId, JobInfo, JobPool, JobStatus, JobTable, Task};
 
 /// A parameter lookup: module id to its declared fields, if any.
 type ParamLookup = Rc<dyn Fn(&str) -> Option<ParamsDesc>>;
@@ -45,6 +47,24 @@ impl EngineState {
     }
 }
 
+/// What the engine holds: nothing, a draft, or a real session.
+enum SessionSlot {
+    /// Fresh engine, or after `session.close`.
+    None,
+    /// In-memory photo ids ([`Engine::open_draft`]), for tests and demos.
+    Draft,
+    /// A session on disk: the engine holds its lock and its connection.
+    Real(Session),
+}
+
+/// A restore job's delivered session, waiting for [`Engine::collect`] to
+/// install it (the worker sends before it returns, so delivery precedes
+/// the job's own completion).
+struct PendingRestore {
+    job: JobId,
+    rx: Receiver<Session>,
+}
+
 /// The command engine: session state, listeners, and the job pool.
 ///
 /// Single-threaded by construction (`execute`, `collect`, and the snapshot
@@ -52,7 +72,9 @@ impl EngineState {
 /// work runs elsewhere, against snapshots it captured.
 pub struct Engine {
     state: EngineState,
-    session_open: bool,
+    session: SessionSlot,
+    program: String,
+    pending_restores: Vec<PendingRestore>,
     executing: bool,
     listeners: Vec<(ListenerId, Listener)>,
     next_listener: ListenerId,
@@ -69,7 +91,9 @@ impl Engine {
         let (results_tx, results_rx) = channel();
         Self {
             state: EngineState::default(),
-            session_open: false,
+            session: SessionSlot::None,
+            program: "lightamer-engine".to_owned(),
+            pending_restores: Vec::new(),
             executing: false,
             listeners: Vec::new(),
             next_listener: 1,
@@ -81,9 +105,10 @@ impl Engine {
 
     /// Opens a draft session holding `ids`, all in memory, nothing persisted.
     ///
-    /// Drafts exist for headless tests, the CLI, and future MCP demos. A real
-    /// session (opened by session commands from B12' on) replaces this path;
-    /// the draft constructor stays for tests.
+    /// Drafts exist for headless tests, the CLI, and future MCP demos. A
+    /// real session (opened by `session.new`, `session.open`, or
+    /// `session.restore`) holds the store instead; the draft constructor
+    /// stays for tests.
     #[must_use]
     pub fn open_draft<I, S>(ids: I) -> Self
     where
@@ -91,7 +116,7 @@ impl Engine {
         S: Into<String>,
     {
         let mut engine = Self::new();
-        engine.session_open = true;
+        engine.session = SessionSlot::Draft;
         for id in ids {
             engine.state.photos.insert(
                 id.into(),
@@ -226,6 +251,7 @@ impl Engine {
         let events = self.jobs.drain();
         let count = events.len();
         self.dispatch(&events);
+        self.finish_restores();
         count
     }
 
@@ -233,11 +259,141 @@ impl Engine {
     pub(crate) fn job_cancel_flag(&self, id: JobId) -> Option<Arc<AtomicBool>> {
         self.jobs.cancel_flag(id)
     }
+    /// The open real session, for in-crate run functions.
+    pub(crate) fn real_session(&self) -> Option<&Session> {
+        match &self.session {
+            SessionSlot::Real(session) => Some(session),
+            SessionSlot::None | SessionSlot::Draft => None,
+        }
+    }
+
+    /// Installs a real session (the caller checked that none is open).
+    pub(crate) fn install_real_session(&mut self, session: Session) {
+        self.session = SessionSlot::Real(session);
+    }
+
+    /// Takes the open real session, leaving no session behind (`None`
+    /// unless a real session is open).
+    pub(crate) fn take_real_session(&mut self) -> Option<Session> {
+        match std::mem::replace(&mut self.session, SessionSlot::None) {
+            SessionSlot::Real(session) => Some(session),
+            taken => {
+                self.session = taken;
+                None
+            }
+        }
+    }
+
+    /// Clears the synchronous state after the session closes (no session
+    /// means no photos and no clipboard).
+    pub(crate) fn clear_after_close(&mut self) {
+        self.state.photos.clear();
+        self.state.clipboard = None;
+    }
+
+    /// Remembers a restore job's delivery channel until [`Engine::collect`].
+    pub(crate) fn track_restore(&mut self, job: JobId, rx: Receiver<Session>) {
+        self.pending_restores.push(PendingRestore { job, rx });
+    }
+
+    /// Starts the missing-file scan behind `session.open` (and behind a
+    /// restored session): the scan opens its own connection, so the engine
+    /// keeps holding its session while the job runs.
+    pub(crate) fn spawn_scan_job(&mut self, root: PathBuf, db: PathBuf) -> JobId {
+        let label = format!("scan {}", root.display());
+        self.spawn_job(
+            "session.scan",
+            label,
+            0,
+            move |ctx| match lightamer_catalog::scan_missing(
+                &db,
+                &root,
+                &|done| ctx.report(done),
+                &|| ctx.is_cancelled(),
+            ) {
+                Ok(_) | Err(lightamer_catalog::CatalogError::Cancelled) => {}
+                Err(err) => ctx.fail(err.to_string()),
+            },
+        )
+    }
+
+    /// Installs restore deliveries whose jobs finished whole: a finished
+    /// job's session waits on its channel (the worker sends before it
+    /// returns). Failed or cancelled jobs drop their pending slot. When a
+    /// session opened in the meantime, the delivered one is closed instead
+    /// of clobbering it.
+    fn finish_restores(&mut self) {
+        let mut index = 0;
+        while index < self.pending_restores.len() {
+            let status = self
+                .pending_restores
+                .get(index)
+                .and_then(|pending| self.jobs.info(pending.job).map(|info| info.status));
+            match status {
+                None | Some(JobStatus::Finished { cancelled: true } | JobStatus::Failed(_)) => {
+                    self.pending_restores.remove(index);
+                }
+                Some(JobStatus::Finished { cancelled: false }) => {
+                    let pending = self.pending_restores.remove(index);
+                    // Delivery precedes completion on the worker (send, then
+                    // return), so a finished job's message is already here;
+                    // anything else drops the slot without installing.
+                    if let Ok(session) = pending.rx.try_recv() {
+                        self.install_restored(session);
+                    }
+                }
+                Some(JobStatus::Queued | JobStatus::Running) => {
+                    index += 1;
+                }
+            }
+        }
+    }
+
+    /// Installs a restored session and starts its scan; closes the
+    /// delivered session when one is already open.
+    fn install_restored(&mut self, session: Session) {
+        if self.has_session() {
+            let _ = lightamer_catalog::close_session(session);
+            return;
+        }
+        let root = session.root().to_path_buf();
+        let db = session.db_path().to_path_buf();
+        self.install_real_session(session);
+        self.spawn_scan_job(root, db);
+    }
 
     /// Whether a session (draft or real) is open.
     #[must_use]
-    pub const fn has_session(&self) -> bool {
-        self.session_open
+    pub fn has_session(&self) -> bool {
+        !matches!(self.session, SessionSlot::None)
+    }
+
+    /// Whether a real (on-disk) session is open.
+    #[must_use]
+    pub fn has_real_session(&self) -> bool {
+        matches!(self.session, SessionSlot::Real(_))
+    }
+
+    /// The open real session's root directory, if one is open.
+    #[must_use]
+    pub fn session_root(&self) -> Option<&Path> {
+        match &self.session {
+            SessionSlot::Real(session) => Some(session.root()),
+            SessionSlot::None | SessionSlot::Draft => None,
+        }
+    }
+
+    /// The program name the session commands hand to the store (the lock
+    /// holder hint and the `created_by` row name this).
+    #[must_use]
+    pub fn program(&self) -> &str {
+        &self.program
+    }
+
+    /// Overrides [`Engine::program`] (`lightamer-engine` by default);
+    /// frontends set their own name so the holder hint names them.
+    pub fn set_program(&mut self, name: &str) {
+        name.clone_into(&mut self.program);
     }
 
     /// Whether the clipboard holds copied adjustments.
@@ -561,6 +717,54 @@ mod tests {
                     json!({"job": 1, "bogus": 1}),
                     json!({}),
                     json!({"job": "1"}),
+                ],
+            ),
+            (
+                "session.new",
+                vec![
+                    json!({"name": "s", "parent": "p", "bogus": 1}),
+                    json!({"name": "s"}),
+                    json!({"name": "s", "parent": "p"}),
+                ],
+            ),
+            (
+                "session.open",
+                vec![
+                    json!({"path": "p", "bogus": 1}),
+                    json!({}),
+                    json!({"path": "p"}),
+                ],
+            ),
+            (
+                "session.close",
+                vec![json!({"bogus": 1}), json!({"other": 2}), json!({})],
+            ),
+            (
+                "session.verify",
+                vec![json!({"bogus": 1}), json!({"other": 2}), json!({})],
+            ),
+            (
+                "session.backup",
+                vec![
+                    json!({"dest": "d", "bogus": 1}),
+                    json!({}),
+                    json!({"dest": "d"}),
+                ],
+            ),
+            (
+                "session.restore",
+                vec![
+                    json!({"backup": "b", "dest": "d", "bogus": 1}),
+                    json!({"backup": "b"}),
+                    json!({"backup": "b", "dest": "d"}),
+                ],
+            ),
+            (
+                "template.save",
+                vec![
+                    json!({"name": "t", "bogus": 1}),
+                    json!({}),
+                    json!({"name": "t"}),
                 ],
             ),
         ]

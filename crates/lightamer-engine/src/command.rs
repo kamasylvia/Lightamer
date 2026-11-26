@@ -97,7 +97,7 @@ pub struct ParamSpec {
 
 /// One command's static declaration.
 ///
-/// Built by hand per command (no macro): thirteen commands do not need a
+/// Built by hand per command (no macro): twenty commands do not need a
 /// macro, and the struct literal keeps every field visible at the site.
 #[derive(Clone, Copy, Debug)]
 pub struct CommandSpec {
@@ -150,6 +150,7 @@ pub fn command_specs() -> &'static [CommandSpec] {
         all.extend_from_slice(crate::develop::SPECS);
         all.extend_from_slice(crate::history::SPECS);
         all.extend_from_slice(crate::jobs::SPECS);
+        all.extend_from_slice(crate::session::SPECS);
         all
     });
     &SPECS
@@ -299,6 +300,22 @@ pub(crate) fn enabled_opt(
         Some(_) => Err(CommandError::BadParam {
             cmd: cmd.to_owned(),
             key: "enabled".to_owned(),
+            reason: "must be a boolean".to_owned(),
+        }),
+    }
+}
+/// Reads one optional on/off switch (`key`).
+pub(crate) fn flag_opt(
+    cmd: &str,
+    params: &Map<String, Value>,
+    key: &str,
+) -> Result<Option<bool>, CommandError> {
+    match params.get(key) {
+        None => Ok(None),
+        Some(Value::Bool(flag)) => Ok(Some(*flag)),
+        Some(_) => Err(CommandError::BadParam {
+            cmd: cmd.to_owned(),
+            key: key.to_owned(),
             reason: "must be a boolean".to_owned(),
         }),
     }

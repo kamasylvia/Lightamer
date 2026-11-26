@@ -30,18 +30,17 @@
 //!   event listener that calls `execute` gets [`CommandError::Reentrant`]
 //!   instead of a nested execution.
 //!
-//! # Sessions
-//!
 //! A fresh engine has no session and every mutating command refuses to run.
 //! [`Engine::open_draft`] opens a draft session — a set of photo ids held in
 //! memory with nothing persisted — for headless tests, the CLI, and future
-//! MCP demos. Real sessions (backed by the session database) arrive with B12'
-//! session commands; the draft constructor stays for tests.
+//! MCP demos. `session.new`, `session.open`, and `session.restore` open real
+//! sessions instead (the store's lock plus its connection); the draft
+//! constructor stays for tests.
 //!
 //! # Adding a command
 //!
 //! 1. Append a [`CommandSpec`] to the owning area's `SPECS` array
-//!    (`develop`, `history`, or `jobs`): a stable id, a one-line summary, the
+//!    (`develop`, `history`, `jobs`, or `session`): a stable id, a one-line
 //!    [`ParamSpec`] list, an enablement check, and the run function.
 //! 2. Validate everything up front in the run function (all photos first,
 //!    then mutate), commit one step per photo labelled with the command id,
@@ -97,6 +96,7 @@ pub mod error;
 pub mod event;
 mod history;
 pub mod jobs;
+mod session;
 
 pub use command::{CommandSpec, Outcome, ParamKind, ParamSpec, command_specs, find_command};
 pub use engine::Engine;

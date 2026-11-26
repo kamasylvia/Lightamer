@@ -206,7 +206,7 @@ fn open_locked(root: &Path, program: &str) -> Result<Session, CatalogError> {
 
 /// The `<Name>.lmsessiondb` path for a session root (the root's own name
 /// plus the suffix).
-fn database_path(root: &Path) -> Result<PathBuf, CatalogError> {
+pub(crate) fn database_path(root: &Path) -> Result<PathBuf, CatalogError> {
     let Some(stem) = root.file_name().and_then(|n| n.to_str()) else {
         return Err(CatalogError::BadPath(format!(
             "session root has no directory name: {}",

@@ -1,9 +1,9 @@
 # Session Package and Database (SESSION.md)
 
-> 会话包与会话库：磁盘形态、表、版本迁移、锁、路径、关闭与崩溃。备份、恢复、
-> 校验三节留给下一波（B12′-b），只先把「备份走在线备份接口、不许裸拷」一条立住。
-> 实现：`crates/lightamer-catalog`（L3）。计划正本：`PLAN-B.md` §1、
-> `PLAN-B-TABLES.md` T-B1。
+> 会话包与会话库：磁盘形态、表、版本迁移、锁、路径、关闭与崩溃、七条会话命令、
+> 备份与恢复、只读校验、作业边界、命令行、持有人提示。
+> 实现：`crates/lightamer-catalog`（L3，文件与数据库）+ `crates/lightamer-engine`（L4，命令）。
+> 计划正本：`PLAN-B.md` §1、`PLAN-B-TABLES.md` T-B1/T-B2。
 
 ## On-Disk Layout
 
@@ -112,10 +112,95 @@
   （通常是最后几秒的编辑）。`NORMAL` 与 `FULL` 的提交耗时对比由 B13′ 量出，
   默认 `NORMAL`，改不改由用户定。
 
-## Backup, Restore, Verify（下一波 B12′-b）
+## Commands (B12′-b)
 
-本节只立一条纪律，命令实现归下一波：
+引擎的七条会话命令（经 `execute` 登记；注册表现有 20 条）。会话类命令都不记历史步。
 
-- **备份库文件必须走 SQLite 在线备份接口（`backup_database`），不许裸拷文件。**
-  本波的迁移前备份与该接口的测试（WAL 未合并的行必须出现在备份里）已在了，
-  下一波的 `session.backup` 复用同一函数。
+| 命令 | 参数 | 做什么 |
+|---|---|---|
+| `session.new` | `name`（会话名，一个目录名）、`parent`（放在哪个目录下） | 建会话包，建好就开着它 |
+| `session.open` | `path`（会话文件夹或库文件） | 打开会话（缺的就地补齐），并启动失联扫描作业 |
+| `session.close` | 无 | 把日志合并进库文件，释放锁 |
+| `session.verify` | 无 | 只读校验，返回报告 |
+| `session.backup` | `dest`（目标目录）、`include_trash`（可选，默认 true） | 启动备份作业，返回作业标识 |
+| `session.restore` | `backup`（备份在哪）、`dest`（恢复到哪） | 启动恢复作业，拷回后按 `open` 流程打开 |
+| `template.save` | `name`（模板名，一个文件主干） | 存相册和收藏的结构 |
+
+能不能跑：开着会话（草稿或真实）时 `open`、`new`、`restore` 拒绝，带原因；
+没有真实会话时 `close`、`verify`、`backup`、`template.save` 拒绝
+（没开是 `NoSession`，开着草稿是 `Disabled` 并点名缺真实会话）。
+
+真实会话：引擎持有一个 `Session`（锁 + 数据库连接），一次只开一个。
+草稿会话原样保留（测试和对照）。本波打开真实会话后引擎里没有照片是正常的：
+照片是 B15 导入的。
+
+## Backup and Restore
+
+- `session.backup`：命令先校验目标（已存在且非空就拒绝，什么都不动；
+  目标在源里面，即递归拷，同样拒绝），然后启动作业并返回作业标识。作业做的事：
+  合并日志 → 用在线备份接口拷库（目标库按目标目录名命名）→ 逐文件拷四个文件夹
+  （`include_trash=false` 时 `Trash/` 只建空目录；`Cache/` 永不拷；
+  锁文件、`-wal`/`-shm` 不拷）。进度按已拷文件数报（总数预先未知，`total=0`）。
+  产物直接当成会话打开。
+- 取消或出错：作业删掉自己建出来的目标（自己建的根整个删；预先存在的空根
+  只清自己拷进去的孩子：库文件加四个目录），完成事件写明是取消
+  （`cancelled=true`）还是失败（`success=false` 加原因）。
+- `session.restore`：命令先校验备份（必须是带自己库文件的会话包）与目标（空），
+  然后启动作业：整包拷回 → 按 `open` 流程打开（加锁、迁移、失联扫描）。
+  会话在作业完成后才出现在引擎里（`collect` 时安装）；若中途另开了会话，
+  送到的会话被关掉，不覆盖。取消或出错同样清掉自己建出来的目标。
+- 库的拷一律走在线备份接口：备份方向合并 WAL 后分步拷（步间可取消）；
+  恢复方向从备份文件拷（只读备份，不合并它）。
+
+## Verify
+
+`session.verify` 只读：`SELECT` 加 `PRAGMA integrity_check`，不写库、不写文件。
+返回 `{"count", "findings"}`，每条发现带 `severity`（`info`/`warning`/`error`）、
+`code`、`detail`、`repair`（修它的命令标识；信息项为空，即无需修）：
+
+| code | 级别 | 修法 | 查什么 |
+|---|---|---|---|
+| `integrity` | error | `session.restore` | `integrity_check` 非 `ok` |
+| `orphan_snapshot` | info | （无） | 无任何步引用、也非任何照片当前快照 |
+| `dangling_reference` | error | `session.restore` | 步、当前快照、关键词、相册链接悬空 |
+| `cursor_out_of_range` | warning | `session.restore` | 游标越界 |
+| `process_mirror_mismatch` | warning | `session.restore` | `photos.process` 与当前快照里的 `process` 对不上 |
+| `display_aux_unparseable` | warning | `display.set`（B6） | 那一格解析不了（读回空） |
+| `stored_path_invalid` | warning | `library.relink`（B15） | 存的路径换算不出来 |
+| `missing_file` | warning | `library.relink`（B15） | 引用的文件不在 |
+| `path_scan_deferred` | info | `library.sync`（B15） | 照片超过 1000（`VERIFY_INLINE_PATH_LIMIT`），逐文件检查交后台 |
+| `opened_unlocked` | info | （无） | 无锁打开（文件系统不支持锁） |
+
+校验自己不修任何东西：修是各命令的事。单项最多 200 条，超出折成一条
+`… and N more`。对同一会话校验前后库文件字节相同（有日志文件时先合并再比）。
+
+`display_aux` 写契约：写的时候不校验，原样存取（B12′-a 定）。所以以后写它的命令
+必须自己先校验是合法 JSON 再写。本波没有写它的命令。
+
+## Jobs
+
+命令只做有界的活；拷文件、扫文件夹是作业（`PLAN-B.md` §1.9）。
+`session.backup`/`session.restore` 命令返回作业标识，进度与完成经事件报，
+`job.cancel` 取消——作业是引擎级的，无会话时也能取消（`restore` 即此，
+`job.cancel` 为此不设会话门）。`session.open` 立刻返回，
+失联扫描在后台标 `missing`（文件回来则清标记）；取消留部分标记，
+重跑即续扫。`verify` 全同步（上限内）；照片多时的存在性扫描交后台作业。
+
+## CLI
+
+`lightamer-cli run --file F [--photos a,b] [--hold S]`：
+
+- 含会话命令的文件不走草稿（无会话启动）；含 `new`/`open`/`restore` 的文件
+  再带 `--photos` 被拒绝（exit 2）。
+- 每执行完一行，把引擎里还没完的作业做完（进度与完成事件逐行打印）再执行下一行；
+  一份文件从头到尾是确定的。单行排空超 120 秒按失败记，不永久挂住。
+- `--hold S`：跑完后握着真实会话等 S 秒再关（双开演示用）；无真实会话则提示。
+- `template.save` 的目录默认 `~/Library/Application Support/Lightamer/Templates/`，
+  环境变量 `LIGHTAMER_APP_SUPPORT_DIR` 直接替换这个 Templates 目录本身
+  （文件落其下，不是其子目录）。测试一律指向临时目录，永不写真实目录。
+
+## Holder Hint
+
+锁持有人提示：进程号、主机名、程序名和版本。主机名依次取环境变量、
+`/etc/hostname`、`hostname(1)`——macOS 上前两样都没有，靠第三样——
+进程内只问一次并缓存。单机上提示缺失不影响打开；双开被拒时提示里应有持有人。

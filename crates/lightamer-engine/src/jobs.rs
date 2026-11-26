@@ -14,9 +14,9 @@
 //! completion land in a results queue, and [`Engine::collect`][crate::Engine::collect]
 //! turns the queue into [`Event`]s on the engine thread.
 //!
-//! This wave registers no command that starts a job (there is no real
-//! background work yet); the pool, the table, and `job.cancel` ship now so
-//! B1 (render) and B15 (thumbnails) build on them directly.
+//! The session commands (`session.backup`, `session.restore`, and the scan
+//! behind `session.open`) are the first commands that start jobs; renders
+//! and thumbnails build on the same pool later.
 
 use std::collections::BTreeMap;
 use std::panic::AssertUnwindSafe;
@@ -52,7 +52,8 @@ pub enum JobStatus {
         /// Whether the job saw its cancel flag before returning.
         cancelled: bool,
     },
-    /// The work panicked; the pool survives. Holds the panic payload text.
+    /// The work failed (it called [`JobCtx::fail`], or it panicked); the
+    /// pool survives. Holds the failure reason or the panic payload text.
     Failed(String),
 }
 
@@ -93,6 +94,7 @@ pub struct JobCtx {
     id: JobId,
     cancel: Arc<AtomicBool>,
     results: Sender<JobMsg>,
+    failed: AtomicBool,
 }
 
 impl JobCtx {
@@ -115,8 +117,26 @@ impl JobCtx {
             body: MsgBody::Progress { done },
         });
     }
-}
 
+    /// Fails the job with `reason`: the table row becomes
+    /// [`JobStatus::Failed`] and the completion event reports
+    /// `success: false`. For work that hits an error it cannot retry (a
+    /// refused destination, a database that will not open); the work
+    /// returns right after calling this, and the worker sends no further
+    /// completion for the job.
+    pub fn fail(&self, reason: String) {
+        self.failed.store(true, Ordering::SeqCst);
+        let _ = self.results.send(JobMsg {
+            id: self.id,
+            body: MsgBody::Failed { reason },
+        });
+    }
+
+    /// Whether [`JobCtx::fail`] already ran for this job.
+    pub(crate) fn did_fail(&self) -> bool {
+        self.failed.load(Ordering::SeqCst)
+    }
+}
 /// One queued unit of background work.
 pub(crate) struct Task {
     pub(crate) id: JobId,
@@ -224,6 +244,7 @@ fn worker_loop(
             id: task.id,
             cancel: Arc::clone(&task.cancel),
             results: results.clone(),
+            failed: AtomicBool::new(false),
         };
         let _ = results.send(JobMsg {
             id: task.id,
@@ -232,12 +253,14 @@ fn worker_loop(
         let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| (task.work)(&ctx)));
         match outcome {
             Ok(()) => {
-                let _ = results.send(JobMsg {
-                    id: task.id,
-                    body: MsgBody::Finished {
-                        cancelled: ctx.is_cancelled(),
-                    },
-                });
+                if !ctx.did_fail() {
+                    let _ = results.send(JobMsg {
+                        id: task.id,
+                        body: MsgBody::Finished {
+                            cancelled: ctx.is_cancelled(),
+                        },
+                    });
+                }
             }
             Err(payload) => {
                 let _ = results.send(JobMsg {
@@ -382,8 +405,8 @@ impl JobTable {
     }
 }
 
-/// The `job.*` specs: only `job.cancel` this wave (no command starts a job
-/// yet; spawning is engine API covered by tests).
+/// The `job.*` specs: only `job.cancel` (spawning is [`Engine::spawn_job`],
+/// first used by the session commands).
 pub(crate) static SPECS: &[CommandSpec] = &[CommandSpec {
     id: "job.cancel",
     summary: "Asks a background job to stop at its next chunk boundary.",
@@ -393,7 +416,9 @@ pub(crate) static SPECS: &[CommandSpec] = &[CommandSpec {
         required: true,
         doc: "The job id from the job table.",
     }],
-    needs_session: true,
+    // Jobs are engine-scoped, not session-scoped: a restore runs while no
+    // session is open, and its cancel must run then too.
+    needs_session: false,
     enabled: has_jobs,
     run: run_cancel,
 }];

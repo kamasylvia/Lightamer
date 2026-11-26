@@ -6,7 +6,7 @@ mod common;
 
 use std::process::Stdio;
 
-use lightamer_catalog::{CatalogError, close_session, create_session, open_session};
+use lightamer_catalog::{CatalogError, LockOwner, close_session, create_session, open_session};
 
 use common::ScratchDir;
 
@@ -38,6 +38,16 @@ fn second_opener_gets_in_use_with_owner() -> Result<(), Box<dyn std::error::Erro
     let second = open_session(&root, "second-prog")?;
     close_session(second)?;
     Ok(())
+}
+
+#[test]
+fn owner_note_carries_a_nonempty_host_on_this_machine() {
+    let owner = LockOwner::this_process("probe");
+    assert!(
+        !owner.host.trim().is_empty(),
+        "the holder hint must name this computer"
+    );
+    assert!(owner.describe().contains("process"), "{}", owner.describe());
 }
 
 #[test]

@@ -38,7 +38,7 @@ const HELP: &str = "lightamer-cli: darktable oracle tool\n\
      selftest [--lock P] [--cache-dir D] [--sample S] [--workdir W]\n\
      capabilities
      commands [ID]                                       list engine commands
-     run --file F [--photos a,b]                         run JSONL calls on a draft session
+     run --file F [--photos a,b] [--hold S]              run JSONL calls (draft, or real sessions)
      \n\
      exit: 0 ok; 1 check failed; 2 usage/IO error";
 
@@ -313,7 +313,7 @@ fn cmd_commands(args: &Args) -> Result<(), Failure> {
 }
 
 fn cmd_run(args: &Args) -> Result<(), Failure> {
-    args.check_only(&["--file", "--photos"])?;
+    args.check_only(&["--file", "--photos", "--hold"])?;
     if !args.positionals.is_empty() {
         return Err(Failure::Usage("run takes no positionals".to_owned()));
     }
@@ -327,10 +327,17 @@ fn cmd_run(args: &Args) -> Result<(), Failure> {
             .map(str::to_owned)
             .collect::<Vec<_>>()
     });
-    let report = commands::run_file(Path::new(&file), photos)?;
-    for line in &report.lines {
+    let hold = match args.value("--hold")? {
+        None => 0,
+        Some(text) => text
+            .parse::<u64>()
+            .map_err(|_| Failure::Usage("--hold wants seconds".to_owned()))?,
+    };
+    let mut print = |line: &str| {
         println!("{line}");
-    }
+        let _ = std::io::Write::flush(&mut std::io::stdout());
+    };
+    let report = commands::run_file(Path::new(&file), photos, hold, &mut print)?;
     if report.failed > 0 {
         return Err(Failure::Check(format!(
             "{} of {} lines failed",

@@ -86,6 +86,14 @@ pub enum CommandError {
         /// The command the listener tried to run.
         cmd: String,
     },
+    /// The session store refused a step: a locked session, a missing file,
+    /// a database that will not open. The store's own sentence is kept.
+    Store {
+        /// The command that was called.
+        cmd: String,
+        /// What the store refused, in its own words.
+        reason: String,
+    },
 }
 
 impl Display for CommandError {
@@ -117,6 +125,7 @@ impl Display for CommandError {
                 f,
                 "{cmd}: reentrant call from an event listener is not allowed"
             ),
+            CommandError::Store { cmd, reason } => write!(f, "{cmd}: {reason}"),
         }
     }
 }
@@ -204,6 +213,13 @@ mod tests {
                     cmd: "c".to_owned(),
                 },
                 "c: reentrant call from an event listener is not allowed",
+            ),
+            (
+                CommandError::Store {
+                    cmd: "c".to_owned(),
+                    reason: "locked".to_owned(),
+                },
+                "c: locked",
             ),
         ];
         for (err, want) in cases {

@@ -55,6 +55,10 @@ pub enum CatalogError {
     /// A session name or stored path is malformed, or a stored path
     /// escapes the session root.
     BadPath(String),
+    /// A background job observed its cancel flag and stopped before doing
+    /// more work. A backup or restore that stops this way removes its own
+    /// partial destination before returning this.
+    Cancelled,
 }
 
 impl fmt::Display for CatalogError {
@@ -93,6 +97,7 @@ impl fmt::Display for CatalogError {
                 write!(f, "no session at {}", path.display())
             }
             Self::BadPath(reason) => write!(f, "bad session path: {reason}"),
+            Self::Cancelled => write!(f, "operation cancelled"),
         }
     }
 }
@@ -107,7 +112,8 @@ impl std::error::Error for CatalogError {
             | Self::SchemaTooNew { .. }
             | Self::NotEmpty(_)
             | Self::Missing(_)
-            | Self::BadPath(_) => None,
+            | Self::BadPath(_)
+            | Self::Cancelled => None,
         }
     }
 }

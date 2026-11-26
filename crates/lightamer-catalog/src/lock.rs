@@ -42,6 +42,7 @@ use std::fs::{File, OpenOptions, TryLockError};
 use std::hash::{BuildHasher, Hasher, RandomState};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::error::{CatalogError, io_error};
@@ -110,8 +111,10 @@ impl LockOwner {
     }
 }
 
-/// The computer's name, best effort (empty if unknown).
-fn host_name() -> String {
+/// The computer's name, best effort (empty if unknown). Asked once per
+/// process and then kept: [`LockOwner::describe`] compares against it on
+/// every refusal message.
+static HOST_NAME: LazyLock<String> = LazyLock::new(|| {
     std::env::vars()
         .find_map(|(key, value)| {
             if (key == "COMPUTERNAME" || key == "HOSTNAME") && !value.trim().is_empty() {
@@ -123,7 +126,30 @@ fn host_name() -> String {
         .or_else(|| std::fs::read_to_string("/etc/hostname").ok())
         .map(|name| name.trim().to_owned())
         .filter(|name| !name.is_empty())
+        .or_else(system_host_name)
         .unwrap_or_default()
+});
+
+/// The cached computer name (see [`HOST_NAME`]).
+fn host_name() -> String {
+    HOST_NAME.clone()
+}
+
+/// Asks the OS for the computer name through `hostname(1)`: on macOS neither
+/// the environment nor `/etc/hostname` names the machine, so without this
+/// the holder hint is empty there. Best effort only: any spawn, wait, or
+/// decode failure yields [`None`] (the tool prints one line and exits, so
+/// this never hangs and never panics).
+fn system_host_name() -> Option<String> {
+    let output = std::process::Command::new("/bin/hostname")
+        .output()
+        .or_else(|_| std::process::Command::new("hostname").output())
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let name = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    (!name.is_empty()).then_some(name)
 }
 
 /// A value no other lock's note has ([`LockOwner::token`]).

@@ -3,12 +3,16 @@
 //!
 //! `commands` prints the registered commands (id, summary, gates, params).
 //! `run` executes a JSONL file — one `{"id", "params"}` call per line —
-//! against a draft session, printing one outcome line per call.
+//! against a draft session, or sessionless when the file names session
+//! commands, draining each line's jobs before the next line.
 
+use std::cell::RefCell;
 use std::fmt::Write as _;
 use std::path::Path;
+use std::rc::Rc;
+use std::time::{Duration, Instant};
 
-use lightamer_engine::{CommandSpec, Engine, command_specs, find_command};
+use lightamer_engine::{CommandSpec, Engine, Event, JobStatus, command_specs, find_command};
 
 use crate::util::{Error, read_to_string};
 
@@ -97,12 +101,52 @@ fn push_unique(ids: &mut Vec<String>, id: &str) {
         ids.push(id.to_owned());
     }
 }
+/// Commands that run against a real session: a file naming any of them
+/// starts sessionless instead of opening a draft.
+const SESSION_COMMANDS: [&str; 7] = [
+    "session.new",
+    "session.open",
+    "session.close",
+    "session.verify",
+    "session.backup",
+    "session.restore",
+    "template.save",
+];
 
-/// What `run` executed: one printable line per call plus the failure count.
+/// Commands that open a real session: a file naming any of them refuses
+/// `--photos` (draft members and real sessions do not mix).
+const SESSION_STARTERS: [&str; 3] = ["session.new", "session.open", "session.restore"];
+
+/// How long one line waits for its jobs before the run fails instead of
+/// hanging forever.
+const JOB_DRAIN_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// The command ids a JSONL file names, in file order. Unparseable lines
+/// are skipped here; they fail loudly at execution.
+fn file_command_ids(text: &str) -> Vec<String> {
+    let mut ids = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Ok(call) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        if let Some(id) = call.get("id").and_then(|value| value.as_str()) {
+            ids.push(id.to_owned());
+        }
+    }
+    ids
+}
+
+/// What `run` executed: outcome, job, and hold lines plus the failure count.
+#[derive(Debug)]
 pub struct RunReport {
-    /// One outcome line per executed call, in file order.
+    /// One line per executed call (in file order), each followed by its
+    /// jobs' event lines, plus hold lines when `--hold` is set.
     pub lines: Vec<String>,
-    /// How many calls failed.
+    /// How many calls failed (plus a timed-out drain or a failed hold).
     pub failed: usize,
 }
 
@@ -142,24 +186,50 @@ fn photo_states(engine: &Engine) -> String {
         .join(",")
 }
 
-/// Runs a JSONL command file on a draft session.
+/// Runs a JSONL command file and drains every line's jobs before the next
+/// line, so a file runs deterministically from top to bottom.
 ///
-/// Blank lines and `#` comment lines are skipped. `photos` selects the draft
-/// members explicitly; [`None`] scans them out of the file. Every line runs
-/// even after failures; the caller maps a nonzero `failed` count to its
-/// failure exit.
+/// Blank lines and `#` comment lines are skipped. Files naming session
+/// commands start sessionless (and refuse `photos`: draft members and
+/// real sessions do not mix); every other file opens a draft, with
+/// `photos` selecting its members explicitly or [`None`] scanning them
+/// out of the file. Every line runs even after failures; the caller maps
+/// a nonzero `failed` count to its failure exit. `hold_secs` parks an
+/// open real session that long after the last line, then closes it.
+/// `sink` receives every line as it is produced (the binary prints and
+/// flushes; tests record or ignore).
 ///
 /// # Errors
 ///
-/// Returns [`Error`] when the file cannot be read.
-pub fn run_file(path: &Path, photos: Option<Vec<String>>) -> Result<RunReport, Error> {
+/// Returns [`Error`] when the file cannot be read, or when `photos` meets
+/// a file that opens a real session.
+pub fn run_file(
+    path: &Path,
+    photos: Option<Vec<String>>,
+    hold_secs: u64,
+    sink: &mut dyn FnMut(&str),
+) -> Result<RunReport, Error> {
     let text = read_to_string(path)?;
-    let ids = photos.unwrap_or_else(|| scan_photo_ids(&text));
-    let mut engine = Engine::open_draft(ids);
-    let mut report = RunReport {
-        lines: Vec::new(),
-        failed: 0,
+    let ids = file_command_ids(&text);
+    let wants_session = ids.iter().any(|id| SESSION_COMMANDS.contains(&id.as_str()));
+    if photos.is_some() && ids.iter().any(|id| SESSION_STARTERS.contains(&id.as_str())) {
+        return Err(Error(
+            "run: --photos selects a draft session, but the file opens a real one (session.new/open/restore)".to_owned(),
+        ));
+    }
+    let mut engine = if wants_session {
+        Engine::new()
+    } else {
+        Engine::open_draft(photos.unwrap_or_else(|| scan_photo_ids(&text)))
     };
+    engine.set_program("lightamer-cli");
+    let seen: Rc<RefCell<Vec<Event>>> = Rc::new(RefCell::new(Vec::new()));
+    let into = Rc::clone(&seen);
+    engine.subscribe(Rc::new(move |event, _| {
+        into.borrow_mut().push(event.clone());
+    }));
+    let mut taken = 0;
+    let mut emitter = Emitter::new(sink);
     for (nth, raw) in text.lines().enumerate() {
         let line = raw.trim();
         if line.is_empty() || line.starts_with('#') {
@@ -170,21 +240,136 @@ pub fn run_file(path: &Path, photos: Option<Vec<String>>) -> Result<RunReport, E
             Ok((id, outcome)) => {
                 let photos = photo_states(&engine);
                 let digest = engine.state_digest_decimal();
-                report.lines.push(format!(
+                emitter.push(format!(
                     "line {lineno}: {id} ok outcome={outcome} photos=[{photos}] digest={digest}"
                 ));
             }
             Err((id, reason)) => {
-                report.failed += 1;
+                emitter.report.failed += 1;
                 let photos = photo_states(&engine);
                 let digest = engine.state_digest_decimal();
-                report.lines.push(format!(
+                emitter.push(format!(
                     "line {lineno}: {id} FAIL {reason} photos=[{photos}] digest={digest}"
                 ));
             }
         }
+        drain_jobs(&mut engine, &seen, &mut taken, lineno, &mut emitter);
     }
-    Ok(report)
+    if hold_secs > 0 {
+        hold_session(&mut engine, hold_secs, &mut emitter);
+    }
+    Ok(emitter.report)
+}
+
+/// Collects the report while streaming every line to the caller's sink as
+/// it is produced (so `--hold` announces itself before it sleeps, and a
+/// `--hold` holder is visible in its log while it holds).
+struct Emitter<'a> {
+    report: RunReport,
+    sink: &'a mut dyn FnMut(&str),
+}
+
+impl<'a> Emitter<'a> {
+    fn new(sink: &'a mut dyn FnMut(&str)) -> Self {
+        Self {
+            report: RunReport {
+                lines: Vec::new(),
+                failed: 0,
+            },
+            sink,
+        }
+    }
+
+    fn push(&mut self, line: String) {
+        (self.sink)(&line);
+        self.report.lines.push(line);
+    }
+}
+
+/// Collects until no job is unfinished, rendering each new job event as a
+/// report line. Photo and clipboard events stay unprinted: the outcome
+/// lines already carry that state.
+fn drain_jobs(
+    engine: &mut Engine,
+    seen: &RefCell<Vec<Event>>,
+    taken: &mut usize,
+    lineno: usize,
+    emitter: &mut Emitter,
+) {
+    let start = Instant::now();
+    loop {
+        engine.collect();
+        flush_job_events(engine, seen, taken, lineno, emitter);
+        if engine.jobs().iter().all(|info| info.status.is_terminal()) {
+            return;
+        }
+        if start.elapsed() > JOB_DRAIN_TIMEOUT {
+            emitter.report.failed += 1;
+            emitter.push(format!(
+                "line {lineno}: jobs TIMEOUT after {}s",
+                JOB_DRAIN_TIMEOUT.as_secs()
+            ));
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// Renders the job events arrived since the last flush.
+fn flush_job_events(
+    engine: &Engine,
+    seen: &RefCell<Vec<Event>>,
+    taken: &mut usize,
+    lineno: usize,
+    emitter: &mut Emitter,
+) {
+    let events = seen.borrow();
+    for event in events.iter().skip(*taken) {
+        match event {
+            Event::JobStarted { job } => {
+                emitter.push(format!("line {lineno}: job {job} started"));
+            }
+            Event::JobProgress { job, done, total } => {
+                emitter.push(format!("line {lineno}: job {job} progress {done}/{total}"));
+            }
+            Event::JobFinished {
+                job,
+                success,
+                cancelled,
+            } => {
+                let mut line = format!(
+                    "line {lineno}: job {job} finished success={success} cancelled={cancelled}"
+                );
+                if !success
+                    && let Some(info) = engine.job(*job)
+                    && let JobStatus::Failed(reason) = &info.status
+                {
+                    let _ = write!(line, " reason={reason}");
+                }
+                emitter.push(line);
+            }
+            Event::PhotoChanged { .. } | Event::ClipboardChanged => {}
+        }
+    }
+    *taken = events.len();
+}
+
+/// Holds the open real session for `hold_secs`, then closes it (the
+/// dual-open demo parks one process here while another tries to open).
+fn hold_session(engine: &mut Engine, hold_secs: u64, emitter: &mut Emitter) {
+    let Some(root) = engine.session_root().map(|root| root.display().to_string()) else {
+        emitter.push("hold: no real session open, nothing held".to_owned());
+        return;
+    };
+    emitter.push(format!("hold: keeping {root} open for {hold_secs}s"));
+    std::thread::sleep(Duration::from_secs(hold_secs));
+    match engine.execute("session.close", &serde_json::Value::Null) {
+        Ok(_) => emitter.push(format!("hold: closed {root}")),
+        Err(err) => {
+            emitter.report.failed += 1;
+            emitter.push(format!("hold: FAIL {err}"));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -234,7 +419,7 @@ mod tests {
             b"{\"id\": \"develop.copy\", \"params\": {\"id\": \"a\"}}\n{\"id\": \"develop.paste\", \"params\": {\"ids\": [\"b\"]}}\n{\"id\": \"history.goto\", \"params\": {\"id\": \"b\", \"index\": 99}}\n",
         )
         .expect("write");
-        let report = run_file(&file, None).expect("run");
+        let report = run_file(&file, None, 0, &mut |_| {}).expect("run");
         assert_eq!(report.failed, 1);
         assert_eq!(report.lines.len(), 3);
         assert!(
@@ -278,7 +463,7 @@ mod tests {
             b"{\"id\": \"develop.set\", \"params\": {\"ids\": [\"a\"], \"module\": \"__no_such_module__\", \"patch\": {}}}\n",
         )
         .expect("write");
-        let report = run_file(&file, None).expect("run");
+        let report = run_file(&file, None, 0, &mut |_| {}).expect("run");
         assert_eq!(report.failed, 1);
         assert!(
             report.lines[0].contains("unknown module"),
@@ -286,6 +471,165 @@ mod tests {
             report.lines[0]
         );
         remove_dir_quiet(&dir);
-        assert!(run_file(&dir.join("absent.jsonl"), None).is_err());
+        assert!(run_file(&dir.join("absent.jsonl"), None, 0, &mut |_| {}).is_err());
+    }
+    /// One JSONL line, serialized so paths never break quoting.
+    fn jsonl(id: &str, params: &serde_json::Value) -> String {
+        format!("{}\n", serde_json::json!({"id": id, "params": params}))
+    }
+
+    #[test]
+    fn run_file_runs_session_commands_without_a_draft() {
+        let dir = make_temp_dir("lightamer-cli-session").expect("temp dir");
+        let file = dir.join("session.jsonl");
+        let parent = dir.to_string_lossy().into_owned();
+        let mut text = String::new();
+        text.push_str(&jsonl(
+            "session.new",
+            &serde_json::json!({"name": "Demo", "parent": parent}),
+        ));
+        text.push_str(&jsonl("session.verify", &serde_json::json!({})));
+        text.push_str(&jsonl("session.close", &serde_json::json!({})));
+        write_file(&file, text.as_bytes()).expect("write");
+        let report = run_file(&file, None, 0, &mut |_| {}).expect("run");
+        assert_eq!(report.failed, 0);
+        assert_eq!(report.lines.len(), 3, "{:?}", report.lines);
+        assert!(
+            report.lines[0].contains("session.new ok"),
+            "{}",
+            report.lines[0]
+        );
+        assert!(
+            report.lines[1].contains("session.verify ok"),
+            "{}",
+            report.lines[1]
+        );
+        assert!(
+            report.lines[1].contains("\"count\":0"),
+            "{}",
+            report.lines[1]
+        );
+        assert!(
+            report.lines[2].contains("session.close ok"),
+            "{}",
+            report.lines[2]
+        );
+        assert!(dir.join("Demo/Demo.lmsessiondb").is_file());
+        remove_dir_quiet(&dir);
+    }
+
+    #[test]
+    fn run_file_rejects_photos_with_session_starters() {
+        let dir = make_temp_dir("lightamer-cli-photos").expect("temp dir");
+        let file = dir.join("starter.jsonl");
+        write_file(
+            &file,
+            jsonl("session.open", &serde_json::json!({"path": "/tmp/nowhere"})).as_bytes(),
+        )
+        .expect("write");
+        let err = run_file(&file, Some(vec!["a".to_owned()]), 0, &mut |_| {})
+            .expect_err("photos + starter");
+        assert!(err.to_string().contains("--photos"), "{err}");
+        remove_dir_quiet(&dir);
+    }
+
+    #[test]
+    fn run_file_drains_backup_job_and_prints_its_events() {
+        let dir = make_temp_dir("lightamer-cli-drain").expect("temp dir");
+        let file = dir.join("backup.jsonl");
+        let parent = dir.to_string_lossy().into_owned();
+        let dest = dir.join("vault").to_string_lossy().into_owned();
+        let mut text = String::new();
+        text.push_str(&jsonl(
+            "session.new",
+            &serde_json::json!({"name": "Demo", "parent": parent}),
+        ));
+        text.push_str(&jsonl("session.backup", &serde_json::json!({"dest": dest})));
+        text.push_str(&jsonl("session.close", &serde_json::json!({})));
+        write_file(&file, text.as_bytes()).expect("write");
+        let report = run_file(&file, None, 0, &mut |_| {}).expect("run");
+        assert_eq!(report.failed, 0, "{:?}", report.lines);
+        let backup_at = report
+            .lines
+            .iter()
+            .position(|line| line.contains("session.backup ok"))
+            .expect("backup line");
+        let started_at = report
+            .lines
+            .iter()
+            .position(|line| line.contains("job 1 started"))
+            .expect("started");
+        let finished_at = report
+            .lines
+            .iter()
+            .position(|line| line.contains("finished success=true cancelled=false"))
+            .expect("finished");
+        assert!(
+            backup_at < started_at && started_at < finished_at,
+            "{:?}",
+            report.lines
+        );
+        assert!(dir.join("vault/vault.lmsessiondb").is_file());
+        remove_dir_quiet(&dir);
+    }
+
+    #[test]
+    fn run_file_hold_keeps_session_then_closes() {
+        let dir = make_temp_dir("lightamer-cli-hold").expect("temp dir");
+        let file = dir.join("hold.jsonl");
+        let parent = dir.to_string_lossy().into_owned();
+        write_file(
+            &file,
+            jsonl(
+                "session.new",
+                &serde_json::json!({"name": "Demo", "parent": parent}),
+            )
+            .as_bytes(),
+        )
+        .expect("write");
+        let report = run_file(&file, None, 1, &mut |_| {}).expect("run");
+        assert_eq!(report.failed, 0, "{:?}", report.lines);
+        assert!(
+            report
+                .lines
+                .iter()
+                .any(|line| line.contains("hold: keeping")),
+            "{:?}",
+            report.lines
+        );
+        assert!(
+            report
+                .lines
+                .iter()
+                .any(|line| line.contains("hold: closed")),
+            "{:?}",
+            report.lines
+        );
+        // The hold closed the session: its lock is free.
+        let mut engine = lightamer_engine::Engine::new();
+        let root = dir.join("Demo").to_string_lossy().into_owned();
+        engine
+            .execute("session.open", &serde_json::json!({"path": root}))
+            .expect("reopen");
+        engine
+            .execute("session.close", &serde_json::json!({}))
+            .expect("close");
+        remove_dir_quiet(&dir);
+    }
+    #[test]
+    fn run_file_streams_every_line_to_the_sink() {
+        let dir = make_temp_dir("lightamer-cli-stream").expect("temp dir");
+        let file = dir.join("one.jsonl");
+        write_file(
+            &file,
+            jsonl("develop.copy", &serde_json::json!({"id": "a"})).as_bytes(),
+        )
+        .expect("write");
+        let mut streamed: Vec<String> = Vec::new();
+        let report =
+            run_file(&file, None, 0, &mut |line| streamed.push(line.to_owned())).expect("run");
+        assert_eq!(streamed, report.lines);
+        assert_eq!(streamed.len(), 1);
+        remove_dir_quiet(&dir);
     }
 }

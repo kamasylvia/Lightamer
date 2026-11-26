@@ -1,0 +1,45 @@
+PASS / 0 error + 1 minor
+复审对象：8823e744273b2f343dfc6e4a3d14a4203b4cd30e（B12′-b）。HEAD 已核 = 该哈希，tracked 树干净（仅有他人 untracked 文件，不碰）。
+守卫（构建前）：`Scripts/machine-guard.sh` → `GUARD PASS (heavy=0 free=70% swap=?M disk=?GB)` exit 0。
+
+1. 提交路径（`git show --stat 8823e744`）：31 文件 = .work/.../B12p-b-REPORT.md + Cargo.lock + Scripts/rust-session-demo.sh + apps/lightamer-cli（commands.rs/main.rs/tests/run_session.rs）+ crates/README.md + crates/lightamer-catalog（src 8 个含新 backup.rs/scan.rs/template.rs/verify.rs + tests 5 个）+ crates/lightamer-engine（Cargo.toml/src 6 个/tests 3 个）+ docs/SESSION.md。全在纪律清单内，无越界路径。crates/README.md diff = L3/L4/exempt 三行改写（"三行"属实）。exit 0。
+2. 两包测试：`cargo test -p lightamer-engine --locked -j6` → 44+13+11=68 全绿 exit 0；`cargo test -p lightamer-catalog --locked -j6` → 1+2+6+1+4+4+2+3+1+2+2+4=32 全绿 exit 0（含旧 17 + 备份 6 + 校验 4 + 扫描 2 + 模板 2 + 主机名 1，与报告一致）。抽看真测非假绿：backup `backup_duplicates_package_and_opens_directly` 断 5 文件逐个上报、Cache/锁不随行、integrity_check=ok、全表行数一致、产物直接 open；scan `scan_marks_missing_and_unmarks_returned` 断 checked=3/marked=1/unmarked=1 + 三行 missing 逐行读回，`scan_cancel_stops_early_and_keeps_partial_marks` 确定性取消（第 2 次谓词调用翻转，无时间依赖）断恰 1 行标记；template `template_round_trip_without_photo_paths` 子进程经 `TEMPLATE_DIR_ENV` 落盘，父进程断字节含相册名、不含 uuid/照片路径、覆盖丢旧收藏、6 种坏名全拒；另抽 engine `session_backup_returns_before_job_finishes`（门控池中断言 Queued + 事件逐项全序相等 + 产物 open）和 `registry_holds_twenty_commands_with_unique_ids_and_docs`（20 条逐参数钉死）。
+3. 全工作区：`cargo test --workspace --locked -j6` exit 0；`-- --list | rg -c ': test$'` = 255；`test result:` 行 passed 求和 =255 failed=0。≥255 ✓。
+4. lint：`cargo clippy --workspace --all-targets --locked -j6 -- -D warnings` exit 0；`cargo fmt --all --check` 无输出 exit 0。
+5. 门：`cargo xtask layers` → `OK: 29 crates, no layering violations.`（engine 边 = catalog/history/iop-traits/registry，L4→L3 合法）；`check-order-sync` → `OK (97 modules…)`；`check-no-iop-names` → `OK (97 names, 4 roots clean)`；`check-apple-boundary` → `OK: 29 crates, 182 rust files, no Apple-boundary violations.`；`Scripts/rust-apple-boundary.sh` → `ALL GREEN`（7/7，含 macOS 真值与 Linux 编译）。全 exit 0。
+6. 引擎零文件操作：`rg -n 'std::fs|File::|create_dir|read_dir|copy' crates/lightamer-engine/src` → 15 命中，逐行全是 `develop.copy` 命令标识/函数名/测试字符串（develop.rs 8 行、engine.rs 7 行）；基线 `git show 4dde1955:...develop.rs/engine.rs` 同模式命中内容逐行一致（develop.rs 行号相同，engine.rs 同 7 行内容仅行号后移 450→606 等，系插入所致）；`std::fs`/`File::`/`create_dir`/`read_dir` 零命中。本波零新增 ✓。
+7. 校验只读（亲手 shell，临时目录）：CLI 建会话→sqlite3 插 snapshots+photos 各 1 行→checkpoint→`shasum` 库 = aa94eafb…→CLI 跑 open+verify+close（verify 报 `{"count":0,"findings":[]}`，scan 报 progress 1/0 因占位文件存在故零标记写入）→再 `shasum` = aa94eafb…→`diff` 相同 `BYTES_IDENTICAL`。注：字节对比有效的前提是 open 侧 scan 无写入，本轮占位文件存在满足该前提，故等值证明 verify 本身只读。exit 0。
+8. 备份作业语义（亲手）：CLI 跑 new+backup+close 文件，输出第 2 行 `session.backup ok outcome={…,"job":1}` 先于第 3 行 `job 1 started`（ok 含 job id 先返回 ✓）；`cargo test -p lightamer-engine --test session_jobs session_backup_cancel_mid_run` 单跑绿（1200 文件裕量型，注释已声明）；`restore_and_open` 已读：backup.rs:196-201 open 失败分支调 `remove_partial_dest` 再返错，open 失败也清目标 ✓（对应两失败清理测试全绿）。
+9. 真实目录隔离：`rg -n 'Application Support' crates apps` → 6 处：template.rs 3（默认值定义+文档注释）、catalog tests 2（注释+假 HOME 断言）、cli selftest.rs 1（A5 旧样张默认值，本波未触该文件）；`rg TEMPLATE_DIR_ENV|LIGHTAMER_APP_SUPPORT_DIR` → 根定义 1 + 三处测试（catalog template 子进程、engine session_commands 子进程、cli run_session 子进程）各经 `.env()` 设临时目录；`ls ~/Library/Application Support/Lightamer/Templates` → 不存在（exit 2，只读未动）。catalog/engine 测试 ScratchDir 均为 temp 下前缀目录 + Drop 按前缀删。✓
+10. 演示：`Scripts/rust-session-demo.sh` 从头到尾 exit 0，8 步全绿，`demo: ALL GREEN`；第 6 步双开拒绝含 `(process 24601 on this computer)` 持有人提示实证。
+11. 封存面：`git diff --stat 4dde1955 8823e744 -- crates/lightamer-history crates/lightamer-registry 'crates/lightamer-iop-*/src/modules' crates/lightamer-registry/fixtures crates/lightamer-apple` → 无输出 exit 0。
+
+minor-1（措辞）：commit message 写 "lockfile gains only the engine->catalog edge"，实际 Cargo.lock 里 engine 依赖表新增两条边：`lightamer-catalog` + `rusqlite`（后者是 engine dev-dependencies 新增的测试直连，`Cargo.toml` 注释已声明与 catalog 同版本行、无新 lock 包；diff 证实零新增包/版本）。"无新依赖"结论成立，是"only … edge"字面不精确。证据：`git show 8823e744 -- Cargo.lock` 的 engine dependencies 段 +2 行。
+风险注记（非发现）：`session_backup_cancel_mid_run_removes_partial_dest` 依赖 1200 文件拷打时间裕量（报告"未验"节已诚实声明）；其余取消路径全确定。复审单跑一次绿，未做压力重复。
+
+复审命令清单（exit 码）：
+- Scripts/machine-guard.sh → 0
+- git log -1 + git status --porcelain → 0（HEAD=8823e744，tracked 干净）
+- git show --stat 8823e744 → 0
+- git show --name-only 8823e744 → 0
+- git show 8823e744 -- crates/README.md Cargo.lock → 0
+- git show 8823e744 -- crates/lightamer-engine/Cargo.toml crates/lightamer-engine/src/jobs.rs → 0
+- git diff --stat 4dde1955 8823e744 -- <封存面 5 路径> → 0（无输出）
+- git show 4dde1955:develop.rs/engine.rs | rg 文件操作模式 → 0（内容与现树一致）
+- rg 文件操作模式 crates/lightamer-engine/src → 0（15 行全 develop.copy）
+- rg 'Application Support' crates apps → 0（6 处良性）；rg 'TEMPLATE_DIR_ENV|LIGHTAMER_APP_SUPPORT_DIR' → 0（隔离确认）
+- ls ~/Library/Application Support/Lightamer/Templates → 2（不存在，只读）
+- rg needs_session crates/lightamer-engine/src → 0（job.cancel=false 即 R1；七命令门与文档一致）
+- cargo test -p lightamer-engine --locked -j6 → 0（68 绿）
+- cargo test -p lightamer-catalog --locked -j6 → 0（32 绿）
+- cargo test --workspace --locked -j6 → 0（255 通过 0 失败）；-- --list 计数 → 255
+- cargo test -p lightamer-engine --test session_jobs session_backup_cancel_mid_run → 0
+- cargo clippy --workspace --all-targets --locked -j6 -- -D warnings → 0
+- cargo fmt --all --check → 0
+- cargo xtask layers / check-order-sync / check-no-iop-names / check-apple-boundary → 0/0/0/0
+- Scripts/rust-apple-boundary.sh → 0（ALL GREEN）
+- cargo build -p lightamer-cli --locked -j6 → 0
+- 手工 verify 只读（CLI+sqlite3+shasum+diff 临时目录）→ 0（BYTES_IDENTICAL）
+- 手工 backup 顺序（CLI new+backup+close + rg 行序）→ 0（ok 行先于 started 行）
+- Scripts/rust-session-demo.sh → 0（demo: ALL GREEN）
+未做：不读用户照片库；不写真实 Application Support；不跑 Swift/darktable/非 macOS 目标；不 push/commit。

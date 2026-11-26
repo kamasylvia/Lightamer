@@ -25,13 +25,21 @@
     clippy::unimplemented
 )]
 
+pub mod backup;
 pub mod error;
 pub mod lock;
 pub mod migrate;
 pub mod paths;
+pub mod scan;
 pub mod schema;
 pub mod session;
+pub mod template;
+pub mod verify;
 
+pub use backup::{
+    CopyStats, backup_session, check_empty_dest, check_restore_source, restore_and_open,
+    restore_package,
+};
 pub use error::CatalogError;
 pub use lock::{LOCK_FILE, LockOwner, OWNER_FILE, SessionLock};
 pub use migrate::{
@@ -39,6 +47,7 @@ pub use migrate::{
     open_database, read_user_version,
 };
 pub use paths::{PathKind, to_absolute, to_stored};
+pub use scan::{ScanStats, scan_missing};
 pub use schema::{
     DisplayAuxRead, META_CREATED_AT, META_CREATED_BY, META_DISPLAY_AUX, META_SCHEMA_VERSION,
     META_SESSION_UUID, SCHEMA_V1_DDL, SCHEMA_VERSION, apply_pragmas, display_aux_read,
@@ -48,6 +57,8 @@ pub use session::{
     CAPTURE_DIR, DB_SUFFIX, OUTPUT_DIR, SELECTS_DIR, SESSION_DIRS, Session, TRASH_DIR,
     close_session, create_session, open_session,
 };
+pub use template::{TEMPLATE_DIR_ENV, save_template, template_dir};
+pub use verify::{Finding, Severity, VERIFY_INLINE_PATH_LIMIT, VerifyReport, verify_session};
 
 #[cfg(test)]
 mod tests {
