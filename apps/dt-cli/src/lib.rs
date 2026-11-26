@@ -6,6 +6,7 @@
 
 pub mod capabilities;
 pub mod cmp;
+pub mod commands;
 pub mod fetch;
 pub mod render;
 pub mod selftest;

@@ -12,6 +12,9 @@ png = "0.18"
 # A6: Apple capability table. Default-on; `--no-default-features` builds a
 # binary with zero Apple linkage (see Scripts/rust-apple-boundary.sh).
 dt-apple = { path = "../../crates/dt-apple", optional = true }
+# A7a: engine registry for `commands` + `run`; serde_json for the JSONL calls.
+dt-engine = { path = "../../crates/dt-engine" }
+serde_json = "1"
 
 [features]
 default = ["apple"]

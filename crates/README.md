@@ -35,11 +35,11 @@
 | L3 | `dt-gpu` | CPU 管线的 GPU 孪生，C 期占位 | C 期 |
 | L3 | `dt-merge` | 独有合成（全景/焦点/HDR），C 期占位 | C 期 |
 | L3 | `dt-lightamer` | 独有功能：全景/焦点/HDR 合成、节点 DRT、版本分支、AI | C 期 |
-| L4 | `dt-engine` | 会话命令、历史应用、作业、导出、导入（A3R 承接已退役的 `dt-api`/`dt-app`/`dt-export`） | A7a |
+| L4 | `dt-engine` | 命令分发口（A7a 已填：`execute` 唯一入口 + 13 条编辑/历史/作业命令 + 草稿会话 + 作业池 + 事件；会话/导出/导入命令 B12′ 起逐条加） | A7a 已填 |
 | L5 | `dt-mcp` | 基于引擎命令的 MCP 服务器，C 期占位 | C 期 |
 | L5 | `dt-gpui` | 界面（gpui 族）——**本波不建，A7b 建，检查表已登记** | A7b |
 | testkit | `dt-testkit` | 测试套件：skip 宏 + JSONL 记录，只许开发依赖 | A3R 已填 |
-| exempt | `dt-cli` | 命令行 + oracle 对照工具（A5 已填：`fetch`/`render`/`cmp`/`emit-xmp`/`selftest`；A6 加 `capabilities` + `apple` 默认 feature 关断 Apple 链接；入口 `Scripts/oracle.sh`，钉点 `Scripts/oracle.lock`）+ perf 探针（A3R 挪到 `apps/dt-cli`） | A4b（`history dump`）/ A5 已填 / A6 已填 |
+| exempt | `dt-cli` | 命令行 + oracle 对照工具（A5 已填：`fetch`/`render`/`cmp`/`emit-xmp`/`selftest`；A6 加 `capabilities` + `apple` 默认 feature 关断 Apple 链接；A7a 加 `commands`/`run`（JSONL 喂引擎草稿会话）；入口 `Scripts/oracle.sh`，钉点 `Scripts/oracle.lock`）+ perf 探针（A3R 挪到 `apps/dt-cli`） | A4b（`history dump`）/ A5 已填 / A6 已填 / A7a 已填 |
 | exempt | `xtask` | 仓库维护任务：`check-i18n`（骨架，B17 启用）；`gen-iop-stubs`（解析上游 `iop_order.c` 生成夹具+桩）/`check-order-sync`（上游×夹具×桩三方比对）/`check-no-iop-names`（核心零 op 名机检）/`layers`（分层检查，A3R 加） | A2 骨架 / A3 三子命令 / A3R layers / B17 |
 
 退役（A3R 删空壳，职责并进 `dt-engine`）：`dt-api`、`dt-app`、`dt-export`。

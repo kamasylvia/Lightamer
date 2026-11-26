@@ -3,7 +3,7 @@
 //!
 //! Exit codes: 0 ok; 1 check failed (gates, verify, prefs, selftest); 2 usage/IO error.
 
-use dt_cli::{capabilities, cmp, fetch, render, selftest, util, xmp};
+use dt_cli::{capabilities, cmp, commands, fetch, render, selftest, util, xmp};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -27,6 +27,8 @@ const HELP: &str = "dt-cli: darktable oracle tool\n\
      emit-xmp --image I [--exposure-ev F] [--flip-x] [--output O]\n\
      selftest [--lock P] [--cache-dir D] [--sample S] [--workdir W]\n\
      capabilities
+     commands [ID]                                       list engine commands
+     run --file F [--photos a,b]                         run JSONL calls on a draft session
      \n\
      exit: 0 ok; 1 check failed; 2 usage/IO error";
 
@@ -285,6 +287,50 @@ fn cmd_selftest(args: &Args) -> Result<(), Failure> {
     }
 }
 
+fn cmd_commands(args: &Args) -> Result<(), Failure> {
+    args.check_only(&[])?;
+    if args.positionals.len() > 1 {
+        return Err(Failure::Usage("commands takes at most one ID".to_owned()));
+    }
+    match args.positionals.first() {
+        None => print!("{}", commands::describe_all()),
+        Some(id) => match commands::describe_one(id) {
+            Some(text) => print!("{text}"),
+            None => return Err(Failure::Usage(format!("unknown command {id}"))),
+        },
+    }
+    Ok(())
+}
+
+fn cmd_run(args: &Args) -> Result<(), Failure> {
+    args.check_only(&["--file", "--photos"])?;
+    if !args.positionals.is_empty() {
+        return Err(Failure::Usage("run takes no positionals".to_owned()));
+    }
+    let file = args
+        .value("--file")?
+        .ok_or_else(|| Failure::Usage("--file is required".to_owned()))?;
+    let photos = args.value("--photos")?.map(|list| {
+        list.split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+    });
+    let report = commands::run_file(Path::new(&file), photos)?;
+    for line in &report.lines {
+        println!("{line}");
+    }
+    if report.failed > 0 {
+        return Err(Failure::Check(format!(
+            "{} of {} lines failed",
+            report.failed,
+            report.lines.len()
+        )));
+    }
+    Ok(())
+}
+
 fn run(raw: &[String]) -> Result<(), Failure> {
     if raw.is_empty() {
         return Err(Failure::Usage("want a subcommand (try help)".to_owned()));
@@ -297,6 +343,8 @@ fn run(raw: &[String]) -> Result<(), Failure> {
         "emit-xmp" => cmd_emit_xmp(&split_args(rest)),
         "selftest" => cmd_selftest(&split_args(rest)),
         "capabilities" => cmd_capabilities(&split_args(rest)),
+        "commands" => cmd_commands(&split_args(rest)),
+        "run" => cmd_run(&split_args(rest)),
         "help" | "--help" | "-h" => {
             println!("{HELP}");
             Ok(())

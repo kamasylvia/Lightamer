@@ -75,7 +75,9 @@ name = "dt-cli"
 version = "0.1.0"
 dependencies = [
  "dt-apple",
+ "dt-engine",
  "png",
+ "serde_json",
 ]
 
 [[package]]
@@ -93,6 +95,13 @@ version = "0.1.0"
 [[package]]
 name = "dt-engine"
 version = "0.1.0"
+dependencies = [
+ "dt-history",
+ "dt-iop-traits",
+ "dt-registry",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "dt-geom"

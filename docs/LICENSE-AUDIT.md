@@ -1066,3 +1066,16 @@
   各 `0.3.2` 绑定、`block2 0.6.2`、`dispatch2 0.3.1`、`libc 0.2.191` 均见 §4 表），
   无需追加表行；`Scripts/check-licenses.sh` 实测 `allow=69 exception=0 fail=0`，退出 0，
   无新增 license 字符串（`MIT` / `Zlib OR Apache-2.0 OR MIT` / `MIT OR Apache-2.0` 均在允许清单）。
+
+---
+
+## §11 A7a 新增依赖采用记录（2026-11-26，lane A7a，append-only）
+
+- `dt-engine` 新增 5 个直接依赖（`cargo tree -p dt-engine --depth 1` 实测）：
+  工作区内 `dt-history`、`dt-iop-traits`、`dt-registry`，外部 `serde 1.0.229`、
+  `serde_json 1.0.154`；`dt-cli` 新增 2 个直接依赖（同命令对 `dt-cli` 实测）：
+  工作区内 `dt-engine`，外部 `serde_json 1.0.154`。
+- 上述外部（名，版本）**全部已在 §4 登记且版本逐字相同**（`serde 1.0.229` 见 A:657 行等，
+  `serde_json 1.0.154` 见 A:687 行等；A4b 已采用，锁文件只增依赖边、无新增 crate），
+  无需追加表行；`Scripts/check-licenses.sh` 实测退出 0，
+  无新增 license 字符串（`MIT OR Apache-2.0` 在允许清单）。

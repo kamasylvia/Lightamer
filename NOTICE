@@ -466,3 +466,26 @@ LightCraft derivation (wave A4b, 2026-11-26):
   Each derived file carries a `Derived from lightcraft` header naming the
   upstream paths and commit. These files are GPL-3.0-or-later as part of
   Lightamer.
+
+LightCraft derivation (wave A7a, 2026-11-26):
+
+  Same upstream and license as the A3R entry above
+  (https://github.com/storytold/lightcraft, commit 0da998f2; MIT or
+  Apache-2.0 at your option). Derived files:
+    crates/dt-engine/src/command.rs <- crates/engine/src/cmd/mod.rs
+      (command declaration/lookup/dispatch skeleton; reworked: menus,
+      shortcut, and journal fields dropped, a machine-readable parameter
+      schema added, enablement takes the engine, runs receive an event
+      collector).
+    crates/dt-engine/src/engine.rs <- crates/engine/src/lib.rs
+      (`Session::execute` single entry point, commit-records-one-step,
+      undo/redo-as-commands, drag-merge interaction; reworked onto our own
+      per-photo history model with atomic calls, a reentrancy guard, a draft
+      session, and a state digest).
+    crates/dt-engine/src/jobs.rs <- crates/engine/src/activity.rs
+      (flag-based cancel checked between chunks, progress/completion events;
+      reworked: the Activity registry replaced by one fixed-size FIFO pool
+      with a single job table and results queue).
+  Each derived file carries a `Derived from lightcraft` header naming the
+  upstream path and commit. These files are GPL-3.0-or-later as part of
+  Lightamer.
