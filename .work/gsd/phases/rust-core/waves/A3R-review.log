@@ -1,0 +1,58 @@
+Working...
+PASS / 0 error + 0 minor
+
+基线（只读复审，`target/` 构建产物外工作区零残留）：`git rev-parse HEAD`= `7c398fa6af58d40c2d271f3f19ec6da60d7bcfc9` 与送审一致；首尾 `git status --porcelain | sort` diff 一致（188 行全 untracked 并行波日志/提示词，tracked 面 `crates apps Cargo.toml Cargo.lock Scripts NOTICE` 全程干净）。LightCraft 侧只 `sed/diff/git rev-parse` 读，未执行任何东西。
+
+1. 包数=28
+命令：`cargo metadata --locked --no-deps --format-version 1 | jq '.packages | length'` → `28`。
+
+2. `cargo xtask layers` 绿且 L0-L5 分组
+命令：`cargo xtask layers; echo EXIT=$?` → `EXIT=0`，打印：
+`L0: dt-color-math, dt-geom, dt-iop-traits, dt-raster, dt-sysmem`
+`L1: dt-blend, dt-color, dt-decode, dt-iop-color, dt-iop-display, dt-iop-geom, dt-iop-raw, dt-meta, dt-scenes`
+`L2: dt-history, dt-pipeline, dt-registry`
+`L3: dt-apple, dt-catalog, dt-gpu, dt-lightamer, dt-merge, dt-preview`
+`L4: dt-engine` / `L5: dt-mcp` / `testkit: dt-testkit` / `exempt: dt-cli, xtask`
+尾行 `OK: 28 crates, no layering violations.`。边与报告一致：四域→traits，registry→四域+traits+`dt-testkit (dev)`。
+
+3. `cargo test -p xtask` 绿，layers 16 条规则全覆盖
+命令：`cargo test -p xtask --locked` → `22 passed; 0 failed`（`--list | grep layers::`=16）。
+映射：下行 `clean_downward_graph_passes`、上行 `upward_dependency_flagged`（`from:0 to:2`）、同层 `sideways_dependency_flagged`（3→3）、三链 `l0_chain_allowed_one_way`/`l1_chain_meta_decode`/`l2_chain_registry_history_pipeline`（正反双向断言）、UI `ui_crates_forbidden_below_l5`、未登记 `unregistered_crate_flagged`、套件 `testkit_dev_only`（Normal+Build 报、Dev 放行）、豁免 `exempt_crates_skipped`、独占 `standalone_rule_fires`、悬空 `dangling_table_entry_flagged`、排期 `planned_crate_may_be_missing`、解析 `metadata_shape_parses`/`metadata_errors_are_typed`/`json_reader_handles_escapes_and_unicode`。另 4=`iop_order`、2=`main`，与报告 22 构成一致。
+
+4. `cargo test --workspace --locked` 绿，加总 62
+命令：`cargo test --workspace --locked -j6` → 55 个 `test result` 全 `0 failed`，`grep -oE '[0-9]+ passed' | awk` 求和 `total_passed=62`。公式复算：33−3+11+4+1+16=30+11+4+1+16=62，成立（12 空壳−`dt-gpui` PLANNED 未建=11 个各 1 测；`dt-testkit` 4 单测+1 doctest 在 log 中亲见；xtask 增量 16 即上条）。
+
+5. `check-order-sync` / `check-no-iop-names` 通过，扫描根正确
+`cargo xtask check-order-sync` → `OK (97 modules, fixture …/dt-order-679d594f5d.json)` exit 0；`cargo xtask check-no-iop-names` → `OK (97 names, 3 roots clean)` exit 0。`crates/xtask/src/no_names.rs:10`：`SCAN_ROOTS=["crates/dt-pipeline","crates/dt-engine","crates/dt-registry"]`，与报告一致。
+
+6. `Scripts/rust-discovery-probe.sh` 双向 PASS 且复原
+输出含 `present PASS`、`absent PASS`、`ALL GREEN (workspace restored)`，exit 0；跑后 `git status --porcelain -- crates Cargo.toml Cargo.lock` 空。
+
+7. `Scripts/check-licenses.sh` exit 0
+尾行 `allow=28 exception=0 fail=0 total=28`，28 包全 `ALLOW GPL-3.0-or-later`。
+
+8. `Scripts/rust-ci-lite.sh` exit 0 且含分层
+exit 0，尾行 `rust-ci-lite: ALL GREEN`；日志含 `Dependency layering (FRAMEWORK.md T-F9)`（行 40）与 `OK: 28 crates, no layering violations.`（行 81）；链路 `GUARD PASS`→`allow=28…`→分层→`rust-build`→`fmt/clippy OK`→`tests total passed=62`→`rust-budget overall PASS` 全见。
+
+9. 桩与夹具逐字节零改
+`git diff 933cde89 HEAD -- 'crates/dt-iop-*/src/modules' crates/dt-registry/fixtures | wc -c` =0。抽 3 桩+夹具哈希新旧一致：
+`dt-iop-raw/.../demosaic/mod.rs f9ebec8c…784c24`、`dt-iop-color/.../colorout/mod.rs 10701750…27e7d`、`dt-iop-geom/.../crop/mod.rs 2f8a3ee1…46036`、夹具 `dt-order-679d594f5d.json 76485552…6af24`。
+
+10. 对 LightCraft `xtask/src/layers.rs`（316 行）逐规则核，无抄漏
+行数：LC 316 vs 我方 1001（多出 Dangling/PLANNED/无依赖 JSON 读器/16 单测与文档）。`diff LC:check vs 我方:check_with` 仅格式化+`classify→classify_in(table)` 参数化+末尾 Dangling 循环四行，语义逐臂一致：`Unregistered`（TABLE 缺席报）、`Upward`（`to>=layer && !(同层&&intra_layer_allowed)`，`Exempt→u8::MAX→7` 显示同 LC）、`StandaloneHasWorkspaceDep`（先于分类报）、`TestkitAsNormalDep`（`None | Some(Testkit)` 合并写法与 LC `None=>{}`+`Testkit Dev=>{}` 等价）、`UiBelowL5`（`layer<UI_MIN_LAYER && is_ui_crate`）、自依赖放行（`d.name==c.name continue` 两边逐字在）、排序去重（`sort_by_key(to_string)+dedup` 两边在）。TABLE/同层链/UI 按 T-F9 换（`UI_CRATES=["gpui*"]`，`UI_MIN_LAYER=5`，全包名直查无前缀剥离，`Standalone` 变体保留且 TABLE 零用同 LC）。新增 `Dangling`+`PLANNED=["dt-gpui"]`：`for (name,_) in table { if !PLANNED.contains && !crates.any }`，TABLE 29 条 vs 工作区 28 包，仅缺 PLANNED 的 `dt-gpui` 故绿，逻辑正确。自带 JSON 解析器 vs `jq`：`dt-registry`（5×`kind=null path=STR`+`dt-testkit kind=dev`）与 `dt-iop-color`（`dt-iop-traits kind=null`）两包边集与 `cargo xtask layers` 表格逐边一致（Normal/Dev 判别、`members.contains||path.is_string` 工作区判别与 LC 同式）。
+
+11. `git show --stat HEAD` 仅允许路径，Swift 零命中
+42 files（`1835 insertions, 63 deletions`；报告正文 1827 系 amend 自指成文时差，已有 amend 链注记，不计）。`--name-only` 42 行全命中 `(.work/…/A3R-REPORT.md|Cargo.lock|Cargo.toml|NOTICE|Scripts/rust-ci-lite.sh|apps/dt-cli/|crates/)`，`grep -cE '^(App/|LightamerCore/|LightamerIOP/|Tests/|Project.swift|Tuist|.*xcodeproj)'`=0。
+
+12. 改名证据链成立，tiebreak 注记属实
+`git log --follow --name-status --oneline -- crates/dt-pipeline/src/lib.rs`：`R100 crates/dt-core/src/lib.rs → crates/dt-pipeline/src/lib.rs`，到达 `097890cb`；`-- crates/dt-pipeline/Cargo.toml`：`R088 crates/dt-api/Cargo.toml → crates/dt-pipeline/Cargo.toml`，同样到达 `097890cb`。`git ls-tree 097890cb crates/` 含 `dt-core` 且 `crates/dt-core/{Cargo.toml,src}` 在位，证到达提交即创建 `dt-core` 的 A2 提交。以到达提交为准判通过，`dt-api` 字母确为等相似空壳 tiebreak 伪影，报告注记属实。
+
+13. 旧名零真残留
+`rg -n 'dt-core|dt-api|dt-app|dt-export|dt-library' crates apps Scripts`=7 行：README 旧名注记 4 行（31/32/38/45）+`dt-apple` 行 1+`dt-apple/Cargo.toml:2`+`layers.rs:72` 两处 `dt-app` 子串。边界复查 `dt-core([^A-Za-z0-9_-]|$)…` 仅剩 README 上述 4 行；排除 README 后仅 `dt-apple` 两处子串误 hit。源码脚本零真残留。
+
+14. NOTICE 与 Derived 头
+`NOTICE:433` 有 `LightCraft derivation (wave A3R…)` 条目，URL `https://github.com/storytold/lightcraft` 与 `git -C …/lightcraft remote -v` 的 origin fetch/push 逐字一致；`rev-parse --verify 0da998f2`=`0da998f24dfc…51f94` 存在。两移植头含 Derived 行：`layers.rs:2 // Derived from lightcraft xtask/src/layers.rs (commit 0da998f2)`、`dt-testkit/src/lib.rs:2 // Derived from lightcraft crates/testkit/src/lib.rs (commit 0da998f2)`。
+
+15. 活体负测（自做 traits→history 无环上行边）
+`printf '[dependencies]\ndt-history={path="../dt-history"}' >> crates/dt-iop-traits/Cargo.toml` 后 `cargo xtask layers` exit 1，点名 `dt-iop-traits (L0) -> dt-history (L2) [Normal]: may only depend on strictly lower layers`；`git checkout --` 后与备份 `diff` 干净、`layers` 回绿、`git status --porcelain -- crates/dt-iop-traits/` 空。
+

@@ -13,5 +13,8 @@ dt-iop-geom = { path = "../dt-iop-geom" }
 dt-iop-color = { path = "../dt-iop-color" }
 dt-iop-display = { path = "../dt-iop-display" }
 
+[dev-dependencies]
+dt-testkit = { path = "../dt-testkit" }
+
 [lints]
 workspace = true

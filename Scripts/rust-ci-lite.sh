@@ -1,5 +1,5 @@
 #!/bin/bash
-# rust-ci-lite.sh — 守卫（不等待）→许可证→构建→测试→预算，一条命令串起来。
+# rust-ci-lite.sh — 守卫（不等待）→许可证→分层→构建→测试→预算，一条命令串起来。
 # 用法：Scripts/rust-ci-lite.sh   任一步失败即停（set -e）。
 set -euo pipefail
 
@@ -13,6 +13,7 @@ esac
 
 "$SCRIPT_DIR/rust-guard.sh"
 "$SCRIPT_DIR/check-licenses.sh"
+(cd "$SCRIPT_DIR/.." && cargo xtask layers)
 "$SCRIPT_DIR/rust-build.sh"
 "$SCRIPT_DIR/rust-test.sh"
 "$SCRIPT_DIR/rust-budget.sh"

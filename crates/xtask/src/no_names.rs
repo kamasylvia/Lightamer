@@ -7,7 +7,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Crate roots that must not name any module.
-const SCAN_ROOTS: &[&str] = &["crates/dt-core", "crates/dt-api", "crates/dt-registry"];
+const SCAN_ROOTS: &[&str] = &[
+    "crates/dt-pipeline",
+    "crates/dt-engine",
+    "crates/dt-registry",
+];
 
 /// Fails when a fixture name appears as a string literal under a scan root.
 ///

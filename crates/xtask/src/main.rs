@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Repo maintenance tasks: i18n keys, order fixture/stubs, sync, name checks.
+//! Repo maintenance tasks: i18n keys, order fixture/stubs, sync, name checks, layering.
 
 mod gen_stubs;
 mod iop_order;
+mod layers;
 mod no_names;
 mod sync;
 
 use std::path::{Path, PathBuf};
-use std::process::ExitCode;
+use std::process::{Command, ExitCode};
 
 fn count_key_tables(dir: &Path) -> Option<usize> {
     let entries = std::fs::read_dir(dir).ok()?;
@@ -78,11 +79,103 @@ fn exit_from(result: Result<(), String>) -> ExitCode {
         }
     }
 }
+/// `cargo` binary honouring `CARGO` when set.
+fn cargo_program() -> String {
+    std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned())
+}
+
+/// Runs `cargo metadata --no-deps` at the workspace root, returns stdout text.
+fn metadata_text() -> Result<String, String> {
+    let root = iop_order::workspace_root();
+    let out = Command::new(cargo_program())
+        .args(["metadata", "--format-version", "1", "--no-deps"])
+        .current_dir(&root)
+        .output()
+        .map_err(|err| format!("cargo metadata: {err}"))?;
+    if !out.status.success() {
+        return Err(format!(
+            "cargo metadata failed:\n{}",
+            String::from_utf8_lossy(&out.stderr)
+        ));
+    }
+    String::from_utf8(out.stdout).map_err(|err| format!("cargo metadata: bad UTF-8: {err}"))
+}
+
+/// Workspace member names in one class, sorted.
+fn class_names(crates: &[layers::Crate], class: layers::Class) -> Vec<&str> {
+    let mut names: Vec<&str> = crates
+        .iter()
+        .filter(|c| layers::classify(&c.name) == Some(class))
+        .map(|c| c.name.as_str())
+        .collect();
+    names.sort_unstable();
+    names
+}
+
+/// Prints the layer table and fails on any violation.
+fn cmd_layers() -> Result<(), String> {
+    let crates = layers::from_metadata(&metadata_text()?)?;
+    println!("Dependency layering (FRAMEWORK.md T-F9)\n");
+    for layer in 0..=5 {
+        let names = class_names(&crates, layers::Class::Layer(layer));
+        println!("L{layer}: {}", names.join(", "));
+    }
+    println!(
+        "testkit: {}",
+        class_names(&crates, layers::Class::Testkit).join(", ")
+    );
+    println!(
+        "exempt: {}",
+        class_names(&crates, layers::Class::Exempt).join(", ")
+    );
+    let unregistered: Vec<&str> = crates
+        .iter()
+        .filter(|c| layers::classify(&c.name).is_none())
+        .map(|c| c.name.as_str())
+        .collect();
+    if !unregistered.is_empty() {
+        println!("UNREGISTERED: {}", unregistered.join(", "));
+    }
+    println!("\n{:<28} {:<14} workspace deps", "crate", "layer");
+    for c in &crates {
+        let ws: Vec<String> = c
+            .deps
+            .iter()
+            .filter(|d| d.workspace)
+            .map(|d| {
+                let k = match d.kind {
+                    layers::DepKind::Normal => "",
+                    layers::DepKind::Dev => " (dev)",
+                    layers::DepKind::Build => " (build)",
+                };
+                format!("{}{k}", d.name)
+            })
+            .collect();
+        println!(
+            "{:<28} {:<14} {}",
+            c.name,
+            layers::describe(layers::classify(&c.name)),
+            ws.join(", ")
+        );
+    }
+    let violations = layers::check(&crates);
+    println!();
+    if violations.is_empty() {
+        println!("OK: {} crates, no layering violations.", crates.len());
+        Ok(())
+    } else {
+        println!("{} violation(s):", violations.len());
+        for v in &violations {
+            println!("  - {v}");
+        }
+        Err(format!("{} layering violation(s)", violations.len()))
+    }
+}
 
 /// Prints usage; always exits 2.
 fn usage() -> ExitCode {
     eprintln!(
-        "usage: cargo xtask <check-i18n [DIR] | gen-iop-stubs [--upstream PATH] | check-order-sync [--upstream PATH] | check-no-iop-names>"
+        "usage: cargo xtask <check-i18n [DIR] | gen-iop-stubs [--upstream PATH] | check-order-sync [--upstream PATH] | check-no-iop-names | layers>"
     );
     ExitCode::from(2)
 }
@@ -105,6 +198,13 @@ fn main() -> ExitCode {
                 return ExitCode::from(2);
             }
             exit_from(no_names::run())
+        }
+        "layers" => {
+            if args.len() != 1 {
+                eprintln!("usage: cargo xtask layers");
+                return ExitCode::from(2);
+            }
+            exit_from(cmd_layers())
         }
         _ => usage(),
     }

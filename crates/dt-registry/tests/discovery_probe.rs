@@ -9,7 +9,10 @@
 #[test]
 fn probe_expectation() {
     let Ok(expect) = std::env::var("DT_DISCOVERY_PROBE") else {
-        eprintln!("skip: DT_DISCOVERY_PROBE unset (run Scripts/rust-discovery-probe.sh)");
+        dt_testkit::skip!(
+            Input,
+            "DT_DISCOVERY_PROBE unset (run Scripts/rust-discovery-probe.sh)"
+        );
         return;
     };
     match expect.as_str() {
