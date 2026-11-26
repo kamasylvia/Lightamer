@@ -14,6 +14,7 @@ esac
 "$SCRIPT_DIR/rust-guard.sh"
 "$SCRIPT_DIR/check-licenses.sh"
 (cd "$SCRIPT_DIR/.." && cargo xtask layers)
+(cd "$SCRIPT_DIR/.." && cargo xtask check-apple-boundary)
 "$SCRIPT_DIR/rust-build.sh"
 "$SCRIPT_DIR/rust-test.sh"
 "$SCRIPT_DIR/rust-budget.sh"

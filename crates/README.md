@@ -31,7 +31,7 @@
 | L2 | `dt-pipeline` | Frame/Roi/tiling/缓存/调度/PipeError（A3R 由 `dt-core` 改名） | B1 |
 | L3 | `dt-catalog` | 会话库 + 导入 + 缩略图（A3R 由 `dt-library` 改名） | B12′ |
 | L3 | `dt-preview` | 预览缓存：内存 LRU + 磁盘缩略图 + 预取 | B15 |
-| L3 | `dt-apple` | 仅 macOS：CIRAW/ColorSync/Vision/ImageIO/Metal（门控 A6 做，本波是普通空 crate） | A6 |
+| L3 | `dt-apple` | Apple 边界：macOS 探针/空后端双实现 + 能力表（A6 已填；唯一可碰 Apple 绑定的 crate） | A6 已填 |
 | L3 | `dt-gpu` | CPU 管线的 GPU 孪生，C 期占位 | C 期 |
 | L3 | `dt-merge` | 独有合成（全景/焦点/HDR），C 期占位 | C 期 |
 | L3 | `dt-lightamer` | 独有功能：全景/焦点/HDR 合成、节点 DRT、版本分支、AI | C 期 |
@@ -39,7 +39,7 @@
 | L5 | `dt-mcp` | 基于引擎命令的 MCP 服务器，C 期占位 | C 期 |
 | L5 | `dt-gpui` | 界面（gpui 族）——**本波不建，A7b 建，检查表已登记** | A7b |
 | testkit | `dt-testkit` | 测试套件：skip 宏 + JSONL 记录，只许开发依赖 | A3R 已填 |
-| exempt | `dt-cli` | 命令行 + oracle 对照工具（A5 已填：`fetch`/`render`/`cmp`/`emit-xmp`/`selftest`，唯一第三方依赖 `png` 0.18.1；入口 `Scripts/oracle.sh`，钉点 `Scripts/oracle.lock`）+ perf 探针（A3R 挪到 `apps/dt-cli`） | A4b（`history dump`）/ A5 已填 |
+| exempt | `dt-cli` | 命令行 + oracle 对照工具（A5 已填：`fetch`/`render`/`cmp`/`emit-xmp`/`selftest`；A6 加 `capabilities` + `apple` 默认 feature 关断 Apple 链接；入口 `Scripts/oracle.sh`，钉点 `Scripts/oracle.lock`）+ perf 探针（A3R 挪到 `apps/dt-cli`） | A4b（`history dump`）/ A5 已填 / A6 已填 |
 | exempt | `xtask` | 仓库维护任务：`check-i18n`（骨架，B17 启用）；`gen-iop-stubs`（解析上游 `iop_order.c` 生成夹具+桩）/`check-order-sync`（上游×夹具×桩三方比对）/`check-no-iop-names`（核心零 op 名机检）/`layers`（分层检查，A3R 加） | A2 骨架 / A3 三子命令 / A3R layers / B17 |
 
 退役（A3R 删空壳，职责并进 `dt-engine`）：`dt-api`、`dt-app`、`dt-export`。

@@ -1,0 +1,59 @@
+Working...
+PASS / 0 error + 1 minor
+
+## §11 逐项重跑（退出码 + 关键输出）
+
+| # | 命令 | 退出码 | 关键输出 |
+|---|---|---|---|
+| 1 | `cargo build -p dt-apple --locked` | 0 | `Finished dev in 2.78s`，零警告 |
+| 1 | `cargo test -p dt-apple --locked` | 0 | 4 单测（`empty_backend_reports_nothing` / `empty_backend_is_selected_somewhere` / `capability_table_has_every_field` / `capabilities_returns_same_table`）+ 1 doctest，全过 |
+| 2 | `cargo build -p dt-cli --locked` + `target/debug/dt-cli capabilities` | 0 | 16 键，`backend=macos`，`metal.device=Apple M4`，除 `imageio.webp=false` 全 true；与报告 §2 逐行一致 |
+| 2 | `cargo build -p dt-cli --no-default-features --locked` + `capabilities` | 0 | 同 16 键，`backend=empty`，`metal.device=none`，其余 false |
+| 3 | `Scripts/rust-apple-boundary.sh` | 0 | 六步全 PASS，`ALL GREEN`；框架行 0、符号行 0、对照旧 pattern 0；`otool -L` 仅 `libSystem.B.dylib`；末尾回到默认构建 |
+| 4 | 活体负测 ×2 | 未重跑 | 只读禁令禁止临时改文件（见末尾说明）；以单测 + 格式核对替代：`rule2_requires_macos_gate_inside_apple` 与 `rule3_scan_finds_tokens_outside_exempt_dir` 覆盖两场景，`Display` 实现与报告 §6 引文逐字一致，且 `dt-history/src/lib.rs` 实测 50 行、尾加两行后 cfg 行确为 :51 |
+| 5 | `cargo test -p xtask` | 0 | 32 通过；本波 +9（规则1×2、规则2、规则3、规则4、元数据形态、名单语义、拼装自检、JSON转义），四条规则各 ≥1 |
+| 6 | 任务书裸 `rg` 门 | 1（无输出） | 干净 |
+| 7 | `rg -n 'unsafe' crates/dt-apple/src` | 0 | 6 命中全在 `macos.rs`（3 属性 + 3 `unsafe` 块），与报告一致 |
+| 8 | `layers` / `check-order-sync` / `check-no-iop-names` | 0/0/0 | `no layering violations` / `97 modules` / `97 names, 4 roots clean` |
+| 9 | `Scripts/check-licenses.sh` | 0 | `allow=69 exception=0 fail=0` |
+| 10 | `cargo test --workspace --locked` | 0 | 132 通过（57 个 test binary 全 `0 failed`）；116 + 16 = 116 +（dt-apple 净+4：基线 1 个 → 现 4+1 doctest）+ dt-cli 3 + xtask 9 |
+| 11 | `Scripts/rust-ci-lite.sh` | 0 | `ALL GREEN`，日志含 `no Apple-boundary violations`（紧随 layers 之后） |
+| 12 | `git diff 04c84b8d --stat -- 'crates/dt-iop-*/src/modules' crates/dt-registry/fixtures` | 0（空） | 同命令对 HEAD 亦空 |
+| 13 | `cargo build -p dt-cli --locked` 后 `target/debug/dt-cli help` | 0 | `fetch`/`render`/`cmp`/`emit-xmp`/`selftest` 全在 + `capabilities` |
+| 14 | 允许路径 | — | 跟踪改动恰 10 文件（`Cargo.lock`、`rust-ci-lite.sh` +1、`dt-cli/Cargo.toml` feature、`dt-cli/lib.rs` +1、`dt-cli/main.rs` capabilities、`README.md` 2 行、`dt-apple/Cargo.toml` +13、`dt-apple/lib.rs`、`xtask/main.rs` 登记、`LICENSE-AUDIT.md` 追加 §10）+ 未跟踪 7 产物 + REPORT/review 占位；根 `Cargo.toml` 未动；`licenses-allow.txt` 未动；`Cargo.lock` +19 包、-0 |
+| 纪律 | `cargo fmt --all --check` | 0 | 干净 |
+| 纪律 | `cargo clippy --workspace --all-targets --locked -- -D warnings` | 0 | 绿 |
+| 额外 | `cargo test -p dt-cli --no-default-features` | 0 | 29 通过（含 `feature_off_reports_empty_backend`） |
+| 额外 | `cargo xtask` / `rust-apple-boundary.sh --help` | 2用法/0 | 用法含 `check-apple-boundary`；误参退出 2 |
+
+## PLAN §2.7 三条机检
+
+- ① 树检查 → 规则1（metadata 直接依赖名单，14 精确名与任务书 §5 逐名一致 + `objc2` 前缀族）+ 链接门第 2/3 步（linux 单行 `dt-apple v0.1.0`、mac 树含 objc2 族）。覆盖更强。落地。
+- ② `nm` 猜测 → `otool` + 精确 pattern。亲跑对比（默认二进制）：新 pattern 10 行，旧 pattern 6 行，旧漏掉的 4 行（`_CGColorSpaceCreateWithName`、`_VNImageOptionProperties`、`_kCGColorSpaceSRGB/DisplayP3`）= 旧写法对 CG/VN 符号的假阴性，旧独有 0 行；`otool` 默认 11 框架行、无 feature 0 行。`Revision` 类误伤在本二进制未观测到（无此类符号），但 `-i vision` 的前瞻性风险成立。**改动理由成立**，且新式是旧式的严格超集。
+- ③ `rg` → 规则3（5 token 与任务书一致，`.rs` 扫描带文件:行）。token 集与 PLAN 原文（dashes/`metal::`）不同但合理：dashes 形不可能出现在合法 Rust `use` 中，清单面由规则 1/2 覆盖。落地。
+
+## unsafe / 空后端 / 接口 / 版本
+
+- `unsafe` 仅 `macos.rs` 内 3 块，各带 `SAFETY`；文件头 `allow(unsafe_code)` + 双 `deny`（`unsafe_op_in_unsafe_fn`、`undocumented_unsafe_blocks`）在；其余源码零 `unsafe`，工作区 `deny` 生效。
+- 空后端：`mod empty` 无条件编译、纯 std；在 macOS 被单测实际执行（`empty_backend_*` 在 darwin/arm64 跑过）。选择点全 crate 唯一（`capabilities.rs` 两完整 `cfg` 块；`mod macos` 门 + `#[cfg(test)]` 为常规例外）。
+- 公开项恰 6（`Backend`/`Capabilities`/`ImageFormat`/`VisionRequests`/`StandardSpaces`/`capabilities()`），字段仅 `Option<String>`/`Vec`/`bool`，无框架类型。
+- 8 直接依赖 `=` 钉死与 spike 锁逐条同版本；传递 11 + `bitflags` 亦逐条同版本；两侧均无 features 声明（默认特性一致）；`LICENSE-AUDIT.md` §4 对 19/19 精确 `(名，版本)` 行命中。
+
+## 文档诚实度
+
+- `APPLE-BOUNDARY.md` 六字段探法与 `macos.rs` 逐行对应（设备/列表/类查/`with_name`/链接钉/`OnceLock`）；spike 文件映射四文件及 API（`MTLCreateSystemDefaultDevice`、`filterWithImageURL`、`VNDetectFaceRectanglesRequest`、`CGColorSpaceCreateWithName`、s3 三格式）全部亲核存在，且诚实注记 `type_identifiers` 与 spike 的差异。
+- 报告 §2/§5 数字：16 键输出逐行一致；132 测试、19 依赖、`allow=69` 一致；预算重跑 `cold 40s（门360）/check 2s（门40）/N/A/target 482MB（门20GB)` vs 报告 `17s/0s/N/A/480MB`——结论全 PASS，时序差为并机负载所致（重跑中多次 `Blocking waiting for file lock`），非假数。
+
+## Findings
+
+**M1（minor，措辞）**：`A6-REPORT.md` §1「其余源码零散 `cfg` 为零（`mod macos` 的门是模块级唯一例外）」字面不精确——`capabilities.rs:114` 还有 `#[cfg(test)]`。建议改为「零散 `target_os` cfg 为零」或注明 test 门除外。证据：`rg -n 'cfg' crates/dt-apple/src` 命中 `capabilities.rs:94/99`（选择点）、`lib.rs:29`（模块门）、`capabilities.rs:114`（test 门）。处置：提交前改报告一词，或不改（不影响验收）。
+
+## 说明（非 finding）
+
+- 活体负测未亲手重跑：复审只读禁令与「临时改文件」互斥，以规则 2/3 单测（覆盖挪位三种 gate + 真目录扫描）与报错格式逐字核对替代；产物侧无问题。
+- HEAD 已由 `04c84b8d` 进到 `9756bda4`（仅加 `.work` 内 A6 任务书与 A-17 修订），产品面无影响；模块/夹具差分对两 HEAD 皆空。`git show` 类验收待 lane 提交后由 orchestrator 复核。
+- 复审未改动任何仓库文件：收尾 `git status` 跟踪改动仍为原 10 文件；`target/debug/dt-cli` 留为默认构建（`backend=macos`）。
+
+## 命令清单
+
+`machine-guard.sh`；`rg unsafe`；裸 `rg` 门；`rg cfg/框架token`；`cargo build/test -p dt-apple --locked`；`cargo test -p xtask`；`cargo xtask check-apple-boundary/layers/check-order-sync/check-no-iop-names`；`cargo build -p dt-cli（默认/--no-default-features）` + `capabilities` + `help`；`otool -L`；新旧 `nm -u | grep` 双 pattern 及 `comm` 差集；`Scripts/rust-apple-boundary.sh`；`check-licenses.sh`；`cargo fmt --check`；`git diff（模块/夹具、HEAD --stat、Cargo.lock 名单）`；`cargo test -p dt-cli（双 feature）`；`cargo test --workspace`（总数 132 + 0 failed 计数）；`git show 04c84b8d:dt-apple/lib.rs`；`cargo clippy --workspace --all-targets -- -D warnings`；`Scripts/rust-ci-lite.sh`（×2）；`Scripts/rust-budget.sh --cold`；`cargo tree（linux/mac/no-default dt-cli）`；`cargo xtask` 用法；`boundary.sh --help`；§4 19/19 精确行 python 核对；SPDX 头；`wc -l dt-history/lib.rs`；收尾 `git status`。

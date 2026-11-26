@@ -1,11 +1,34 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! macOS-only: CIRAW/ColorSync/Vision/ImageIO/Metal (A6 adds gating + legs).
+//! Apple platform capabilities, probed once and read as plain data.
+//!
+//! This is the only workspace crate allowed to touch Apple frameworks (see
+//! `docs/APPLE-BOUNDARY.md`). Everything outside this crate reads
+//! [`capabilities()`] and never writes `cfg(target_os)`.
+//!
+//! The public surface carries no framework types: only [`Backend`],
+//! [`Capabilities`], and standard-library types cross the boundary.
+//!
+//! ```rust
+//! let caps = dt_apple::capabilities();
+//! assert!(matches!(
+//!     caps.backend,
+//!     dt_apple::Backend::Empty | dt_apple::Backend::MacOs
+//! ));
+//! ```
+#![deny(
+    clippy::indexing_slicing,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::todo,
+    clippy::unimplemented
+)]
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn package_metadata_resolves() {
-        assert_ne!(env!("CARGO_PKG_NAME"), "");
-        assert_ne!(env!("CARGO_PKG_VERSION"), "");
-    }
-}
+mod capabilities;
+mod empty;
+#[cfg(target_os = "macos")]
+mod macos;
+
+pub use capabilities::{
+    Backend, Capabilities, ImageFormat, StandardSpaces, VisionRequests, capabilities,
+};

@@ -1047,3 +1047,22 @@
 - 上述 11 个（名，版本）**全部已在 §4.1 登记且版本逐字相同**（`png 0.18.1` 见 V:5063 行等），
   无需追加表行；`Scripts/check-licenses.sh` 实测 `allow=50 exception=0 fail=0`，退出 0，
   无新增 license 字符串（`MIT OR Apache-2.0` / `MIT` / `Zlib` / `0BSD OR MIT OR Apache-2.0` 均在允许清单）。
+
+---
+
+## §10 A6 新增依赖采用记录（2026-11-26，lane A6，append-only）
+
+- `dt-apple` 在 `[target.'cfg(target_os = "macos")'.dependencies]` 新增 8 个直接依赖
+  （版本钉 spike 锁表逐字）：`objc2 0.6.5`、`objc2-foundation 0.3.2`、
+  `objc2-core-foundation 0.3.2`、`objc2-core-graphics 0.3.2`、`objc2-metal 0.3.2`、
+  `objc2-core-image 0.3.2`、`objc2-image-io 0.3.2`、`objc2-vision 0.3.2`
+  （`cargo tree -p dt-apple --target aarch64-apple-darwin` 实测）。
+- 传递引入 11 个 crate：`block2 0.6.2`、`dispatch2 0.3.1`、`libc 0.2.191`、
+  `objc2-encode 4.1.0`、`objc2-av-foundation 0.3.2`、`objc2-core-audio 0.3.2`、
+  `objc2-core-audio-types 0.3.2`、`objc2-core-media 0.3.2`、`objc2-core-ml 0.3.2`、
+  `objc2-core-video 0.3.2`、`objc2-io-surface 0.3.2`（`cargo metadata` 实测；
+  `bitflags 2.13.2` 已在 A5 登记，不计入）。
+- 上述 19 个（名，版本）**全部已在 §4 登记且版本逐字相同**（`objc2 0.6.5`、
+  各 `0.3.2` 绑定、`block2 0.6.2`、`dispatch2 0.3.1`、`libc 0.2.191` 均见 §4 表），
+  无需追加表行；`Scripts/check-licenses.sh` 实测 `allow=69 exception=0 fail=0`，退出 0，
+  无新增 license 字符串（`MIT` / `Zlib OR Apache-2.0 OR MIT` / `MIT OR Apache-2.0` 均在允许清单）。

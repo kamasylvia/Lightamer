@@ -3,7 +3,7 @@
 //!
 //! Exit codes: 0 ok; 1 check failed (gates, verify, prefs, selftest); 2 usage/IO error.
 
-use dt_cli::{cmp, fetch, render, selftest, util, xmp};
+use dt_cli::{capabilities, cmp, fetch, render, selftest, util, xmp};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -26,6 +26,7 @@ const HELP: &str = "dt-cli: darktable oracle tool\n\
      cmp     A.png B.png [--tol F] [--max-mean F] [--min-in-tol F] [--mirror-x]\n\
      emit-xmp --image I [--exposure-ev F] [--flip-x] [--output O]\n\
      selftest [--lock P] [--cache-dir D] [--sample S] [--workdir W]\n\
+     capabilities
      \n\
      exit: 0 ok; 1 check failed; 2 usage/IO error";
 
@@ -253,6 +254,17 @@ fn cmd_emit_xmp(args: &Args) -> Result<(), Failure> {
     Ok(())
 }
 
+fn cmd_capabilities(args: &Args) -> Result<(), Failure> {
+    args.check_only(&[])?;
+    if !args.positionals.is_empty() {
+        return Err(Failure::Usage(
+            "capabilities takes no positionals".to_owned(),
+        ));
+    }
+    println!("{}", capabilities::render());
+    Ok(())
+}
+
 fn cmd_selftest(args: &Args) -> Result<(), Failure> {
     args.check_only(&["--lock", "--cache-dir", "--sample", "--workdir"])?;
     if !args.positionals.is_empty() {
@@ -284,6 +296,7 @@ fn run(raw: &[String]) -> Result<(), Failure> {
         "cmp" => cmd_cmp(&split_args(rest)),
         "emit-xmp" => cmd_emit_xmp(&split_args(rest)),
         "selftest" => cmd_selftest(&split_args(rest)),
+        "capabilities" => cmd_capabilities(&split_args(rest)),
         "help" | "--help" | "-h" => {
             println!("{HELP}");
             Ok(())

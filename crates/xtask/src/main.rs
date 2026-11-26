@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Repo maintenance tasks: i18n keys, order fixture/stubs, sync, name checks, layering.
 
+mod apple_boundary;
 mod gen_stubs;
 mod iop_order;
 mod layers;
@@ -175,7 +176,7 @@ fn cmd_layers() -> Result<(), String> {
 /// Prints usage; always exits 2.
 fn usage() -> ExitCode {
     eprintln!(
-        "usage: cargo xtask <check-i18n [DIR] | gen-iop-stubs [--upstream PATH] | check-order-sync [--upstream PATH] | check-no-iop-names | layers>"
+        "usage: cargo xtask <check-i18n [DIR] | gen-iop-stubs [--upstream PATH] | check-order-sync [--upstream PATH] | check-no-iop-names | layers | check-apple-boundary>"
     );
     ExitCode::from(2)
 }
@@ -205,6 +206,13 @@ fn main() -> ExitCode {
                 return ExitCode::from(2);
             }
             exit_from(cmd_layers())
+        }
+        "check-apple-boundary" => {
+            if args.len() != 1 {
+                eprintln!("usage: cargo xtask check-apple-boundary");
+                return ExitCode::from(2);
+            }
+            exit_from(apple_boundary::run())
         }
         _ => usage(),
     }

@@ -4,6 +4,7 @@
 //! Thin CLI over [`fetch`], [`render`], [`cmp`], [`xmp`] and [`selftest`];
 //! `Scripts/oracle.sh` only forwards to this binary.
 
+pub mod capabilities;
 pub mod cmp;
 pub mod fetch;
 pub mod render;
