@@ -8,7 +8,10 @@
 
 use std::sync::Arc;
 
-use lightamer_history::{BatchAdjustments, ModuleInstance, PhotoSettings, SettingValue};
+use lightamer_history::{
+    BatchAdjustments, MergeSelection, ModuleInstance, ModuleParams, ModuleRef, PhotoSettings,
+    SettingValue, merge_adjustments,
+};
 use serde_json::{Map, Value, json};
 
 use crate::command::{
@@ -97,6 +100,54 @@ pub(crate) static SPECS: &[CommandSpec] = &[
         needs_session: true,
         enabled: command::always,
         run: run_paste,
+    },
+    CommandSpec {
+        id: "develop.merge",
+        summary: "Merges selected clipboard adjustments onto photos, one step each.",
+        params: &[
+            ParamSpec {
+                name: "ids",
+                kind: ParamKind::PhotoIds,
+                required: true,
+                doc: "The photos to merge onto.",
+            },
+            ParamSpec {
+                name: "selection",
+                kind: ParamKind::Selection,
+                required: false,
+                doc: "Modules (`module`) or parameters (`module.param`); absent means all modules.",
+            },
+        ],
+        needs_session: true,
+        enabled: command::always,
+        run: run_merge,
+    },
+    CommandSpec {
+        id: "develop.sync",
+        summary: "Syncs selected adjustments from one photo onto photos, one step each.",
+        params: &[
+            ParamSpec {
+                name: "id",
+                kind: ParamKind::Text,
+                required: true,
+                doc: "The photo to sync from.",
+            },
+            ParamSpec {
+                name: "ids",
+                kind: ParamKind::PhotoIds,
+                required: true,
+                doc: "The photos to sync onto.",
+            },
+            ParamSpec {
+                name: "selection",
+                kind: ParamKind::Selection,
+                required: false,
+                doc: "Modules (`module`) or parameters (`module.param`); absent means all modules.",
+            },
+        ],
+        needs_session: true,
+        enabled: command::always,
+        run: run_sync,
     },
     CommandSpec {
         id: "develop.beginInteraction",
@@ -288,6 +339,132 @@ pub(crate) fn set_args(
     })
 }
 
+/// Parses the optional `selection` param shared by `develop.sync` and
+/// `develop.merge`: absent (`None`) means every source module; otherwise
+/// every entry is `module` (whole instances) or `module.param` (named
+/// parameters), one grain per call, multi-instance index always 0. Unknown
+/// modules and — on descriptors that declare fields — unknown parameters are
+/// parameter errors; undescribed modules take any parameter name, like
+/// [`checked_instance`].
+pub(crate) fn parse_selection(
+    engine: &Engine,
+    cmd: &str,
+    params: &Map<String, Value>,
+) -> Result<Option<MergeSelection>, CommandError> {
+    let bad = |reason: String| CommandError::BadParam {
+        cmd: cmd.to_owned(),
+        key: "selection".to_owned(),
+        reason,
+    };
+    let Some(raw) = params.get("selection") else {
+        return Ok(None);
+    };
+    let Value::Array(entries) = raw else {
+        return Err(bad("selection wants an array of strings".to_owned()));
+    };
+    if entries.is_empty() {
+        return Err(bad("selection names nothing".to_owned()));
+    }
+    let mut texts = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let Some(text) = entry.as_str() else {
+            return Err(bad("selection wants an array of strings".to_owned()));
+        };
+        if text.is_empty() {
+            return Err(bad("selection holds an empty entry".to_owned()));
+        }
+        texts.push(text);
+    }
+    let param_grain = texts.iter().any(|text| text.contains('.'));
+    let module_grain = texts.iter().any(|text| !text.contains('.'));
+    if param_grain && module_grain {
+        return Err(bad(
+            "selection mixes module and module.param entries; pick one grain".to_owned(),
+        ));
+    }
+    let mut modules: Vec<ModuleRef> = Vec::new();
+    let mut by_module: Vec<ModuleParams> = Vec::new();
+    for text in texts {
+        let Some((module, param)) = text.split_once('.') else {
+            check_selection_module(engine, cmd, text)?;
+            modules.push(ModuleRef {
+                module: text.to_owned(),
+                multi: 0,
+            });
+            continue;
+        };
+        if module.is_empty() {
+            return Err(bad(format!("selection entry '{text}' names no module")));
+        }
+        if param.is_empty() || param.contains('.') {
+            return Err(bad(format!("selection entry '{text}' is not module.param")));
+        }
+        check_selection_module(engine, cmd, module)?;
+        check_selection_param(engine, cmd, module, param)?;
+        match by_module.iter_mut().find(|entry| entry.module == module) {
+            Some(entry) => entry.params.push(param.to_owned()),
+            None => by_module.push(ModuleParams {
+                module: module.to_owned(),
+                multi: 0,
+                params: vec![param.to_owned()],
+            }),
+        }
+    }
+    if param_grain {
+        return Ok(Some(MergeSelection::Params(by_module)));
+    }
+    Ok(Some(MergeSelection::Modules(modules)))
+}
+
+/// Resolves one selection module id against the registry.
+fn check_selection_module(engine: &Engine, cmd: &str, module: &str) -> Result<(), CommandError> {
+    if engine.params_for(module).is_none() {
+        return Err(CommandError::BadParam {
+            cmd: cmd.to_owned(),
+            key: "selection".to_owned(),
+            reason: format!("unknown module '{module}'"),
+        });
+    }
+    Ok(())
+}
+
+/// Resolves one selection parameter against its module's declared fields.
+/// Modules without declared fields take any name (see [`checked_instance`]).
+fn check_selection_param(
+    engine: &Engine,
+    cmd: &str,
+    module: &str,
+    param: &str,
+) -> Result<(), CommandError> {
+    let known = engine
+        .params_for(module)
+        .and_then(|desc| desc.fields)
+        .is_none_or(|fields| fields.iter().any(|field| field.name == param));
+    if !known {
+        return Err(CommandError::BadParam {
+            cmd: cmd.to_owned(),
+            key: "selection".to_owned(),
+            reason: format!("unknown parameter '{module}.{param}'"),
+        });
+    }
+    Ok(())
+}
+
+/// The implied selection when `selection` is absent: every instance the
+/// source holds (target-only instances survive, unlike `develop.paste`).
+pub(crate) fn full_selection(source: &PhotoSettings) -> MergeSelection {
+    MergeSelection::Modules(
+        source
+            .instances
+            .iter()
+            .map(|instance| ModuleRef {
+                module: instance.module.clone(),
+                multi: instance.multi,
+            })
+            .collect(),
+    )
+}
+
 fn run_set(
     engine: &mut Engine,
     params: &Map<String, Value>,
@@ -422,6 +599,92 @@ fn run_paste(
         }
     }
     Ok(json!({"pasted": ids.len()}))
+}
+
+fn run_sync(
+    engine: &mut Engine,
+    params: &Map<String, Value>,
+    ctx: &mut RunCtx,
+) -> Result<Outcome, CommandError> {
+    const CMD: &str = "develop.sync";
+    if engine.has_real_session() {
+        return crate::real::develop_sync(engine, params, ctx);
+    }
+    let source_id = id_req(CMD, params)?;
+    let ids = ids_req(CMD, params)?;
+    let parsed = parse_selection(engine, CMD, params)?;
+    let Some(source) = engine.photo_settings(&source_id) else {
+        return Err(CommandError::NoPhoto {
+            cmd: CMD.to_owned(),
+            photo: source_id,
+        });
+    };
+    for id in &ids {
+        if !engine.state().photos_contains(id) {
+            return Err(CommandError::NoPhoto {
+                cmd: CMD.to_owned(),
+                photo: id.clone(),
+            });
+        }
+    }
+    let selection = parsed.unwrap_or_else(|| full_selection(&source));
+    for id in &ids {
+        if let Some(stack) = engine.stack_mut(id)
+            && let Some(current) = stack.current().cloned()
+        {
+            let next = merge_adjustments(&current, &source, &selection);
+            stack.commit(CMD, Arc::new(next));
+        }
+        if let Some(event) = engine.photo_event(id) {
+            ctx.emit(event);
+        }
+    }
+    Ok(json!({"synced": ids.len()}))
+}
+
+fn run_merge(
+    engine: &mut Engine,
+    params: &Map<String, Value>,
+    ctx: &mut RunCtx,
+) -> Result<Outcome, CommandError> {
+    const CMD: &str = "develop.merge";
+    if engine.has_real_session() {
+        return crate::real::develop_merge(engine, params, ctx);
+    }
+    let ids = ids_req(CMD, params)?;
+    let parsed = parse_selection(engine, CMD, params)?;
+    let Some(batch) = engine.clipboard_mut().clone() else {
+        return Err(CommandError::EmptyClipboard {
+            cmd: CMD.to_owned(),
+        });
+    };
+    for id in &ids {
+        if !engine.state().photos_contains(id) {
+            return Err(CommandError::NoPhoto {
+                cmd: CMD.to_owned(),
+                photo: id.clone(),
+            });
+        }
+    }
+    // The merge only reads the source's instances; the format and process
+    // versions below never reach any target (each keeps its own).
+    let source = PhotoSettings {
+        instances: batch.instances.clone(),
+        ..PhotoSettings::default()
+    };
+    let selection = parsed.unwrap_or_else(|| full_selection(&source));
+    for id in &ids {
+        if let Some(stack) = engine.stack_mut(id)
+            && let Some(current) = stack.current().cloned()
+        {
+            let next = merge_adjustments(&current, &source, &selection);
+            stack.commit(CMD, Arc::new(next));
+        }
+        if let Some(event) = engine.photo_event(id) {
+            ctx.emit(event);
+        }
+    }
+    Ok(json!({"merged": ids.len()}))
 }
 
 fn run_begin(
@@ -836,5 +1099,579 @@ mod tests {
             assert_eq!(out, Value::Null);
         }
         assert_eq!(engine.photo_len("a"), Some(1));
+    }
+
+    fn open_trio() -> Engine {
+        let mut engine = Engine::open_draft(["a", "b", "c"]);
+        engine.set_param_lookup(|_| Some(ParamsDesc::unset()));
+        engine
+    }
+
+    fn set_ids_params(ids: &[&str], module: &str, patch: &Value) -> Value {
+        json!({"ids": ids, "module": module, "patch": patch})
+    }
+
+    fn float_of(engine: &Engine, photo: &str, module: &str, param: &str) -> Option<f64> {
+        let settings = engine.photo_settings(photo)?;
+        let instance = settings.instances.get(module, 0)?;
+        match instance.params.get(param)? {
+            SettingValue::Float(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn sync_without_selection_merges_all_source_modules() {
+        let mut engine = open_draft();
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["a"],
+                    "mod_a",
+                    &json!({"p": {"type": "float", "value": 1.0}}),
+                ),
+            )
+            .expect("set a mod_a");
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["a"],
+                    "mod_b",
+                    &json!({"q": {"type": "float", "value": 2.0}}),
+                ),
+            )
+            .expect("set a mod_b");
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["b"],
+                    "mod_a",
+                    &json!({"p": {"type": "float", "value": 9.0}}),
+                ),
+            )
+            .expect("set b mod_a");
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["b"],
+                    "mod_c",
+                    &json!({"r": {"type": "float", "value": 3.0}}),
+                ),
+            )
+            .expect("set b mod_c");
+        let source_before = engine.photo_settings("a").expect("snapshot");
+        let out = engine
+            .execute("develop.sync", &json!({"id": "a", "ids": ["b"]}))
+            .expect("sync runs");
+        assert_eq!(out, json!({"synced": 1}));
+        assert_eq!(engine.photo_len("b"), Some(4));
+        assert_eq!(
+            engine.photo_labels("b").expect("labels").last(),
+            Some(&"develop.sync".to_owned())
+        );
+        assert_eq!(float_of(&engine, "b", "mod_a", "p"), Some(1.0));
+        assert_eq!(float_of(&engine, "b", "mod_b", "q"), Some(2.0));
+        assert_eq!(float_of(&engine, "b", "mod_c", "r"), Some(3.0));
+        assert_eq!(engine.photo_len("a"), Some(3));
+        assert_eq!(engine.photo_settings("a").expect("snapshot"), source_before);
+    }
+
+    #[test]
+    fn sync_module_grain_replaces_adds_and_leaves_the_rest() {
+        let mut engine = open_draft();
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["a"],
+                    "mod_a",
+                    &json!({"p": {"type": "float", "value": 1.0}}),
+                ),
+            )
+            .expect("set a mod_a");
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["a"],
+                    "mod_b",
+                    &json!({"q": {"type": "float", "value": 2.0}}),
+                ),
+            )
+            .expect("set a mod_b");
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["b"],
+                    "mod_a",
+                    &json!({"p": {"type": "float", "value": 9.0}}),
+                ),
+            )
+            .expect("set b mod_a");
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["b"],
+                    "mod_c",
+                    &json!({"r": {"type": "float", "value": 3.0}}),
+                ),
+            )
+            .expect("set b mod_c");
+        engine
+            .execute(
+                "develop.sync",
+                &json!({"id": "a", "ids": ["b"], "selection": ["mod_a", "mod_b"]}),
+            )
+            .expect("sync runs");
+        assert_eq!(float_of(&engine, "b", "mod_a", "p"), Some(1.0));
+        assert_eq!(float_of(&engine, "b", "mod_b", "q"), Some(2.0));
+        assert_eq!(float_of(&engine, "b", "mod_c", "r"), Some(3.0));
+    }
+
+    #[test]
+    fn sync_param_grain_overwrites_only_named_params() {
+        let mut engine = open_draft();
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["a"],
+                    "mod_a",
+                    &json!({"p": {"type": "float", "value": 1.0}, "q": {"type": "float", "value": 1.0}}),
+                ),
+            )
+            .expect("set a");
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["b"],
+                    "mod_a",
+                    &json!({"p": {"type": "float", "value": 9.0}, "q": {"type": "float", "value": 9.0}}),
+                ),
+            )
+            .expect("set b");
+        engine
+            .execute(
+                "develop.sync",
+                &json!({"id": "a", "ids": ["b"], "selection": ["mod_a.p"]}),
+            )
+            .expect("sync runs");
+        assert_eq!(float_of(&engine, "b", "mod_a", "p"), Some(1.0));
+        assert_eq!(float_of(&engine, "b", "mod_a", "q"), Some(9.0));
+    }
+
+    #[test]
+    fn sync_param_grain_creates_a_missing_instance_with_only_named_params() {
+        let mut engine = open_draft();
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["a"],
+                    "mod_a",
+                    &json!({"p": {"type": "float", "value": 1.0}, "q": {"type": "float", "value": 1.0}}),
+                ),
+            )
+            .expect("set a");
+        engine
+            .execute(
+                "develop.sync",
+                &json!({"id": "a", "ids": ["b"], "selection": ["mod_a.p"]}),
+            )
+            .expect("sync runs");
+        let settings = engine.photo_settings("b").expect("snapshot");
+        let instance = settings.instances.get("mod_a", 0).expect("instance");
+        assert_eq!(instance.params.len(), 1);
+        assert_eq!(instance.params.get("p"), Some(&SettingValue::Float(1.0)));
+    }
+
+    #[test]
+    fn sync_keeps_the_target_process_and_labels_each_step() {
+        let mut engine = open_trio();
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["a"],
+                    "mod_a",
+                    &json!({"p": {"type": "float", "value": 1.0}}),
+                ),
+            )
+            .expect("set a");
+        for photo in ["b", "c"] {
+            let mut settings = (*engine.photo_settings(photo).expect("snapshot")).clone();
+            settings.process = lightamer_history::ProcessVersion(0);
+            engine
+                .stack_mut(photo)
+                .expect("stack")
+                .commit("test", std::sync::Arc::new(settings));
+        }
+        let out = engine
+            .execute("develop.sync", &json!({"id": "a", "ids": ["b", "c"]}))
+            .expect("sync runs");
+        assert_eq!(out, json!({"synced": 2}));
+        for photo in ["b", "c"] {
+            let settings = engine.photo_settings(photo).expect("snapshot");
+            assert_eq!(settings.process, lightamer_history::ProcessVersion(0));
+            assert_eq!(
+                engine.photo_labels(photo).expect("labels").last(),
+                Some(&"develop.sync".to_owned())
+            );
+            assert!(settings.instances.get("mod_a", 0).is_some());
+        }
+        assert_eq!(engine.photo_len("a"), Some(2));
+    }
+
+    #[test]
+    fn sync_with_an_unknown_source_changes_nothing() {
+        let mut engine = open_draft();
+        let before = engine.state_digest();
+        let err = engine
+            .execute("develop.sync", &json!({"id": "ghost", "ids": ["b"]}))
+            .expect_err("unknown source fails");
+        assert!(matches!(err, CommandError::NoPhoto { .. }), "{err}");
+        assert_eq!(engine.state_digest(), before);
+        assert_eq!(engine.photo_len("b"), Some(1));
+    }
+
+    #[test]
+    fn sync_rejects_an_unknown_module_in_the_selection() {
+        let mut engine = Engine::open_draft(["a", "b"]);
+        let before = engine.state_digest();
+        let err = engine
+            .execute(
+                "develop.sync",
+                &json!({"id": "a", "ids": ["b"], "selection": ["__no_such_module__"]}),
+            )
+            .expect_err("unknown module fails");
+        assert!(matches!(err, CommandError::BadParam { .. }), "{err}");
+        assert_eq!(engine.state_digest(), before);
+    }
+
+    #[test]
+    fn sync_rejects_an_unknown_param_in_the_selection() {
+        static FIELDS: &[ParamField] = &[ParamField {
+            name: "p_ok",
+            ty: ParamType::Float,
+        }];
+        let mut engine = Engine::open_draft(["a", "b"]);
+        engine.set_param_lookup(|_| {
+            Some(ParamsDesc {
+                fields: Some(FIELDS),
+            })
+        });
+        let before = engine.state_digest();
+        let err = engine
+            .execute(
+                "develop.sync",
+                &json!({"id": "a", "ids": ["b"], "selection": ["mod_a.p_nope"]}),
+            )
+            .expect_err("unknown param fails");
+        assert!(matches!(err, CommandError::BadParam { .. }), "{err}");
+        assert_eq!(engine.state_digest(), before);
+    }
+
+    #[test]
+    fn sync_rejects_mixed_and_malformed_selections() {
+        let bad = [
+            json!(["mod_a", "mod_b.p"]),
+            json!([]),
+            json!([""]),
+            json!(["mod_a."]),
+            json!([".p"]),
+            json!(["mod_a.p.q"]),
+            json!("mod_a"),
+            json!([42]),
+        ];
+        for selection in bad {
+            let mut engine = open_draft();
+            let before = engine.state_digest();
+            let err = engine
+                .execute(
+                    "develop.sync",
+                    &json!({"id": "a", "ids": ["b"], "selection": selection}),
+                )
+                .expect_err("bad selection fails");
+            assert!(matches!(err, CommandError::BadParam { .. }), "{err}");
+            assert_eq!(engine.state_digest(), before);
+        }
+    }
+
+    #[test]
+    fn merge_without_selection_merges_all_clipboard_modules() {
+        let mut engine = open_draft();
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["a"],
+                    "mod_a",
+                    &json!({"p": {"type": "float", "value": 1.0}}),
+                ),
+            )
+            .expect("set a mod_a");
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["a"],
+                    "mod_b",
+                    &json!({"q": {"type": "float", "value": 2.0}}),
+                ),
+            )
+            .expect("set a mod_b");
+        engine
+            .execute("develop.copy", &json!({"id": "a"}))
+            .expect("copy");
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["b"],
+                    "mod_c",
+                    &json!({"r": {"type": "float", "value": 3.0}}),
+                ),
+            )
+            .expect("set b mod_c");
+        let out = engine
+            .execute("develop.merge", &json!({"ids": ["b"]}))
+            .expect("merge runs");
+        assert_eq!(out, json!({"merged": 1}));
+        assert_eq!(
+            engine.photo_labels("b").expect("labels").last(),
+            Some(&"develop.merge".to_owned())
+        );
+        assert_eq!(float_of(&engine, "b", "mod_a", "p"), Some(1.0));
+        assert_eq!(float_of(&engine, "b", "mod_b", "q"), Some(2.0));
+        assert_eq!(float_of(&engine, "b", "mod_c", "r"), Some(3.0));
+        assert!(engine.has_clipboard());
+    }
+
+    #[test]
+    fn merge_module_grain_replaces_adds_and_leaves_the_rest() {
+        let mut engine = open_draft();
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["a"],
+                    "mod_a",
+                    &json!({"p": {"type": "float", "value": 1.0}}),
+                ),
+            )
+            .expect("set a mod_a");
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["a"],
+                    "mod_b",
+                    &json!({"q": {"type": "float", "value": 2.0}}),
+                ),
+            )
+            .expect("set a mod_b");
+        engine
+            .execute("develop.copy", &json!({"id": "a"}))
+            .expect("copy");
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["b"],
+                    "mod_a",
+                    &json!({"p": {"type": "float", "value": 9.0}}),
+                ),
+            )
+            .expect("set b mod_a");
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["b"],
+                    "mod_c",
+                    &json!({"r": {"type": "float", "value": 3.0}}),
+                ),
+            )
+            .expect("set b mod_c");
+        engine
+            .execute(
+                "develop.merge",
+                &json!({"ids": ["b"], "selection": ["mod_a"]}),
+            )
+            .expect("merge runs");
+        assert_eq!(float_of(&engine, "b", "mod_a", "p"), Some(1.0));
+        assert!(
+            engine
+                .photo_settings("b")
+                .expect("snapshot")
+                .instances
+                .get("mod_b", 0)
+                .is_none()
+        );
+        assert_eq!(float_of(&engine, "b", "mod_c", "r"), Some(3.0));
+    }
+
+    #[test]
+    fn merge_param_grain_overwrites_only_named_params() {
+        let mut engine = open_draft();
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["a"],
+                    "mod_a",
+                    &json!({"p": {"type": "float", "value": 1.0}, "q": {"type": "float", "value": 1.0}}),
+                ),
+            )
+            .expect("set a");
+        engine
+            .execute("develop.copy", &json!({"id": "a"}))
+            .expect("copy");
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["b"],
+                    "mod_a",
+                    &json!({"p": {"type": "float", "value": 9.0}, "q": {"type": "float", "value": 9.0}}),
+                ),
+            )
+            .expect("set b");
+        engine
+            .execute(
+                "develop.merge",
+                &json!({"ids": ["b"], "selection": ["mod_a.p"]}),
+            )
+            .expect("merge runs");
+        assert_eq!(float_of(&engine, "b", "mod_a", "p"), Some(1.0));
+        assert_eq!(float_of(&engine, "b", "mod_a", "q"), Some(9.0));
+    }
+
+    #[test]
+    fn merge_param_grain_creates_a_missing_instance_with_only_named_params() {
+        let mut engine = open_draft();
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["a"],
+                    "mod_a",
+                    &json!({"p": {"type": "float", "value": 1.0}, "q": {"type": "float", "value": 1.0}}),
+                ),
+            )
+            .expect("set a");
+        engine
+            .execute("develop.copy", &json!({"id": "a"}))
+            .expect("copy");
+        engine
+            .execute(
+                "develop.merge",
+                &json!({"ids": ["b"], "selection": ["mod_a.p"]}),
+            )
+            .expect("merge runs");
+        let settings = engine.photo_settings("b").expect("snapshot");
+        let instance = settings.instances.get("mod_a", 0).expect("instance");
+        assert_eq!(instance.params.len(), 1);
+        assert_eq!(instance.params.get("p"), Some(&SettingValue::Float(1.0)));
+    }
+
+    #[test]
+    fn merge_keeps_the_target_process_and_labels_each_step() {
+        let mut engine = open_trio();
+        engine
+            .execute(
+                "develop.set",
+                &set_ids_params(
+                    &["a"],
+                    "mod_a",
+                    &json!({"p": {"type": "float", "value": 1.0}}),
+                ),
+            )
+            .expect("set a");
+        engine
+            .execute("develop.copy", &json!({"id": "a"}))
+            .expect("copy");
+        for photo in ["b", "c"] {
+            let mut settings = (*engine.photo_settings(photo).expect("snapshot")).clone();
+            settings.process = lightamer_history::ProcessVersion(0);
+            engine
+                .stack_mut(photo)
+                .expect("stack")
+                .commit("test", std::sync::Arc::new(settings));
+        }
+        let out = engine
+            .execute("develop.merge", &json!({"ids": ["b", "c"]}))
+            .expect("merge runs");
+        assert_eq!(out, json!({"merged": 2}));
+        for photo in ["b", "c"] {
+            let settings = engine.photo_settings(photo).expect("snapshot");
+            assert_eq!(settings.process, lightamer_history::ProcessVersion(0));
+            assert_eq!(
+                engine.photo_labels(photo).expect("labels").last(),
+                Some(&"develop.merge".to_owned())
+            );
+        }
+    }
+
+    #[test]
+    fn merge_with_an_empty_clipboard_changes_nothing() {
+        let mut engine = open_draft();
+        let before = engine.state_digest();
+        let err = engine
+            .execute("develop.merge", &json!({"ids": ["a"]}))
+            .expect_err("empty clipboard fails");
+        assert!(matches!(err, CommandError::EmptyClipboard { .. }), "{err}");
+        assert_eq!(engine.state_digest(), before);
+        assert_eq!(engine.photo_len("a"), Some(1));
+    }
+
+    #[test]
+    fn merge_rejects_an_unknown_module_in_the_selection() {
+        let mut engine = Engine::open_draft(["a", "b"]);
+        engine
+            .execute("develop.copy", &json!({"id": "a"}))
+            .expect("copy");
+        let before = engine.state_digest();
+        let err = engine
+            .execute(
+                "develop.merge",
+                &json!({"ids": ["b"], "selection": ["__no_such_module__"]}),
+            )
+            .expect_err("unknown module fails");
+        assert!(matches!(err, CommandError::BadParam { .. }), "{err}");
+        assert_eq!(engine.state_digest(), before);
+    }
+
+    #[test]
+    fn merge_rejects_an_unknown_param_in_the_selection() {
+        static FIELDS: &[ParamField] = &[ParamField {
+            name: "p_ok",
+            ty: ParamType::Float,
+        }];
+        let mut engine = Engine::open_draft(["a", "b"]);
+        engine.set_param_lookup(|_| {
+            Some(ParamsDesc {
+                fields: Some(FIELDS),
+            })
+        });
+        engine
+            .execute("develop.copy", &json!({"id": "a"}))
+            .expect("copy");
+        let before = engine.state_digest();
+        let err = engine
+            .execute(
+                "develop.merge",
+                &json!({"ids": ["b"], "selection": ["mod_a.p_nope"]}),
+            )
+            .expect_err("unknown param fails");
+        assert!(matches!(err, CommandError::BadParam { .. }), "{err}");
+        assert_eq!(engine.state_digest(), before);
     }
 }

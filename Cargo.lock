@@ -3852,6 +3852,7 @@ name = "lightamer-cli"
 version = "0.1.0"
 dependencies = [
  "lightamer-apple",
+ "lightamer-catalog",
  "lightamer-engine",
  "png 0.18.1",
  "serde_json",

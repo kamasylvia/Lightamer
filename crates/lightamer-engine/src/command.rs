@@ -64,6 +64,9 @@ pub enum ParamKind {
     PhotoIds,
     /// A JSON object mapping parameter names to typed setting values.
     Patch,
+    /// An optional JSON array of selection strings: `module` (whole
+    /// instances) or `module.param` (named parameters), one grain per call.
+    Selection,
 }
 
 impl ParamKind {
@@ -78,6 +81,7 @@ impl ParamKind {
             ParamKind::Enum { .. } => "enum",
             ParamKind::PhotoIds => "photo-ids",
             ParamKind::Patch => "patch",
+            ParamKind::Selection => "selection",
         }
     }
 }
@@ -406,5 +410,6 @@ mod tests {
         assert_eq!(ParamKind::Text.kind_name(), "text");
         assert_eq!(ParamKind::Patch.kind_name(), "patch");
         assert_eq!(ParamKind::Enum { variants: &["a"] }.kind_name(), "enum");
+        assert_eq!(ParamKind::Selection.kind_name(), "selection");
     }
 }

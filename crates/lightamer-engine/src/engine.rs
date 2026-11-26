@@ -950,6 +950,22 @@ mod tests {
                 ],
             ),
             (
+                "develop.merge",
+                vec![
+                    json!({"ids": ["a"], "bogus": 1}),
+                    json!({}),
+                    json!({"ids": ["__no_such_photo__"]}),
+                ],
+            ),
+            (
+                "develop.sync",
+                vec![
+                    json!({"id": "a", "ids": ["a"], "bogus": 1}),
+                    json!({"ids": ["a"]}),
+                    json!({"id": "__no_such_photo__", "ids": ["a"]}),
+                ],
+            ),
+            (
                 "develop.beginInteraction",
                 vec![
                     json!({"id": "a", "bogus": 1}),

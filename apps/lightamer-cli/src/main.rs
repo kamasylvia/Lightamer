@@ -13,7 +13,7 @@
     clippy::unimplemented
 )]
 
-use lightamer_cli::{capabilities, cmp, commands, fetch, render, selftest, util, xmp};
+use lightamer_cli::{bench, capabilities, cmp, commands, fetch, render, selftest, util, xmp};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -39,6 +39,9 @@ const HELP: &str = "lightamer-cli: darktable oracle tool\n\
      capabilities
      commands [ID]                                       list engine commands
      run --file F [--photos a,b] [--hold S]              run JSONL calls (draft, or real sessions)
+     bench setup --parent D --name N --photos K          plant K empty photos (dev tool, not import)
+     bench paste --session S --photos K [--runs R]       time one paste over K photos, R rounds (dev tool)
+     run on a real session prints the file's photo ids shortened to 8 chars
      \n\
      exit: 0 ok; 1 check failed; 2 usage/IO error";
 
@@ -312,6 +315,95 @@ fn cmd_commands(args: &Args) -> Result<(), Failure> {
     Ok(())
 }
 
+fn parse_count(flag: &str, value: Option<String>) -> Result<usize, Failure> {
+    let Some(text) = value else {
+        return Err(Failure::Usage(format!("{flag} is required")));
+    };
+    match text.parse::<usize>() {
+        Ok(n) if n > 0 => Ok(n),
+        _ => Err(Failure::Usage(format!(
+            "{flag} wants a count of at least 1"
+        ))),
+    }
+}
+
+fn cmd_bench(args: &Args) -> Result<(), Failure> {
+    let Some(action) = args.positionals.first() else {
+        return Err(Failure::Usage("bench wants setup or paste".to_owned()));
+    };
+    if args.positionals.len() != 1 {
+        return Err(Failure::Usage("bench takes one action".to_owned()));
+    }
+    match action.as_str() {
+        "setup" => {
+            args.check_only(&["--parent", "--name", "--photos"])?;
+            let parent = args
+                .value("--parent")?
+                .ok_or_else(|| Failure::Usage("--parent is required".to_owned()))?;
+            let name = args
+                .value("--name")?
+                .ok_or_else(|| Failure::Usage("--name is required".to_owned()))?;
+            let photos = parse_count("--photos", args.value("--photos")?)?;
+            let report = bench::bench_setup(Path::new(&parent), &name, photos)?;
+            println!(
+                "bench setup: session {} database {} registered {} photos",
+                report.root.display(),
+                report.database.display(),
+                report.registered
+            );
+            Ok(())
+        }
+        "paste" => {
+            args.check_only(&["--session", "--photos", "--runs"])?;
+            let session = args
+                .value("--session")?
+                .ok_or_else(|| Failure::Usage("--session is required".to_owned()))?;
+            let photos = parse_count("--photos", args.value("--photos")?)?;
+            let runs = match args.value("--runs")? {
+                None => 3,
+                Some(text) => parse_count("--runs", Some(text))?,
+            };
+            match bench::bench_paste(Path::new(&session), photos, runs)? {
+                bench::PasteReport::Measured {
+                    runs_ms,
+                    median_ms,
+                    events,
+                    photos,
+                    passed,
+                } => {
+                    for (round, (ms, got)) in runs_ms.iter().zip(events.iter()).enumerate() {
+                        println!("bench paste: round {}: {ms:.1}ms events={got}", round + 1);
+                    }
+                    let rounds: Vec<String> = events
+                        .iter()
+                        .map(std::string::ToString::to_string)
+                        .collect();
+                    println!(
+                        "bench paste: {photos} photos x {} runs: median {median_ms:.1}ms events=[{}] gate=1000ms {}",
+                        runs_ms.len(),
+                        rounds.join(","),
+                        if passed { "PASS" } else { "FAIL" }
+                    );
+                    if passed {
+                        Ok(())
+                    } else {
+                        Err(Failure::Check(format!(
+                            "median {median_ms:.1}ms over the 1000ms gate"
+                        )))
+                    }
+                }
+                bench::PasteReport::Skipped { load_one, cpus } => {
+                    println!(
+                        "bench paste: UNRELIABLE (load {load_one:.2} on {cpus} cpus); skipping, neither pass nor fail"
+                    );
+                    Ok(())
+                }
+            }
+        }
+        other => Err(Failure::Usage(format!("unknown bench action {other}"))),
+    }
+}
+
 fn cmd_run(args: &Args) -> Result<(), Failure> {
     args.check_only(&["--file", "--photos", "--hold"])?;
     if !args.positionals.is_empty() {
@@ -362,6 +454,7 @@ fn run(raw: &[String]) -> Result<(), Failure> {
         "capabilities" => cmd_capabilities(&split_args(rest)),
         "commands" => cmd_commands(&split_args(rest)),
         "run" => cmd_run(&split_args(rest)),
+        "bench" => cmd_bench(&split_args(rest)),
         "help" | "--help" | "-h" => {
             println!("{HELP}");
             Ok(())

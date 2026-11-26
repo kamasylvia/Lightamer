@@ -35,11 +35,11 @@
 | L3 | `lightamer-gpu` | CPU 管线的 GPU 孪生，C 期占位 | C 期 |
 | L3 | `lightamer-merge` | 独有合成（全景/焦点/HDR），C 期占位 | C 期 |
 | L3 | `lightamer-ai` | 独有功能：全景/焦点/HDR 合成、节点 DRT、版本分支、AI | C 期 |
-| L4 | `lightamer-engine` | 命令分发口（`execute` 唯一入口 + 20 条命令：A7a 13 条编辑/历史/作业 + B12′-b 7 条会话/模板（真实会话 + 备份/恢复/扫描作业 + 只读校验 + 模板）+ 草稿会话 + 作业池 + 事件；导出/导入命令后续逐条加）+ B13′-b1 真实会话落库（T5 三步 + 按需加载/LRU 64 + 盖库摘要） | A7a 已填 / B12′-b 会话命令 / B13′-b1 落库接线 |
+| L4 | `lightamer-engine` | 命令分发口（`execute` 唯一入口 + 22 条命令：A7a 13 条编辑/历史/作业 + B12′-b 7 条会话/模板（真实会话 + 备份/恢复/扫描作业 + 只读校验 + 模板）+ B13′-b2 `develop.sync`/`develop.merge`（源/剪贴板选中合并，模块/参数两颗粒）+ 草稿会话 + 作业池 + 事件；导出/导入命令后续逐条加）+ B13′-b1 真实会话落库（T5 三步 + 按需加载/LRU 64 + 盖库摘要） | A7a 已填 / B12′-b 会话命令 / B13′-b1 落库接线 / B13′-b2 两命令 |
 | L5 | `lightamer-mcp` | 基于引擎命令的 MCP 服务器，C 期占位 | C 期 |
 | L5 | `lightamer-gpui` | 界面（gpui-kit 0.11.0 + gpui-fast 特性）：原生视口画布 + 右侧滑杆面板；双输入路径（框架回调/原生子类）→ 自有 `ViewportInput` 纯数据；只走 `execute` 与快照（A7b 已填） | A7b 已填 |
 | testkit | `lightamer-testkit` | 测试套件：skip 宏 + JSONL 记录，只许开发依赖 | A3R 已填 |
-| exempt | `lightamer-cli` | 命令行 + oracle 对照工具（A5 已填：`fetch`/`render`/`cmp`/`emit-xmp`/`selftest`；A6 加 `capabilities` + `apple` 默认 feature 关断 Apple 链接；A7a 加 `commands`/`run`（JSONL 喂引擎草稿会话）；B12′-b 加 `run` 会话文件（每行作业排空 + `--hold` 留会话）；入口 `Scripts/oracle.sh`，钉点 `Scripts/oracle.lock`）+ perf 探针（A3R 挪到 `apps/lightamer-cli`） | A4b（`history dump`）/ A5 已填 / A6 已填 / A7a 已填 / B12′-b 已填 |
+| exempt | `lightamer-cli` | 命令行 + oracle 对照工具（A5 已填：`fetch`/`render`/`cmp`/`emit-xmp`/`selftest`；A6 加 `capabilities` + `apple` 默认 feature 关断 Apple 链接；A7a 加 `commands`/`run`（JSONL 喂引擎草稿会话）；B12′-b 加 `run` 会话文件（每行作业排空 + `--hold` 留会话）；B13′-b2 加 `run` 真实会话打印（文件内照片 `short:steps:cursor`）+ `bench` 计时工具（`setup`/`paste`，开发用非导入）；入口 `Scripts/oracle.sh`，钉点 `Scripts/oracle.lock`）+ perf 探针（A3R 挪到 `apps/lightamer-cli`） | A4b（`history dump`）/ A5 已填 / A6 已填 / A7a 已填 / B12′-b 已填 / B13′-b2 已填 |
 | exempt | `xtask` | 仓库维护任务：`check-i18n`（骨架，B17 启用）；`gen-iop-stubs`（解析上游 `iop_order.c` 生成夹具+桩）/`check-order-sync`（上游×夹具×桩三方比对）/`check-no-iop-names`（核心零 op 名机检）/`layers`（分层检查，A3R 加） | A2 骨架 / A3 三子命令 / A3R layers / B17 |
 
 退役（A3R 删空壳，职责并进 `lightamer-engine`）：`dt-api`、`dt-app`、`dt-export`。

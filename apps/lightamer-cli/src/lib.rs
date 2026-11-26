@@ -12,6 +12,7 @@
     clippy::unimplemented
 )]
 
+pub mod bench;
 pub mod capabilities;
 pub mod cmp;
 pub mod commands;

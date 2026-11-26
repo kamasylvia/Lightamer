@@ -186,6 +186,34 @@ fn photo_states(engine: &Engine) -> String {
         .join(",")
 }
 
+/// `short:steps:cursor` for the file's watched ids, comma-joined, for
+/// real-session outcome lines. Ids shorten to 8 characters; ids the open
+/// session does not hold show `?:?`.
+fn watched_states(engine: &Engine, watched: &[String]) -> String {
+    watched
+        .iter()
+        .map(|id| {
+            let short: String = id.chars().take(8).collect();
+            match (engine.photo_len(id), engine.photo_cursor(id)) {
+                (Some(steps), Some(cursor)) => format!("{short}:{steps}:{cursor}"),
+                _ => format!("{short}:?:?"),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+/// Outcome-line photo states: a real session prints the file's own watched
+/// ids (shortened); drafts and lines before any session opens print the
+/// engine members as before.
+fn line_states(engine: &Engine, wants_session: bool, watched: &[String]) -> String {
+    if wants_session && engine.has_real_session() {
+        watched_states(engine, watched)
+    } else {
+        photo_states(engine)
+    }
+}
+
 /// Runs a JSONL command file and drains every line's jobs before the next
 /// line, so a file runs deterministically from top to bottom.
 ///
@@ -193,9 +221,12 @@ fn photo_states(engine: &Engine) -> String {
 /// commands start sessionless (and refuse `photos`: draft members and
 /// real sessions do not mix); every other file opens a draft, with
 /// `photos` selecting its members explicitly or [`None`] scanning them
-/// out of the file. Every line runs even after failures; the caller maps
-/// a nonzero `failed` count to its failure exit. `hold_secs` parks an
-/// open real session that long after the last line, then closes it.
+/// out of the file. Once a real session is open, outcome lines print the
+/// file's own watched ids (`params.id` / `params.ids` anywhere in the file)
+/// as `short:steps:cursor` with ids shortened to 8 characters; lines before
+/// any session opens print `photos=[]`. Every line runs even after failures;
+/// the caller maps a nonzero `failed` count to its failure exit. `hold_secs`
+/// parks an open real session that long after the last line, then closes it.
 /// `sink` receives every line as it is produced (the binary prints and
 /// flushes; tests record or ignore).
 ///
@@ -212,6 +243,7 @@ pub fn run_file(
     let text = read_to_string(path)?;
     let ids = file_command_ids(&text);
     let wants_session = ids.iter().any(|id| SESSION_COMMANDS.contains(&id.as_str()));
+    let watched = scan_photo_ids(&text);
     if photos.is_some() && ids.iter().any(|id| SESSION_STARTERS.contains(&id.as_str())) {
         return Err(Error(
             "run: --photos selects a draft session, but the file opens a real one (session.new/open/restore)".to_owned(),
@@ -238,7 +270,7 @@ pub fn run_file(
         let lineno = nth + 1;
         match run_one_line(&mut engine, line) {
             Ok((id, outcome)) => {
-                let photos = photo_states(&engine);
+                let photos = line_states(&engine, wants_session, &watched);
                 let digest = engine.state_digest_decimal();
                 emitter.push(format!(
                     "line {lineno}: {id} ok outcome={outcome} photos=[{photos}] digest={digest}"
@@ -246,7 +278,7 @@ pub fn run_file(
             }
             Err((id, reason)) => {
                 emitter.report.failed += 1;
-                let photos = photo_states(&engine);
+                let photos = line_states(&engine, wants_session, &watched);
                 let digest = engine.state_digest_decimal();
                 emitter.push(format!(
                     "line {lineno}: {id} FAIL {reason} photos=[{photos}] digest={digest}"

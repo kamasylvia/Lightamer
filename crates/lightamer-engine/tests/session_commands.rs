@@ -389,14 +389,18 @@ fn template_child_main(scratch: &std::path::Path) -> Result<(), Box<dyn std::err
 }
 
 #[test]
-fn registry_holds_twenty_commands_with_unique_ids_and_docs()
+fn registry_holds_twenty_two_commands_with_unique_ids_and_docs()
 -> Result<(), Box<dyn std::error::Error>> {
     let specs = command_specs();
-    assert_eq!(specs.len(), 20, "13 A7a commands plus 7 session commands");
+    assert_eq!(
+        specs.len(),
+        22,
+        "13 A7a commands plus 7 session commands plus merge/sync"
+    );
     let mut ids: Vec<&str> = specs.iter().map(|spec| spec.id).collect();
     ids.sort_unstable();
     ids.dedup();
-    assert_eq!(ids.len(), 20, "command ids repeat");
+    assert_eq!(ids.len(), 22, "command ids repeat");
     for spec in specs {
         assert!(!spec.summary.is_empty(), "{} has no summary", spec.id);
         let mut params: Vec<&str> = spec.params.iter().map(|param| param.name).collect();
@@ -435,6 +439,9 @@ fn registry_holds_twenty_commands_with_unique_ids_and_docs()
     assert_eq!(names("session.backup")?, ["dest", "include_trash"]);
     assert_eq!(names("session.restore")?, ["backup", "dest"]);
     assert_eq!(names("template.save")?, ["name"]);
+    // The two B13'-b2 merge contracts, pinned parameter by parameter.
+    assert_eq!(names("develop.merge")?, ["ids", "selection"]);
+    assert_eq!(names("develop.sync")?, ["id", "ids", "selection"]);
     for (id, name, required) in [
         ("session.new", "name", true),
         ("session.new", "parent", true),
@@ -444,6 +451,11 @@ fn registry_holds_twenty_commands_with_unique_ids_and_docs()
         ("session.restore", "backup", true),
         ("session.restore", "dest", true),
         ("template.save", "name", true),
+        ("develop.merge", "ids", true),
+        ("develop.merge", "selection", false),
+        ("develop.sync", "id", true),
+        ("develop.sync", "ids", true),
+        ("develop.sync", "selection", false),
     ] {
         let param = params_of(id)?
             .iter()

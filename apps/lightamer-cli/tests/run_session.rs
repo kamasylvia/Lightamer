@@ -101,6 +101,25 @@ fn cli_run_session_file_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn bench_cli(args: &[String]) -> Result<std::process::Output, Box<dyn std::error::Error>> {
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_lightamer-cli"));
+    let mut command = Command::new(binary);
+    command.arg("bench");
+    for arg in args {
+        command.arg(arg);
+    }
+    Ok(command.output()?)
+}
+
+/// The session's photo uuids, sorted, read through catalog.
+fn session_uuids(root: &Path) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let session = lightamer_catalog::open_session(root, "run-session-test")?;
+    let mut uuids = lightamer_catalog::list_photo_uuids(session.connection())?;
+    uuids.sort();
+    lightamer_catalog::close_session(session)?;
+    Ok(uuids)
+}
+
 #[test]
 fn cli_run_rejects_photos_with_starters() -> Result<(), Box<dyn std::error::Error>> {
     let scratch = ScratchDir::new("run-photos")?;
@@ -154,5 +173,109 @@ fn cli_run_hold_and_template() -> Result<(), Box<dyn std::error::Error>> {
     );
     let text = std::fs::read_to_string(&saved)?;
     assert!(text.contains("\"template\""), "{text}");
+    Ok(())
+}
+
+#[test]
+fn cli_run_real_session_prints_watched_photos_per_line() -> Result<(), Box<dyn std::error::Error>> {
+    let scratch = ScratchDir::new("run-watched")?;
+    let parent = scratch.path().to_string_lossy().into_owned();
+    let setup = bench_cli(&[
+        "setup".to_owned(),
+        "--parent".to_owned(),
+        parent.clone(),
+        "--name".to_owned(),
+        "Shoot".to_owned(),
+        "--photos".to_owned(),
+        "2".to_owned(),
+    ])?;
+    assert!(setup.status.success(), "setup failed: {setup:?}");
+    let root = scratch.path().join("Shoot");
+    let uuids = session_uuids(&root)?;
+    assert_eq!(uuids.len(), 2);
+    let (a, b) = (uuids[0].clone(), uuids[1].clone());
+    let short_a: String = a.chars().take(8).collect();
+    let short_b: String = b.chars().take(8).collect();
+    let file = scratch.path().join("watched.jsonl");
+    let mut text = String::new();
+    text.push_str(&jsonl(
+        "session.open",
+        &serde_json::json!({"path": root.to_string_lossy()}),
+    ));
+    text.push_str(&jsonl(
+        "develop.set",
+        &serde_json::json!({"ids": [a], "module": "rawprepare", "patch": {"p_gain": {"type": "float", "value": 1.5}}}),
+    ));
+    text.push_str(&jsonl(
+        "develop.set",
+        &serde_json::json!({"ids": ["00000000-0000-0000-0000-000000000000"], "module": "rawprepare", "patch": {}}),
+    ));
+    text.push_str(&jsonl("session.close", &serde_json::json!({})));
+    std::fs::write(&file, text)?;
+    let output = run_cli(&file, &[], &[])?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !output.status.success(),
+        "the unknown photo must fail a line: {stdout}"
+    );
+    let line1: Vec<&str> = stdout
+        .lines()
+        .filter(|line| line.starts_with("line 1: session.open"))
+        .collect();
+    let line2: Vec<&str> = stdout
+        .lines()
+        .filter(|line| line.starts_with("line 2: develop.set ok"))
+        .collect();
+    let line3: Vec<&str> = stdout
+        .lines()
+        .filter(|line| line.starts_with("line 3: develop.set FAIL"))
+        .collect();
+    assert_eq!(line1.len(), 1, "{stdout}");
+    assert_eq!(line2.len(), 1, "{stdout}");
+    assert_eq!(line3.len(), 1, "{stdout}");
+    // The open line already prints the watched photo at step 0; the unnamed
+    // photo never prints.
+    assert!(line1[0].contains(&format!("{short_a}:1:0")), "{stdout}");
+    assert!(!line1[0].contains(&short_b), "{stdout}");
+    // After the set, the edited photo moved.
+    assert!(line2[0].contains(&format!("{short_a}:2:1")), "{stdout}");
+    // The unknown id prints as unknown, full-length ids never print.
+    assert!(line3[0].contains("00000000:?:?"), "{stdout}");
+    assert!(!stdout.contains(&a), "full uuid leaked: {stdout}");
+    Ok(())
+}
+
+#[test]
+fn cli_bench_setup_and_paste_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
+    let scratch = ScratchDir::new("bench-e2e")?;
+    let parent = scratch.path().to_string_lossy().into_owned();
+    let setup = bench_cli(&[
+        "setup".to_owned(),
+        "--parent".to_owned(),
+        parent,
+        "--name".to_owned(),
+        "Shoot".to_owned(),
+        "--photos".to_owned(),
+        "4".to_owned(),
+    ])?;
+    let setup_out = String::from_utf8_lossy(&setup.stdout);
+    assert!(setup.status.success(), "setup failed: {setup_out}");
+    assert!(setup_out.contains("registered 4 photos"), "{setup_out}");
+    let root = scratch.path().join("Shoot").to_string_lossy().into_owned();
+    let paste = bench_cli(&[
+        "paste".to_owned(),
+        "--session".to_owned(),
+        root,
+        "--photos".to_owned(),
+        "2".to_owned(),
+        "--runs".to_owned(),
+        "2".to_owned(),
+    ])?;
+    let paste_out = String::from_utf8_lossy(&paste.stdout);
+    assert!(paste.status.success(), "paste failed: {paste_out}");
+    assert!(paste_out.contains("round 1:"), "{paste_out}");
+    assert!(paste_out.contains("round 2:"), "{paste_out}");
+    assert!(paste_out.contains("events=2"), "{paste_out}");
+    assert!(paste_out.contains("PASS"), "{paste_out}");
     Ok(())
 }

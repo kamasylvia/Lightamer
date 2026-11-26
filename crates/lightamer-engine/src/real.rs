@@ -23,12 +23,12 @@ use std::sync::Arc;
 use serde_json::{Map, Value, json};
 
 use crate::command::{Outcome, RunCtx, id_req, ids_req, uint_req};
-use crate::develop::{SetArgs, merged_settings, set_args};
+use crate::develop::{SetArgs, full_selection, merged_settings, parse_selection, set_args};
 use crate::engine::Engine;
 use crate::error::CommandError;
 use crate::event::Event;
 
-/// Whether `id` is one of the twelve persisted commands: on a real session
+/// Whether `id` is one of the fourteen persisted commands: on a real session
 /// these run the §1.8 path instead of the draft clone/restore (see
 /// [`Engine::execute`]).
 pub(crate) fn is_persisted(id: &str) -> bool {
@@ -38,6 +38,8 @@ pub(crate) fn is_persisted(id: &str) -> bool {
             | "develop.reset"
             | "develop.copy"
             | "develop.paste"
+            | "develop.merge"
+            | "develop.sync"
             | "develop.beginInteraction"
             | "develop.updateInteraction"
             | "develop.endInteraction"
@@ -355,6 +357,122 @@ pub(crate) fn develop_paste(
     commit_ops(engine, CMD, &ops)?;
     swap_in(engine, computed, ctx);
     Ok(json!({"pasted": ids.len()}))
+}
+
+/// Computes `develop.sync` on a real session: the source's selected
+/// adjustments merge onto every target in one transaction, each target
+/// keeping its own process version. The source itself is only read.
+pub(crate) fn develop_sync(
+    engine: &mut Engine,
+    params: &Map<String, Value>,
+    ctx: &mut RunCtx,
+) -> Result<Outcome, CommandError> {
+    const CMD: &str = "develop.sync";
+    let source_id = id_req(CMD, params)?;
+    let ids = ids_req(CMD, params)?;
+    let parsed = parse_selection(engine, CMD, params)?;
+    let Some(source) = engine.photo_settings(&source_id) else {
+        return Err(CommandError::NoPhoto {
+            cmd: CMD.to_owned(),
+            photo: source_id,
+        });
+    };
+    let selection = parsed.unwrap_or_else(|| full_selection(&source));
+    let mut computed = Vec::with_capacity(ids.len());
+    let mut ops = Vec::new();
+    for id in &ids {
+        let db = engine.ensure_photo_loaded(CMD, id)?;
+        let Some(stack) = engine.stack_mut(id) else {
+            continue;
+        };
+        let Some(current) = stack.current().cloned() else {
+            continue;
+        };
+        let next = lightamer_history::merge_adjustments(&current, &source, &selection);
+        let json = next
+            .canonical_json()
+            .map_err(|err| unserializable(CMD, err))?;
+        let mut probe = stack.clone();
+        if let Some(settled) = settle_interaction(CMD, db, &mut probe)? {
+            ops.push(settled);
+        }
+        probe.commit(CMD, Arc::new(next));
+        ops.push(StoreOp::Push {
+            db,
+            label: CMD.to_owned(),
+            json,
+        });
+        computed.push(Computed {
+            id: id.clone(),
+            steps: probe.len(),
+            cursor: probe.cursor_index(),
+            stack: probe,
+            emit: true,
+        });
+    }
+    commit_ops(engine, CMD, &ops)?;
+    swap_in(engine, computed, ctx);
+    Ok(json!({"synced": ids.len()}))
+}
+
+/// Computes `develop.merge` on a real session: the clipboard's selected
+/// adjustments merge onto every target in one transaction, each target
+/// keeping its own process version.
+pub(crate) fn develop_merge(
+    engine: &mut Engine,
+    params: &Map<String, Value>,
+    ctx: &mut RunCtx,
+) -> Result<Outcome, CommandError> {
+    const CMD: &str = "develop.merge";
+    let ids = ids_req(CMD, params)?;
+    let parsed = parse_selection(engine, CMD, params)?;
+    let Some(batch) = engine.clipboard_mut().clone() else {
+        return Err(CommandError::EmptyClipboard {
+            cmd: CMD.to_owned(),
+        });
+    };
+    // The merge only reads the source's instances; the format and process
+    // versions below never reach any target (each keeps its own).
+    let source = lightamer_history::PhotoSettings {
+        instances: batch.instances.clone(),
+        ..lightamer_history::PhotoSettings::default()
+    };
+    let selection = parsed.unwrap_or_else(|| full_selection(&source));
+    let mut computed = Vec::with_capacity(ids.len());
+    let mut ops = Vec::new();
+    for id in &ids {
+        let db = engine.ensure_photo_loaded(CMD, id)?;
+        let Some(stack) = engine.stack_mut(id) else {
+            continue;
+        };
+        let Some(current) = stack.current().cloned() else {
+            continue;
+        };
+        let next = lightamer_history::merge_adjustments(&current, &source, &selection);
+        let json = next
+            .canonical_json()
+            .map_err(|err| unserializable(CMD, err))?;
+        let mut probe = stack.clone();
+        if let Some(settled) = settle_interaction(CMD, db, &mut probe)? {
+            ops.push(settled);
+        }
+        probe.commit(CMD, Arc::new(next));
+        ops.push(StoreOp::Push {
+            db,
+            label: CMD.to_owned(),
+            json,
+        });
+        computed.push(Computed {
+            id: id.clone(),
+            steps: probe.len(),
+            cursor: probe.cursor_index(),
+            stack: probe,
+            emit: true,
+        });
+    }
+    commit_ops(engine, CMD, &ops)?;
+    swap_in(engine, computed, ctx);
+    Ok(json!({"merged": ids.len()}))
 }
 
 /// Computes `develop.beginInteraction` on a real session: memory-only, except
