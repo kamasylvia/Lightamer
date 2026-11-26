@@ -50,35 +50,35 @@ impl Class {
 /// names. Every workspace member must appear exactly once; see `PLANNED`
 /// for the one scheduled-but-absent entry.
 pub const TABLE: &[(&str, Class)] = &[
-    ("dt-geom", Class::Layer(0)),
-    ("dt-raster", Class::Layer(0)),
-    ("dt-color-math", Class::Layer(0)),
-    ("dt-iop-traits", Class::Layer(0)),
-    ("dt-sysmem", Class::Layer(0)),
-    ("dt-iop-raw", Class::Layer(1)),
-    ("dt-iop-geom", Class::Layer(1)),
-    ("dt-iop-color", Class::Layer(1)),
-    ("dt-iop-display", Class::Layer(1)),
-    ("dt-meta", Class::Layer(1)),
-    ("dt-color", Class::Layer(1)),
-    ("dt-blend", Class::Layer(1)),
-    ("dt-decode", Class::Layer(1)),
-    ("dt-scenes", Class::Layer(1)),
-    ("dt-registry", Class::Layer(2)),
-    ("dt-history", Class::Layer(2)),
-    ("dt-pipeline", Class::Layer(2)),
-    ("dt-catalog", Class::Layer(3)),
-    ("dt-preview", Class::Layer(3)),
-    ("dt-apple", Class::Layer(3)),
-    ("dt-gpu", Class::Layer(3)),
-    ("dt-merge", Class::Layer(3)),
-    ("dt-lightamer", Class::Layer(3)),
-    ("dt-engine", Class::Layer(4)),
-    ("dt-gpui", Class::Layer(5)),
-    ("dt-mcp", Class::Layer(5)),
-    ("dt-testkit", Class::Testkit),
+    ("lightamer-geom", Class::Layer(0)),
+    ("lightamer-raster", Class::Layer(0)),
+    ("lightamer-color-math", Class::Layer(0)),
+    ("lightamer-iop-traits", Class::Layer(0)),
+    ("lightamer-sysmem", Class::Layer(0)),
+    ("lightamer-iop-raw", Class::Layer(1)),
+    ("lightamer-iop-geom", Class::Layer(1)),
+    ("lightamer-iop-color", Class::Layer(1)),
+    ("lightamer-iop-display", Class::Layer(1)),
+    ("lightamer-meta", Class::Layer(1)),
+    ("lightamer-color", Class::Layer(1)),
+    ("lightamer-blend", Class::Layer(1)),
+    ("lightamer-decode", Class::Layer(1)),
+    ("lightamer-scenes", Class::Layer(1)),
+    ("lightamer-registry", Class::Layer(2)),
+    ("lightamer-history", Class::Layer(2)),
+    ("lightamer-pipeline", Class::Layer(2)),
+    ("lightamer-catalog", Class::Layer(3)),
+    ("lightamer-preview", Class::Layer(3)),
+    ("lightamer-apple", Class::Layer(3)),
+    ("lightamer-gpu", Class::Layer(3)),
+    ("lightamer-merge", Class::Layer(3)),
+    ("lightamer-ai", Class::Layer(3)),
+    ("lightamer-engine", Class::Layer(4)),
+    ("lightamer-gpui", Class::Layer(5)),
+    ("lightamer-mcp", Class::Layer(5)),
+    ("lightamer-testkit", Class::Testkit),
     // Binaries and tooling.
-    ("dt-cli", Class::Exempt),
+    ("lightamer-cli", Class::Exempt),
     ("xtask", Class::Exempt),
 ];
 
@@ -86,17 +86,21 @@ pub const TABLE: &[(&str, Class)] = &[
 /// expected, present is fine. Everything else dangling is a violation.
 pub const PLANNED: &[&str] = &[
     // A7b builds the gpui interface.
-    "dt-gpui",
+    "lightamer-gpui",
 ];
 
 /// Explicit orderings *within* a layer (earlier may be used by later).
-/// L0: `dt-raster` builds on `dt-color-math` and `dt-geom`.
-/// L1: `dt-decode` reads metadata through `dt-meta`.
+/// L0: `lightamer-raster` builds on `lightamer-color-math` and `lightamer-geom`.
+/// L1: `lightamer-decode` reads metadata through `lightamer-meta`.
 /// L2: history aggregates the registry; the pipeline runs on both.
 pub const INTRA_LAYER_ORDER: &[&[&str]] = &[
-    &["dt-geom", "dt-color-math", "dt-raster"],
-    &["dt-meta", "dt-decode"],
-    &["dt-registry", "dt-history", "dt-pipeline"],
+    &["lightamer-geom", "lightamer-color-math", "lightamer-raster"],
+    &["lightamer-meta", "lightamer-decode"],
+    &[
+        "lightamer-registry",
+        "lightamer-history",
+        "lightamer-pipeline",
+    ],
 ];
 
 fn intra_layer_allowed(from: &str, to: &str) -> bool {
@@ -193,7 +197,7 @@ pub enum Violation {
         /// Workspace dependency.
         dep: String,
     },
-    /// `dt-testkit` used as anything but a dev-dependency.
+    /// `lightamer-testkit` used as anything but a dev-dependency.
     TestkitAsNormalDep {
         /// Offending crate.
         krate: String,
@@ -242,7 +246,7 @@ impl std::fmt::Display for Violation {
                 )
             }
             Violation::TestkitAsNormalDep { krate } => {
-                write!(f, "{krate}: dt-testkit may only be a dev-dependency")
+                write!(f, "{krate}: lightamer-testkit may only be a dev-dependency")
             }
             Violation::UiBelowL5 { krate, dep, layer } => {
                 write!(
@@ -702,11 +706,11 @@ mod tests {
         }
     }
 
-    /// Full TABLE-shaped graph minus `dt-gpui` (PLANNED): every entry present.
+    /// Full TABLE-shaped graph minus `lightamer-gpui` (PLANNED): every entry present.
     fn full_graph() -> Vec<Crate> {
         TABLE
             .iter()
-            .filter(|(n, _)| *n != "dt-gpui")
+            .filter(|(n, _)| *n != "lightamer-gpui")
             .map(|(n, _)| c(n, &[]))
             .collect()
     }
@@ -714,12 +718,21 @@ mod tests {
     #[test]
     fn clean_downward_graph_passes() {
         let mut g = full_graph();
-        g.push(c("dt-iop-raw", &[("dt-iop-traits", Normal, true)]));
         g.push(c(
-            "dt-registry",
-            &[("dt-iop-raw", Normal, true), ("dt-testkit", Dev, true)],
+            "lightamer-iop-raw",
+            &[("lightamer-iop-traits", Normal, true)],
         ));
-        g.push(c("dt-engine", &[("dt-registry", Normal, true)]));
+        g.push(c(
+            "lightamer-registry",
+            &[
+                ("lightamer-iop-raw", Normal, true),
+                ("lightamer-testkit", Dev, true),
+            ],
+        ));
+        g.push(c(
+            "lightamer-engine",
+            &[("lightamer-registry", Normal, true)],
+        ));
         // `check` dedups identical violations; duplicates of clean edges stay clean.
         assert!(check(&g).is_empty(), "{:?}", check(&g));
     }
@@ -730,7 +743,10 @@ mod tests {
         let v = check(
             &[
                 g,
-                vec![c("dt-iop-traits", &[("dt-registry", Normal, true)])],
+                vec![c(
+                    "lightamer-iop-traits",
+                    &[("lightamer-registry", Normal, true)],
+                )],
             ]
             .concat(),
         );
@@ -743,7 +759,16 @@ mod tests {
     #[test]
     fn sideways_dependency_flagged() {
         let g = full_graph();
-        let v = check(&[g, vec![c("dt-catalog", &[("dt-preview", Normal, true)])]].concat());
+        let v = check(
+            &[
+                g,
+                vec![c(
+                    "lightamer-catalog",
+                    &[("lightamer-preview", Normal, true)],
+                )],
+            ]
+            .concat(),
+        );
         assert!(
             matches!(v[..], [Violation::Upward { from: 3, to: 3, .. }]),
             "{v:?}"
@@ -756,12 +781,24 @@ mod tests {
         let ok = check(
             &[
                 g.clone(),
-                vec![c("dt-raster", &[("dt-color-math", Normal, true)])],
+                vec![c(
+                    "lightamer-raster",
+                    &[("lightamer-color-math", Normal, true)],
+                )],
             ]
             .concat(),
         );
         assert!(ok.is_empty(), "{ok:?}");
-        let bad = check(&[g, vec![c("dt-color-math", &[("dt-raster", Normal, true)])]].concat());
+        let bad = check(
+            &[
+                g,
+                vec![c(
+                    "lightamer-color-math",
+                    &[("lightamer-raster", Normal, true)],
+                )],
+            ]
+            .concat(),
+        );
         assert!(
             matches!(bad[..], [Violation::Upward { from: 0, to: 0, .. }]),
             "{bad:?}"
@@ -774,12 +811,18 @@ mod tests {
         let ok = check(
             &[
                 g.clone(),
-                vec![c("dt-decode", &[("dt-meta", Normal, true)])],
+                vec![c("lightamer-decode", &[("lightamer-meta", Normal, true)])],
             ]
             .concat(),
         );
         assert!(ok.is_empty(), "{ok:?}");
-        let bad = check(&[g, vec![c("dt-meta", &[("dt-decode", Normal, true)])]].concat());
+        let bad = check(
+            &[
+                g,
+                vec![c("lightamer-meta", &[("lightamer-decode", Normal, true)])],
+            ]
+            .concat(),
+        );
         assert!(
             matches!(bad[..], [Violation::Upward { from: 1, to: 1, .. }]),
             "{bad:?}"
@@ -793,14 +836,23 @@ mod tests {
             &[
                 g.clone(),
                 vec![
-                    c("dt-history", &[("dt-registry", Normal, true)]),
-                    c("dt-pipeline", &[("dt-history", Normal, true)]),
+                    c("lightamer-history", &[("lightamer-registry", Normal, true)]),
+                    c("lightamer-pipeline", &[("lightamer-history", Normal, true)]),
                 ],
             ]
             .concat(),
         );
         assert!(ok.is_empty(), "{ok:?}");
-        let bad = check(&[g, vec![c("dt-registry", &[("dt-pipeline", Normal, true)])]].concat());
+        let bad = check(
+            &[
+                g,
+                vec![c(
+                    "lightamer-registry",
+                    &[("lightamer-pipeline", Normal, true)],
+                )],
+            ]
+            .concat(),
+        );
         assert!(
             matches!(bad[..], [Violation::Upward { from: 2, to: 2, .. }]),
             "{bad:?}"
@@ -811,14 +863,14 @@ mod tests {
     fn ui_crates_forbidden_below_l5() {
         for dep in ["gpui", "gpui_component", "gpui-winit"] {
             let g = full_graph();
-            let v = check(&[g, vec![c("dt-engine", &[(dep, Normal, false)])]].concat());
+            let v = check(&[g, vec![c("lightamer-engine", &[(dep, Normal, false)])]].concat());
             assert!(
                 matches!(v[..], [Violation::UiBelowL5 { .. }]),
                 "{dep}: {v:?}"
             );
         }
         let g = full_graph();
-        let ok = check(&[g, vec![c("dt-mcp", &[("gpui", Normal, false)])]].concat());
+        let ok = check(&[g, vec![c("lightamer-mcp", &[("gpui", Normal, false)])]].concat());
         assert!(ok.is_empty(), "{ok:?}");
     }
 
@@ -838,7 +890,10 @@ mod tests {
         let bad = check(
             &[
                 g.clone(),
-                vec![c("dt-pipeline", &[("dt-testkit", Normal, true)])],
+                vec![c(
+                    "lightamer-pipeline",
+                    &[("lightamer-testkit", Normal, true)],
+                )],
             ]
             .concat(),
         );
@@ -849,7 +904,10 @@ mod tests {
         let build = check(
             &[
                 g.clone(),
-                vec![c("dt-pipeline", &[("dt-testkit", Build, true)])],
+                vec![c(
+                    "lightamer-pipeline",
+                    &[("lightamer-testkit", Build, true)],
+                )],
             ]
             .concat(),
         );
@@ -857,20 +915,26 @@ mod tests {
             matches!(build[..], [Violation::TestkitAsNormalDep { .. }]),
             "{build:?}"
         );
-        let ok = check(&[g, vec![c("dt-pipeline", &[("dt-testkit", Dev, true)])]].concat());
+        let ok = check(
+            &[
+                g,
+                vec![c("lightamer-pipeline", &[("lightamer-testkit", Dev, true)])],
+            ]
+            .concat(),
+        );
         assert!(ok.is_empty(), "{ok:?}");
     }
 
     #[test]
     fn exempt_crates_skipped() {
-        for app in ["dt-cli", "xtask"] {
+        for app in ["lightamer-cli", "xtask"] {
             let g = full_graph();
             let ok = check(
                 &[
                     g,
                     vec![c(
                         app,
-                        &[("gpui", Normal, false), ("dt-gpui", Normal, true)],
+                        &[("gpui", Normal, false), ("lightamer-gpui", Normal, true)],
                     )],
                 ]
                 .concat(),
@@ -881,12 +945,14 @@ mod tests {
 
     #[test]
     fn standalone_rule_fires() {
-        let table: &[(&str, Class)] =
-            &[("dt-lone", Class::Standalone), ("dt-geom", Class::Layer(0))];
+        let table: &[(&str, Class)] = &[
+            ("dt-lone", Class::Standalone),
+            ("lightamer-geom", Class::Layer(0)),
+        ];
         let bad = check_with(
             &[
-                c("dt-lone", &[("dt-geom", Normal, true)]),
-                c("dt-geom", &[]),
+                c("dt-lone", &[("lightamer-geom", Normal, true)]),
+                c("lightamer-geom", &[]),
             ],
             table,
         );
@@ -895,7 +961,10 @@ mod tests {
             "{bad:?}"
         );
         let ok = check_with(
-            &[c("dt-lone", &[("serde", Normal, false)]), c("dt-geom", &[])],
+            &[
+                c("dt-lone", &[("serde", Normal, false)]),
+                c("lightamer-geom", &[]),
+            ],
             table,
         );
         assert!(ok.is_empty(), "{ok:?}");
@@ -903,9 +972,11 @@ mod tests {
 
     #[test]
     fn dangling_table_entry_flagged() {
-        let table: &[(&str, Class)] =
-            &[("dt-ghost", Class::Layer(3)), ("dt-geom", Class::Layer(0))];
-        let v = check_with(&[c("dt-geom", &[])], table);
+        let table: &[(&str, Class)] = &[
+            ("dt-ghost", Class::Layer(3)),
+            ("lightamer-geom", Class::Layer(0)),
+        ];
+        let v = check_with(&[c("lightamer-geom", &[])], table);
         assert!(
             matches!(&v[..], [Violation::Dangling { name }] if name == "dt-ghost"),
             "{v:?}"
@@ -914,12 +985,12 @@ mod tests {
 
     #[test]
     fn planned_crate_may_be_missing() {
-        // `dt-gpui` is in TABLE but has no crate yet: every other dangling
+        // `lightamer-gpui` is in TABLE but has no crate yet: every other dangling
         // entry would fire, but never the planned one.
-        let v = check(&[c("dt-geom", &[])]);
+        let v = check(&[c("lightamer-geom", &[])]);
         assert!(
             !v.iter()
-                .any(|x| matches!(x, Violation::Dangling { name } if name == "dt-gpui")),
+                .any(|x| matches!(x, Violation::Dangling { name } if name == "lightamer-gpui")),
             "{v:?}"
         );
         assert!(
@@ -931,18 +1002,21 @@ mod tests {
     #[test]
     fn metadata_shape_parses() {
         let text = r#"{"packages":[
-            {"name":"dt-iop-traits","dependencies":[]},
-            {"name":"dt-iop-raw","dependencies":[
-                {"name":"dt-iop-traits","kind":null,"path":"crates/dt-iop-traits"},
-                {"name":"dt-testkit","kind":"dev","path":"crates/dt-testkit"},
+            {"name":"lightamer-iop-traits","dependencies":[]},
+            {"name":"lightamer-iop-raw","dependencies":[
+                {"name":"lightamer-iop-traits","kind":null,"path":"crates/lightamer-iop-traits"},
+                {"name":"lightamer-testkit","kind":"dev","path":"crates/lightamer-testkit"},
                 {"name":"cc","kind":"build"},
                 {"name":"serde","kind":null}
             ]},
-            {"name":"other","dependencies":[{"name":"dt-iop-raw","kind":null}]}
+            {"name":"other","dependencies":[{"name":"lightamer-iop-raw","kind":null}]}
         ]}"#;
         let crates = from_metadata(text).expect("parse");
         assert_eq!(crates.len(), 3);
-        let raw = crates.iter().find(|c| c.name == "dt-iop-raw").expect("raw");
+        let raw = crates
+            .iter()
+            .find(|c| c.name == "lightamer-iop-raw")
+            .expect("raw");
         assert_eq!(raw.deps.len(), 4);
         assert!(matches!(
             raw.deps[0],

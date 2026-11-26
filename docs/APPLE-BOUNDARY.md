@@ -1,4 +1,4 @@
-# Apple 边界（`dt-apple`）
+# Apple 边界（`lightamer-apple`）
 
 > A6 交付。中文正文，标识符英文。规则正文在这里，机检在
 > `crates/xtask/src/apple_boundary.rs`，链接门在
@@ -9,16 +9,16 @@
 用户裁决：Apple 能力独占一个模块，只在 macOS 构建里存在（PLAN §1.1）。
 落点如下，每条都有机检或构建门，不靠自觉。
 
-1. **只有 `dt-apple` 碰 Apple 框架。** 其它 crate 不直接依赖 Apple 绑定
+1. **只有 `lightamer-apple` 碰 Apple 框架。** 其它 crate 不直接依赖 Apple 绑定
    crate（名单见机检规则 1），源码里不出现桥接 token 与 target-OS `cfg`
    （规则 3）。理由：跨平台 port 时只需换这一个 crate；散落的 `cfg` 是
    移植时最先烂掉的东西。
-2. **核心和界面只读能力表。** `dt_apple::capabilities()` 返回平台事实，
+2. **核心和界面只读能力表。** `lightamer_apple::capabilities()` 返回平台事实，
    调用方不写任何 `cfg`。理由：把「平台有没有」和「功能做没做」分成两
    层；这一波表里只有平台事实（见 §3）。
-3. **`dt-apple` 每个平台都编译，接口各平台一致。** 空后端在全平台参与
+3. **`lightamer-apple` 每个平台都编译，接口各平台一致。** 空后端在全平台参与
    编译（含 macOS），选用哪个后端全 crate 只有一处（两个完整 `cfg`
-   块，`crates/dt-apple/src/capabilities.rs` 的 `selected_backend`）。
+   块，`crates/lightamer-apple/src/capabilities.rs` 的 `selected_backend`）。
    理由：空后端的正确性在本机就能查；选择点唯一，grep 即得。
 4. **接口里没有框架类型。** `CIImage`、`MTLDevice`、`CGColorSpace` 等只
    存在于 `macos.rs` 内部；对外只有标准库类型和本 crate 类型。理由：
@@ -32,7 +32,7 @@
 
 ## 2. 新增一项 Apple 能力的步骤
 
-1. **依赖**：加到 `crates/dt-apple/Cargo.toml` 的
+1. **依赖**：加到 `crates/lightamer-apple/Cargo.toml` 的
    `[target.'cfg(target_os = "macos")'.dependencies]`。普通
    `[dependencies]` 不许加（规则 2 会报）。版本先与 spike 锁表对齐；
    新 crate 先过 A1（许可证检查）。
@@ -42,7 +42,7 @@
 3. **能力表**：只放平台事实。若新字段是「功能是否实现」，不许进表。
 4. **测试**：`capabilities.rs` 的 tests 里给空后端加断言（新字段的空值），
    并更新穷举解构测试 `capability_table_has_every_field`；macOS 真值走
-   `dt-cli capabilities` 人工/脚本核，不进单元断言（环境相关）。
+   `lightamer-cli capabilities` 人工/脚本核，不进单元断言（环境相关）。
 5. **机检名单**：若新依赖的 crate 名不在规则 1 名单里，把它加进
    `APPLE_EXACT`（改这一处），并给规则 1 加一个单元用例。
 6. **文档**：本文件 §3 加一行字段说明；`docs/LICENSE-AUDIT.md` 按 A5
@@ -50,7 +50,7 @@
 
 ## 3. 能力表字段
 
-`dt_apple::capabilities()` 首次调用探一次（`OnceLock`），之后返回同一份。
+`lightamer_apple::capabilities()` 首次调用探一次（`OnceLock`），之后返回同一份。
 探针只做：查类、建一个设备对象、问格式列表、建两个色彩空间。不解码、
 不读样张、不开窗口。
 
@@ -72,13 +72,13 @@
 `cargo xtask check-apple-boundary`（与 `layers.rs` 同形：读
 `cargo metadata --format-version 1 --no-deps`，规则引擎可单测）：
 
-1. **依赖名单**：除 `dt-apple` 外，工作区 crate 的直接依赖不许出现名单
+1. **依赖名单**：除 `lightamer-apple` 外，工作区 crate 的直接依赖不许出现名单
    crate。名单常量 `APPLE_EXACT` + `OBJC2_PREFIX` 前缀族（`objc2` 开头
    全部），增删改这一处。报错带 crate 名与依赖名。
-2. **`dt-apple` 目标表**：名单依赖必须挂 macOS 目标表下。报错带依赖名
+2. **`lightamer-apple` 目标表**：名单依赖必须挂 macOS 目标表下。报错带依赖名
    与实际 gate（`None` 即普通表）。
 3. **源码扫描**：`crates/`、`apps/` 下 `.rs`（源码、构建脚本、测试），除
-   `crates/dt-apple/` 外，不许出现五种 token（桥接 crate 名、Core
+   `crates/lightamer-apple/` 外，不许出现五种 token（桥接 crate 名、Core
    Foundation/Graphics 下划线名、两种 target-OS `cfg` 写法）。报错带
    文件与行号。说明文档不扫描。
 4. **读不到元数据就失败**：`cargo metadata` 失败或输出解析失败时非零
@@ -92,8 +92,8 @@
 
 ## 5. Lint 放行
 
-- `dt-apple` 根部拒绝：下标索引、`unwrap`、`expect`、`panic!`、`todo!`、
-  `unimplemented!`（A4b 在 `dt-history` 立的规矩）；测试模块内放开前三条。
+- `lightamer-apple` 根部拒绝：下标索引、`unwrap`、`expect`、`panic!`、`todo!`、
+  `unimplemented!`（A4b 在 `lightamer-history` 立的规矩）；测试模块内放开前三条。
 - `unsafe`：仅 `src/macos.rs` 顶部 `#![allow(unsafe_code)]`，且该文件内再
   `#![deny(unsafe_op_in_unsafe_fn)]` +
   `#![deny(clippy::undocumented_unsafe_blocks)]`；每处 `unsafe` 块上方有
@@ -113,7 +113,7 @@
 非零报出且撤除后工作区干净；`cargo tree` 两目标输出符合预期。
 
 已关闭（2026-11-26）：本机已装 `x86_64-unknown-linux-gnu` 目标（A-18），
-`cargo check -p dt-apple --target x86_64-unknown-linux-gnu --locked` 通过；
+`cargo check -p lightamer-apple --target x86_64-unknown-linux-gnu --locked` 通过；
 A7b 起该命令接进 `Scripts/rust-apple-boundary.sh`（目标缺席则打印跳过），
 每波必查。替代证据（锁解析层零依赖 + 空后端全平台编译）仍然有效。
 
@@ -147,16 +147,16 @@ A7b 裁定（§7 遗留问题的答案）：规则的管辖止于我们自己的
 句柄），除此之外界面 crate 不知平台为何物。指针事件与图层句柄只在同一个
 进程、同一个地址空间里有效，不做跨进程传递，不做序列化。
 
-## 9. A7b 视口（`dt-apple` 内，`dt-gpui` 外）
+## 9. A7b 视口（`lightamer-apple` 内，`lightamer-gpui` 外）
 
-`dt-apple` 新增视口模块（A7b）：对外只有本 crate 类型（`ViewportRect` /
+`lightamer-apple` 新增视口模块（A7b）：对外只有本 crate 类型（`ViewportRect` /
 `ViewportGeom` / `FrameReport` / `NativePointerEvent` / `ViewportError` /
 `ViewportHandle`）与标准库类型；macOS 后端在 `macos.rs` 内实现（沿用第 6
 条：`unsafe` 不出该文件，每处带 `SAFETY` 说明），空后端在 `empty.rs` 对同
 一接口诚实返回 `Unsupported`。
 
 - **接缝是一个整数**：`attach_viewport(native_handle: usize, rect)` 与
-  `attach_viewport_with_input(native_handle, rect, sink)`。`dt-gpui` 从框架
+  `attach_viewport_with_input(native_handle, rect, sink)`。`lightamer-gpui` 从框架
   拿到整数，原样交过来；它自己的源码里不出现任何桥接 token（机检规则 3
   与裸 `rg` 门双重覆盖）。
 - **后端选择仍是一处**：`BackendProbe` trait 多了一个方法，`selected_backend`

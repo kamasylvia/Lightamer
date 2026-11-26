@@ -1,0 +1,15 @@
+[package]
+name = "lightamer-history"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+lightamer-iop-traits = { path = "../lightamer-iop-traits" }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = { version = "1" }
+
+[lints]
+workspace = true

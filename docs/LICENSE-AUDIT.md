@@ -962,7 +962,7 @@
 
 ### §4.4 objc2 / metal（Apple 模块预备）
 
-`objc2 0.6.5` MIT；`objc2-* 0.3.2` 全家 `Zlib OR Apache-2.0 OR MIT`（另有 0.2.2/0.5.3 双版本并存，MIT，系 gpui-pre 依赖链带入）；`metal 0.29.0` MIT OR Apache-2.0。A6 落地时只允许出现在 `dt-apple`（T1 处置沿用）。
+`objc2 0.6.5` MIT；`objc2-* 0.3.2` 全家 `Zlib OR Apache-2.0 OR MIT`（另有 0.2.2/0.5.3 双版本并存，MIT，系 gpui-pre 依赖链带入）；`metal 0.29.0` MIT OR Apache-2.0。A6 落地时只允许出现在 `lightamer-apple`（T1 处置沿用）。
 
 ---
 
@@ -1044,10 +1044,10 @@
 
 ## §9 A5 新增依赖采用记录（2026-11-26，lane A5，append-only）
 
-- `dt-cli` 新增直接依赖 `png 0.18.1`（16 位 PNG 解码，`cmp` 用；纯 Rust，无系统库）。
+- `lightamer-cli` 新增直接依赖 `png 0.18.1`（16 位 PNG 解码，`cmp` 用；纯 Rust，无系统库）。
 - 传递引入 10 个 crate：`adler2 2.0.1`、`bitflags 2.13.2`、`cfg-if 1.0.5`、`crc32fast 1.5.6`、
   `fdeflate 0.3.7`、`flate2 1.1.11`、`miniz_oxide 0.8.9`、`miniz_oxide 0.9.1`、
-  `simd-adler32 0.3.10`、`zlib-rs 0.6.9`（`cargo tree -p dt-cli` 实测）。
+  `simd-adler32 0.3.10`、`zlib-rs 0.6.9`（`cargo tree -p lightamer-cli` 实测）。
 - 上述 11 个（名，版本）**全部已在 §4.1 登记且版本逐字相同**（`png 0.18.1` 见 V:5063 行等），
   无需追加表行；`Scripts/check-licenses.sh` 实测 `allow=50 exception=0 fail=0`，退出 0，
   无新增 license 字符串（`MIT OR Apache-2.0` / `MIT` / `Zlib` / `0BSD OR MIT OR Apache-2.0` 均在允许清单）。
@@ -1056,11 +1056,11 @@
 
 ## §10 A6 新增依赖采用记录（2026-11-26，lane A6，append-only）
 
-- `dt-apple` 在 `[target.'cfg(target_os = "macos")'.dependencies]` 新增 8 个直接依赖
+- `lightamer-apple` 在 `[target.'cfg(target_os = "macos")'.dependencies]` 新增 8 个直接依赖
   （版本钉 spike 锁表逐字）：`objc2 0.6.5`、`objc2-foundation 0.3.2`、
   `objc2-core-foundation 0.3.2`、`objc2-core-graphics 0.3.2`、`objc2-metal 0.3.2`、
   `objc2-core-image 0.3.2`、`objc2-image-io 0.3.2`、`objc2-vision 0.3.2`
-  （`cargo tree -p dt-apple --target aarch64-apple-darwin` 实测）。
+  （`cargo tree -p lightamer-apple --target aarch64-apple-darwin` 实测）。
 - 传递引入 11 个 crate：`block2 0.6.2`、`dispatch2 0.3.1`、`libc 0.2.191`、
   `objc2-encode 4.1.0`、`objc2-av-foundation 0.3.2`、`objc2-core-audio 0.3.2`、
   `objc2-core-audio-types 0.3.2`、`objc2-core-media 0.3.2`、`objc2-core-ml 0.3.2`、
@@ -1075,10 +1075,10 @@
 
 ## §11 A7a 新增依赖采用记录（2026-11-26，lane A7a，append-only）
 
-- `dt-engine` 新增 5 个直接依赖（`cargo tree -p dt-engine --depth 1` 实测）：
-  工作区内 `dt-history`、`dt-iop-traits`、`dt-registry`，外部 `serde 1.0.229`、
-  `serde_json 1.0.154`；`dt-cli` 新增 2 个直接依赖（同命令对 `dt-cli` 实测）：
-  工作区内 `dt-engine`，外部 `serde_json 1.0.154`。
+- `lightamer-engine` 新增 5 个直接依赖（`cargo tree -p lightamer-engine --depth 1` 实测）：
+  工作区内 `lightamer-history`、`lightamer-iop-traits`、`lightamer-registry`，外部 `serde 1.0.229`、
+  `serde_json 1.0.154`；`lightamer-cli` 新增 2 个直接依赖（同命令对 `lightamer-cli` 实测）：
+  工作区内 `lightamer-engine`，外部 `serde_json 1.0.154`。
 - 上述外部（名，版本）**全部已在 §4 登记且版本逐字相同**（`serde 1.0.229` 见 A:657 行等，
   `serde_json 1.0.154` 见 A:687 行等；A4b 已采用，锁文件只增依赖边、无新增 crate），
   无需追加表行；`Scripts/check-licenses.sh` 实测退出 0，
@@ -1088,10 +1088,10 @@
 
 ## §12 A7b 新增依赖采用记录（2026-11-26，lane A7b，append-only）
 
-- `dt-gpui` 新增 3 个直接依赖（`cargo tree -p dt-gpui --depth 1` 实测）：
-  工作区内 `dt-apple`、`dt-engine`，外部 `gpui-kit =0.11.0`（`gpui-fast` 特性，
+- `lightamer-gpui` 新增 3 个直接依赖（`cargo tree -p lightamer-gpui --depth 1` 实测）：
+  工作区内 `lightamer-apple`、`lightamer-engine`，外部 `gpui-kit =0.11.0`（`gpui-fast` 特性，
   解析出 `gpui-fast 0.1.19` 一族，与 gpui-viewport spike 钉死的版本逐字相同）。
-- `dt-apple` 在 `[target.'cfg(target_os = "macos")'.dependencies]` 新增 2 个直接依赖：
+- `lightamer-apple` 在 `[target.'cfg(target_os = "macos")'.dependencies]` 新增 2 个直接依赖：
   `objc2-app-kit =0.3.2`、`objc2-quartz-core =0.3.2`（与既有七个框架绑定同 0.3.2 线；
   传递引入 `objc2-cloud-kit 0.3.2`、`objc2-core-data 0.3.2`、`objc2-core-text 0.3.2`）。
   spike 另用的 `metal 0.29` 与 `core-graphics-types 0.1.3` 本波未引入（渲染走既有的

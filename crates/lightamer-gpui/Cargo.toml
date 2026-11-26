@@ -1,0 +1,19 @@
+# A7b gpui interface with the owned native viewport.
+[package]
+name = "lightamer-gpui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# L5 interface: framework (UI crates only allowed at L5+), engine commands,
+# Apple viewport seam. No Apple binding crate is named here: the seam to
+# lightamer-apple is one integer plus plain data (see docs/APPLE-BOUNDARY.md).
+lightamer-apple = { path = "../lightamer-apple" }
+lightamer-engine = { path = "../lightamer-engine" }
+gpui-kit = { version = "=0.11.0", features = ["gpui-fast"] }

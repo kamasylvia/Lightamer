@@ -1307,173 +1307,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 
 [[package]]
-name = "dt-apple"
-version = "0.1.0"
-dependencies = [
- "objc2 0.6.5",
- "objc2-app-kit 0.3.2",
- "objc2-core-foundation",
- "objc2-core-graphics",
- "objc2-core-image 0.3.2",
- "objc2-foundation 0.3.2",
- "objc2-image-io",
- "objc2-metal 0.3.2",
- "objc2-quartz-core 0.3.2",
- "objc2-vision",
-]
-
-[[package]]
-name = "dt-blend"
-version = "0.1.0"
-
-[[package]]
-name = "dt-catalog"
-version = "0.1.0"
-
-[[package]]
-name = "dt-cli"
-version = "0.1.0"
-dependencies = [
- "dt-apple",
- "dt-engine",
- "png 0.18.1",
- "serde_json",
-]
-
-[[package]]
-name = "dt-color"
-version = "0.1.0"
-
-[[package]]
-name = "dt-color-math"
-version = "0.1.0"
-
-[[package]]
-name = "dt-decode"
-version = "0.1.0"
-
-[[package]]
-name = "dt-engine"
-version = "0.1.0"
-dependencies = [
- "dt-history",
- "dt-iop-traits",
- "dt-registry",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "dt-geom"
-version = "0.1.0"
-
-[[package]]
-name = "dt-gpu"
-version = "0.1.0"
-
-[[package]]
-name = "dt-gpui"
-version = "0.1.0"
-dependencies = [
- "dt-apple",
- "dt-engine",
- "gpui-kit",
-]
-
-[[package]]
-name = "dt-history"
-version = "0.1.0"
-dependencies = [
- "dt-iop-traits",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "dt-iop-color"
-version = "0.1.0"
-dependencies = [
- "dt-iop-traits",
-]
-
-[[package]]
-name = "dt-iop-display"
-version = "0.1.0"
-dependencies = [
- "dt-iop-traits",
-]
-
-[[package]]
-name = "dt-iop-geom"
-version = "0.1.0"
-dependencies = [
- "dt-iop-traits",
-]
-
-[[package]]
-name = "dt-iop-raw"
-version = "0.1.0"
-dependencies = [
- "dt-iop-traits",
-]
-
-[[package]]
-name = "dt-iop-traits"
-version = "0.1.0"
-
-[[package]]
-name = "dt-lightamer"
-version = "0.1.0"
-
-[[package]]
-name = "dt-mcp"
-version = "0.1.0"
-
-[[package]]
-name = "dt-merge"
-version = "0.1.0"
-
-[[package]]
-name = "dt-meta"
-version = "0.1.0"
-
-[[package]]
-name = "dt-pipeline"
-version = "0.1.0"
-
-[[package]]
-name = "dt-preview"
-version = "0.1.0"
-
-[[package]]
-name = "dt-raster"
-version = "0.1.0"
-
-[[package]]
-name = "dt-registry"
-version = "0.1.0"
-dependencies = [
- "dt-iop-color",
- "dt-iop-display",
- "dt-iop-geom",
- "dt-iop-raw",
- "dt-iop-traits",
- "dt-testkit",
-]
-
-[[package]]
-name = "dt-scenes"
-version = "0.1.0"
-
-[[package]]
-name = "dt-sysmem"
-version = "0.1.0"
-
-[[package]]
-name = "dt-testkit"
-version = "0.1.0"
-
-[[package]]
 name = "dunce"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3956,6 +3789,173 @@ checksum = "61ff90caf6077a803a240f62fdbe88645a890bbca49ef8174c3cb0404362171d"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "lightamer-ai"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-apple"
+version = "0.1.0"
+dependencies = [
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-core-foundation",
+ "objc2-core-graphics",
+ "objc2-core-image 0.3.2",
+ "objc2-foundation 0.3.2",
+ "objc2-image-io",
+ "objc2-metal 0.3.2",
+ "objc2-quartz-core 0.3.2",
+ "objc2-vision",
+]
+
+[[package]]
+name = "lightamer-blend"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-catalog"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-cli"
+version = "0.1.0"
+dependencies = [
+ "lightamer-apple",
+ "lightamer-engine",
+ "png 0.18.1",
+ "serde_json",
+]
+
+[[package]]
+name = "lightamer-color"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-color-math"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-decode"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-engine"
+version = "0.1.0"
+dependencies = [
+ "lightamer-history",
+ "lightamer-iop-traits",
+ "lightamer-registry",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "lightamer-geom"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-gpu"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-gpui"
+version = "0.1.0"
+dependencies = [
+ "gpui-kit",
+ "lightamer-apple",
+ "lightamer-engine",
+]
+
+[[package]]
+name = "lightamer-history"
+version = "0.1.0"
+dependencies = [
+ "lightamer-iop-traits",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "lightamer-iop-color"
+version = "0.1.0"
+dependencies = [
+ "lightamer-iop-traits",
+]
+
+[[package]]
+name = "lightamer-iop-display"
+version = "0.1.0"
+dependencies = [
+ "lightamer-iop-traits",
+]
+
+[[package]]
+name = "lightamer-iop-geom"
+version = "0.1.0"
+dependencies = [
+ "lightamer-iop-traits",
+]
+
+[[package]]
+name = "lightamer-iop-raw"
+version = "0.1.0"
+dependencies = [
+ "lightamer-iop-traits",
+]
+
+[[package]]
+name = "lightamer-iop-traits"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-mcp"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-merge"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-meta"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-pipeline"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-preview"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-raster"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-registry"
+version = "0.1.0"
+dependencies = [
+ "lightamer-iop-color",
+ "lightamer-iop-display",
+ "lightamer-iop-geom",
+ "lightamer-iop-raw",
+ "lightamer-iop-traits",
+ "lightamer-testkit",
+]
+
+[[package]]
+name = "lightamer-scenes"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-sysmem"
+version = "0.1.0"
+
+[[package]]
+name = "lightamer-testkit"
+version = "0.1.0"
 
 [[package]]
 name = "linebender_resource_handle"

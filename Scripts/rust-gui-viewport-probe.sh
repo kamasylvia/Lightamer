@@ -2,7 +2,7 @@
 # rust-gui-viewport-probe.sh — A7b viewport/input probe (opens OUR window only).
 #
 # One command end to end; any gate failure exits non-zero:
-#   0. preconditions: machine-guard, no other dt-gpui, user idle >= 5 min, no
+#   0. preconditions: machine-guard, no other lightamer-gpui, user idle >= 5 min, no
 #      foreign heavy work. Re-checked every 60s for up to 90 min, then give up
 #      with the numbers (the window never opens).
 #   1. compile the probe tools (no window yet).
@@ -18,8 +18,8 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-BIN="$ROOT/target/debug/dt-gpui"
-PROBES="$ROOT/crates/dt-gpui/probes"
+BIN="$ROOT/target/debug/lightamer-gpui"
+PROBES="$ROOT/crates/lightamer-gpui/probes"
 EVIDENCE="$ROOT/.work/gsd/phases/rust-core/waves/A7b-evidence"
 
 case "${1:-}" in
@@ -32,8 +32,8 @@ esac
 [ -x "$BIN" ] || { echo "probe: ERROR: missing binary: $BIN (build first)" >&2; exit 2; }
 mkdir -p "$EVIDENCE" || { echo "probe: ERROR: cannot make $EVIDENCE" >&2; exit 2; }
 
-TMP="$(mktemp -d -t dt-gpui-probe.XXXXXX)"
-FULLSHOTS="$(mktemp -d -t dt-gpui-fullshots.XXXXXX)"
+TMP="$(mktemp -d -t lightamer-gpui-probe.XXXXXX)"
+FULLSHOTS="$(mktemp -d -t lightamer-gpui-fullshots.XXXXXX)"
 APID=""
 FPID=""
 MONPID=""
@@ -68,22 +68,22 @@ foreign_heavy() {
   return 1
 }
 
-echo "probe: step 0/4 preconditions (idle>=300s, no dt-gpui, guard, no heavy)"
+echo "probe: step 0/4 preconditions (idle>=300s, no lightamer-gpui, guard, no heavy)"
 DEADLINE=$(( $(date +%s) + 5400 ))
 BASE_SWAP=""
 while true; do
   IDLE=$(idle_secs)
   GUARD_OUT=$("$SCRIPT_DIR/machine-guard.sh" 2>&1); GUARD_RC=$?
-  DTPROC=$(pgrep -x dt-gpui 2>/dev/null | tr '\n' ' ')
+  DTPROC=$(pgrep -x lightamer-gpui 2>/dev/null | tr '\n' ' ')
   HEAVY="no"; foreign_heavy && HEAVY="yes"
-  echo "probe: wait idle=${IDLE}s guard_rc=$GUARD_RC dt-gpui=[$DTPROC] heavy=$HEAVY :: $GUARD_OUT"
+  echo "probe: wait idle=${IDLE}s guard_rc=$GUARD_RC lightamer-gpui=[$DTPROC] heavy=$HEAVY :: $GUARD_OUT"
   if [ "$GUARD_RC" -eq 0 ] && [ -z "$DTPROC" ] && [ "$IDLE" -ge 300 ] 2>/dev/null && [ "$HEAVY" = "no" ]; then
     break
   fi
   NOW=$(date +%s)
   if [ "$NOW" -ge "$DEADLINE" ]; then
     echo "probe: TIMEOUT 90min without an idle machine (window never opened)" >&2
-    echo "probe: last idle=${IDLE}s guard=[$GUARD_OUT] dt-gpui=[$DTPROC] heavy=$HEAVY" >&2
+    echo "probe: last idle=${IDLE}s guard=[$GUARD_OUT] lightamer-gpui=[$DTPROC] heavy=$HEAVY" >&2
     exit 3
   fi
   sleep 60
@@ -139,14 +139,14 @@ run_path() { # <a|b>
   echo "probe: step 2/4 $tag launch"
   fuse_check
   local before
-  before=$(fp_list | awk -F'\t' '$4=="dt-gpui" {print $1}' | tr '\n' ' ')
+  before=$(fp_list | awk -F'\t' '$4=="lightamer-gpui" {print $1}' | tr '\n' ' ')
   "$BIN" --input-path "$path" --quit-after-secs 100 --panel-tick-ms 200 \
     > "$EVIDENCE/app-$tag.log" 2>&1 &
   APID=$!
   local t0; t0=$(date +%s)
   local wid=""
   for _ in $(seq 1 200); do
-    for cand in $(fp_list | awk -F'\t' '$4=="dt-gpui" {print $1}'); do
+    for cand in $(fp_list | awk -F'\t' '$4=="lightamer-gpui" {print $1}'); do
       case " $before " in *" $cand "*) ;; *) wid="$cand"; break 2;; esac
     done
     kill -0 "$APID" 2>/dev/null || { echo "probe: $tag app died before windowing" >&2; tail -20 "$EVIDENCE/app-$tag.log" >&2; return 1; }
@@ -334,10 +334,10 @@ done
 kill "$MONPID" 2>/dev/null
 
 echo "probe: step 3/4 residuals"
-if pgrep -x dt-gpui >/dev/null 2>&1; then
-  echo "probe: residual dt-gpui processes:" >&2; pgrep -fl dt-gpui >&2; overall=1
+if pgrep -x lightamer-gpui >/dev/null 2>&1; then
+  echo "probe: residual lightamer-gpui processes:" >&2; pgrep -fl lightamer-gpui >&2; overall=1
 else
-  echo "probe: no residual dt-gpui processes"
+  echo "probe: no residual lightamer-gpui processes"
 fi
 
 echo "probe: step 4/4 evidence: $EVIDENCE"

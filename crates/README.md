@@ -4,45 +4,45 @@
 > 与 `PLAN-TABLES.md` T2（布局与预算）；分层正本：`FRAMEWORK.md` §1 与
 > `FRAMEWORK-TABLES.md` T-F9。本文件只是一张索引，不复述规格。
 > 依赖方向由 `cargo xtask layers` 强制（`crates/xtask/src/layers.rs`）：
-> 严格向下，同层只许走登记的链（L0 `[dt-geom, dt-color-math, dt-raster]`、
-> L1 `[dt-meta, dt-decode]`、L2 `[dt-registry, dt-history, dt-pipeline]`），
-> 界面 crate 只许在 L5，`dt-testkit` 只许作开发依赖。
+> 严格向下，同层只许走登记的链（L0 `[lightamer-geom, lightamer-color-math, lightamer-raster]`、
+> L1 `[lightamer-meta, lightamer-decode]`、L2 `[lightamer-registry, lightamer-history, lightamer-pipeline]`），
+> 界面 crate 只许在 L5，`lightamer-testkit` 只许作开发依赖。
 
-29 个包（`apps/dt-cli` 另计在 `apps/`；`dt-gpui` A7b 已建）：
+29 个包（`apps/lightamer-cli` 另计在 `apps/`；`lightamer-gpui` A7b 已建）：
 
 | 层 | crate | 用途（一行） | 首填波次 |
 |---|---|---|---|
-| L0 | `dt-geom` | 几何原语：roi、矩阵、裁剪适配 | B1 |
-| L0 | `dt-raster` | 管线共用的 float 像素缓冲 | B1 |
-| L0 | `dt-color-math` | 颜色矩阵数学与曲线 helper，无 profile 状态 | B3 |
-| L0 | `dt-iop-traits` | ModuleDesc/OrderKeys/ModuleGroup/ParamsDesc（自有设置模型）/ModuleFlags/ColorSpace/Control/HistoryKeys | A3 已填 |
-| L0 | `dt-sysmem` | 内存压力钩子：把空闲页还给 OS | A7a |
-| L1 | `dt-iop-raw` | raw 段模块桩 8 个（rawprepare/demosaic/…；`build.rs` 扫 `src/modules/*/mod.rs` 自动发现） | A3 桩 / B3 起填像素 |
-| L1 | `dt-iop-geom` | 几何模块桩 21 个（lens/crop/…） | A3 桩 / B7 起填像素 |
-| L1 | `dt-iop-color` | 颜色模块桩 22 个（temperature/colorin/colorout/…） | A3 桩 / B3 起填像素 |
-| L1 | `dt-iop-display` | 显示段模块桩 46 个（exposure/曲线/finalscale/gamma/…） | A3 桩 / B3 起填像素（highlights 首用） |
-| L1 | `dt-meta` | 内嵌元数据解码与 sidecar helper | B2 |
-| L1 | `dt-color` | lcms2 腿 + 矩阵数学 | B3（temperature 首用） |
-| L1 | `dt-blend` | 蒙版栅格化 + 混合 | B14 |
-| L1 | `dt-decode` | rawspeed C ABI shim + 栅格解码 | B2 |
-| L1 | `dt-scenes` | 成像测试共用的确定性测试场景 | A5 |
-| L2 | `dt-registry` | 描述聚合 + 按标识查找 + raw/jpg 默认顺序链（`(prio,tie)` 排序）；夹具 `dt-registry/fixtures/dt-order-*.json` | A3 已填 |
-| L2 | `dt-history` | 照片设置（宽容 serde + 规范 JSON + FNV 缓存键）+ 快照历史栈 + 处理版本号（`HISTORY_LIMIT` 200） | A4b 已填 |
-| L2 | `dt-pipeline` | Frame/Roi/tiling/缓存/调度/PipeError（A3R 由 `dt-core` 改名） | B1 |
-| L3 | `dt-catalog` | 会话库 + 导入 + 缩略图（A3R 由 `dt-library` 改名） | B12′ |
-| L3 | `dt-preview` | 预览缓存：内存 LRU + 磁盘缩略图 + 预取 | B15 |
-| L3 | `dt-apple` | Apple 边界：macOS 探针/空后端双实现 + 能力表（A6 已填；唯一可碰 Apple 绑定的 crate）+ 原生视口缝（A7b：一整数句柄 + 矩形/几何/输入纯数据类型，macOS 在 `macos.rs` 内实现，空后端报不支持） | A6 已填 / A7b 视口 |
-| L3 | `dt-gpu` | CPU 管线的 GPU 孪生，C 期占位 | C 期 |
-| L3 | `dt-merge` | 独有合成（全景/焦点/HDR），C 期占位 | C 期 |
-| L3 | `dt-lightamer` | 独有功能：全景/焦点/HDR 合成、节点 DRT、版本分支、AI | C 期 |
-| L4 | `dt-engine` | 命令分发口（A7a 已填：`execute` 唯一入口 + 13 条编辑/历史/作业命令 + 草稿会话 + 作业池 + 事件；会话/导出/导入命令 B12′ 起逐条加） | A7a 已填 |
-| L5 | `dt-mcp` | 基于引擎命令的 MCP 服务器，C 期占位 | C 期 |
-| L5 | `dt-gpui` | 界面（gpui-kit 0.11.0 + gpui-fast 特性）：原生视口画布 + 右侧滑杆面板；双输入路径（框架回调/原生子类）→ 自有 `ViewportInput` 纯数据；只走 `execute` 与快照（A7b 已填） | A7b 已填 |
-| testkit | `dt-testkit` | 测试套件：skip 宏 + JSONL 记录，只许开发依赖 | A3R 已填 |
-| exempt | `dt-cli` | 命令行 + oracle 对照工具（A5 已填：`fetch`/`render`/`cmp`/`emit-xmp`/`selftest`；A6 加 `capabilities` + `apple` 默认 feature 关断 Apple 链接；A7a 加 `commands`/`run`（JSONL 喂引擎草稿会话）；入口 `Scripts/oracle.sh`，钉点 `Scripts/oracle.lock`）+ perf 探针（A3R 挪到 `apps/dt-cli`） | A4b（`history dump`）/ A5 已填 / A6 已填 / A7a 已填 |
+| L0 | `lightamer-geom` | 几何原语：roi、矩阵、裁剪适配 | B1 |
+| L0 | `lightamer-raster` | 管线共用的 float 像素缓冲 | B1 |
+| L0 | `lightamer-color-math` | 颜色矩阵数学与曲线 helper，无 profile 状态 | B3 |
+| L0 | `lightamer-iop-traits` | ModuleDesc/OrderKeys/ModuleGroup/ParamsDesc（自有设置模型）/ModuleFlags/ColorSpace/Control/HistoryKeys | A3 已填 |
+| L0 | `lightamer-sysmem` | 内存压力钩子：把空闲页还给 OS | A7a |
+| L1 | `lightamer-iop-raw` | raw 段模块桩 8 个（rawprepare/demosaic/…；`build.rs` 扫 `src/modules/*/mod.rs` 自动发现） | A3 桩 / B3 起填像素 |
+| L1 | `lightamer-iop-geom` | 几何模块桩 21 个（lens/crop/…） | A3 桩 / B7 起填像素 |
+| L1 | `lightamer-iop-color` | 颜色模块桩 22 个（temperature/colorin/colorout/…） | A3 桩 / B3 起填像素 |
+| L1 | `lightamer-iop-display` | 显示段模块桩 46 个（exposure/曲线/finalscale/gamma/…） | A3 桩 / B3 起填像素（highlights 首用） |
+| L1 | `lightamer-meta` | 内嵌元数据解码与 sidecar helper | B2 |
+| L1 | `lightamer-color` | lcms2 腿 + 矩阵数学 | B3（temperature 首用） |
+| L1 | `lightamer-blend` | 蒙版栅格化 + 混合 | B14 |
+| L1 | `lightamer-decode` | rawspeed C ABI shim + 栅格解码 | B2 |
+| L1 | `lightamer-scenes` | 成像测试共用的确定性测试场景 | A5 |
+| L2 | `lightamer-registry` | 描述聚合 + 按标识查找 + raw/jpg 默认顺序链（`(prio,tie)` 排序）；夹具 `lightamer-registry/fixtures/dt-order-*.json` | A3 已填 |
+| L2 | `lightamer-history` | 照片设置（宽容 serde + 规范 JSON + FNV 缓存键）+ 快照历史栈 + 处理版本号（`HISTORY_LIMIT` 200） | A4b 已填 |
+| L2 | `lightamer-pipeline` | Frame/Roi/tiling/缓存/调度/PipeError（A3R 由 `dt-core` 改名） | B1 |
+| L3 | `lightamer-catalog` | 会话库 + 导入 + 缩略图（A3R 由 `dt-library` 改名） | B12′ |
+| L3 | `lightamer-preview` | 预览缓存：内存 LRU + 磁盘缩略图 + 预取 | B15 |
+| L3 | `lightamer-apple` | Apple 边界：macOS 探针/空后端双实现 + 能力表（A6 已填；唯一可碰 Apple 绑定的 crate）+ 原生视口缝（A7b：一整数句柄 + 矩形/几何/输入纯数据类型，macOS 在 `macos.rs` 内实现，空后端报不支持） | A6 已填 / A7b 视口 |
+| L3 | `lightamer-gpu` | CPU 管线的 GPU 孪生，C 期占位 | C 期 |
+| L3 | `lightamer-merge` | 独有合成（全景/焦点/HDR），C 期占位 | C 期 |
+| L3 | `lightamer-ai` | 独有功能：全景/焦点/HDR 合成、节点 DRT、版本分支、AI | C 期 |
+| L4 | `lightamer-engine` | 命令分发口（A7a 已填：`execute` 唯一入口 + 13 条编辑/历史/作业命令 + 草稿会话 + 作业池 + 事件；会话/导出/导入命令 B12′ 起逐条加） | A7a 已填 |
+| L5 | `lightamer-mcp` | 基于引擎命令的 MCP 服务器，C 期占位 | C 期 |
+| L5 | `lightamer-gpui` | 界面（gpui-kit 0.11.0 + gpui-fast 特性）：原生视口画布 + 右侧滑杆面板；双输入路径（框架回调/原生子类）→ 自有 `ViewportInput` 纯数据；只走 `execute` 与快照（A7b 已填） | A7b 已填 |
+| testkit | `lightamer-testkit` | 测试套件：skip 宏 + JSONL 记录，只许开发依赖 | A3R 已填 |
+| exempt | `lightamer-cli` | 命令行 + oracle 对照工具（A5 已填：`fetch`/`render`/`cmp`/`emit-xmp`/`selftest`；A6 加 `capabilities` + `apple` 默认 feature 关断 Apple 链接；A7a 加 `commands`/`run`（JSONL 喂引擎草稿会话）；入口 `Scripts/oracle.sh`，钉点 `Scripts/oracle.lock`）+ perf 探针（A3R 挪到 `apps/lightamer-cli`） | A4b（`history dump`）/ A5 已填 / A6 已填 / A7a 已填 |
 | exempt | `xtask` | 仓库维护任务：`check-i18n`（骨架，B17 启用）；`gen-iop-stubs`（解析上游 `iop_order.c` 生成夹具+桩）/`check-order-sync`（上游×夹具×桩三方比对）/`check-no-iop-names`（核心零 op 名机检）/`layers`（分层检查，A3R 加） | A2 骨架 / A3 三子命令 / A3R layers / B17 |
 
-退役（A3R 删空壳，职责并进 `dt-engine`）：`dt-api`、`dt-app`、`dt-export`。
+退役（A3R 删空壳，职责并进 `lightamer-engine`）：`dt-api`、`dt-app`、`dt-export`。
 
 ## A3：模块发现与分域规则
 

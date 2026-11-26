@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! `check-apple-boundary`: Apple bindings live only in `dt-apple`.
+//! `check-apple-boundary`: Apple bindings live only in `lightamer-apple`.
 //!
 //! Four rules (see `docs/APPLE-BOUNDARY.md`):
-//! 1. No workspace crate except `dt-apple` names an Apple binding crate in
+//! 1. No workspace crate except `lightamer-apple` names an Apple binding crate in
 //!    its direct dependencies ([`APPLE_EXACT`] + the [`OBJC2_PREFIX`] family).
-//! 2. Inside `dt-apple`, every Apple binding dependency sits under the macOS
+//! 2. Inside `lightamer-apple`, every Apple binding dependency sits under the macOS
 //!    target table.
 //! 3. Rust sources, build scripts, and tests under `crates/` and `apps/`
-//!    (except `crates/dt-apple/`) name no Apple token ([`NEEDLES`]).
+//!    (except `crates/lightamer-apple/`) name no Apple token ([`NEEDLES`]).
 //! 4. Unreadable `cargo metadata` output fails the check, never passes it.
 //!
 //! The rule engine works on a small model ([`Crate`]/[`Dep`]) built by
@@ -71,7 +71,7 @@ const NEEDLE_CFG: &str = concat!("cfg", "(target_os");
 /// Target-OS `cfg!` macro token.
 const NEEDLE_CFG_MACRO: &str = concat!("cfg!", "(target_os");
 
-/// Rule-3 tokens: none may appear outside `crates/dt-apple/`.
+/// Rule-3 tokens: none may appear outside `crates/lightamer-apple/`.
 pub const NEEDLES: &[&str] = &[
     NEEDLE_BRIDGE,
     NEEDLE_CF,
@@ -83,7 +83,7 @@ pub const NEEDLES: &[&str] = &[
 /// Source roots scanned by rule 3, relative to the workspace root.
 const SCAN_ROOTS: &[&str] = &["crates", "apps"];
 /// Subtree exempt from rule 3, relative to the workspace root.
-const SKIP_PREFIX: &str = "crates/dt-apple";
+const SKIP_PREFIX: &str = "crates/lightamer-apple";
 
 /// One direct dependency edge: manifest name plus optional target gate.
 #[derive(Debug, Clone)]
@@ -106,16 +106,16 @@ pub struct Crate {
 /// One Apple-boundary violation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Violation {
-    /// Rule 1: an Apple binding outside `dt-apple`.
+    /// Rule 1: an Apple binding outside `lightamer-apple`.
     AppleDepOutsideApple {
         /// Offending crate.
         krate: String,
         /// Apple binding dependency.
         dep: String,
     },
-    /// Rule 2: an Apple binding in `dt-apple` outside the macOS target table.
+    /// Rule 2: an Apple binding in `lightamer-apple` outside the macOS target table.
     AppleDepNotTargetGated {
-        /// Offending crate (always `dt-apple`).
+        /// Offending crate (always `lightamer-apple`).
         krate: String,
         /// Apple binding dependency.
         dep: String,
@@ -139,7 +139,7 @@ impl std::fmt::Display for Violation {
             Violation::AppleDepOutsideApple { krate, dep } => {
                 write!(
                     f,
-                    "{krate}: direct dependency `{dep}` is an Apple binding; only dt-apple may depend on it"
+                    "{krate}: direct dependency `{dep}` is an Apple binding; only lightamer-apple may depend on it"
                 )
             }
             Violation::AppleDepNotTargetGated { krate, dep, target } => {
@@ -164,7 +164,7 @@ pub fn check(crates: &[Crate]) -> Vec<Violation> {
             if !is_apple_binding(&d.name) {
                 continue;
             }
-            if c.name == "dt-apple" {
+            if c.name == "lightamer-apple" {
                 let gated = d.target.as_deref().is_some_and(is_macos_target);
                 if !gated {
                     out.push(Violation::AppleDepNotTargetGated {
@@ -618,9 +618,12 @@ mod tests {
     fn rule1_flags_apple_dep_outside_apple() {
         let metal = apple_dep_name();
         let graphs = [
-            vec![one_crate("dt-engine", &[(metal.as_str(), None)])],
-            vec![one_crate("dt-cli", &[(metal.as_str(), Some("cfg(unix)"))])],
-            vec![one_crate("dt-history", &[("metal", None)])],
+            vec![one_crate("lightamer-engine", &[(metal.as_str(), None)])],
+            vec![one_crate(
+                "lightamer-cli",
+                &[(metal.as_str(), Some("cfg(unix)"))],
+            )],
+            vec![one_crate("lightamer-history", &[("metal", None)])],
         ];
         for graph in &graphs {
             let found = check(graph);
@@ -642,8 +645,11 @@ mod tests {
     #[test]
     fn rule1_ignores_plain_deps() {
         let graph = vec![
-            one_crate("dt-engine", &[("serde", None), ("dt-apple", None)]),
-            one_crate("dt-cli", &[("png", None)]),
+            one_crate(
+                "lightamer-engine",
+                &[("serde", None), ("lightamer-apple", None)],
+            ),
+            one_crate("lightamer-cli", &[("png", None)]),
         ];
         assert_eq!(check(&graph), Vec::new());
     }
@@ -653,24 +659,24 @@ mod tests {
         let metal = apple_dep_name();
         let gate = macos_gate();
         let ok = vec![one_crate(
-            "dt-apple",
+            "lightamer-apple",
             &[(metal.as_str(), Some(gate.as_str()))],
         )];
         assert!(check(&ok).is_empty(), "{:?}", check(&ok));
         for target in [None, Some("cfg(unix)"), Some("cfg(windows)")] {
-            let graph = vec![one_crate("dt-apple", &[(metal.as_str(), target)])];
+            let graph = vec![one_crate("lightamer-apple", &[(metal.as_str(), target)])];
             let found = check(&graph);
             assert_eq!(found.len(), 1, "{found:?}");
             assert!(
                 matches!(
                     &found[0],
                     Violation::AppleDepNotTargetGated { krate, dep, .. }
-                    if krate == "dt-apple" && dep == &metal
+                    if krate == "lightamer-apple" && dep == &metal
                 ),
                 "{found:?}"
             );
             let message = found[0].to_string();
-            assert!(message.contains("dt-apple"), "{message}");
+            assert!(message.contains("lightamer-apple"), "{message}");
             assert!(message.contains(&metal), "{message}");
         }
     }
@@ -681,7 +687,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         let victim = root.join("crates/victim/src/lib.rs");
         let tool = root.join("apps/tool/main.rs");
-        let skipped = root.join("crates/dt-apple/src/macos.rs");
+        let skipped = root.join("crates/lightamer-apple/src/macos.rs");
         let notes = root.join("crates/victim/NOTES.md");
         for path in [&victim, &tool, &skipped, &notes] {
             std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
@@ -739,11 +745,14 @@ mod tests {
         let gate = macos_gate();
         let gate_json = gate.replace('"', "\\\"");
         let text = format!(
-            "{{\"packages\":[{{\"name\":\"dt-apple\",\"dependencies\":[{{\"name\":\"{metal}\",\"kind\":null,\"target\":\"{gate_json}\"}},{{\"name\":\"serde\",\"kind\":null,\"target\":null}}]}},{{\"name\":\"dt-cli\",\"dependencies\":[]}}]}}"
+            "{{\"packages\":[{{\"name\":\"lightamer-apple\",\"dependencies\":[{{\"name\":\"{metal}\",\"kind\":null,\"target\":\"{gate_json}\"}},{{\"name\":\"serde\",\"kind\":null,\"target\":null}}]}},{{\"name\":\"lightamer-cli\",\"dependencies\":[]}}]}}"
         );
         let crates = from_metadata(&text).expect("parse");
         assert_eq!(crates.len(), 2);
-        let apple = crates.iter().find(|c| c.name == "dt-apple").expect("apple");
+        let apple = crates
+            .iter()
+            .find(|c| c.name == "lightamer-apple")
+            .expect("apple");
         assert_eq!(apple.deps.len(), 2);
         assert_eq!(apple.deps[0].name, metal);
         assert_eq!(apple.deps[0].target.as_deref(), Some(gate.as_str()));
@@ -760,7 +769,7 @@ mod tests {
         assert!(is_apple_binding(&format!("{OBJC2_PREFIX}ness")));
         assert!(!is_apple_binding("serde"));
         assert!(!is_apple_binding("png"));
-        assert!(!is_apple_binding("dt-apple"));
+        assert!(!is_apple_binding("lightamer-apple"));
         // "objc" without the trailing digit is its own legacy crate, still listed.
         assert!(is_apple_binding("objc"));
         assert!(!is_apple_binding("obj"));

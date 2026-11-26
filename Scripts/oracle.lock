@@ -1,5 +1,5 @@
 # oracle.lock — 官方对照包的钉点（A5）。
-# 格式：key=value，`#` 注释；dt-cli fetch/render/selftest 读它。
+# 格式：key=value，`#` 注释；lightamer-cli fetch/render/selftest 读它。
 # 数值来源：decode-oracle-evidence/SOURCES.md（spike 实测），本波 fetch 时重验。
 version=5.6.2
 url=https://github.com/darktable-org/darktable/releases/download/release-5.6.2/darktable-5.6.2-arm64.dmg

@@ -32,7 +32,7 @@ pub(crate) fn run(upstream: &Path) -> Result<(), String> {
 
 /// Locates the one order fixture (exactly one may exist).
 fn find_fixture(root: &Path) -> Result<PathBuf, String> {
-    let dir = root.join("crates/dt-registry/fixtures");
+    let dir = root.join("crates/lightamer-registry/fixtures");
     let entries = fs::read_dir(&dir).map_err(|err| iop_order::io_err("read", &dir, &err))?;
     let mut found = Vec::new();
     for entry in entries.flatten() {
@@ -81,7 +81,7 @@ fn compare_rows(expected: &[FixtureEntry], fixture: &[FixtureEntry]) -> Result<(
 fn check_stubs(root: &Path, fixture: &[FixtureEntry]) -> Result<(), String> {
     let mut stubs: Vec<(String, PathBuf)> = Vec::new();
     for domain in DOMAINS {
-        let modules = root.join(format!("crates/dt-iop-{domain}/src/modules"));
+        let modules = root.join(format!("crates/lightamer-iop-{domain}/src/modules"));
         let entries =
             fs::read_dir(&modules).map_err(|err| iop_order::io_err("read", &modules, &err))?;
         for entry in entries.flatten() {

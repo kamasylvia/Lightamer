@@ -282,7 +282,7 @@ pub(crate) fn render_fixture(rows: &[FixtureEntry]) -> String {
 
 /// Parses our own fixture back (strict shape: one object per line).
 ///
-/// Twin of the parser in the `dt-registry` tests; both must accept what
+/// Twin of the parser in the `lightamer-registry` tests; both must accept what
 /// `gen-iop-stubs` writes (tests cannot import this binary crate).
 pub(crate) fn parse_fixture_json(text: &str) -> Result<Vec<FixtureEntry>, String> {
     let mut rows = Vec::new();

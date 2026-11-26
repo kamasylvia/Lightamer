@@ -1,0 +1,20 @@
+[package]
+name = "lightamer-registry"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+lightamer-iop-traits = { path = "../lightamer-iop-traits" }
+lightamer-iop-raw = { path = "../lightamer-iop-raw" }
+lightamer-iop-geom = { path = "../lightamer-iop-geom" }
+lightamer-iop-color = { path = "../lightamer-iop-color" }
+lightamer-iop-display = { path = "../lightamer-iop-display" }
+
+[dev-dependencies]
+lightamer-testkit = { path = "../lightamer-testkit" }
+
+[lints]
+workspace = true

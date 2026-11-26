@@ -7,7 +7,7 @@
 - `expected-g1-exposure.xmp`：曝光 +1EV 单条历史（逐字节拷自 spike 探针
   `decode-oracle-evidence/g1m-exposure.xmp`，5.6.2 实渲验证过）。
 - `expected-g2-exposure-flip.xmp`：曝光 +1EV + 水平翻转两条（同上拷自 `g2m`）。
-- 本说明：两模块的参数布局。`dt-cli` 的 `emit_xmp` 单元测试断言输出与上二者逐字节相同。
+- 本说明：两模块的参数布局。`lightamer-cli` 的 `emit_xmp` 单元测试断言输出与上二者逐字节相同。
 
 ## XMP 规则（spike 实证）
 
@@ -46,7 +46,7 @@
 
 ## 加新模块（以后每移植一波）
 
-在 `apps/dt-cli/src/xmp.rs` 给该模块加一个 `DtParamsEncoder`（strongly typed
+在 `apps/lightamer-cli/src/xmp.rs` 给该模块加一个 `DtParamsEncoder`（strongly typed
 参数 → darktable LE 字节），`operation()`/`modversion()` 按**官方包版本**
 （现 5.6.2，见 `Scripts/oracle.lock` 与 `docs/ORACLE-BASELINE.md` 结论）写，
 并在本目录追加布局表 + golden XMP。

@@ -441,9 +441,10 @@ LightCraft derivation (wave A3R, 2026-11-26):
     crates/xtask/src/layers.rs <- xtask/src/layers.rs (reworked: T-F9
       table/chains/UI list, full package names, added Dangling rule with
       PLANNED carve-out, dependency-free JSON reader in place of serde_json).
-    crates/dt-testkit/src/lib.rs <- crates/testkit/src/lib.rs
+    crates/lightamer-testkit/src/lib.rs <- crates/testkit/src/lib.rs
       (near-verbatim rename; `Need::Fonts` doc generalized, tests avoid
       unwrap/expect per the crate-level deny).
+  文件于 2026-11-26 由 `dt-` 前缀改名为 `lightamer-` 前缀。
   Each derived file carries a `Derived from lightcraft` header naming the
   upstream path and commit. MIT and Apache-2.0 both permit this use; this
   attribution preserves the notice. These files are GPL-3.0-or-later as
@@ -454,15 +455,16 @@ LightCraft derivation (wave A4b, 2026-11-26):
   Same upstream and license as the A3R entry above
   (https://github.com/storytold/lightcraft, commit 0da998f2; MIT or
   Apache-2.0 at your option). Derived files:
-    crates/dt-history/src/settings.rs <- crates/develop/src/settings.rs
+    crates/lightamer-history/src/settings.rs <- crates/develop/src/settings.rs
       (`ProcessVersion` lenient rules, reworked for untyped per-module maps
       and our own V1 process line) and crates/develop/src/lib.rs (`hash64`,
       near-verbatim FNV-1a over canonical JSON).
-    crates/dt-history/src/history.rs <- crates/catalog/src/model.rs
+    crates/lightamer-history/src/history.rs <- crates/catalog/src/model.rs
       (`HistoryStep` label-plus-snapshot shape),
       crates/catalog/src/lib.rs (`HISTORY_LIMIT` 200, push drops the redo
       tail then the oldest), and crates/engine/src/lib.rs (drag-merge
       begin/end/cancel; reworked onto the stack with an explicit cursor).
+  文件于 2026-11-26 由 `dt-` 前缀改名为 `lightamer-` 前缀。
   Each derived file carries a `Derived from lightcraft` header naming the
   upstream paths and commit. These files are GPL-3.0-or-later as part of
   Lightamer.
@@ -472,20 +474,21 @@ LightCraft derivation (wave A7a, 2026-11-26):
   Same upstream and license as the A3R entry above
   (https://github.com/storytold/lightcraft, commit 0da998f2; MIT or
   Apache-2.0 at your option). Derived files:
-    crates/dt-engine/src/command.rs <- crates/engine/src/cmd/mod.rs
+    crates/lightamer-engine/src/command.rs <- crates/engine/src/cmd/mod.rs
       (command declaration/lookup/dispatch skeleton; reworked: menus,
       shortcut, and journal fields dropped, a machine-readable parameter
       schema added, enablement takes the engine, runs receive an event
       collector).
-    crates/dt-engine/src/engine.rs <- crates/engine/src/lib.rs
+    crates/lightamer-engine/src/engine.rs <- crates/engine/src/lib.rs
       (`Session::execute` single entry point, commit-records-one-step,
       undo/redo-as-commands, drag-merge interaction; reworked onto our own
       per-photo history model with atomic calls, a reentrancy guard, a draft
       session, and a state digest).
-    crates/dt-engine/src/jobs.rs <- crates/engine/src/activity.rs
+    crates/lightamer-engine/src/jobs.rs <- crates/engine/src/activity.rs
       (flag-based cancel checked between chunks, progress/completion events;
       reworked: the Activity registry replaced by one fixed-size FIFO pool
       with a single job table and results queue).
+  文件于 2026-11-26 由 `dt-` 前缀改名为 `lightamer-` 前缀。
   Each derived file carries a `Derived from lightcraft` header naming the
   upstream path and commit. These files are GPL-3.0-or-later as part of
   Lightamer.

@@ -69,7 +69,7 @@ pub(crate) fn run(upstream: &Path) -> Result<(), String> {
     let rows = iop_order::join_tables(&raw, &jpg)?;
     let head = iop_order::upstream_head(upstream)?;
     let short = head[..10].to_owned();
-    let fixtures = root.join("crates/dt-registry/fixtures");
+    let fixtures = root.join("crates/lightamer-registry/fixtures");
     fs::create_dir_all(&fixtures).map_err(|err| iop_order::io_err("create", &fixtures, &err))?;
     remove_stale_fixtures(&fixtures, &short)?;
     let fixture_path = fixtures.join(format!("dt-order-{short}.json"));
@@ -222,7 +222,7 @@ fn function_return(source: &str, name: &str) -> String {
 /// Writes one stub directory (rigid shape; `check-order-sync` parses it back).
 fn write_stub(root: &Path, domain: &str, row: &FixtureEntry, short: &str) -> Result<(), String> {
     let name = &row.name;
-    let dir = root.join(format!("crates/dt-iop-{domain}/src/modules/{name}"));
+    let dir = root.join(format!("crates/lightamer-iop-{domain}/src/modules/{name}"));
     fs::create_dir_all(&dir).map_err(|err| iop_order::io_err("create", &dir, &err))?;
     let raw_prio = &row.raw_prio_text;
     let raw_tie = row.raw_tie;
@@ -241,18 +241,18 @@ fn write_stub(root: &Path, domain: &str, row: &FixtureEntry, short: &str) -> Res
     let _ = writeln!(text);
     let _ = writeln!(
         text,
-        "/// Module descriptor stub. See `dt_iop_traits::ModuleDesc`."
+        "/// Module descriptor stub. See `lightamer_iop_traits::ModuleDesc`."
     );
     let _ = writeln!(
         text,
-        "pub static DESC: ::dt_iop_traits::ModuleDesc = ::dt_iop_traits::ModuleDesc::stub("
+        "pub static DESC: ::lightamer_iop_traits::ModuleDesc = ::lightamer_iop_traits::ModuleDesc::stub("
     );
     let _ = writeln!(text, "    \"{name}\",");
-    let _ = writeln!(text, "    ::dt_iop_traits::OrderKey {{");
+    let _ = writeln!(text, "    ::lightamer_iop_traits::OrderKey {{");
     let _ = writeln!(text, "        priority: {raw_prio},");
     let _ = writeln!(text, "        tie: {raw_tie},");
     let _ = writeln!(text, "    }},");
-    let _ = writeln!(text, "    ::dt_iop_traits::OrderKey {{");
+    let _ = writeln!(text, "    ::lightamer_iop_traits::OrderKey {{");
     let _ = writeln!(text, "        priority: {jpg_prio},");
     let _ = writeln!(text, "        tie: {jpg_tie},");
     let _ = writeln!(text, "    }},");
@@ -269,7 +269,9 @@ fn is_ours(text: &str) -> bool {
 
 /// Fails before writing anything when the target holds a foreign file.
 fn refuse_to_clobber(root: &Path, domain: &str, name: &str) -> Result<(), String> {
-    let path = root.join(format!("crates/dt-iop-{domain}/src/modules/{name}/mod.rs"));
+    let path = root.join(format!(
+        "crates/lightamer-iop-{domain}/src/modules/{name}/mod.rs"
+    ));
     if !path.is_file() {
         return Ok(());
     }
@@ -289,7 +291,7 @@ fn sweep_other_domains(root: &Path, domain: &str, name: &str) -> Result<(), Stri
         if *other == domain {
             continue;
         }
-        let dir = root.join(format!("crates/dt-iop-{other}/src/modules/{name}"));
+        let dir = root.join(format!("crates/lightamer-iop-{other}/src/modules/{name}"));
         let file = dir.join("mod.rs");
         if !file.is_file() {
             continue;
@@ -310,7 +312,7 @@ fn sweep_other_domains(root: &Path, domain: &str, name: &str) -> Result<(), Stri
 /// Removes our own stub dirs for modules gone from the tables.
 fn remove_stale_stubs(root: &Path, rows: &[FixtureEntry]) -> Result<(), String> {
     for domain in DOMAINS {
-        let modules = root.join(format!("crates/dt-iop-{domain}/src/modules"));
+        let modules = root.join(format!("crates/lightamer-iop-{domain}/src/modules"));
         let Ok(entries) = fs::read_dir(&modules) else {
             continue;
         };

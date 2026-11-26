@@ -8,10 +8,10 @@ use std::path::{Path, PathBuf};
 
 /// Crate roots that must not name any module.
 const SCAN_ROOTS: &[&str] = &[
-    "crates/dt-pipeline",
-    "crates/dt-engine",
-    "crates/dt-registry",
-    "crates/dt-history",
+    "crates/lightamer-pipeline",
+    "crates/lightamer-engine",
+    "crates/lightamer-registry",
+    "crates/lightamer-history",
 ];
 
 /// Fails when a fixture name appears as a string literal under a scan root.
@@ -43,7 +43,7 @@ pub(crate) fn run() -> Result<(), String> {
 
 /// Baseline module names from the one order fixture.
 fn fixture_names(root: &Path) -> Result<Vec<String>, String> {
-    let dir = root.join("crates/dt-registry/fixtures");
+    let dir = root.join("crates/lightamer-registry/fixtures");
     let entries = fs::read_dir(&dir).map_err(|err| iop_order::io_err("read", &dir, &err))?;
     let mut files = Vec::new();
     for entry in entries.flatten() {
@@ -122,10 +122,10 @@ mod tests {
         assert_eq!(
             SCAN_ROOTS,
             &[
-                "crates/dt-pipeline",
-                "crates/dt-engine",
-                "crates/dt-registry",
-                "crates/dt-history",
+                "crates/lightamer-pipeline",
+                "crates/lightamer-engine",
+                "crates/lightamer-registry",
+                "crates/lightamer-history",
             ]
         );
     }

@@ -9,7 +9,7 @@ rust-version = "1.100"
 license = "GPL-3.0-or-later"
 publish = false
 
-# A2 lint 起点（理由见 A2-REPORT）：unsafe 拒绝（B2 的 FFI 在 dt-decode 里
+# A2 lint 起点（理由见 A2-REPORT）：unsafe 拒绝（B2 的 FFI 在 lightamer-decode 里
 # 加局部 allow 并写理由）；pub 项文档 warn；clippy pedantic warn。
 [workspace.lints.rust]
 unsafe_code = "deny"

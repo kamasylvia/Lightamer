@@ -1,14 +1,14 @@
 #!/bin/bash
 # rust-budget.sh — 量六项并对照门；任一项越门 exit 1。
 # 用法：Scripts/rust-budget.sh [--cold]   --cold 时删 target 后全量量。
-# 六项：①核心冷构建（≤360s，仅 --cold，排除 dt-gpui）
+# 六项：①核心冷构建（≤360s，仅 --cold，排除 lightamer-gpui）
 #   ②界面冷构建（≤900s，仅 --cold；在核心冷构建之后量，共享依赖已暖，诚实标注）
-#   ③界面重新构建（≤180s：touch 一个 dt-gpui 源文件后的增量构建）
+#   ③界面重新构建（≤180s：touch 一个 lightamer-gpui 源文件后的增量构建）
 #   ④界面发行版二进制体积（≤80MB；--cold 时现编现量，平时有就量、无则 N/A）
-#   ⑤cargo check -p dt-iop-color（≤40s）
+#   ⑤cargo check -p lightamer-iop-color（≤40s）
 #   ⑥target/ 体积（≤20GB，超则触发清理）。
 # A7b 修订：gpui 进来后全工作区冷构建必超 360s，而这条门保的是核心各波的
-# 迭代速度，故核心与界面分门（核心门与命令不变，只排除 dt-gpui）。
+# 迭代速度，故核心与界面分门（核心门与命令不变，只排除 lightamer-gpui）。
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -41,8 +41,8 @@ if [ "$COLD" -eq 1 ]; then
     FAIL=1
   else
     T0=$(date +%s)
-    if (cd "$ROOT" && cargo build --workspace --exclude dt-gpui --locked -j6); then
-      gate "core cold-build (workspace minus dt-gpui)" "$(( $(date +%s) - T0 ))" 360 s
+    if (cd "$ROOT" && cargo build --workspace --exclude lightamer-gpui --locked -j6); then
+      gate "core cold-build (workspace minus lightamer-gpui)" "$(( $(date +%s) - T0 ))" 360 s
     else
       echo "rust-budget: core cold-build = BUILD-FAILED FAIL"
       FAIL=1
@@ -56,7 +56,7 @@ fi
 # 共享的已暖——行名如实标注，不冒充全冷）。
 if [ "$COLD" -eq 1 ]; then
   T0=$(date +%s)
-  if (cd "$ROOT" && cargo build -p dt-gpui --locked -j6); then
+  if (cd "$ROOT" && cargo build -p lightamer-gpui --locked -j6); then
     gate "ui cold-build (shared deps warm)" "$(( $(date +%s) - T0 ))" 900 s
   else
     echo "rust-budget: ui cold-build = BUILD-FAILED FAIL"
@@ -67,9 +67,9 @@ else
 fi
 
 # ③ 界面重新构建（touch 一个源文件后的增量时间；spike 实测 37–102s）。
-touch "$ROOT/crates/dt-gpui/src/lib.rs"
+touch "$ROOT/crates/lightamer-gpui/src/lib.rs"
 T0=$(date +%s)
-if (cd "$ROOT" && cargo build -p dt-gpui --locked -j6); then
+if (cd "$ROOT" && cargo build -p lightamer-gpui --locked -j6); then
   gate "ui rebuild (one file touched)" "$(( $(date +%s) - T0 ))" 180 s
 else
   echo "rust-budget: ui rebuild = BUILD-FAILED FAIL"
@@ -77,28 +77,28 @@ else
 fi
 
 # ④ 界面发行版二进制体积（--cold 现编现量；平时只量现成的）。
-UI_BIN="$ROOT/target/release/dt-gpui"
+UI_BIN="$ROOT/target/release/lightamer-gpui"
 if [ "$COLD" -eq 1 ]; then
-  if (cd "$ROOT" && cargo build -p dt-gpui --release --locked -j6); then
+  if (cd "$ROOT" && cargo build -p lightamer-gpui --release --locked -j6); then
     BYTES=$(stat -f%z "$UI_BIN")
-    gate "release dt-gpui bytes" "$BYTES" 83886080 B
+    gate "release lightamer-gpui bytes" "$BYTES" 83886080 B
   else
-    echo "rust-budget: release dt-gpui = BUILD-FAILED FAIL"
+    echo "rust-budget: release lightamer-gpui = BUILD-FAILED FAIL"
     FAIL=1
   fi
 elif [ -f "$UI_BIN" ]; then
   BYTES=$(stat -f%z "$UI_BIN")
-  gate "release dt-gpui bytes" "$BYTES" 83886080 B
+  gate "release lightamer-gpui bytes" "$BYTES" 83886080 B
 else
-  echo "rust-budget: release dt-gpui = N/A (no release binary; pass --cold to build) PASS"
+  echo "rust-budget: release lightamer-gpui = N/A (no release binary; pass --cold to build) PASS"
 fi
 
 # ⑤ 增量检查
 T0=$(date +%s)
-if (cd "$ROOT" && cargo check -p dt-iop-color --locked -j6); then
-  gate "check dt-iop-color" "$(( $(date +%s) - T0 ))" 40 s
+if (cd "$ROOT" && cargo check -p lightamer-iop-color --locked -j6); then
+  gate "check lightamer-iop-color" "$(( $(date +%s) - T0 ))" 40 s
 else
-  echo "rust-budget: check dt-iop-color = CHECK-FAILED FAIL"
+  echo "rust-budget: check lightamer-iop-color = CHECK-FAILED FAIL"
   FAIL=1
 fi
 
