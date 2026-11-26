@@ -33,3 +33,7 @@
 ## A-7 推送
 
 - 用户 2026-11-26 凌晨下令推送：`main` 已推到两个远端（`50a01c13`）。之后阶段 A 结束时推一次，阶段 B 每个检查点推一次。
+
+## A-8 阶段 A 的脚本文件名
+
+- 这个仓库里已有给 Swift 版用的 `Scripts/test-direct.sh` 等脚本。为了不和它们混，计划里写的 `Scripts/{guard,build,test,budget}.sh` 的实际文件名是 `Scripts/rust-{guard,build,test,budget}.sh`，另有一个总入口 `Scripts/rust-ci-lite.sh`。`oracle.sh` 和 `perf.sh` 的名字不变。
