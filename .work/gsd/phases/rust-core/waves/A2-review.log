@@ -1,0 +1,39 @@
+Working...
+PASS
+
+基线 `9e4d74b17b1488c02c6fc8d0bc80710f1abbe93f` 与任务书一致，HEAD 即基线。§4 逐条重跑结论：除执行方已诚实申报的许可证红灯（exit 1，同签名复现）外全绿；数字无造假，零越权改动。
+
+## 1. §4 验收命令重跑（逐条：命令 / 关键输出 / exit / 核对）
+
+1. `for s in rust-guard rust-build rust-test rust-budget rust-ci-lite; do bash -n Scripts/$s.sh && echo "$s: BASH-N-OK"; done` → 5 行全 `BASH-N-OK`，exit 0 ✓ 与报告一致。`command -v shellcheck` → `CONFIRMED-NO-SHELLCHECK` ✓（未跑 shellcheck 属实）。
+2. `time Scripts/rust-build.sh --cold` → `done in 15s (cold=1, jobs=6)`，real 0m15.464s ≤ 360s，exit 0 ✓。19 个 `Compiling` 行俱全。报告记 9s，差值系机器负载波动，门内余量巨大，非实质偏差。
+3. `Scripts/rust-test.sh` → `fmt OK` / `clippy OK` / `tests total passed=19`，exit 0 ✓ 与报告逐字一致（19 包各 1 个 `package_metadata_resolves`，0 failed）。
+4. `time cargo check -p dt-iop-color --locked -j6` → real 0m0.104s ≤ 40s，exit 0 ✓（报告 0.078s，同量级）。
+5. `Scripts/rust-budget.sh --cold` → cold-build 0s PASS / check 0s PASS / release dt-gpui N/A PASS / target 2MB (3052KB) / overall PASS，exit 0 ✓。注：cold-build 计时读 0s 但 19 个 `Compiling` 行俱全——复现了报告注记的计时采样异常同一签名（报告记 1s vs 8–10s 矛盾并复核取 10s），报告诚实登记在先；门本身 PASS。`du` 值 3052KB 与报告逐字节一致。
+6. `Scripts/rust-guard.sh`（首尾各跑一次）→ `GUARD PASS (heavy=0 free=73% swap=?M disk=?GB)`，exit 0 ✓（报告 free=74%，内存水位正常波动）。
+7. `Scripts/check-licenses.sh` → `allow=0 exception=0 fail=19 total=19`，4 条例外全 UNUSED，exit 1 ✓ 与执行方声称签名逐行一致，样例行 `FAIL dt-api 0.1.0: license 'GPL-3.0-or-later' not in allow list and no exception` 复现。根因核实：`grep -c GPL-3.0-or-later Scripts/licenses-allow.txt` = 0；清单有效条目 36 条（`grep -vE '^\s*(#|$)' | wc -l` = 36，与报告"36 条全是宽松许可"一致），确无自有包许可。只读验证，未修。
+8. `cargo xtask check-i18n` → `no key-table dir 'i18n' (i18n starts at B17); nothing to compare.`，exit 0 ✓ 与报告逐字一致。
+9. `cargo metadata --locked --no-deps` → packages 19，名表 = 18 个 `dt-*` + `xtask`，无 `dt-gpui` ✓；`grep -c '^\[\[package\]\]' Cargo.lock` = 19，`grep -E 'dt-gpui|source = '` 零命中 ✓。
+10. `./target/debug/dt-cli` → `dt-cli 0.1.0`，exit 0 ✓（报告顺手项，复现）。
+11. Swift 零改动三条：① `git status --porcelain | grep -vE '^\?\? .work/'` → 仅 `MM .gitignore`（基线后他方 staged 残留，见下）、`M A2-REPORT.md`（worktree §5 回填未提交）、`?? evidence/gui/paste-tiers.csv`（报告已声明非本波文件）——与报告一致，无新增；② `git diff --stat -- Scripts/machine-guard.sh Scripts/test-direct.sh` → 空 ✓；③ status 中 Swift 路径 grep → 零命中 ✓。另 `git show --name-only HEAD` 经同正则过滤 → 零命中 ✓（基线内亦无 Swift）。
+
+## 2. 基线提交内容
+
+`git show --stat HEAD` → `50 files changed, 918 insertions(+)`，文件清单与报告 §5 回填逐行一致（.cargo 1 + .gitignore + A2-REPORT + Cargo.lock + Cargo.toml + rust-*.sh 5 + crates/README + 17 lib×2 + dt-cli 2 + xtask 2 + toolchain 1 = 50）。`git diff --stat HEAD~1 HEAD -- Scripts/machine-guard.sh` → 空 ✓；基线名表含 `machine-guard.sh` 计数 0 ✓。无 Swift 路径 ✓，无越权文件。
+
+## 3. Cargo.toml 继承抽查（dt-core、dt-iop-color、xtask）
+
+三 crate `[package]` 五字段皆为 `version/edition/rust-version/license/publish` + `.workspace = true` ✓。根 `Cargo.toml [workspace.package]`：`version 0.1.0` / `edition 2024` / `rust-version 1.100` / `license GPL-3.0-or-later` / `publish false` ✓，与任务相符。
+
+## 4. 锁表与构建目录
+
+`Cargo.lock` 在库内（`git ls-files` 命中）✓，19 包 ✓，`source = ` 计数 0（零外部源）✓。`git check-ignore -v target` → `.gitignore:84:/target/` 命中 ✓；`git ls-files target` 为空（未入库）✓；`du -sk target/` = 3052KB ✓。HEAD 版 `.gitignore` 尾部已含 `/target/` + `**/*.rs.bk` 单块 ✓。
+
+## 旁注（非本波问题，只读未碰，供 orchestrator）
+
+- index 有一行 staged 的 `.gitignore` 重复块（把 A2 注释块又 append 一遍）；worktree 与 HEAD 一致、干净。系基线后他方 staging 残留，不在基线内。
+- worktree `A2-REPORT.md` §5 回填（hash + stat）准确但未提交；基线内该节为 TBD（报告自注"入库报告不可预写"），符合预期。§8 待本自审结论回填。
+- 重活全程串行（逐个跑，无并发构建），未用 caffeinate，未装软件，未碰 Swift 构建/测试与图形程序，未读照片库与凭据。
+
+跳过/未验项 + 风险：shellcheck（本机无，与执行方同口径未验）；`rust-guard --wait` 长轮询分支、`rust-test` 失败计数分支（无失败样本）沿用报告 §7 未验项，本 lane 未扩验；风险无——本波为零依赖骨架，重跑值与报告在门内一致。
+

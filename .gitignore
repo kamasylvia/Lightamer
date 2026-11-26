@@ -79,3 +79,7 @@ __pycache__/
 .work/gui-acceptance/
 .work/gsd/phases/*/evidence/
 .work/gsd/phases/cc-arw-investigation/data/*.npy
+
+# Rust workspace (A2): build tree never enters git.
+/target/
+**/*.rs.bk

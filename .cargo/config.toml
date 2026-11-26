@@ -1,0 +1,11 @@
+# 项目规定：机器一次只跑一个重活（见 AGENTS.md 机器级并发上限）。
+# Rust 并行度上限 6；脚本里同时显式传 -j6，本文件是兜底。
+[build]
+jobs = 6
+
+[alias]
+xtask = "run --package xtask --"
+c = "check --workspace --locked"
+t = "test --workspace --locked"
+l = "clippy --workspace --all-targets -- -D warnings"
+tree-deps = "tree --workspace --edges normal"
