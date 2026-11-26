@@ -1,0 +1,84 @@
+Working...
+# A6 Report — Apple Module Boundary（lane A6，omp）
+
+结论：边界、能力表、四条机检、链接门、文档全落地，§11 验收全绿。
+工作区 116 → 132 测试（+16），零失败。冷构建 17s（门 360s）。
+起始 HEAD `04c84b8d`（亲核一致）；提交 `bbd08a76`，零 push。
+
+## 1. `dt-apple` 的结构与后端选择
+
+四文件（`crates/dt-apple/src/`）：`lib.rs`（lint 根 + 重导出）、`capabilities.rs`（公开类型 + 选择点 + `OnceLock` 缓存）、`empty.rs`（空后端，全平台编译）、`macos.rs`（macOS 后端，`#[cfg(target_os = "macos")]` 模块）。
+
+- 对外接口各平台一致：`Backend`、`Capabilities`、`ImageFormat`、`VisionRequests`、`StandardSpaces`、`capabilities()`；只有标准库类型与本 crate 类型，无框架类型。
+- 全 crate 唯一选择点（`capabilities.rs`，两个完整 `cfg` 块）；私有 trait `BackendProbe`（`pub(crate)`，不导出）；其余源码零散 `target_os` cfg 为零（`mod macos` 门是模块级例外，另有一处常规 `#[cfg(test)]`）。
+- 绑定依赖只在 `[target.'cfg(target_os = "macos")'.dependencies]`（8 条，版本钉 spike 锁表：`objc2 =0.6.5` + 七个 `=0.3.2` 框架绑定），普通 `[dependencies]` 为空。
+- `unsafe` 只在 `macos.rs`：顶部 `#![allow(unsafe_code)]` + `#![deny(unsafe_op_in_unsafe_fn)]` + `#![deny(clippy::undocumented_unsafe_blocks)]`；三处 `unsafe` 块各带 `SAFETY` 说明。
+- Lint：根部拒下标/`unwrap`/`expect`/`panic!`/`todo!`/`unimplemented!`（A4b 规矩），测试放开前三条；两处注明理由的 allow（`struct_excessive_bools`、`dead_code`）。
+
+## 2. 能力表字段与本机值
+
+`dt_apple::capabilities()` 首调探一次、之后返回同一份（`ptr::eq` 单测钉死）。`target/debug/dt-cli capabilities`（Apple M4 / macOS 27.3）：
+
+```text
+backend=macos
+metal.device=Apple M4
+imageio.jpeg=true
+imageio.png=true
+imageio.tiff=true
+imageio.heic=true
+imageio.avif=true
+imageio.webp=false
+ciraw.available=true
+vision.face_rectangles=true
+vision.face_landmarks=true
+vision.rectangles=true
+vision.horizon=true
+vision.person_segmentation=true
+colorspace.srgb=true
+colorspace.display_p3=true
+```
+
+探法：Metal 建默认设备读名；ImageIO 问 `type_identifiers` 取六种 UTI 交集；`CIRAWFilter` 与 Vision 五类查运行时类表（无 panic 路径；CoreImage/Vision 各一链接钉防假阴性）；`with_name` 建 sRGB/Display P3。不解码、不读样张、不开窗口。`--no-default-features` 构建打印同样 16 键，`backend=empty`、`metal.device=none`、其余 false。
+
+## 3. 机检与链接门
+
+`cargo xtask check-apple-boundary`（`layers.rs` 同形，零依赖自研 JSON 解析）：① 名单依赖隔离（`APPLE_EXACT` + `OBJC2_PREFIX`）；② `dt-apple` 目标表；③ 源码扫描（5 token，报错带文件行号）；④ 元数据不可读则失败。检查器自宿主：被查 token 用 `concat!` 拼装，裸 `rg` 门干净。`Scripts/rust-apple-boundary.sh` 六步全绿（框架行 0、符号行 0、对照旧 pattern 0，仅链 `libSystem.B.dylib`）。
+
+## 4. 冷构建（`rust-budget.sh --cold`）
+
+`cold-build = 17s`（门 360）PASS；`check dt-iop-color = 0s`（门 40）PASS；release N/A；`target/ = 480MB`（门 20GB）。远低于门，无需绕行。
+
+## 5. 新增依赖与允许清单
+
+直接 8 + 传递 11（`block2/dispatch2/libc/objc2-encode` + 7 个 `0.3.2` 框架传递件），共 19 个（名，版本）全部已在审计表 §4 登记且逐字相同；许可证表达式全在允许清单，未动该文件。`check-licenses.sh`：`allow=69 exception=0 fail=0`，退出 0。审计表追加 §10；README 只改两行。
+
+## 6. 两次活体负测
+
+① `dt-history` 临时加 `#[cfg(target_os = "macos")]` 行 → 退出 1，`crates/dt-history/src/lib.rs:51: forbidden Apple token`，撤除干净。② `objc2-metal` 挪到普通 `[dependencies]` → 退出 1，`must sit under the macOS target table (found: plain [dependencies])`；挪位前后 `Cargo.lock` sha256 相同（`73545876…c18c9db`），撤除后回 OK。
+
+## 7. §11 验收
+
+`dt-apple` 构建零警告，4 单测 + 1 doctest 全过；双 feature `capabilities` 如 §2；边界脚本 `ALL GREEN`；负测见 §6；`xtask` 32 通过（本波 +9，四规则各 ≥1）；裸 `rg` 门无输出；`unsafe` 6 命中全在 `macos.rs`；三条旧检查全过；许可退出 0；工作区 132 通过 0 失败；`rust-ci-lite.sh` 含新检查且 `ALL GREEN`；模块桩/夹具差分空；`help` 含 A5 全子命令 + `capabilities`；`git show --name-only` 19 路径全在允许清单。`fmt --check` 干净，workspace clippy `-D warnings` 绿，守卫构建前通过（`free=72%`），`-j6`，零 push。
+
+## 8. 提交
+
+```text
+commit bbd08a76 feat(rust-core): Apple module boundary with capability table
+refs #32 · 19 files changed, 2143 insertions(+), 13 deletions(-)
+A6-REPORT.md | 206 +++ · A6-review.log | 59 ++ · Cargo.lock | 235 +++
+rust-apple-boundary.sh | 78 +++ · rust-ci-lite.sh | 1 +
+dt-cli/Cargo.toml | 7 + · capabilities.rs | 191 +++ · lib.rs | 1 + · main.rs | 15 +-
+README.md | 4 +- · dt-apple/Cargo.toml | 13 + · capabilities.rs | 190 +++
+empty.rs | 24 + · lib.rs | 41 +- · macos.rs | 109 +++
+apple_boundary.rs | 809 +++++ · xtask/main.rs | 10 +-
+APPLE-BOUNDARY.md | 144 +++ · LICENSE-AUDIT.md | 19 +
+```
+
+## 9. 未做 / 未验
+
+未做：无（10 节全做完）。未验：非 macOS 真编译（本机无其它目标且按纪律不装；替代证据：linux 目标树单行 + 空后端全平台编译且被单测执行过）。真验命令：`rustup target add x86_64-unknown-linux-gnu && cargo check -p dt-apple --target x86_64-unknown-linux-gnu --locked`。
+
+## 10. 修订记录
+
+自审独立实例：`PASS / 0 error + 1 minor`（`A6-review.log`，重跑 §11 全项 + PLAN §2.7 核对 + 版本逐条核）。回注 M1：§1 措辞一词。无代码改动。
+

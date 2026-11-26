@@ -1,0 +1,62 @@
+Working...
+DONE / 13 处已改 + 0 处没改
+
+| 评审编号 | 位置 | 改成了什么 |
+|---|---|---|
+| E1/T4 | PLAN-B.md B6 卡（§3，约 261–270 行） | 目标/范围/输入/产出/验收/风险/草案重写：阈值走引擎会话级内存状态（启动默认值、切图保持、不进历史栈、不落盘）；验收加「重开应用回默认值」已知行为与 `develop.set` 改 overexposed/finalscale 报参数错误；风险改判据为描述里的 `IOP_FLAGS_NO_HISTORY_STACK` 位（overexposed、rawoverexposed、finalscale），B6 lane 动手前先核 A3 描述；产出写明管线照 `overexposed.c:406` 全管线 + 界面挂载条件排除它；删 `_meta.display_aux`、`doc_level`、`跳过 commit`、`白名单` |
+| E1/T4 | PLAN-B.md B12′ 卡（范围/产出/验收/草案，约 340–348 行） | 范围加 `_meta.display_aux` JSON + 读写数据访问 + `session.verify` 校验可解析；验收加⑩（改阈值→关会话→重开还在）；草案验收条数改为十一条 |
+| E1/T4 | PLAN-B-TABLES.md T-B1（16 行 `_meta` 注释） | `display_aux` 注释「B6 显示辅助阈值」改为「显示辅助阈值（B6 行为与命令，B12′ 持久化）」；SQL 不动 |
+| E1/T4 | PLAN-B-TABLES.md T-B2（表头 + `display.set` 行 + 零新命令行） | 表头补入 1 条→2 条（加 `display.set`）；`favorite.remove` 后加 `display.set` 行，分给 B6，标塔台补入；零新命令行改为 B1–B5、B7–B11，单列 B6 登记 `display.set` 一条 |
+| E1/T4 | PLAN-B.md §5（B3–B11 行、B12 行） | B6 格加「内存态 + `display.set`，阈值持久化归 B12′」；B12′ 格加「显示辅助阈值持久化」 |
+| E1/T4 | PLAN-B.md §6 S1 | 持久化落点改 B12′ 卡 + T-B1 行，加 T4 修订注记（`display_aux` 字面只留 B12′ 卡、T-B1、`§7`） |
+| T5/m9 | PLAN-B.md §1.8（新增，126–134 行）+ B13′ 风险栏 | 新增「命令落库的次序」：库是真相三步走（先算内存态→库事务提交→换进内存），失败语义与被杀语义；B13′ 风险栏「失败回滚库事务」整句换成指向 §1.8 |
+| T6/m10 | PLAN-B.md §1.9（新增，136–142 行） | 新增「命令和作业的界线」：命令只做有界活，无界活（拷文件、扫文件夹、解码、渲染、编码、整包备份）走作业，产物回引擎线程才落盘；列 B12′/B15/B16 落点 |
+| T6/m10 | PLAN-B.md B12′/B15/B16 三卡 | 范围各加作业边界句（B12′：backup/restore 是作业，open 扫描保留是作业；B15：导入复制/sync 扫描/缩略图生成是作业；B16：导出是作业）；验收各加「命令先返回」一条（⑪/⑧/⑧，测试断言返回时作业未完成）；B15/B16 草案验收条数改为八条 |
+| m1 | PLAN-B.md B15 卡（范围/回退/估时/风险）+ §5 B15 行 + §6 Q1 + TABLES T-B3 B15 行 | 13→14：卡面四处（范围注「13 + 补入 `library.relink` 1」）、§5、§6 自审、T-B3（注「含补入 relink」）；T-B2 的 14 行不动 |
+| m2/m7 | TABLES T-B2 表头 | 「A7a 已登记的作业/交互命令」→「A7a 已登记的编辑、历史、作业、交互命令」；「ARCH §6/R2 点名」→「ARCHITECTURE.md §2 和 §9 的 R2 点名」 |
+| m3 | TABLES T-B5（表头 + 注记 + 导出/内存行） | 表头→「共 10 门：T11 五门 + A-10 三门 + 导出/内存两门」；加注「T11 批量粘贴 101 张门被 A-10 一万张门取代」；导出行补「B16 卡验收⑤」，内存行补「B18 卡验收⑤」 |
+| m4 | PLAN-B.md §0 性能表下 | 加首量波次与 A-10 原定（B15、B16、B20）偏离的一句理由 |
+| m5 | PLAN-B.md §0 合计行 + §2.4 冷构建行 + TABLES T-B4 | 「实际」→「计划」，出处→`ARCHITECTURE-TABLES.md` T-A7；「约 10–15 s」→「约 10 s（`waves/VERIFY.md` 的 A2 一节）」（两处） |
+| m6 | PLAN-B.md §2.3 | 「调 `#13′`」→「调优」 |
+| m8 | PLAN-B.md §1.2 步表行 | `commit` 描述补第一步：同事务先删游标之后的步（重做分支） |
+| m11 | TABLES T-B1（SQL 块后） | 加索引注记（智能相册列/`label`/`missing`/`albums.kind`/反向列无索引是有意的，等 B15 十万行定）；SQL 不动 |
+| m12 | TABLES T-B1 不变量②⑤ | ②→「游标的变更是和当前快照、处理版本号镜像写在同一条 `UPDATE` 里」；⑤→「处理版本号不是 1 的照片存值与快照一致」+「不依赖列默认值走代码检查」注记 |
+| 收尾 | PLAN-B.md §7 | 追加 T4（写明塔台初判错方向、核源码改回）、T5、T6；「以下三处」→「以下六处」 |
+| 附带 | PLAN-B.md B16/B17 风险栏 | 「白名单」→「允许清单」（两处；为满足「白名单零残留」自核） |
+
+裁决与证据对不上：无。塔台给的行号与暗表述（`overexposed.c:78` 标志、`rawoverexposed.c:75`、`overexposed.c:406` 全管线条件）本 lane 未复核源码（纪律禁运行 darktable，且仓库内无该源码可读），照裁决原文落字；若塔台要复核，以塔台已核为准。
+
+## 自己核（命令与输出）
+
+工作目录：`.work/gsd/phases/rust-core`。命令 1（改前 + 改后各跑一次，改前输出见本 lane 首条 bash 记录）：
+
+```
+$ grep -n '白名单' PLAN-B.md PLAN-B-TABLES.md || echo EMPTY-OK
+EMPTY-OK
+$ grep -n 'display_aux' PLAN-B.md PLAN-B-TABLES.md
+PLAN-B.md:340（B12′ 范围）/ :342（B12′ 产出）/ :552（§7 T4）；PLAN-B-TABLES.md:16（T-B1 _meta 行）
+→ 只在 B12′ 卡、T-B1、§7；B6 卡零命中 ✓
+$ sed -n '/#### B6 /,/#### B7 /p' PLAN-B.md | grep -n '_meta\|doc_level\|跳过 commit\|白名单' || echo EMPTY-OK
+EMPTY-OK
+$ sed -n '/#### B13′/,/#### B14 /p' PLAN-B.md | grep -n '失败回滚库事务' || echo EMPTY-OK
+EMPTY-OK
+$ sed -n '/#### B12′/,/#### B13′/p' PLAN-B.md | grep -c '作业'  → 2；含「⑪ 命令先返回」 ✓
+$ sed -n '/#### B15 /,/#### B16 /p' PLAN-B.md | grep -c '作业'  → 2；含「⑧ 命令先返回」 ✓
+$ sed -n '/#### B16 /,/#### B17 /p' PLAN-B.md | grep -c '作业'  → 3；含「⑧ 命令先返回」 ✓
+$ sed -n '/#### B12′/,/#### B13′/p' PLAN-B.md | grep -c 'display_aux'  → 2 ✓
+$ grep -n 'display.set' PLAN-B-TABLES.md
+107（表头补入 2 条之一）/ 132（`| display.set | B6 | …塔台补入…`）/ 152（零新命令例外行） ✓
+$ awk '/## T-B2/,/## T-B3/' PLAN-B-TABLES.md | grep -c '| B15 |'  → 14 ✓
+$ grep -n 'T-B5 性能门' PLAN-B-TABLES.md  → 「共 10 门：T11 五门 + A-10 三门 + 导出/内存两门」
+$ awk '/## T-B5/,/## T-B6/' PLAN-B-TABLES.md | grep '^| ' | grep -v '^| 门 ' | wc -l  → 10 ✓（逐行列出 10 行，见核验记录）
+$ grep -n '13 条' PLAN-B.md PLAN-B-TABLES.md || echo EMPTY-OK
+EMPTY-OK
+$ grep -n '^### §1\.[89] \|^- \*\*T[456] ' PLAN-B.md
+126:### §1.8 命令落库的次序 / 136:### §1.9 命令和作业的界线 / 552:T4 / 553:T5 / 554:T6 ✓
+$ git status --porcelain -- .work/gsd/phases/rust-core/
+?? PLAN-B-REVIEW.md / ?? PLAN-B-TABLES.md / ?? PLAN-B.md / ?? plan-b-fix-prompt.md / ?? plan-b-fix.log / ?? plan-b-fix.pid / ?? plan-b-prompt.md / ?? plan-b-review-* / ?? plan-b.log / ?? plan-b.pid / ?? waves/A6.log / ?? waves/A6.pid / ?? waves/A7a-prompt.md …
+→ 本目录全未跟踪；属本 lane 的只有 PLAN-B.md、PLAN-B-TABLES.md 的修改 + 新建本报告，其余 prompt/log/pid 均为塔台与他 lane 文件，未动 ✓
+```
+
+B15 卡 14 核对：`grep -n '14 条命令\|14 命令' PLAN-B.md` → 379（范围）、384（回退）、385（估时）、386（风险）、505（§5）、526（§6），与 T-B2 的 14 行一致 ✓。
+

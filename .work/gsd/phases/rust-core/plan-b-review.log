@@ -1,0 +1,18 @@
+Working...
+PASS / 1 error + 12 minor
+
+- E1：B6 卡面要求阈值存 `_meta.display_aux`，但该表 B12′ 才建，前向依赖，B6 按卡做不完。
+- m1：B15 卡面“三处 13 条命令”与 T-B2 的 14 行不一致（含补入的 `library.relink`）。
+- m2：T-B2 表头“作业/交互命令”漏了 `history.undo/redo` 的归类。
+- m3：T-B5 表头称 9 门实 10 行，T11 批量粘贴 101 张门被丢无注记，导出/内存两行出处未注。
+- m4：性能首量波（B13′/B15/B18）与 A-10 原定（B15/B16/B20）偏离，无注记。
+- m5：“阶段 A 实际 18 lane/45.5h”引错源（VERIFY 系引 T-A7 计划数），冷构建“10–15s”的 15s 无出处。
+- m6：§2.3“调 `#13′`”疑 typo。
+- m7：relink“ARCH §6/R2 点名”中 §6 未点名，实为 §2/R2。
+- m8：§1.2 commit 描述漏了 redo-tail 删除（A4b 先 truncate）。
+- m9：B13′ 风险栏“库先提交、失败回滚”写反（已提交事务无法回滚）。
+- m10：B12′ backup/restore 与 B15 导入/sync/缩略图生成未写作业边界，A7a 禁命令碰磁盘。
+- m11：智能相册查询列等无索引，建议 B15 bench 定夺。
+- m12：不变量⑤“写入恒显式”写不成纯行为测试，应改可断言形。
+
+没有核到的项：T-A1 引文未逐字对官方原文（只核编号与主题存在）；LightCraft `build_job` 语义细节；lcms2/lensfun/EXIF/JPEG/TIFF 具体 crate 选型（波内定）；三性能门与 §1.3 占用估算的可达性（无实测条件）；报告已落盘 `.work/gsd/phases/rust-core/PLAN-B-REVIEW.md`，计划本身未动，未构建未跑测试未动 git。

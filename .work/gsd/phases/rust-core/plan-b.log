@@ -1,0 +1,22 @@
+Working...
+交付。只新建两个文件，其它未动（`plan-b.log` 未碰；`plan-b-prompt.md/.pid`、A6/A7a 文件是塔台与其它 lane 的）。
+
+**产物**
+- `.work/gsd/phases/rust-core/PLAN-B.md`（520 行：§0 一页纸、§1 设计、§2 代价与选型、§3 二十张卡、§4 用户定事、§5 差异、§6 自审）
+- `.work/gsd/phases/rust-core/PLAN-B-TABLES.md`（231 行：T-B1 列定义、T-B2 命令分配、T-B3 差异明细、T-B4 选型比较、T-B5 性能门、T-B6 dt-apple 增量）
+
+**一页纸**
+- 会话包：`Capture/ Selects/ Output/ Trash/ <Name>.lmsessiondb Cache/Thumbs/ session.lock session.lock.owner`，无设置文件，无 XMP。
+- 表 7 组：`_meta`、`photos`（路径/EXIF 检索列/评分色标旗标/process 镜像/游标/Trash 原路径/失联）、`snapshots`（主键 = `hash64_decimal`，去重键即缓存键）、`history_steps`（步存引用，游标移动只一条 UPDATE）、`keywords` 系、`albums` 系（含智能规则）、`favorites`。
+- 合计 81 lane / 223 h（原 76/208；+5/+15：B12′/B13′/B16/B19/B20 各 +1、B15 +3、B14 −3），含自审 ≈268 h ≈34 日。
+- 三门：万张粘贴 B13′ 首量（headless 计 commit+事件）→B20 复量；暖切图 0.72 s B18→B20；缩略图 0.5 s B15 数据面→B20。
+- 依赖：`rusqlite 0.43.0`（MIT）+ `bundled` + `backup`，`default-features=false`；5 个必带传递依赖许可证全在允许清单内（已逐条实测）；冷构建影响没实测，B12′ 量。
+- B1–B11 无一张一字未改（至少改 crate 名/基线/验收口径），目标范围估时不变；B12′/B13′/B15/B19/B20 重写，B14 退回；T-A8 共 31 条逐条分配恰一波，另补 `library.relink`（T-A8 漏列）；dt-apple 增量只 B18 一处。
+
+**需要用户定的事（3 条，均有推荐）**
+1. `Output/` 是否进图库浏览：推荐不进（产物非照片；要进则 B15 +1 lane）。
+2. `Trash/` 是否只手动清空：推荐是；自动规则排 C 期。
+3. 引用式失联修法做到哪：推荐 B15 只做标记 + `relink` + `sync`，批量 UI 与卷感知排 C 期。
+T-A9 十项：#1→第 1 条、#6→第 2 条请用户定；#2 自有锁设计、#8/#9/#10 已有归宿无需定；#3/#4/#5/#7 被 A-15 消解。
+
+**自审改了什么（S1–S7）**：S1 B6 阈值改存 `_meta.display_aux`（原"直写 live 参数"无持久化语义）；S2 B12′⑥ 改全表行哈希（本波无快照）；S3 B12′ 对照改引 T-A1；S4 B12′ CLI 枚举 + 草稿保留 + 失联扫描作业化；S5 T-B1 补裁剪重编与 process 写入语义；S6 B17 伪条件改硬依赖；S7 B20② 明确 3 张全链 + T-A8 更正 31 条/20 行。自审六问其余三项（依赖序、三门、设置文件/XMP 回潮、每波停下）核过无问题。
