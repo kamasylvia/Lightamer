@@ -21,4 +21,13 @@ impl BackendProbe for EmptyBackend {
             standard_spaces: super::capabilities::StandardSpaces::default(),
         }
     }
+
+    fn attach_viewport(
+        &self,
+        _native_handle: usize,
+        _rect: &super::viewport::ViewportRect,
+        _sink: Option<super::viewport::ViewportInputSink>,
+    ) -> Result<Box<dyn super::viewport::ViewportBackend>, super::viewport::ViewportError> {
+        Err(super::viewport::ViewportError::Unsupported)
+    }
 }

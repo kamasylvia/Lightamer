@@ -28,7 +28,13 @@ mod capabilities;
 mod empty;
 #[cfg(target_os = "macos")]
 mod macos;
+mod viewport;
 
 pub use capabilities::{
     Backend, Capabilities, ImageFormat, StandardSpaces, VisionRequests, capabilities,
+};
+pub use viewport::{
+    FrameReport, ModifierState, NativePointerEvent, NativePointerKind, ViewportError, ViewportGeom,
+    ViewportHandle, ViewportInputSink, ViewportRect, attach_viewport, attach_viewport_with_input,
+    drawable_size,
 };

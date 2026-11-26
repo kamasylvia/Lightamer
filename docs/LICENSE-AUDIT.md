@@ -90,6 +90,7 @@
 | adler2 | 2.0.1 | V | 0BSD OR MIT OR Apache-2.0 | V:94 | https://github.com/oyvindln/adler2 | 纯 Rust 静态链接 | PD |
 | aes | 0.8.4 | V | MIT OR Apache-2.0 | V:100 | https://github.com/RustCrypto/block-ciphers | 纯 Rust 静态链接 | P |
 | ahash | 0.8.13 | V | MIT OR Apache-2.0 | V:112 | https://github.com/tkaitchuck/ahash | 纯 Rust 静态链接 | P |
+| ahash | 0.8.14 | L | MIT OR Apache-2.0 | L:112 | https://github.com/tkaitchuck/ahash | 纯 Rust 静态链接 | P |
 | aho-corasick | 1.1.5 | V | Unlicense OR MIT | V:127 | https://github.com/BurntSushi/aho-corasick | 纯 Rust 静态链接 | PD |
 | aligned | 0.4.3 | V | MIT OR Apache-2.0 | V:136 | https://github.com/rust-embedded-community/aligned | 纯 Rust 静态链接 | P |
 | aligned-vec | 0.6.4 | V | MIT | V:145 | https://github.com/sarah-ek/aligned-vec/ | 纯 Rust 静态链接 | P |
@@ -655,6 +656,7 @@
 | sha1_smol | 1.0.1 | V | BSD-3-Clause | V:6134 | https://github.com/mitsuhiko/sha1-smol | 纯 Rust 静态链接 | P |
 | sha2 | 0.10.9 | V | MIT OR Apache-2.0 | V:6140 | https://github.com/RustCrypto/hashes | 纯 Rust 静态链接 | P |
 | sha2 | 0.11.1 | V | MIT OR Apache-2.0 | V:6151 | https://github.com/RustCrypto/hashes | 纯 Rust 静态链接 | P |
+| sha2 | 0.11.2 | L | MIT OR Apache-2.0 | L:6382 | https://github.com/RustCrypto/hashes | 纯 Rust 静态链接 | P |
 | shellexpand | 3.1.2 | V | MIT/Apache-2.0 | V:6162 | https://gitlab.com/ijackson/rust-shellexpand | 纯 Rust 静态链接 | P |
 | shlex | 2.0.1 | AV | MIT OR Apache-2.0 | A:709 V:6171 | https://github.com/comex/rust-shlex | 纯 Rust 静态链接 | P |
 | signal-hook-registry | 1.4.8 | V | MIT OR Apache-2.0 | V:6177 | https://github.com/vorner/signal-hook | 纯 Rust 静态链接 | P |
@@ -915,7 +917,9 @@
 | zed-xim | 0.4.0-zed | V | MIT | V:8650 | https://github.com/Riey/xim-rs | 纯 Rust 静态链接 | P |
 | zeno | 0.3.3 | V | Apache-2.0 OR MIT | V:8664 | https://github.com/dfrg/zeno | 纯 Rust 静态链接 | P |
 | zerocopy | 0.8.65 | V | BSD-2-Clause OR Apache-2.0 OR MIT | V:8670 | https://github.com/google/zerocopy | 纯 Rust 静态链接 | P |
+| zerocopy | 0.8.66 | L | BSD-2-Clause OR Apache-2.0 OR MIT | L:8905 | https://github.com/google/zerocopy | 纯 Rust 静态链接 | P |
 | zerocopy-derive | 0.8.65 | V | BSD-2-Clause OR Apache-2.0 OR MIT | V:8679 | https://github.com/google/zerocopy | 纯 Rust 静态链接 | P |
+| zerocopy-derive | 0.8.66 | L | BSD-2-Clause OR Apache-2.0 OR MIT | L:8914 | https://github.com/google/zerocopy | 纯 Rust 静态链接 | P |
 | zerofrom | 0.1.8 | V | Unicode-3.0 | V:8690 | https://github.com/unicode-org/icu4x | 纯 Rust 静态链接 | U |
 | zerofrom-derive | 0.1.8 | V | Unicode-3.0 | V:8699 | https://github.com/unicode-org/icu4x | 纯 Rust 静态链接 | U |
 | zeroize | 1.9.2 | V | Apache-2.0 OR MIT | V:8711 | https://github.com/RustCrypto/utils | 纯 Rust 静态链接 | P |
@@ -1079,3 +1083,24 @@
   `serde_json 1.0.154` 见 A:687 行等；A4b 已采用，锁文件只增依赖边、无新增 crate），
   无需追加表行；`Scripts/check-licenses.sh` 实测退出 0，
   无新增 license 字符串（`MIT OR Apache-2.0` 在允许清单）。
+
+---
+
+## §12 A7b 新增依赖采用记录（2026-11-26，lane A7b，append-only）
+
+- `dt-gpui` 新增 3 个直接依赖（`cargo tree -p dt-gpui --depth 1` 实测）：
+  工作区内 `dt-apple`、`dt-engine`，外部 `gpui-kit =0.11.0`（`gpui-fast` 特性，
+  解析出 `gpui-fast 0.1.19` 一族，与 gpui-viewport spike 钉死的版本逐字相同）。
+- `dt-apple` 在 `[target.'cfg(target_os = "macos")'.dependencies]` 新增 2 个直接依赖：
+  `objc2-app-kit =0.3.2`、`objc2-quartz-core =0.3.2`（与既有七个框架绑定同 0.3.2 线；
+  传递引入 `objc2-cloud-kit 0.3.2`、`objc2-core-data 0.3.2`、`objc2-core-text 0.3.2`）。
+  spike 另用的 `metal 0.29` 与 `core-graphics-types 0.1.3` 本波未引入（渲染走既有的
+  `objc2-metal`，几何类型走既有的 `objc2-core-foundation`）。
+- 本仓锁共 848 包，其中第三方 819 个（`cargo metadata` 实测；检查总数此前为 69）；与 §4 表逐 `(名，版本)`
+  比对，仅 4 个未登记（全是版本漂移，名已在册）：`ahash 0.8.14`（spike 锁 0.8.13）、
+  `sha2 0.11.2`（在册 0.10.9/0.11.1）、`zerocopy 0.8.66` 与 `zerocopy-derive 0.8.66`
+  （在册 0.8.65）。上述 4 个已按表列格式追加表行（锁列记 `L`，证据列 `L:<行>` 指本仓
+  `Cargo.lock` 的 `[[package]]` 起始行；`L` 记法自本节起生效，不改 §4.1 既有行）。
+- 4 个新行许可证（`MIT OR Apache-2.0` / `BSD-2-Clause OR Apache-2.0 OR MIT`）逐条核过，
+  全部已在 `Scripts/licenses-allow.txt`；`Scripts/check-licenses.sh` 实测
+  `allow=847 exception=1 fail=0`（exception 是沿用的 E1 `self_cell`），退出 0。

@@ -1,9 +1,14 @@
 #!/bin/bash
-# rust-budget.sh — 量四项并对照 PLAN-TABLES.md T2 的门；任一项越门 exit 1。
-# 用法：Scripts/rust-budget.sh [--cold]   --cold 时含冷构建计时（删 target 后全量构建）。
-# 四项：①冷构建时间（≤360s，仅 --cold）②cargo check -p dt-iop-color（≤40s）
-#   ③UI release 二进制体积（≤80MB；A2 无此二进制，记 N/A 通过）
-#   ④target/ 体积（≤20GB，超则触发清理）。
+# rust-budget.sh — 量六项并对照门；任一项越门 exit 1。
+# 用法：Scripts/rust-budget.sh [--cold]   --cold 时删 target 后全量量。
+# 六项：①核心冷构建（≤360s，仅 --cold，排除 dt-gpui）
+#   ②界面冷构建（≤900s，仅 --cold；在核心冷构建之后量，共享依赖已暖，诚实标注）
+#   ③界面重新构建（≤180s：touch 一个 dt-gpui 源文件后的增量构建）
+#   ④界面发行版二进制体积（≤80MB；--cold 时现编现量，平时有就量、无则 N/A）
+#   ⑤cargo check -p dt-iop-color（≤40s）
+#   ⑥target/ 体积（≤20GB，超则触发清理）。
+# A7b 修订：gpui 进来后全工作区冷构建必超 360s，而这条门保的是核心各波的
+# 迭代速度，故核心与界面分门（核心门与命令不变，只排除 dt-gpui）。
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -27,29 +32,68 @@ gate() { # gate <name> <value> <limit> <unit>
   fi
 }
 
-# ① 冷构建时间（date +%s 起止戳；删后验 target/ 确已消失，否则判 FAIL，不量假数。
-# 2026-11-26 注：曾疑计时器读出 0–1s 异常值；后经 cargo 内置计时（Finished 0.25s）
-# + 19 Compiling 行 + 删除验证三方互证，证实计时诚实——暖机真值约 0.25s，
-# 全程观测 0.25s–15s（机器负载波动），门 360s 余量巨大。）
+# ① 核心冷构建（date +%s 起止戳；删后验 target/ 确已消失，否则判 FAIL。
+# A2 注：计时器经 cargo 内置计时 + Compiling 行 + 删除验证三方互证诚实。）
 if [ "$COLD" -eq 1 ]; then
   rm -rf "$ROOT/target"
   if [ -e "$ROOT/target" ]; then
-    echo "rust-budget: cold-build = TARGET-NOT-REMOVED FAIL"
+    echo "rust-budget: core cold-build = TARGET-NOT-REMOVED FAIL"
     FAIL=1
   else
     T0=$(date +%s)
-    if (cd "$ROOT" && cargo build --workspace --locked -j6); then
-      gate "cold-build" "$(( $(date +%s) - T0 ))" 360 s
+    if (cd "$ROOT" && cargo build --workspace --exclude dt-gpui --locked -j6); then
+      gate "core cold-build (workspace minus dt-gpui)" "$(( $(date +%s) - T0 ))" 360 s
     else
-      echo "rust-budget: cold-build = BUILD-FAILED FAIL"
+      echo "rust-budget: core cold-build = BUILD-FAILED FAIL"
       FAIL=1
     fi
   fi
 else
-  echo "rust-budget: cold-build = SKIP (pass --cold to measure)"
+  echo "rust-budget: core cold-build = SKIP (pass --cold to measure)"
 fi
 
-# ② 增量检查
+# ② 界面冷构建（仅 --cold；紧随核心冷构建，界面独有依赖是冷的，与核心
+# 共享的已暖——行名如实标注，不冒充全冷）。
+if [ "$COLD" -eq 1 ]; then
+  T0=$(date +%s)
+  if (cd "$ROOT" && cargo build -p dt-gpui --locked -j6); then
+    gate "ui cold-build (shared deps warm)" "$(( $(date +%s) - T0 ))" 900 s
+  else
+    echo "rust-budget: ui cold-build = BUILD-FAILED FAIL"
+    FAIL=1
+  fi
+else
+  echo "rust-budget: ui cold-build = SKIP (pass --cold to measure)"
+fi
+
+# ③ 界面重新构建（touch 一个源文件后的增量时间；spike 实测 37–102s）。
+touch "$ROOT/crates/dt-gpui/src/lib.rs"
+T0=$(date +%s)
+if (cd "$ROOT" && cargo build -p dt-gpui --locked -j6); then
+  gate "ui rebuild (one file touched)" "$(( $(date +%s) - T0 ))" 180 s
+else
+  echo "rust-budget: ui rebuild = BUILD-FAILED FAIL"
+  FAIL=1
+fi
+
+# ④ 界面发行版二进制体积（--cold 现编现量；平时只量现成的）。
+UI_BIN="$ROOT/target/release/dt-gpui"
+if [ "$COLD" -eq 1 ]; then
+  if (cd "$ROOT" && cargo build -p dt-gpui --release --locked -j6); then
+    BYTES=$(stat -f%z "$UI_BIN")
+    gate "release dt-gpui bytes" "$BYTES" 83886080 B
+  else
+    echo "rust-budget: release dt-gpui = BUILD-FAILED FAIL"
+    FAIL=1
+  fi
+elif [ -f "$UI_BIN" ]; then
+  BYTES=$(stat -f%z "$UI_BIN")
+  gate "release dt-gpui bytes" "$BYTES" 83886080 B
+else
+  echo "rust-budget: release dt-gpui = N/A (no release binary; pass --cold to build) PASS"
+fi
+
+# ⑤ 增量检查
 T0=$(date +%s)
 if (cd "$ROOT" && cargo check -p dt-iop-color --locked -j6); then
   gate "check dt-iop-color" "$(( $(date +%s) - T0 ))" 40 s
@@ -58,16 +102,7 @@ else
   FAIL=1
 fi
 
-# ③ UI release 二进制
-UI_BIN="$ROOT/target/release/dt-gpui"
-if [ -f "$UI_BIN" ]; then
-  BYTES=$(stat -f%z "$UI_BIN")
-  gate "release dt-gpui" "$BYTES" 83886080 B
-else
-  echo "rust-budget: release dt-gpui = N/A (no UI binary at A2) PASS"
-fi
-
-# ④ target/ 体积
+# ⑥ target/ 体积
 if [ -d "$ROOT/target" ]; then
   KB=$(du -sk "$ROOT/target" | awk '{print $1}')
 else

@@ -112,11 +112,10 @@
 绿（框架行 0、符号行 0）；两次活体负测（源码 token、目标表挪位）检查均
 非零报出且撤除后工作区干净；`cargo tree` 两目标输出符合预期。
 
-未验证：非 macOS 上真编译（本机无其它目标且不装）。验证命令：
-`cargo check -p dt-apple --target x86_64-unknown-linux-gnu --locked`
-（需先 `rustup target add x86_64-unknown-linux-gnu`）。替代证据：linux
-目标 `cargo tree` 单行（解析层零依赖）+ 空后端全平台编译（含 macOS 在内
-已被单测执行过）。
+已关闭（2026-11-26）：本机已装 `x86_64-unknown-linux-gnu` 目标（A-18），
+`cargo check -p dt-apple --target x86_64-unknown-linux-gnu --locked` 通过；
+A7b 起该命令接进 `Scripts/rust-apple-boundary.sh`（目标缺席则打印跳过），
+每波必查。替代证据（锁解析层零依赖 + 空后端全平台编译）仍然有效。
 
 ## 7. Spike 最小调用对照
 
@@ -141,4 +140,32 @@ image-io/vision）；spike 的 `block2`/`libc`/`cc`/`uniffi` 本波不用
 
 本规则管：我们自己写的代码，以及我们直接写进清单的依赖名。不管：界面
 框架（gpui 族）自带的平台代码——那是第三方 crate 内部实现，不在直接依赖
-名单里查，也不扫它的源码。界面侧的平台策略到 A7b 定。
+名单里查，也不扫它的源码。
+
+A7b 裁定（§7 遗留问题的答案）：规则的管辖止于我们自己的代码与直接依赖。
+框架内部的平台代码是它自己的事；从我们这边过去的只有一个整数（原生表面
+句柄），除此之外界面 crate 不知平台为何物。指针事件与图层句柄只在同一个
+进程、同一个地址空间里有效，不做跨进程传递，不做序列化。
+
+## 9. A7b 视口（`dt-apple` 内，`dt-gpui` 外）
+
+`dt-apple` 新增视口模块（A7b）：对外只有本 crate 类型（`ViewportRect` /
+`ViewportGeom` / `FrameReport` / `NativePointerEvent` / `ViewportError` /
+`ViewportHandle`）与标准库类型；macOS 后端在 `macos.rs` 内实现（沿用第 6
+条：`unsafe` 不出该文件，每处带 `SAFETY` 说明），空后端在 `empty.rs` 对同
+一接口诚实返回 `Unsupported`。
+
+- **接缝是一个整数**：`attach_viewport(native_handle: usize, rect)` 与
+  `attach_viewport_with_input(native_handle, rect, sink)`。`dt-gpui` 从框架
+  拿到整数，原样交过来；它自己的源码里不出现任何桥接 token（机检规则 3
+  与裸 `rg` 门双重覆盖）。
+- **后端选择仍是一处**：`BackendProbe` trait 多了一个方法，`selected_backend`
+  照旧是全 crate 唯一的 `cfg` 选择点；视口经它分发，不新增第二处选择。
+- **能力表不动**：视口有无由 `backend` 字段推导（`MacOs` 才试 attach，失败
+  则占位），不新增字段（§2 第 3 条：功能是否实现不进表）。
+- **新增依赖**：`objc2-app-kit =0.3.2`、`objc2-quartz-core =0.3.2`，macOS
+  目标表下（第 5 条照旧：普通表为空，非 macOS 解析出零第三方依赖）。
+  spike 另用的 `metal` 与 `core-graphics-types` 未引入：渲染走既有的
+  `objc2-metal`，几何类型走既有的 `objc2-core-foundation`。
+- **路径乙的子类视图**是后端的内部实现细节：对外只交付
+  `NativePointerEvent` 数据，不暴露视图类型。

@@ -1,0 +1,174 @@
+# A7b Report: gpui Window with the Owned Viewport, Input Attribution Measured
+
+> 结论头：`dt-gpui` 落盘（29 包/192 测试绿），视口缝为一整数，界面零 Apple 痕迹；
+> 甲乙双路径皆 22/22 到达，默认保持甲；V3 甲 485 乙 505 帧（spike 514），几何四数逐值一致。
+
+## 0. 起点
+
+- 起始 HEAD（亲核）：`6bbd5ee8 docs(rust-core): A7b brief finalised after the user's go`，与任务书一致。
+- 命令：`git log --oneline -5` + `git rev-parse HEAD`（2026-11-26）。
+
+## 1. 接缝：一个整数
+
+- gpui-fast 的 macOS 原生表面句柄是 `Box<dyn Any>` 里装的 `usize`
+  （`gpui-fast-macos-0.1.19/src/fast/composition.rs:1257` 实测源码行），即 `NSView*`。
+- `dt-gpui` 从 `platform_handle()` 拿出 `usize`，原样交给
+  `dt_apple::attach_viewport[_with_input](usize, ViewportRect)`；之后只用返回的
+  `ViewportHandle`（改矩形/画帧/读几何/拆掉）与纯数据类型。
+- `dt-gpui` 源码零 Apple 痕迹的证据：
+  `rg -n 'objc2|core_foundation|core_graphics|cfg\(target_os|NSView|CAMetalLayer' crates/dt-gpui/src`
+  无输出；`cargo xtask check-apple-boundary` 全绿（29 crates / 155 文件）；
+  另做活体负测（临时加一行 `cfg(target_os` 进 `dt-gpui`，检查点名文件行号后撤除）。
+- 规则裁定（`docs/APPLE-BOUNDARY.md` §8 已落字）：规则管我们自己的代码与直接依赖；
+  框架内部平台代码是它自己的事；句柄与指针事件只在同进程同地址空间有效。
+
+## 2. 视口实现（`dt-apple` 内）
+
+- 公共接口 `src/viewport.rs`：无 `cfg`、无 `unsafe`、纯标准库。
+- macOS 实现在 `src/macos.rs` 内（`unsafe` 不出该文件，每处带 `SAFETY`）：
+  沿用 spike 的层配置（`RGBA16Float` + EDR + 扩展线性 sRGB + 四档亮度测试图 +
+  逐帧扫描标记），渲染经既有 `objc2-metal`（未引入 `metal` crate），几何类型经
+  既有 `objc2-core-foundation`（未引入 `core-graphics-types`）。
+- 后端选择仍是一处：`BackendProbe` 加方法，`selected_backend()` 照旧唯一。
+- 空后端：`attach` 即报 `Unsupported`，接口全平台存在。
+- 新增依赖：`objc2-app-kit =0.3.2`、`objc2-quartz-core =0.3.2`（macOS 目标表）。
+
+## 3. 输入：两条路径
+
+- 路径甲（`on_input`，默认）：22/22 到达（20 moves + press + release），坐标
+  `x=150→625 step 25, y=400`，down/up 在 `(400,400)`，与合成值逐位一致（`app-path-a.log`）。
+  **默认保持甲。**
+- 路径乙（`dt-apple` 内 `NSView` 子类 + 全幅 subview + tracking area）：22/22 到达，
+  坐标 `x=149→624 step 25, y=399`（`app-path-b.log`）：相对甲路整体 `(-1,-1)`，
+  22 行逐行差全同。spike §1.4 的代码推导首次实测成立。
+- 1pt 差的归因（复审 E1 追问的结论）：不是乙路代码 bug，是窗位口径的轮间漂移——
+  上一轮（乙崩溃那轮）甲路自己就是 `149→624/399`，本轮甲路才是 `150→625/400`；
+  同一路跨轮差 1pt，说明偏移来自探针取窗帧原点与内容/画布原点之间的 ~1pt 系统差
+  （随窗口实际落位变化），与输入路径无关。拓扑在两路都精确（step 25 不变、
+  down/up 落在第 10 步 moves 点上）；门是计数门（≥19），不受 1pt 影响。
+- 两条路径的 `ViewportInput` 除上述整体平移外逐字段同构（hover 下 `button=None`，
+  press/release 为 `Some(0)`，kind/序号/修饰键一致）。
+- 乙路修过一个实测缺陷：非 scroll 事件上读 `scrollingDeltaX/Y` 必崩（合成 move 上 3 次复现，
+  二分到该调用；真 scroll 事件读写正常 `dy=-20.0`）。处置：deltas 只在 Scroll 类上读，
+  注释写在 `deliver` 内；探针输入段无 scroll 合成，该门不受影响。
+- `ViewportInput` 纯数据 + 纯函数转换，7 个不开窗口的单元测试覆盖四种事件/坐标/修饰键。
+
+## 4. 探针三门 ①②③（两路各一组；spike 对照见 §1.3/V3）
+
+| 门 | 甲路 | 乙路 | spike |
+|---|---|---|---|
+| ① 几何（canvas/view/layer/drawable÷scale） | `800×800` 四者一致，三项 PASS | 同左，三项 PASS | 四者一致（800pt/1600px） |
+| ② 输入（20 moves + down/up） | 22 行（moves 20） | 22 行（moves 20） | 未测（本波补） |
+| ③ V3（11s 面板 200ms 重画，视口变化帧 ≥450） | 485（panel 54） | 505（panel 53） | 514（panel 43，250ms tick） |
+| 自检（2s 内视口/标记变化帧 ≥5/≥1） | 76/76 | 83/83 | —（本波新立） |
+| 读回（frame 60 中行 8 采样） | `[0.5,0.5,1.0,1.0,2.0,2.0,4.0,4.0]` | 同左 | 同左（`get_bytes` 两路） |
+
+- 几何四数（甲乙同值）：`canvas=[0.0 0.0 800.0 800.0]`、`view=(0.0,0.0 800.0x800.0)`、
+  `layer=(800.0x800.0)`、`drawable=1600x1600 scale=2.00`，另 `float16=true edr=true device=Apple M4`。
+- 自检记录：探针先数到标记才算自己有效（`self-path-?.run`）；自检门写在脚本内，
+  不过则判探针坏（本波首轮即靠它抓到计数器按文件顺序取窗口的 bug，已修）。
+- V3 panel 计数 53/54（11s/0.2s=55 tick，漏 1-2 帧为 SCK 采样口径，与 spike 的 43/44 同构）。
+- 两路各 `APP quit t=100.0s` 自退，无残留进程（探针 step 3/4 机检）。
+
+## 5. 构建、测试、预算
+
+- 首次构建：`cargo build -p dt-gpui -j6`（守卫 `GUARD PASS (heavy=0 free=70%)`），
+  实测 3m48s（228.53s real），`/usr/bin/time -l` 最大 RSS 2044624896 B（≈1.9GB），零交换。
+- `cargo test --workspace --locked`：192 通过（180 + dt-apple 5 + dt-gpui 7），零失败，无窗口测试。
+- `cargo test -p dt-gpui`：7 通过；`cargo test -p dt-apple`：9 通过 + 1 doctest。
+- `cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings` 绿。
+- `cargo xtask layers` / `check-order-sync` / `check-no-iop-names` / `check-apple-boundary` 全绿。
+- `Scripts/rust-apple-boundary.sh`：7/7 绿（含新增第 7 步真编译）。
+- `Scripts/check-licenses.sh`：`allow=847 exception=1 fail=0`，退出 0。
+- 新依赖许可证汇总：本仓锁 848 包（第三方 819）；与 §4 表逐 `(名，版本)` 比对，
+  仅 4 个未登记（`ahash 0.8.14`、`sha2 0.11.2`、`zerocopy 0.8.66`、`zerocopy-derive 0.8.66`，
+  全是版本漂移），许可证 `MIT OR Apache-2.0` / `BSD-2-Clause OR Apache-2.0 OR MIT`
+  逐条核过在允许清单内，已追加表行 + §12 采用记录。
+- 预算四行（`Scripts/rust-budget.sh --cold`，退出 0）：
+  核心冷构建 73s（门 360）· 界面重建 2s（门 180）
+  · 界面冷构建 173s（门 900，共享依赖已暖，行名如实标注）
+  · 界面发行版 17786208 B ≈ 17.0MB（门 80MB）；另 ⑤check 13s（门 40）、⑥target 6863MB。
+
+## 6. 非 macOS 编译
+
+- `cargo check -p dt-apple --target x86_64-unknown-linux-gnu --locked`：通过，零警告。
+- `cargo check --workspace --exclude dt-gpui --all-targets --target x86_64-unknown-linux-gnu --locked`：
+  通过，零警告（我们全部 28 个 crate 在 Linux 目标上干净）。
+- `cargo check --workspace --all-targets --target x86_64-unknown-linux-gnu --locked`：
+  **未通过**，卡在第三方 `wayland-backend 0.3.17` 的构建脚本（见 §8 未验）。
+
+## 7. 第 8 节验收逐条（命令 + 输出摘要；全量输出见各证据/日志）
+
+- `cargo build -p dt-gpui --locked`：成功（首建 228.53s / RSS 峰 2044624896B；`--locked` 在锁更新后跑过）。
+- 探针甲路：`Scripts/rust-gui-viewport-probe.sh` 退出 0（末轮全绿），输出含①几何三项 PASS、
+  ② `input lines=22 moves=20`、③ `viewport_changed=485 panel_changed=54`。
+- 探针乙路：同脚本同轮，①三项 PASS、② `input lines=22 moves=20`、③ `viewport_changed=505 panel_changed=53`。
+- `cargo test -p dt-gpui --locked`：7 通过（press/move/release/scroll 转换、非指针 None、native 保真、kind 名）。
+- `cargo test -p dt-apple --locked`：9 通过（旧 4 + 视口 5：错误行/矩形换算/空后端×2/null 句柄/detach）+ 1 doctest。
+- `cargo xtask check-apple-boundary`：`OK: 29 crates, 155 rust files, no violations`；
+  `dt-gpui` 被查的证据 = 活体负测（临时 token 被点名 `crates/dt-gpui/src/lib.rs:432` 后撤除）。
+- `Scripts/rust-apple-boundary.sh`：7/7 绿，`ALL GREEN`。
+- `rg -n 'objc2|core_foundation|core_graphics|cfg\(target_os|NSView|CAMetalLayer' crates/dt-gpui/src`：无输出。
+- `cargo tree --locked -e normal --target x86_64-unknown-linux-gnu -p dt-apple --prefix none`：
+  仅 `dt-apple v0.1.0` 一行（边界脚本第 2 步机检）。
+- `cargo check --workspace --all-targets --target x86_64-unknown-linux-gnu --locked`：**未通过**
+  （见 §8；`wayland-backend` 第三方构建脚本需交叉 C 工具链）。替代证据：
+  `-p dt-apple` 过零警告；`--workspace --exclude dt-gpui` 过零警告。
+- 边界脚本已接 `cargo check -p dt-apple --target x86_64-unknown-linux-gnu --locked`（第 7 步；缺目标打印 SKIP）。
+- `rg -n 'unsafe' crates/dt-apple/src`：29 命中，全部在 `src/macos.rs`；新增每处带 `SAFETY`。
+- `cargo xtask layers`（29 crates 无违规）/ `check-order-sync` / `check-no-iop-names`：全绿。
+- `Scripts/check-licenses.sh`：`allow=847 exception=1 fail=0`，退出 0。
+- `cargo test --workspace --locked`：192 通过（180+12），零失败；无测试开窗口（纯函数/空后端）。
+- `Scripts/rust-budget.sh --cold`：退出 0，四行见 §5（73s/2s/173s/17786208B）。
+- `Scripts/rust-ci-lite.sh`：`ALL GREEN`（192 通过；非冷预算内重建 85s/发行版 17786208B）。
+- 探针跑完：无 `dt-gpui` 进程（step 3/4 机检），临时文件随 `trap` 清理（整窗原图留仓外，路径见探针尾行）。
+- 封存面：`git diff --stat 6bbd5ee8 HEAD -- 'crates/dt-iop-*/src/modules' crates/dt-registry/fixtures crates/dt-history crates/dt-engine crates/dt-registry`：无输出（已复核）。
+- `target/debug/dt-cli help`：`fetch/render/cmp/emit-xmp/selftest/capabilities/commands/run` 都在。
+- 证据：入库仅裁剪（`band-edge-*.png` 200×200、`panel-*.png` 500×300，已目检内容正确）；
+  原始输出（app 日志 2 份、逐帧 `.run` 6 份、`.out` 6 份）全入库；整窗原图 2 份留仓外。
+- `git show --name-only HEAD`：只含纪律允许路径（已复核，39 文件见 §9）。
+
+## 8. 未做 / 未验
+
+- 未验：全工作区 Linux 目标检查。根因：`wayland-backend 0.3.17` 的构建脚本在
+  `log` 特性下用 `cc` 编译 `log_shim.c`（含 `<stdio.h>`，需 Linux sysroot）；
+  该特性由 `gpui-fast-linux` 无条件开启（`cargo tree -e features -i` 实证），
+  非可选；本机无 `x86_64-linux-gnu-gcc` 且纪律禁装软件。去留：我们的代码侧已用
+  上述两条命令证明干净；全量通过需 Linux 本机或带 sysroot 的交叉工具链
+  （CI 在 Linux 上跑即过）。边界脚本第 7 步（`dt-apple` 真编译）已接进常检。
+- 未验：HDR 屏上效果。本机无 EDR 屏（沿用 spike 结论）；数值断言全过：
+  层 `float16=true edr=true` + 读回 `2.0/4.0` 两档超 1.0（甲乙双份证据在案）。
+
+## 9. commit 与 stat
+
+- 初交 `894fabd5d6b42a32bfdfb4f05c611433ddc4f30d`（38 files）。
+  复审修订（E1/M1–M4）+ `A7b-review.log` + 本节经 amend 并入同一提交（未 push，
+  故无 SHA 关联问题）。最终哈希以 `git rev-parse HEAD` 为准（文件集 39 个，
+  本节不写死哈希——写死就又差一次 amend；`feat(rust)` subject + `refs #32` / `refs #33` 不变）。
+- 路径清单 = 纪律允许集：`crates/dt-gpui/`（5 文件）、`crates/dt-apple/`（6 文件）、
+  `Cargo.lock`、`crates/README.md`、`docs/APPLE-BOUNDARY.md`、`docs/LICENSE-AUDIT.md`、
+  `Scripts/rust-gui-viewport-probe.sh`、`Scripts/rust-budget.sh`、`Scripts/rust-apple-boundary.sh`、
+  `waves/A7b-REPORT.md` + `waves/A7b-evidence/`（19 文件）+ `waves/A7b-review.log`。根 `Cargo.toml` 无改动
+  （成员 `crates/*` glob 自动纳入，无需加行）。
+- 同期他人改动（`.work/.../PLAN-B.md` 等）未纳入本次提交，原样留在工作区。
+
+## 10. 修订记录（复审回注）
+
+复审结论 `1 error + 4 minor`（`A7b-review.log`，独立 omp 实例，不开窗口），逐条处置如下，
+随本节 amend 进同一提交：
+
+- E1（报告坐标与证据矛盾）：属实。初版 §3 把乙路坐标（`149→624/399`）安到甲路上，
+  又称两路“逐位相同”，而证据是甲 `150→625/400`、乙 `149→624/399`（22 行逐行差 (1,1)）。
+  已重写 §3：甲乙各给真数，1pt 差归因写明（甲路自己跨轮也差 1pt：上一轮甲 `149/399`、
+  本轮甲 `150/400`——窗位口径轮间漂移，非乙路代码 bug；拓扑精确，计数门不受影响）。
+- M1（main.rs:6 注释含 `Metal`）：改 `native layer`，全仓 `rg -ni metal` 在 `dt-gpui/src` 零命中。
+- M2（§12 四个 `L:` 行号各差一）：`name` 行改 `[[package]]` 起始行
+  （112/6382/8905/8914，已用 `sed -n` 逐个复核）。
+- M3a（输入门 19 比证据 22 松）：不改——门值是任务书定的（“不少于 19 步”），证据超门是余量。
+- M3b（V3 用户监视只盖 9s）：监视循环改 `while kill -0 $FPID`，盖到 frameprobe 退出。
+- M3c（count_region 用 NR 索引）：改自增计数；用四份旧轨迹回归，新旧计数逐值一致
+  （76/76、83/83、485/54、505/53）。
+- M4（panel 裁剪左截字）：脚本裁剪窗 `1700→1620`，用保留的整窗原图重裁两份入库，
+  已目检文字完整（`tick 28 t=5.82s` / `slider A = 0.791` 全）。
+- 修订后复验（amend 前）：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings`、
+  `bash -n` 三脚本、`cargo test -p dt-apple -p dt-gpui` 全绿（命令见 §7 约定）。

@@ -1,0 +1,79 @@
+APP init path=b engine_commands=13
+APP surface id=CompositionSurfaceId(3v1) handle=0x7a390b3700
+APP tasks=2 input_path=b
+APP init ok
+APP window=1200x800 layout=left:flex viewport, right:400 panel
+GEOM frame=0 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+APP readback frame=60 samples=[0.5, 0.5, 1.0, 1.0, 2.0, 2.0, 4.0, 4.0]
+GEOM frame=120 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+INPUT seq=0 path=b kind=move x=149.0 y=399.0 button=none mods=---- ts=1871135.718 dx=0.0 dy=0.0
+INPUT seq=1 path=b kind=move x=174.0 y=399.0 button=none mods=---- ts=1871135.778 dx=0.0 dy=0.0
+GEOM frame=240 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+INPUT seq=2 path=b kind=move x=199.0 y=399.0 button=none mods=---- ts=1871135.845 dx=0.0 dy=0.0
+INPUT seq=3 path=b kind=move x=224.0 y=399.0 button=none mods=---- ts=1871135.901 dx=0.0 dy=0.0
+INPUT seq=4 path=b kind=move x=249.0 y=399.0 button=none mods=---- ts=1871135.966 dx=0.0 dy=0.0
+INPUT seq=5 path=b kind=move x=274.0 y=399.0 button=none mods=---- ts=1871136.030 dx=0.0 dy=0.0
+INPUT seq=6 path=b kind=move x=299.0 y=399.0 button=none mods=---- ts=1871136.091 dx=0.0 dy=0.0
+INPUT seq=7 path=b kind=move x=324.0 y=399.0 button=none mods=---- ts=1871136.164 dx=0.0 dy=0.0
+INPUT seq=8 path=b kind=move x=349.0 y=399.0 button=none mods=---- ts=1871136.226 dx=0.0 dy=0.0
+INPUT seq=9 path=b kind=move x=374.0 y=399.0 button=none mods=---- ts=1871136.293 dx=0.0 dy=0.0
+INPUT seq=10 path=b kind=move x=399.0 y=399.0 button=none mods=---- ts=1871136.358 dx=0.0 dy=0.0
+INPUT seq=11 path=b kind=move x=424.0 y=399.0 button=none mods=---- ts=1871136.425 dx=0.0 dy=0.0
+INPUT seq=12 path=b kind=move x=449.0 y=399.0 button=none mods=---- ts=1871136.491 dx=0.0 dy=0.0
+INPUT seq=13 path=b kind=move x=474.0 y=399.0 button=none mods=---- ts=1871136.551 dx=0.0 dy=0.0
+INPUT seq=14 path=b kind=move x=499.0 y=399.0 button=none mods=---- ts=1871136.616 dx=0.0 dy=0.0
+INPUT seq=15 path=b kind=move x=524.0 y=399.0 button=none mods=---- ts=1871136.687 dx=0.0 dy=0.0
+INPUT seq=16 path=b kind=move x=549.0 y=399.0 button=none mods=---- ts=1871136.752 dx=0.0 dy=0.0
+INPUT seq=17 path=b kind=move x=574.0 y=399.0 button=none mods=---- ts=1871136.818 dx=0.0 dy=0.0
+INPUT seq=18 path=b kind=move x=599.0 y=399.0 button=none mods=---- ts=1871136.881 dx=0.0 dy=0.0
+INPUT seq=19 path=b kind=move x=624.0 y=399.0 button=none mods=---- ts=1871136.946 dx=0.0 dy=0.0
+INPUT seq=20 path=b kind=press x=399.0 y=399.0 button=0 mods=---- ts=1871137.011 dx=0.0 dy=0.0
+INPUT seq=21 path=b kind=release x=399.0 y=399.0 button=0 mods=---- ts=1871137.134 dx=0.0 dy=0.0
+GEOM frame=360 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=480 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=600 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=720 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=840 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=960 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=1080 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=1200 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=1320 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=1440 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=1560 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=1680 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=1800 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=1920 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=2040 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=2160 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=2280 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=2400 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=2520 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=2640 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=2760 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=2880 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=3000 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=3120 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=3240 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=3360 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=3480 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=3600 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=3720 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=3840 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=3960 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=4080 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=4200 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=4320 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=4440 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=4560 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=4680 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=4800 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=4920 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=5040 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=5160 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=5280 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=5400 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=5520 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=5640 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=5760 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+GEOM frame=5880 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4
+APP quit t=100.0s

@@ -1,0 +1,107 @@
+1 error + 4 minor
+复审对象：提交 894fabd5d6b42a32bfdfb4f05c611433ddc4f30d（HEAD 已核）+ A7b-evidence/；工作区另有 PLAN-B*.md 修改与各目录未跟踪文件，按指令无视。复审人未开窗口、未合成输入、未运行探针脚本、未装软件、未读照片库与凭据；构建前 machine-guard 一次通过，并行度 cargo -j6。
+结论：构建/测试/边界/预算/许可证/ci-lite 全绿，几何/V3/自检/读回独立重数全对上；唯一 error 是输入坐标：甲乙 22 事件逐个差 (dx=1,dy=1)，报告 §3“逐位相同 / 甲 x=149→624 y=399”与证据矛盾，且 1pt 系统差未解释。4 个 minor 皆措辞/裁剪/行号/门限宽松，不破门。
+
+0. 基线
+- 命令：Scripts/machine-guard.sh；输出：GUARD PASS (heavy=0 free=73% swap=?M disk=?GB) EXIT:0；过。
+- 命令：git log --oneline -8 + git rev-parse HEAD；输出：HEAD=894fabd5 feat(rust): gpui window with owned viewport and measured input paths，上一个 6bbd5ee8 与任务书起点一致；过。
+- 命令：git status --porcelain | head；输出：M PLAN-B-TABLE.md / PLAN-B.md + 大量 ??（appkit-migration/gpui-fast-scout/gpui-viewport 等 lane 文件），均在核查域外，已无视；过（域确认）。
+- 命令：git show --stat HEAD（见 §1 末）；输出：38 files 14142+/358-，路径见下；过。
+
+1. 重跑验收（每条真跑）
+1.1 cargo build -p dt-gpui --locked
+- 命令：cargo build -p dt-gpui --locked --jobs 6；输出尾：Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.91s EXIT:0；过。
+1.2 cargo test -p dt-gpui / -p dt-apple
+- 命令：cargo test -p dt-gpui --locked --jobs 6；输出：lib 7 passed（press/move/release/scroll/非指针None/native保真/kind名）+ main 0 + doctest 0，EXIT:0；过，与报告 7 一致。
+- 命令：cargo test -p dt-apple --locked --jobs 6；输出：lib 9 passed（capabilities 4 + viewport 5）+ doctest 1 passed，EXIT:0；过，与报告 9+1 一致。
+1.3 四 xtask
+- 命令：cargo xtask check-apple-boundary；输出：OK: 29 crates, 155 rust files, no Apple-boundary violations. EXIT:0；过。
+- 命令：cargo xtask layers；输出：L1/L2/L3/L4/L5 列表 + OK: 29 crates, no layering violations. 其中 dt-gpui L5 deps dt-apple,dt-engine，dt-apple L3 无 deps；EXIT:0；过。
+- 命令：cargo xtask check-order-sync；输出：check-order-sync: OK (97 modules, fixture dt-order-679d594f5d.json) EXIT:0；过。
+- 命令：cargo xtask check-no-iop-names；输出：check-no-iop-names: OK (97 names, 4 roots clean) EXIT:0；过。
+- 注：误加 --jobs 6 会被 xtask 判 usage EXIT:2（cargo 参数透传所致），重跑不带该旗即绿；非问题。
+1.4 Scripts/rust-apple-boundary.sh（7 步）
+- 命令：Scripts/rust-apple-boundary.sh；输出头：STEP 1/7 xtask OK；STEP 2/7 dt-apple tree linux 单行 PASS；STEP 3/7 darwin tree objc2 族 present PASS；输出尾：STEP 4/7 no-default link（framework 0/apple符号0）PASS；STEP 5/7 empty 后端 capabilities 全 false PASS；STEP 6/7 default 后端 macOS 值（Apple M4/jpeg..vision全true）PASS；STEP 7/7 Checking dt-apple … Finished … PASS (dt-apple checks on x86_64-unknown-linux-gnu)；ALL GREEN EXIT:0；过。第 7 步是真 cargo check，无 SKIP 字样。
+1.5 rg dt-gpui 桥接 token
+- 命令：rg -n 'objc2|core_foundation|core_graphics|cfg\(target_os|NSView|CAMetalLayer' crates/dt-gpui/src；输出：无输出 EXIT:1（rg 无命中退出 1）；过。
+1.6 cargo tree dt-apple（linux）
+- 命令：cargo tree --locked -e normal --target x86_64-unknown-linux-gnu -p dt-apple --prefix none；输出：仅一行 dt-apple v0.1.0 (/…/crates/dt-apple) EXIT:0；过。
+1.7 cargo check -p dt-apple（linux）
+- 命令：cargo check -p dt-apple --target x86_64-unknown-linux-gnu --locked --jobs 6；输出：仅 Finished …in 0.06s，无 warning 行，EXIT:0；过，零警告。
+1.8 cargo check workspace 排除 dt-gpui（linux）
+- 命令：cargo check --workspace --exclude dt-gpui --all-targets --target x86_64-unknown-linux-gnu --locked --jobs 6；输出尾：Checking … dt-apple/dt-pipeline/xtask/dt-cli … Finished in 5.55s EXIT:0；过。
+1.9 cargo check 全工作区（linux，预期挂）
+- 命令：cargo check --workspace --all-targets --target x86_64-unknown-linux-gnu --locked --jobs 6；输出尾：warning: wayland-backend@0.3.17: Compiler family detection failed … failed to find tool "x86_64-linux-gnu-gcc"；error: failed to run custom build command for `wayland-backend v0.3.17` … cc-rs: failed to find tool … EXIT:101；过（复现成功）。
+- 无关性证据：cargo tree -i wayland-backend -p dt-gpui 显示链 wayland-backend→ashpd/call …→gpui-fast-linux/gpui-pre-linux→gpui-kit 0.11.0→dt-gpui，纯第三方传递；cargo tree -e features 显示 wayland-backend feature "log" 由 gpui-fast-linux/gpui-pre-linux 引入；注册表 build.rs 实测 cc::Build::new().file("src/sys/client_impl/log_shim.c")/server_impl/log_shim.c，与报告 §8 “log 特性下 cc 编译 log_shim.c（含 stdio，需 sysroot）”一致；缺的是交叉 C 工具链，与我们 28 crate 代码无关（1.8 已证我们侧干净）。
+1.10 rg unsafe
+- 命令：rg -n 'unsafe' crates/dt-apple/src；输出：29 命中，全部 crates/dt-apple/src/macos.rs（含 #![allow(unsafe_code)]/#![deny(unsafe_op_in_unsafe_fn)]/#![deny(clippy::undocumented_unsafe_blocks)] 3 行 + unsafe 块/unsafe impl/unsafe 属性）；其余 viewport.rs/lib.rs/capabilities.rs/empty.rs 零命中（rg -c 复核）；过。
+- 抽查：macos.rs:275 deliver 前 SAFETY（子类前缀）+ 283-286 kind 门注释；390-392 attach 句柄 SAFETY；414-415/429-437/452/484-505/513-515/560/586/602/608/724 每处 unsafe 上方均有 SAFETY 段；过。
+1.11 Scripts/check-licenses.sh
+- 命令：Scripts/check-licenses.sh；输出尾：allow=847 exception=1 fail=0 total=848 + exceptions [HIT] self_cell Apache-2.0 OR GPL-2.0-only E1，EXIT:0；过，与报告三数一致。
+1.12 cargo test --workspace
+- 命令：cargo test --workspace --locked --jobs 6；输出：grep "test result:" 60 行，awk 求和 passed=192 failed=0，EXIT:0；过，确认 192 且零失败。
+- 无窗确认：dt-gpui 测试在 lib.rs:253-436 纯函数（convert_platform_input/convert_native_input/map，无 Window/Application/open_window/run）；Window/open_window/run 只在 main.rs 二进制（484 application().run + 500 open_window），测试不执行；dt-apple 测试在 capabilities.rs 4 + viewport.rs 5（错误行/矩形换算/空后端×2/null句柄/detach Stub），rg 窗口 token（NSView/CAMetalLayer/MTLDevice/create_window/open_window/run()）在 viewport.rs/capabilities.rs/empty.rs/lib.rs 零命中；过。
+1.13 Scripts/rust-ci-lite.sh + budget 改法
+- 命令：Scripts/rust-ci-lite.sh（跑两遍）；输出尾：rust-test: tests total passed=192；rust-budget: core cold SKIP + ui cold SKIP（非 --cold）；ui rebuild 2s（门 180）PASS；release 17786208B（门 83886080）PASS；check dt-iop-color 0s（门 40）PASS；target 8186MB（门 20GB）；overall PASS；rust-ci-lite: ALL GREEN EXIT:0；过。
+- 输出头：GUARD PASS + 许可证表（首包 accesskit …）全 ALLOW；过。
+- budget 改法（读 Scripts/rust-budget.sh:1-119）：①核心冷构建 cargo build --workspace --exclude dt-gpui 门 360s 仅 --cold；②界面冷构建 cargo build -p dt-gpui 紧随其后（共享依赖已暖，行名如实标注 shared deps warm）门 900s 仅 --cold；③界面重建 touch lib.rs 后增量 门 180s；④发行版 target/release/dt-gpui 门 83886080B（80MB，--cold 现编现量，平时有量无 N/A）；⑤check -p dt-iop-color 门 40s；⑥target 门 20GB；核心/界面分门理由写在 10-11 行（全量冷构建必超 360，保核心迭代速度）；过。
+- 上次 --cold 在报告里：A7b-REPORT.md §5 给出核心 73s/界面重建 2s/界面冷 173s/发行版 17786208B + ⑤13s/⑥6863MB，§7 给出 --cold 退出 0 与四数；本次非冷实测发行版 17786208B 与报告逐字节同值，重建 2s 同值；过（未重跑 --cold，按任务书允许）。
+1.14 封存面
+- 命令：git diff --stat 6bbd5ee8 HEAD -- 'crates/dt-iop-*/src/modules' crates/dt-registry/fixtures crates/dt-history crates/dt-engine crates/dt-registry；输出：空 EXIT:0；过。
+1.15 dt-cli help
+- 命令：cargo build -p dt-cli --locked + ./target/debug/dt-cli help；输出含 fetch/render/cmp/emit-xmp/selftest/capabilities/commands/run 八个（help 文本逐行在案）EXIT:0；过。
+1.16 git show 路径白名单
+- 命令：git show --stat HEAD + git show --name-only HEAD；输出：38 files 14142+/358-，名单排序后 = A7b-REPORT.md 1 + A7b-evidence 19（SUMMARY/app×2/band×2/input.out×2/input.run×2/panel×2/self.out×2/self.run×2/v3.out×2/v3.run×2）+ Cargo.lock 1 + Scripts 3（probe/budget/boundary）+ crates/README.md 1 + dt-apple 6（Cargo.toml/capabilities/empty/lib/macos/viewport）+ dt-gpui 5（Cargo.toml/probes×2/src×2）+ docs 2（APPLE-BOUNDARY/LICENSE-AUDIT）；根 Cargo.toml 无改动（git diff 6bbd5ee8 HEAD -- Cargo.toml 空），members=["crates/*","apps/*"] glob 自动纳入；A7b-review.log 不在提交内属预期；多一个少一个都没有；过。
+
+2. 独立重数探针三门（自写 grep/awk，不看汇总）
+2.1 ②输入：计数 + 坐标
+- 命令：grep -c '^INPUT' app-path-a.log / app-path-b.log；输出：22 / 22；过（与甲乙 22/22 一致）。
+- 命令：grep '^INPUT' 两份全量 + paste 差表；输出：甲 x=150→625 step25 y=400.0，down/up (400.0,400.0)；乙 x=149→624 step25 y=399.0，down/up (399.0,399.0)；22 行逐行 dx=1.0 dy=1.0（差表全 1）；button 列甲乙一致（move none/press-release 0），序号 0-21 连续，路径字母 a/b 与文件名一致；合成脚本口径（读探针 205-218：move wx+150+i*25 wy+400 ×20，down/up wx+400 wy+400）对应窗相对 150..625/400——甲逐位命中合成值，乙系统偏 -1。
+- 结论：任务书“甲乙坐标列应逐位相同”不成立；报告 §3“甲 x=149→624 y=399 与合成值逐位一致（app-path-a.log）”把乙值安到甲上，且“乙与甲逐位相同”与证据矛盾。见 ERROR E1；计数过，坐标不过。
+2.2 ①几何：四数验算 + 同运行
+- 命令：grep '^GEOM' 两份 + 取最后一行 + 自写 python 验算；输出：两份各 50 行，frame=0..5880 step120 递增，末行同值 canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00 float16=true edr=true device=Apple M4；验算 canvas-vs-view dx0.00/dy0.00 PASS（门 0.5），layer-vs-view 0.00 PASS（门 0.5），drawable-vs-view-scale 0.00 PASS（门 1px）；grep FAIL 两份皆 0 行（grep -c 打 0 且 EXIT 1 走无 FAIL 分支）；四数同文件同末行，frame 递增；过。
+2.3 ③V3：自写 awk 按 E 时间窗重数
+- .run 列位确认：F idx pts cb diff maxd cells r0 r1（r0=$8 视口，r1=$9 面板/标记），E begin/end 在文件尾；v3-a 窗 [1871035.941335,1871046.943124] 约 11.00s，v3-b [1871138.614001,1871149.619265] 约 11.01s。
+- 命令：自写 awk（/E begin/{b} /E end/{e} /F/{存pts/c8/c9} END 窗内 c8>0/c9>0 计数，与探针 count_region 不同写法）；输出：v3-a 窗内 638 帧 col8=485 col9=54；v3-b 窗内 650 帧 col8=505 col9=53；与报告 485/505（panel 54/53）差 0（口径 ±2 内算对）；过。
+- panel 报数：甲 54，乙 53（11s/0.2s=55 tick，漏 1-2 帧为采样口径，与 spike 43/44 同构，报告解释合理）；过。
+2.4 自检：阈值 + 顺序
+- 命令：同 awk 对 self-*.run；输出：self-a 窗 [1871029.747798,1871031.752839] 窗内 120 col8=76 col9=76；self-b 窗 [1871132.803804,1871134.809032] 窗内 120 col8=83 col9=83；标记区（$9）≥1 且视口区（$8）≥5 皆远超（报告 76/76、83/83 对上）；过。
+- 顺序：读 Scripts/rust-gui-viewport-probe.sh:165-195，先 GEOM wait（含 FAIL 检查）再 self-check（注释“app proven alive above, so zero here means probe broken”），顺序写死；过。
+2.5 读回
+- 命令：grep readback 两份；输出：皆 APP readback frame=60 samples=[0.5, 0.5, 1.0, 1.0, 2.0, 2.0, 4.0, 4.0]；过。
+2.6 裁剪截图：目检 + 无整窗原图
+- 命令：file + sips -g + ls + md5；输出：band-edge×2 皆 PNG 200x200 RGBA，panel×2 皆 500x300 RGBA，与报告尺寸一致；band a/b md5 同值 e0ad45f0…（同测试图预期），panel a/b 不同值（tick 不同）；证据目录仅 19 文件，无整窗原图（1200x800 或 2400x1600 零命中）；过。
+- 目检（read 内联解码，未开窗口）：band-edge-path-a 灰/白竖边锐利（左灰右白，一刀切）；panel-path-a 显示 “28 t=5.82s” + “r A = 0.791”，panel-path-b “27 t=5.61s” + “r A = 0.827”，白字黑底清晰可读，甲乙 tick/数值不同证面板在重画；左截字见 MINOR M4；band-b 与 a 字节同故不另看；过（档位清晰、文字可读）。
+
+3. 读码核查（只读）
+3.1 dt-gpui 零 Apple
+- rg 门已过（1.5）；人工抽查：lib.rs:22-26 imports 仅 dt_apple（ModifierState/NativePointerEvent/NativePointerKind）+ gpui_kit（Modifiers/Mouse*/PlatformInput/Scroll*），main.rs:23-36 imports 仅 dt_apple（Backend/ViewportHandle/ViewportRect/capabilities）+ dt_engine + dt_gpui + gpui_kit + std；全文 rg -ni 'metal|appkit|nsview|cametal|coregraphics|corefoundation|objc' 仅命中 main.rs:6 注释 “its own Metal layer” 一处；NSView/CAMetalLayer/objc2/cfg(target_os) 零命中（含注释）；Cargo.toml 直接依赖仅 dt-apple/dt-engine/gpui-kit=0.11.0+gpui-fast，无 Apple 绑定，注释写明 seam 一整数；结论：代码零 Apple 过，注释残 “Metal” 一词见 MINOR M1。
+3.2 dt-apple 视口接口/实现/空后端
+- viewport.rs:1-278 公开签名：ViewportRect/Geom/FrameReport/ViewportError/NativePointerKind/ModifierState/NativePointerEvent（纯 f64/u64/bool/String/Option/enum）+ ViewportInputSink=Box<dyn Fn…> + ViewportHandle（set_rect/draw_frame/geometry/detach）+ attach_viewport(usize,Rect)/attach_viewport_with_input(usize,Rect,sink)/drawable_size，无框架类型；文件内 rg cfg/unsafe 仅 #[cfg(test)] 一处测试门，无 unsafe，import 仅 std::fmt；过。
+- macOS 实现全在 macos.rs：unsafe 29 命中不出该文件（1.10），BackendProbe::attach + ViewportInputView 子类 + CAMetalLayer/MTL 全在该文件；过。
+- 空后端 empty.rs:25-32 attach 直接 Err(Unsupported)，probe 全空；过。
+3.3 路径乙 kind 门与 hover
+- 源码：macos.rs:270-314 deliver(kind,event,hover)，273-274 文档 “hover 无 button，deltas 只在 scroll 读”，283-287 注释 “非 scroll 读 scrollingDeltaX 必崩（合成 move 3 次复现，二分到该调用，真 scroll 读写正常）”，is_scroll=kind==Scroll，scroll_dx/dy 皆 if is_scroll 才读否则 0.0；button 292-296 if hover None else buttonNumber；调用点 245 Down false /250 Dragged Move false /255 Moved Move true /260 Up false /265 Scroll false；与报告 §3 “deltas 只在 Scroll 类上读，注释写在 deliver 内”逐字一致；证据 moves button=none、press/release 0 与 hover/非 hover 分支一致；过。
+3.4 探针脚本（读未跑，346 行）
+- 等闲：71-90 idle≥300s + guard + 无 dt-gpui + 无重活（cargo/rustc/xcodebuild/darktable-cli），60s 轮询 90 分钟上限（DEADLINE+5400，超时 exit 3 窗不開）；过。
+- 熔断：99-121 BASE_SWAP 暖机后基线，5s 监 free<20% 或 swap 增长>4GB（sysctl vm.swapusage 解析 used 后第二字段，memory_pressure free 百分比），trip 写 $TMP/FUSE，fuse_check 杀 app exit 4；过。
+- 用户活动：输入前 idle<60 中止合成（200-204），V3 空隙 sleep3+3×sleep2 监 idle<2 中止（250-260）；V3 监视只盖前 9s、尾部 ~2s 空窗，见 MINOR M3；过（有小缺）。
+- 三门解析：count_region（129-135）按 E 时间戳取窗（注释点明 F 在前 E 在后，不按文件序，首轮 bug 修复后形态），列位 r0=$8 r1=$9 与 FrameProbeRegions.swift:157-158（F … cells + rcells）一致；输入门 grep -c INPUT lines≥19（证据 22 超门，门比 headline 松，见 M3）；几何门 287-317 取末行 GEOM + python 三项（0.5/0.5/1.0）与任务书容差一致；V3 门 viewport≥450（证据 485/505）；自检门 ≥5/≥1（证据 76+/83+）；残留 pgrep + trap 清理 + 整窗原图留仓外（FULLSHOTS mktemp）；未见阻塞 bug；过（3 个小 robustness 注记入 M3）。
+
+4. 报告核查
+4.1 §7 逐条对应（命令+输出摘要皆在重跑中找到）
+- build 首建数字未重测（非冷），但 --locked 成功 EXIT:0 对上；探针甲乙三门数字（485/54、505/53、22/20）与 §2 自数逐值对上；test 7 / 9+1 / xtask 四门 / 边界 7/7 / rg 无输出 / tree 单行 / linux 双过一挂（wayland）/ unsafe 29 全 macos.rs+SAFETY / licenses 847/1/0 / workspace 192 / budget --cold 四行（发行版字节同值）/ ci-lite ALL GREEN / 无残留（脚本 336-341 机检逻辑已读，证据 app quit t=100 自退见日志尾）/ 封存面空 / dt-cli 八命令 / 证据裁剪尺寸 / git 路径白名单，全部对上；唯 §7 输入行未提坐标差（承 E1），§7 “dt-gpui 被查证据=活体负测 lib.rs:432”无落盘证据但 xtask+rg 双绿佐证；过（除 E1）。
+4.2 §8 未验项诚实
+- wayland：第三方构建脚本 + 需交叉 C 工具链 + 本机无 x86_64-linux-gnu-gcc 且禁装 + 我们侧双命令干净 + CI Linux 可过 + 第 7 步已接常检，与 1.9 实测（EXIT:101 + build.rs log_shim.c + features log 由 gpui-fast-linux 引入）逐句对上；HDR 屏：本机无 EDR（沿 spike）+ 数值断言 float16/edr + 读回 2.0/4.0 超 1.0，与 GEOM/readback 证据对上；过。
+4.3 结论头三行与证据一致
+- “29 包/192 绿”对上（layers 29 + workspace 192）；“视口缝一整数”对上（attach usize）；“界面零 Apple 痕迹”对上（rg+xtask，注释 Metal 一词不破门，见 M1）；“甲乙 22/22/默认甲”计数与默认（parse_args 默认 Framework，main.rs:66）对上，坐标部分不含在头内故头本身成立；“V3 485/505（spike 514）/几何一致”与自数对上；过。
+4.4 额外诚实项抽查
+- §5 首次构建 228s/RSS 1.9GB 未独立重测（需删 target 冷建，任务书免重跑），不判；§9 commit 哈希/38 files/路径清单/根 Cargo.toml 无改动/glob 成员/他人改动未纳入，与 git 实测逐项对上；§10 修订记录空待填；docs 增量（APPLE-BOUNDARY §8 裁定+§9 视口、LICENSE-AUDIT §4 四行+L 记法+§12、README 2 行）与 git show diff 对上，许可证四行版本/表达式/行号除 M2 差一外全对；过。
+
+Findings
+- [ERROR E1] A7b-REPORT.md §3 + 证据 app-path-a.log/app-path-b.log：坐标声称与证据对不上，且 1pt 系统差未解释。位置：报告 §3 第 1-2 句；证据：a.log 22 行 x=150..625 y=400 / b.log 22 行 x=149..624 y=399，差表 22 行 dx=1 dy=1（命令见 2.1）；报告写 “甲 x=149→624 y=399 与合成值逐位一致（app-path-a.log）”与 a.log 实测 150→625/400 矛盾，“乙与甲逐位相同”与差表矛盾。严重度 error（证据对不上；若乙路 1pt 偏是坐标系 bug 则另需修，至少报告须改数并解释差值来源：gpui canvas 原点 vs NSView convertPoint/flip 高度口径）。
+- [MINOR M1] crates/dt-gpui/src/main.rs:6 注释 “its own Metal layer” 含 Metal 一词。证据：rg -ni metal 全 src 唯一命中；机检门（1.5）与 xtask 规则 3 不含该词，边界未破。严重度 minor（措辞；改 “native layer” 即消）。
+- [MINOR M2] docs/LICENSE-AUDIT.md §12 四个 L:行号各差一。证据：表写 L:113/6383/8906/8915，正文称 “[[package]] 起始行”，实测该四行是 name 行，起始行应为 112/6382/8905/8914（awk NR 打印在案）。严重度 minor（证据指针；改四数或改定义为 name 行）。
+- [MINOR M3] Scripts/rust-gui-viewport-probe.sh 三处宽松/空窗（无阻塞 bug）。证据：226-230 输入门 lines≥19（headline 22/22 是证据超门，非门 enforce）；248-262 V3 用户监视 sleep3+3×sleep2=9s，11s 窗尾部 ~2s 空窗；129-135 count_region 用 NR 索引带 E 行空洞（空串转 0 不计数，实测无影响）。严重度 minor（门限/监视/写法可收紧；改门为 22、监视延至 wait 前、索引改自增即消）。
+- [MINOR M4] A7b-evidence/panel-path-?.png 裁剪窗左截字。证据：panel-a “28 t=5.82s”/“r A = 0.791”、panel-b “27 t=5.61s”/“r A = 0.827”（原字应为 tick/slider），screencapture 窗内裁 1700,100 500x300 偏右；甲乙 tick/数值不同仍证重画，可读但不完整。严重度 minor（裁剪窗左移 50-100px 即全）。
+无 finding 条目：构建/单包测试/四 xtask/边界七步/tree 单行/linux 双过/wayland 复现与第三方归因/unsafe 归属与 SAFETY/许可证三数/工作区 192 与无窗/ci-lite 全绿/budget 分门与门值/封存面/dt-cli 八命令/git 白名单/几何四数/V3 自数/自检阈值与顺序/读回/档位边界/接口纯数据/kind 门与 hover/§8 诚实/结论头，均一句话：重跑输出与报告一致，通过。

@@ -83,21 +83,33 @@ pub struct Capabilities {
 /// Crate-internal probe behind [`capabilities()`].
 ///
 /// Never public: framework types must not leak, and every backend reports
-/// through the same plain-data [`Capabilities`].
+/// through the same plain-data [`Capabilities`]. The same trait also carries
+/// viewport attachment so the backend-selection point below stays the only
+/// one in the crate.
 pub(crate) trait BackendProbe {
     /// Runs the lightweight probes (no decode, no sample, no window).
     fn probe(&self) -> Capabilities;
+    /// Attaches a viewport to a caller-owned native surface handle.
+    ///
+    /// A `None` sink means framework-driven input; `Some` installs the
+    /// backend's native input path.
+    fn attach_viewport(
+        &self,
+        native_handle: usize,
+        rect: &super::viewport::ViewportRect,
+        sink: Option<super::viewport::ViewportInputSink>,
+    ) -> Result<Box<dyn super::viewport::ViewportBackend>, super::viewport::ViewportError>;
 }
 
 // The single backend-selection point of the whole crate: two complete `cfg`
 // branches, no scattered `cfg` statements anywhere else.
 #[cfg(target_os = "macos")]
-fn selected_backend() -> &'static dyn BackendProbe {
+pub(crate) fn selected_backend() -> &'static dyn BackendProbe {
     &super::macos::MacOsBackend
 }
 
 #[cfg(not(target_os = "macos"))]
-fn selected_backend() -> &'static dyn BackendProbe {
+pub(crate) fn selected_backend() -> &'static dyn BackendProbe {
     &super::empty::EmptyBackend
 }
 

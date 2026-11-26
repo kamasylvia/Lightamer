@@ -1,0 +1,10 @@
+probe: path-a geom canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00
+probe: geom canvas-vs-view PASS
+probe: geom layer-vs-view PASS
+probe: geom drawable-vs-view-scale PASS
+probe: path-a ALL GATES PASS
+probe: path-b geom canvas=[0.0 0.0 800.0 800.0] view=(0.0,0.0 800.0x800.0) layer=(800.0x800.0) drawable=1600x1600 scale=2.00
+probe: geom canvas-vs-view PASS
+probe: geom layer-vs-view PASS
+probe: geom drawable-vs-view-scale PASS
+probe: path-b ALL GATES PASS
