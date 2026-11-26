@@ -21,7 +21,7 @@
 - LightCraft 的源码 `/Volumes/UNITEK/Documents/Development/lightcraft`（只读，不要在里面运行任何东西）：`crates/catalog/src/lock.rs`，单写者锁。
 - 仓库的 `AGENTS.md` 里「M2-2 架构增量」那条：旧 Swift 版用 SQLite 时立下的几条做法——一个库文件、开 WAL、迁移之前先留备份、备份要走在线的一致性拷贝而不是裸拷文件。做法可取，代码不抄。
 - `crates/lightamer-history/src/`：历史模型。**这一波不许改它，也不许往库里写历史。** 你只需要知道 `hash64_decimal` 是什么，表里有一列要放它。
-- `.work/gsd/phases/rust-core/waves/VERIFY.md` 的最后四节。
+- `.work/gsd/phases/rust-core/waves/VERIFY.md` 的最后几节（A8、A9 和阶段 A 收口）：现在的工作区长什么样，哪些检查是必须过的，lint 的规矩是什么。
 
 工作目录 `/Volumes/UNITEK/Documents/Development/Lightamer`。HEAD 先亲核并记录。全程中文，代码注释和标识符英文，commit message 英文。
 
