@@ -37,3 +37,24 @@
 ## A-8 阶段 A 的脚本文件名
 
 - 这个仓库里已有给 Swift 版用的 `Scripts/test-direct.sh` 等脚本。为了不和它们混，计划里写的 `Scripts/{guard,build,test,budget}.sh` 的实际文件名是 `Scripts/rust-{guard,build,test,budget}.sh`，另有一个总入口 `Scripts/rust-ci-lite.sh`。`oracle.sh` 和 `perf.sh` 的名字不变。
+
+## A-9 框架学 LightCraft，兼容 darktable（2026-11-26，用户裁决）
+
+- 用户原话：「我要求框架上要学 LightCraft，兼容 dt。」
+- **框架**按 LightCraft 的做法来：引擎优先的分层工作区，依赖方向由检查强制；「一切皆命令」，界面、命令行、MCP 共用同一个命令分发口，下层不知道界面的存在；图库带每张照片的处理版本号；CPU 参考管线，GPU 孪生在后面。LightCraft 的源码在本机 `/Volumes/UNITEK/Documents/Development/lightcraft`，许可证是 MIT 或 Apache-2.0，设计和代码都可以取用，取用代码要在 `NOTICE` 里署名。
+- **兼容 darktable**是搭在这个框架上的要求：模块、模块顺序、参数格式、历史的读法都照 darktable，验收对照是 darktable 官方版。两条要求拉不到一起的地方，逐处写明怎样调和。
+- 对计划的影响：
+  - A3（模块描述与自动发现注册）照跑。它的产物与 crate 怎么摆无关，描述、顺序、夹具都留得住。
+  - A3 之后插一波重排：按框架调研的结论重排 crate 和分层，加上强制依赖方向的检查。A2 建的包都还是空壳，现在重排最便宜。
+  - A7a 的「核心对界面接口」按「一切皆命令」的命令分发口来做。A4a 不变。A4b、A5、A6、A7b 和阶段 B 的各波，按框架调研给出的对照表重新指到新的 crate。
+  - 解码仍用 rawspeed，不学 LightCraft 自研解码器；界面仍用 gpui 族，不用 egui；Apple 能力仍独占一个模块，只在 macOS 构建里存在。模块仍自动发现和注册。
+- 框架调研的产物：`.work/gsd/phases/rust-core/FRAMEWORK.md`。重排那一波以它为输入。
+
+## A-10 性能目标取 LightCraft 的实测数（2026-11-26）
+
+- 第 0 期以 LightCraft 的实测数为门：热切换一张图不超过 0.72 秒；一万张批量粘贴在 1 秒内；改过的图的可见缩略图在约 0.5 秒内刷新。在 B15、B16、B20 各量一次，量的口径沿用 #26。
+
+## A-11 每张照片带处理版本号（2026-11-26）
+
+- 学 LightCraft：凡改观感的变更开新的处理版本号，旧版本冻结，老照片的渲染不漂移，直到用户手动升级。我们自己的历史写进 XMP 的自有命名空间时带上版本号。读 darktable 的历史时，以 darktable 自己的迁移行为为准。
+- 落在 B13（历史写与图库数据库）。
