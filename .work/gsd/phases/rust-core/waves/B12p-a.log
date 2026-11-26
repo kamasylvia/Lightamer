@@ -1,0 +1,115 @@
+Working...
+最终提交 `408ccbafae4c621c66c185aa75cb3005a0edca4d`（`6c12b11a` 之上单个 commit，30 文件零越界，零 push）。自审结论头：`PASS / 0 error + 2 minor`。报告正文 Commit 节写的是 amend 前哈希 `52e6c439`（内容只差该节两行，A2/A8 同款 skew），最终以本消息与 `git log -1` 为准。以下为报告全文：
+
+# B12′-a Report: Session Store — Tables, Migrations, Lock, Package Layout
+
+> lane B12′-a（omp 执行）。HEAD 起始 `6c12b11a`（亲核）。
+> 全程中文；代码注释与标识符英文；commit message 英文。
+
+## 结论头
+
+- 会话库（建表 v1、迁移架、在线备份、单写者锁、会话包目录、路径换算、`_meta` + `display_aux` 槽位）全部做完，17 个 crate 测试全绿，全工作区 208 = 192 + 16 全绿；六条不崩溃 lint、xtask 检查（分层/顺序同步/模块名/Apple 边界/i18n）、许可证检查、格式全绿。
+- 两件顺手脚本做完：预算脚本加负载门（三分支实测），lint 合并为一遍。
+- 一项未验：Linux 目标检查被环境阻塞（缺 Linux C 交叉工具链，与 A7b 的 gpui 豁免同类），见「未做 / 未验」。
+
+## 交出去的接口一览（`lightamer-catalog` 公开面）
+
+```rust
+// 会话包（session.rs）
+pub fn create_session(parent: &Path, name: &str, program: &str) -> Result<Session, CatalogError>;
+pub fn open_session(path: &Path, program: &str) -> Result<Session, CatalogError>;
+pub fn close_session(session: Session) -> Result<(), CatalogError>;
+impl Session {
+    pub fn root(&self) -> &Path;
+    pub fn db_path(&self) -> &Path;
+    pub fn connection(&self) -> &Connection;
+    pub fn connection_mut(&mut self) -> &mut Connection;
+    pub fn opened_unlocked(&self) -> bool;
+    pub fn session_uuid(&self) -> Result<String, CatalogError>;
+}
+// 表与版本（schema.rs）
+pub const SCHEMA_VERSION: i64; // = 1
+pub const SCHEMA_V1_DDL: &str; // T-B1 原文
+pub fn apply_pragmas(conn: &Connection) -> Result<(), CatalogError>;
+pub fn set_schema_version(conn: &Connection, version: i64) -> Result<(), CatalogError>;
+pub fn user_version(conn: &Connection) -> Result<i64, CatalogError>;
+pub fn meta_get(conn: &Connection, key: &str) -> Result<Option<String>, CatalogError>;
+pub fn meta_set(conn: &Connection, key: &str, value: &str) -> Result<(), CatalogError>;
+pub fn display_aux_read(conn: &Connection) -> Result<DisplayAuxRead, CatalogError>;
+pub fn display_aux_write(conn: &Connection, json: &str) -> Result<(), CatalogError>;
+// 迁移与备份（migrate.rs）
+pub const MIGRATIONS: &[Migration]; // 只有 0 → 1
+pub fn open_database(db_path: &Path) -> Result<(Connection, MigrateReport), CatalogError>;
+pub fn read_user_version(db_path: &Path) -> Result<Option<i64>, CatalogError>;
+pub fn backup_database(source: &Connection, dest: &Path) -> Result<(), CatalogError>;
+pub fn backup_file_name(db_path: &Path, from: i64, to: i64) -> Result<PathBuf, CatalogError>;
+pub fn checkpoint(conn: &Connection) -> Result<(), CatalogError>;
+// 锁（lock.rs，LightCraft 改造）
+pub struct SessionLock; // acquire / held / dir / note / release
+pub struct LockOwner; // this_process / describe
+// 路径（paths.rs）
+pub enum PathKind { InSession, External } // as_db / from_db
+pub fn to_stored(root: &Path, path: &Path) -> Result<(PathKind, String), CatalogError>;
+pub fn to_absolute(root: &Path, kind: PathKind, stored: &str) -> Result<PathBuf, CatalogError>;
+// 错误（error.rs）：CatalogError（Io / Sql / Setup / InUse / SchemaTooNew / NotEmpty / Missing / BadPath）
+```
+
+下一波（B12′-b）拿 `Session::connection` 写七条会话命令的落库面；`MigrateReport`、`DisplayAuxRead{json, corrupt}`、`opened_unlocked()` 是给它的状态位。
+
+## 建表和迁移的做法
+
+- 建表：T-B1 原样落成 `SCHEMA_V1_DDL`（`_meta`、`photos`、`snapshots`、`history_steps`、`keywords` + `photo_keywords`、`albums` + `album_photos`、`favorites` + 全部索引）。`snapshots` 只有 `(hash, json)` 两列，无引用计数（T2）；键缺省为十进制哈希、碰撞加后缀（T1，写入规则归 B13′）。
+- 设置集中：`journal_mode=WAL`、`synchronous=NORMAL`、`foreign_keys=ON` 只在 `apply_pragmas` 里写；`user_version` + `_meta` 镜像只在 `set_schema_version` 里写；两者都只由迁移路径驱动（新建与打开收敛到同一入口 `open_database`），并有测试断言版本号两处相等。
+- 迁移：只追加表 `MIGRATIONS`（今只有 `0 → 1`，新库从 0 起步故新建也走迁移）。旧库：先经 SQLite 在线备份接口留 `<名字>.pre-migrate.<旧>-<新>.bak`（空文件免备），再逐版迁移、每版一个事务；备份失败则不迁移。`read_user_version` 经只读连接探查，新库被拒（`SchemaTooNew`，带版本号）时一个字节都不写（另有读写连接内的第二道臂，防两开之间的文件替换）。
+- `display_aux`：只建位置。写原样存，读分三种：缺席→空（`corrupt=false`）、能解析→原文（`corrupt=false`）、解析不了→空 + `corrupt=true` 报给调用者。
+
+## 锁的语义
+
+照 LightCraft `crates/catalog/src/lock.rs`（所读树 HEAD `afa18c675`）改造，署名头在文件首行，`NOTICE` 有 B12′-a 条目。`session.lock`（OS 独占锁，`File::try_lock`，打开即持有关闭显式放，`Drop` 同样显式 `unlock` 不靠句柄关闭）+ `session.lock.owner`（持有人 JSON：pid/主机名/程序/版本/时间/token，纯提示，可缺失可损坏）。第二打开者得 `InUse`（带持有人描述）。与上游三处不同（文件头与 NOTICE 均注明）：会话目录与文件名；无 `OpenedFolder::vouch`（未取用的内部类型），改用同目录临时文件原子改名写提示、按写入字节比对后删；锁文件打不开是响亮的 `Io` 错误而非静默无锁打开。无锁文件系统：降级无锁打开，`opened_unlocked()` 上报。强杀：OS 收回锁，残留文件不挡重开（持有人文件下次加锁覆盖）。
+
+## 唯一标识的选型及理由
+
+会话 UUID：读 `/dev/urandom` 16 字节，置 v4 版本/变体位，hex 拼 `8-4-4-4-12`。理由：macOS 与 Linux 都有该随机源，标准库两行即读，零新增依赖（`uuid` crate 会拖进 `getrandom` 链，无谓）；随机性全部来自内核，无手写随机数。`session_uuid()` 读 `_meta`，新建/采用时缺席才 mint，不覆盖既有身份。
+
+## 新增依赖与允许清单
+
+直接依赖（`crates/lightamer-catalog/Cargo.toml`）：`rusqlite 0.43.0`（`default-features = false` + `bundled` + `backup`，T-B4 一字不差；另有同行 dev 依赖供集成测试直读库用）、`serde 1.0.229`（`derive`）、`serde_json 1.0.154`（持有人 JSON + aux 校验）。锁文件新增 5 个包（`git diff Cargo.lock`）：`rusqlite 0.43.0`（MIT）、`libsqlite3-sys 0.40.0`（MIT）、`fallible-iterator 0.3.0`（MIT/Apache-2.0）、`fallible-streaming-iterator 0.1.9`（MIT/Apache-2.0）、`vcpkg 0.2.15`（MIT/Apache-2.0，构建期）。5 条表达式全在 `Scripts/licenses-allow.txt` 内，该文件零改动；`docs/LICENSE-AUDIT.md` 追加 5 表行 + §13 采用记录。`Scripts/check-licenses.sh`：`allow=852 exception=1 fail=0`，退出 0。`result_large_err` 在 crate 根 allow（附理由：错误是冷路径；box 会丑化 B12′-b 要 match 的公开面）。除此之外六条不崩溃 lint 零豁免。
+
+## 冷构建的四个数
+
+`Scripts/rust-budget.sh --cold`（`budget_exit=0`，overall PASS；机器空闲，全程无 UNRELIABLE）：核心冷构建 **67s**（门 ≤360s every PASS；A7b 基线 73s，rusqlite bundled C 已含）；界面冷构建 **228s**（门 ≤900s）PASS；界面重新构建 **155s**（门 ≤180s）PASS（贴门 86%，负载门专为此设）；`check lightamer-iop-color` **11s**（门 ≤40s）PASS；另界面发行版二进制 **17786416B**（门 ≤80MB）PASS，`target/` 6881MB。注：第一轮 `--cold` 因 `tail` 丢数字且退出码取错作废，以上是完整重跑的数。
+
+## 第 10 节验收（命令与输出）
+
+- `cargo test -p lightamer-catalog --locked`：17/17 绿（1 lib + 16 新增集成；提交时 16/16，自审回注 R2 加 1 个）。§6 映射：`create_builds_full_layout`、`create_refuses_nonempty_root`（+空目录/坏名）、`missing_path_opens_nothing`、`session_uuid_differs_between_sessions`、`adopt_leaves_existing_files_untouched`（+R2 `misnamed_database_path_is_refused`）、`second_opener_gets_in_use_with_owner`、`missing_or_corrupt_owner_note_still_opens`、`reopen_after_kill`（子进程只起自己）、`migrate_old_database_keeps_rows_and_leaves_backup`、`newer_database_refused_without_a_write`、`backup_captures_uncheckpointed_rows`、`display_aux_roundtrip_missing_and_corrupt`、`close_checkpoints_and_reopen_keeps_data`、`path_conversions_roundtrip_and_refuse_escapes`、`schema_matches_t1_t2_shape`。
+- `cargo test --workspace --locked`：208 = 192 + 16 全绿，0 失败（67 个 ok）。
+- Linux 目标检查：未验（环境阻塞，见下）。
+- 六条不崩溃 lint（§10 原命令）：退出 0。
+- `cargo xtask layers`：`OK: 29 crates, no layering violations.`，catalog 直接依赖仅三外部；`check-order-sync`/`check-no-iop-names`/`check-apple-boundary`/`check-i18n` 全过。
+- `Scripts/check-licenses.sh`：退出 0；`licenses-allow.txt` 零改动。
+- `Scripts/rust-budget.sh --cold`：见上节。
+- `Scripts/rust-ci-lite.sh`：退出 0，`ALL GREEN`（复跑 208 测试；lint 已合一遍）。
+- 两 `rg` 门：零输出。引擎/历史/注册表/模块桩零 diff。署名头 + NOTICE 条目齐。`/tmp` 与 `git status` 零残留。提交 30 文件零越界。
+
+## 给用户看的汇报
+
+做成了什么：照片会话的"地基库"落好了——建会话/打开已有文件夹/关会话；库表、版本升级（升级前自动备份）、单写者锁（双开被拒并告诉你谁在用）、路径规则、崩溃后重开不丢已提交的数据。下一波接七条会话命令后即可演示。现场演示：`cargo test -p lightamer-catalog --locked`（17 个行为测试，名字即行为）；`sqlite3` 看表结构/夹具；`Scripts/rust-budget.sh`（忙时"测不准"）。还没做：七条会话命令与 CLI（B12′-b）；历史落库（B13′）；备份/恢复/校验命令；Linux 目标检查（待交叉工具链）。
+
+## Commit 与文件清单
+
+最终提交 `408ccbafae4c621c66c185aa75cb3005a0edca4d`（`feat(rust): B12'-a session store (tables, migrate, lock, layout)`，`refs #32`，零 push）。30 文件全在纪律清单内（REPORT、review.log、Cargo.lock、NOTICE、三脚本、crates/README、catalog 7 src + 8 tests、SESSION.md、LICENSE-AUDIT.md、fixtures 4 件）。
+
+## 复审结论头
+
+`PASS / 0 error + 2 minor`（`.work/gsd/phases/rust-core/waves/B12p-a-review.log`，复审对象 `bac7b050`）。M1（`created_by` 取库身份）与 O1（错名库静默忽略）已回注为 R1/R2；M2 为本节回填；O2–O5 观察项不改。
+
+## 修订记录（自审回注）
+
+R1：`created_by` 改取调用程序名（T-B1 `<app+版本>`）+ 断言。R2：错名库文件报 `BadPath`（零副作用）+ 新测试 + SESSION.md 一行；总数 208。R1/R2 重验：fmt、catalog clippy、17/17、workspace 208、ci-lite ALL GREEN 全绿。
+
+## 未做 / 未验
+
+- 未做：无。
+- 未验：Linux 目标 `cargo check`（workspace 及 crate 级）。证据：失败在 `libsqlite3-sys` 构建脚本 `failed to find tool "x86_64-linux-gnu-gcc"`（本机无 Linux 交叉 C 工具链）；且该 workspace 命令在基线已红（A7b：`wayland-backend` 同因）。Rust 侧可移植证据：零 `cfg(target`/`cfg(unix)` 门，`File::try_lock` 稳定标准库，`/dev/urandom` 双平台皆有。待交叉工具链或 Linux 机后重验。
+
+跳过/未验：Linux 目标检查（环境阻塞）——风险：低，Rust 侧零平台门，阻塞纯属缺交叉 C 工具链；B12′-b 前补验或 김정环境。
