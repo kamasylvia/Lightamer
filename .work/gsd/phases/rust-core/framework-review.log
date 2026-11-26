@@ -1,0 +1,54 @@
+Working...
+**PASS / 0 error + 2 minor** — HEAD `0da998f2` 实测一致，只读零修改、零构建测试。
+
+## (1) 八处抽查（允差±5，实测全命中）
+
+| # | 引用 | 实测 | 结论 |
+|---|---|---|---|
+| 1 | `xtask/src/layers.rs:35-71` TABLE | `:35`=`pub const TABLE`，`:71`=`];`，`wc -l`=316 | ✅ 行号逐字对，层表 L0/L1/L2/L3/L4/L5/Testkit/Exempt 内容与 T-F1 全对（含 `heif:L0:44`、`export` 悬空 `:59`）；`INTRA_LAYER_ORDER:76-85`、`UI_CRATES:97`、`UI_MIN_LAYER:100` 同屏亲证 |
+| 2 | `crates/engine/src/lib.rs:512` Session::execute | `:512`=注释 `THE entry point for every frontend`，`:513`=`pub fn execute` | ✅ 偏差 0（产物写 `:512-513` 准确）；`execute_fn:531`、`run_command:535` 同在 |
+| 3 | `crates/develop/src/controls.rs:171-292` 122 行 | `:170`=`controls! {`，`:171` 首条 `profile.amount`，`:292` 末条 `crop.angle`，`:293`=`}`；`sed -n '171,292p' \| grep -c '=>'`=**122**，`wc -l`=590 | ✅ 与 T-F3（122/590）逐字对 |
+| 4 | `crates/engine/src/memory.rs:25` default_budget | `:25`=`pub fn default_budget()` | ✅ 逐字对；`wc -l`=318；注释 `:24` 钳位 1.5GiB + `LIGHTCRAFT_MEMORY_MB` 覆盖与 T-F4 一致 |
+| 5 | `crates/gpu/tests/equivalence.rs:16-17` 门值 | `:16`=`MEAN_LSB: f64 = 0.5`，`:17`=`MAX_LSB: u8 = 3` | ✅ 逐字对 |
+| 6 | `crates/catalog/src/journal.rs:79` VERSION | `:79`=`pub const VERSION: u32 = 9` | ✅ 逐字对；`wc -l`=709 |
+| 7 | `crates/preview/src/pool.rs` 存在 | 存在，`wc -l`=**359**，`:1`=`per-slot de-duplication` | ✅ 与 T-F5/T-F10#5（359）一致 |
+| 8 | `crates/meta/src/xmp_merge.rs:205` merge_xmp | `:205`=`pub fn merge_xmp(existing…)` | ✅ 逐字对；`wc -l`=442 |
+
+## (2) `wc -l` 重跑 vs 产物数字
+
+```
+316 layers.rs / 1317 engine/lib.rs / 590 controls.rs / 318 memory.rs
+879 equivalence.rs / 709 journal.rs / 359 pool.rs / 442 xmp_merge.rs
+```
+
+- 有声明的全对：316(T-F10#1/§1)✓、590+122(T-F3)✓、318(T-F4/T-F10#4)✓、709(T-F5)✓、359(T-F5/T-F10#5)✓、442(T-F6/T-F10#13)✓。
+- `lib.rs` 1317、`equivalence.rs` 879 产物未声明行数，无可比对（N/A，非问题）。
+
+## (3) crate 数
+
+- `ls crates | wc -l` = **29** ✓；`ls apps` = 3（`lightcraft/lightcraft-cli/lightcraft-web`）✓，与「29 crate + 3 app」一致。
+- `ls crates/export` = No such file ✓；根 `Cargo.toml` 无 `lightcraft-export`（仅注释行 export watermark/encoder 提及）✓，与 T-F1「悬空条目」注一致。
+
+## (4) F11 加总
+
+- A：1+2+3+2+1+3+2+1+3+2 = **20** ✓；A3R(2)+A7a(+1)=A+3，17+3=20 ✓。
+- B：B13+1、B15+2、B16+1 = **+4**，76+4=80 ✓。
+- 总：+3+4=+7，93+7=**100** ✓；墙钟 251.5+20=**271.5** ✓，A 43.5+8=51.5 ✓；§0/§11/T-F11 三处数字互一致。
+- ⚠️ minor①：T-F11 A/B 表**只有 lane 列、无分波 hours 列**，51.5h/271.5h 只能验 delta 算术，无法由卡片行逐行加总验证（hours 明细在 FRAMEWORK 两文件外）。
+
+## (5) F12 C1–C7 调和+代价
+
+- C1 blob+访问器桥接 / 代价「~20 行×93+clamp，A4b 消化」— 明确。
+- C2 只取三纪律不管线 / 「无新增，零复用」— 明确。
+- C3 SQLite 真相+dt 键字节保留 / 「无新增」— 明确。
+- C4 机制全取档位对齐 / 「B15+2」— 明确。
+- C5 版本折入+钉版本 / 「小，B2/B13 内消化」— ⚠️ minor②：七条中唯一非量化代价（"小"无 lane/行/测数），落点明确但量级含糊。
+- C6 一命令一条+Begin/EndEdit / 「无新增」— 明确。
+- C7 modversion⊥process / 「B12/B13 各一测」— 明确。
+
+## 发现清单
+
+- minor① F11 hours 无行明细：51.5h/271.5h delta 算术 ✓，行级加总不可验（T-F11:227-258 无 hours 列）。
+- minor② F12-C5 代价只写「小」（FRAMEWORK.md:197），余六条均有量（20行×93/无新增/+2/各一测）。
+
+跳过/未验：八处之外行号（如 `cmd/mod.rs:50-69`、`ctx.rs:208` 等）未逐一打开；`cases()`31 组、`cmd!`371 等 grep 计数未重跑；A-10/B 小时底数（43.5/251.5）在 PLAN 侧未核。风险：无，八处 error 门全过，两 minor 均为表述级。
