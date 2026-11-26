@@ -1,0 +1,67 @@
+Working...
+PASS / 0 error + 14 minor
+
+说明：许可证 6 条、体积 6 数、ONNX 现成性 6 项、Vision 事实面全过；14 条 minor 全是引文精度与措辞，无一条翻转 §3/§4 任一结论。以下逐项结论与证据（凡写"亲证"都是本 lane 打开看过的）。
+
+## 1. 许可证逐条
+
+**yakhyo/face-parsing：LICENSE 是 MIT（亲证）；README 未单列权重许可（亲证）；数据集节明写 CelebAMask-HQ（亲证）；Release 无另附许可（亲证）。「权重许可 MIT」是推断不是事实。**
+证据：`LICENSE`（main 分支——注意默认分支是 main 不是 master）头行 `MIT License / Copyright (c) 2024 Yakhyo…`；README `## License`（实测 :301-303）只写 "The project is licensed under the MIT license"；README 全文 330 行无任何 weight-license 字样，权重只在 :122-127 以 Release 直链表给出；Dataset 节 :94-111 明写 "**CelebAMask-HQ**: High-quality face parsing dataset with 30,000 images"；Release 三个版本 notes（releases.atom 亲证）只有 "download checkpoints and model weights" + What's Changed，无许可字样。MIT 文本授权对象是 "the Software"，Release 二进制权重是否在 "Software" 内是解释空间——调研 §2.1 写"随项目 MIT 发布（README 未单列权重许可）"算诚实，§0 简化成"MIT"未标推断 → minor m2。
+
+**CelebAMask-HQ Agreement：原文三段亲证（见下）；调研「约束对象是数据集再分发而非权重使用」这个解读站不住原文，过度绝对 → minor m1（本条最重要，详后）。**
+原文（https://mmlab.ie.cuhk.edu.hk/projects/CelebA/CelebAMask_HQ.html，亲证逐字）：
+1. "The CelebAMask-HQ dataset is available for non-commercial research purposes only."
+2. "You agree not to reproduce, duplicate, copy, sell, trade, resell or exploit for any commercial purposes, any portion of the images and any portion of derived data."
+3. "You agree not to further copy, publish or distribute any portion of the CelebAMask-HQ dataset. Except, for internal use at a single site within the same organization…"
+依据：第 2 段明确含 "any portion of derived data" + "exploit for any commercial purposes"——权重是用该数据训练出的 derived data 的最合理解读之一，商用权重可被第 2 段覆盖；第 1 段约束的是使用目的而非仅再分发。调研说"约束的是数据集再分发"把第 2 段的 derived data 读没了。但调研的行动结论（"我们是非商业免费开源，风险低"＋§4 第 1 件推给用户拍板）方向仍成立：commercial 触发条件在非商业下不满足。建议改措辞为"协议未明确提及模型权重，'derived data' 一词留有解释空间；非商业使用下触发风险低（解读非事实）"，三处同源（§2.1、§3.1、§4-1）一起改。
+
+**zllrunning：代码 MIT（亲证）、权重许可未声明（亲证，README 全文 1686 字节逐字读过，无许可字样，Drive 链接在 Training 节末）。** issue 作者答复：核不到——GitHub issues 搜索页需 JS 渲染，curl 只回 chrome 无结果。了。
+
+**SCHP：代码 MIT（亲证，Copyright 2020 Peike Li）、权重许可未声明（亲证，README 权重 Drive 段 + 精度数，无许可字样）；LIP 20 类表逐字对（亲证，README :34）、mIoU 59.36%（亲证 :32）、473×473（亲证 `simple_extractor.py:30` `'input_size': [473, 473]`，行号精确命中）。** issue 作者答复：与权重许可无关的 #6 ONNX 问答亲证作者（GoGoDuck912，仓主）回复 "do not use an adaptive avg pool, instead use the avg pool with a fixed kernel size."（embedded JSON 亲证），issue 状态 CLOSED、首帖 2019-12-22——调研"导出要改代码（#6，2019-12，closed）"全对。权重许可方面 issue 未查到作者答复（同 zllrunning，搜索页不可读）。
+
+**RVM：代码 GPL-3.0（亲证，LICENSE 全文头 + README :14 "Sep 16 2021 Code re-released under GPL-3.0"）；权重无单独声明（亲证：README 全文唯一 license 字样就是 code 转 GPL 那句；Release v1.0.0 notes = "No content"）。「按同仓 GPL 理解属推断」诚实，无更硬证据——README/Release/atom 三处我都翻过，确实没有。** 另：4 个 onnx（亲证 :87-90）+ opset 12 + ORT CPU/CUDA（亲证 :93）+ 4 个 CoreML + iOS 13+（亲证 :116-124）+ Speed 表 104/74（亲证 :217，batch 1，注记 1080Ti 用 FP32）全对。recurrent 置空首帧（亲证 :179 `rec = [None] * 4 # Initial recurrent states`）✓。但"全身、单/多人可"在 README 无原文（全文 grep full-body/multiple 零命中）→ minor m9。
+
+**MODNet：README License 节明写 "The code, models, and demos … are released under Apache-2.0"（亲证 :101-102，逐字）✓；LICENSE Apache-2.0 且确为 201 行（亲证 `wc -l` = 201）✓；Community ONNX（亲证 :71-72，社区作者 @manthan3C273 + Colab）✓；ref_size = 512（亲证 `inference.py:35`，行号精确命中）✓；7M 未发布在线版（亲证 :36）✓；"trained on the datasets mentioned in our paper"（亲证 :45）✓。** 但"Drive 直链 modnet_photographic_portrait_matting.ckpt"：我在 README 全文/colab README/inference.py（只有 `--ckpt-path` 参数无默认值）三处都没找到该 Drive 链接，§2.2 也没给证据路径 → minor m10（文件名本身与公开知识一致，但链接存在性本 lane 未亲证）。
+
+**MediaPipe 自拍多类：HF 页 license 栏 `apache-2.0`（亲证 "License: apache-2.0"）；文件只有 tflite（亲证：页内 18 处 tflite 引用，onnx 零命中）；16.37 MB（亲证，页内另有 16.4 MB 约数写法，调研取值精确的那个 ✓）；FP32 ✓；6 类逐字（亲证 background, hair, body-skin, face-skin, clothes, others）✓；公平性数全对（亲证 918 图/1902 人、77.23%、男 77.10/女 77.32、Monk 68.25% Tones 9+10 ~ 79.18% Tone 6、2023-05-10 模型卡）✓；基准 217.76/71.24（亲证同页）✓。** 上游模型卡 PDF 声明 Apache 一句我未开 PDF（license 栏已足够支撑结论，不影响判定）。
+
+## 2. 体积（HEAD 复核，只发 HEAD，未下载任何权重）
+
+6 个数逐字节/约数全中：yakhyo resnet18.onnx `content-length: 53205364`（与 53,205,364 逐字同）✓；resnet34.onnx 93632554 ≈ 89.3MB（调研 ≈89MB）✓；resnet18.pt 55361505 ≈ 52.8MB ✓；RVM fp32 onnx 14975696（逐字同）✓；fp16 7503483（逐字同）✓；pth 15217721 ≈ 14.51MB（调研 ≈14.5MB）✓。README 标称 ~43MB/~82MB（亲证 yakhyo README :117-118，确为约数且小于实测 onnx）✓。官方 ONNX 有无：yakhyo ✓（Release + onnx_export.py，亲证 README :215-240）/ RVM ✓ / zllrunning 无 ✓ / SCHP 无 ✓ / MODNet 社区版 ✓ / MP 无 ✓——6 项全对。
+
+## 3. Vision 事实（本机 `MacOSX.sdk` = `MacOSX27.2.sdk` 实测，3535 行 swiftinterface 行数命中）
+
+- 三档语义逐字对（亲证头文件 :18-20），results `:58` ✓，输出格式 `:56` ✓，macOS 12.0 `:33` ✓，Swift Result = PixelBufferObservation（亲证 :1802 类段）✓，personSeg Swift 段"只有 setComputeDevice、无 supported 面"✓（:1801-1860 全段翻过，无 supportedComputeStageDevices——顺带：旧版源码注释称"neither exposes setComputeDevice"是源码自己的说法偏严，与调研无关）。
+- FaceObservation（boundingBox + roll/yaw/pitch + confidence + captureQuality，亲证 :2193-2210 范围）✓；13 region（亲证 `VNFaceLandmarks.h:120-182` 范围，allPoints + 12）✓；Swift Revision rev3 + rev4（macOS 27 新增，亲证 :844 起段）✓。
+- 人体 19 关节点 ✓（亲证 :3151 起数得 19 joints），但组是 **6 个**（face/torso/leftArm/rightArm/leftLeg/rightLeg）不是调研写的 5 个 → minor m6；手部 21（亲证 :782 起 wrist + 5×4）✓；Iterative（macOS 27 + QualityLevel 三档 + seed 点/盒/涂鸦 + DownloadableAssets，亲证 :1696-1760）✓；generateScaledMask Swift（亲证 :2338 InstanceMaskObservation 成员）✓。
+- 行号错位三处（事实对、引文错）：Headers 数量 47 vs 实测 **53 个 .h** → m3；质量注释 `:23-28` vs 实际 :16-21（enum 在 :22-27）→ m4；65/76 点 `:17-23` 落错文件（`VNFaceLandmarks.h:17-23` 是 import 区，正确是 `VNDetectFaceLandmarksRequest.h:17-23`，该处逐字 "Revisions 1, 2, and 3 support 65 points, where Rev3 also supports 76 points"）→ m5；`generateScaledMask` 引 `VNGenerateForegroundInstanceMaskRequest.h:19-25`（该段只有 results 属性）→ 正确是 `VNObservation.h:789`（ObjC `generateScaledMaskForImageForInstances:`）/ swiftinterface `:2338` → m7。
+- 旧 Swift 版 `文件:行号` 全对：layer A :150-190（含 generateScaledMask 双损坏注释 :176-183，逐字对）✓；layer B :285-362 ✓；person :426-445（含"模型分辨率→bake 上采样"注释 :423-425）✓；refusePin :450-463 ✓；person-instance :478-566、revision 钉死 :506-512、main=[ane,gpu,cpu] :514-530 ✓；SkinRegionLocator 链注释 :6-14、yaw 门 :31-34、几何 :263-423、provider 缝 :430-481 ✓；EyeClosureAnalyzer :87-99（文件在 `LightamerCore/Sources/Library/`，调研未写路径只写了文件名，行号对）✓；CullingToolset :1323 ✓；SkinSmoothPanelView :105（定位皮肤 Button）✓；姿态零消费（全仓 grep 零命中）✓。
+- §1.6 bench 数在 `07-1-DECISIONS.md` 全命中（warm 14-16ms / 85-126ms / cold 5.5s 在 :30；102MP 11648×8736 在 :54；双损坏 D-07-1-T2-4；notReady 跳过在 :78）✓；素场幻觉在 ARCHIVE M6-4（亲证 :118 white/gray128→1 实例）✓。WWDC26/237 session 号未核（无离线来源）→ m14。
+- 5 个文档链接全部 HTTP 200（4 个 Vision + 1 个 Google Edge）✓。
+
+## 4. 结论-证据对照
+
+§0 建议表三行、§3 三条结论的每条理由都落在亲证事实上；"没查到" 17 处经抽查属诚实标注（star/API 限流我复现了同样的 403 rate-limit；Drive HEAD 不可达符合 Drive 直链行为；issue 搜索页 JS 墙我同样撞上）。未发现把"没查到"当已知的条目。§4 三件：①理由需按 m1 改措辞但"推给用户拍板"成立；②运行时下载先例双亲证（Alcedo `ai_model_package_service.cpp` downloader/https feed/kDownloading 状态机；dt 侧同 lane RESEARCH.md:42 + TABLES:151 行号证据，本 lane 因禁入未独立进目录复核，已注明）；③"四门皆弱"与 §2 事实一致，"覆盖 90% 用法"已标推断 ✓。
+
+## 发现表
+
+| # | 位置 | 问题 | 证据 | 建议改法 |
+|---|---|---|---|---|
+| m1 | §2.1（两 BiSeNet 行）、§3.1、§4-1 | 「约束对象是数据集再分发而非权重使用」过度绝对：Agreement 第 2 段含 "any portion of derived data" + "exploit for commercial purposes"，权重可被覆盖 | CelebAMask-HQ 官网 Agreement 三段（本评审亲证逐字） | 改为"协议未明确提及权重，derived data 留有解释空间；非商业下触发风险低（解读）"，三处同改 |
+| m2 | §0 皮肤行 | "resnet18.onnx（MIT…）"未标推断（§2.1/§3.1 已诚实，摘要简化过度） | yakhyo README :301-303 只写 project MIT；Release notes 无许可（atom 亲证） | §0 改为"MIT 项目（权重无单独许可声明，§2.1）" |
+| m3 | §1.4 | Headers "47 个" vs 实测 53 个 .h | `ls …/Vision.framework/Headers/ \| grep -c .h` = 53 | 改 53（或删数字） |
+| m4 | §1.1 | 质量注释 `:23-28` 行号错 | 实测注释 :16-21，enum :22-27 | 改 `:16-21` |
+| m5 | §1.2 | 65/76 点 `:17-23` 落错文件 | `VNFaceLandmarks.h:17-23` 是 import；正文在 `VNDetectFaceLandmarksRequest.h:17-23` | 补文件名 |
+| m6 | §1.3 | 姿态"5 组（face/torso/arms/legs）" vs 实测 6 组 | swiftinterface :3151 起：face/torso/leftArm/rightArm/leftLeg/rightLeg | 改 6 组并列真名 |
+| m7 | §1.5 | generateScaledMask 引文错文件 | `VNGenerateForegroundInstanceMaskRequest.h:19-25` 只有 results；方法在 `VNObservation.h:789` / swiftinterface `:2338` | 换引文 |
+| m8 | §2.1 yakhyo 行 | "末提交 2026-10-26（含 ONNX 导出修）"括号错：末提交是 Fix/security updates (#21)；onnx_inference 重构是 2025-12-14 | commits/main.atom 前 8 条（亲证） | 删括号或改"末提交安全更新"；"唯一活跃"结论不变 |
+| m9 | §2.1 RVM 行、§3.3 | "全身、单/多人可"在 README 无原文 | README 全文 grep full-body/multiple 零命中 | 改"README 未明写，showreel/paper 印象（待补源）"或删 |
+| m10 | §2.1 MODNet 行 | "Drive 直链 modnet_photographic_portrait_matting.ckpt"无证据路径；README/推理脚本/colab README 三处无此链接 | §2.2 MODNet 行无 Drive 证据；三文件亲证无 | 补链接来源或改"权重托管未亲证（文件名公开知识）" |
+| m11 | §2.1 zllrunning 行、§2.2 | "HF 镜像模型卡"无 URL（类表与测速的唯一来源） | §2.2 zllrunning 行无 HF 路径；本评审定位到 `litert-community/BiSeNet-Face-Parsing-LiteRT`，249/22ms/19 类全对上 | 补 URL |
+| m12 | §2.1 zllrunning 行 | "Pixel 8a CPU ~229ms"未亲证（GPU ~22ms ✓、Pi5 249 ✓、19 类 ✓ 均亲证；页内 "229" 命中是归一化 std 0.229） | HF 镜像页文本 | 改"CPU 数未亲证"或补页内锚点 |
+| m13 | §2.1 MP 行 | #3238/#2024 是 face_landmark 系 tflite→ONNX 失败例（类比），非 selfie_multiclass 本体实测 | 两 issue 标题亲证（#3238 face_landmark；#2024 TFL_ 自定义算子） | 措辞已近诚实，加半句"（同系类比，非本体）" |
+| m14 | §1.5 | "WWDC26/237" session 号未核 | 无离线来源；请求本身 macOS 27+ 已亲证 | 留空或标待核 |
+
+核不到的三件（已尽力，不计入结论）：zllrunning/SCHP issue 内作者对权重许可的答复（GitHub 搜索页需 JS）；上游 MediaPipe 模型卡 PDF 内页声明（HF license 栏已覆盖结论）；§4-2 的 dt 侧原文（禁入目录，lane 内交叉印证一致）。
+
+纪律：只读（零写入、零 git 操作）；无构建/测试/图形程序；权重零下载（仅 HEAD + 文本页）；全程直连成功，零代理；未碰凭据/照片库/darktable/darktamer。

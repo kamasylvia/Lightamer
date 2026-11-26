@@ -1,0 +1,24 @@
+Working...
+调研完成。产物：`.work/gsd/phases/masks-research/SKIN-FACE-BODY.md`（唯一新建文件；改动区其余 `M` 项是并行执行 lane 的，不是我动的）。权重零下载，体积数来自 HTTP HEAD 与页面标注。
+
+## 一页纸
+
+**皮肤**：Vision 无任何直接能力；旧 Swift 版「地标 hull − 五官保护区 ⊗ 人体 matte」几何链已交付但只是多边形级、侧脸拒收。像素级皮肤候选 `yakhyo/face-parsing` resnet18.onnx：MIT、ONNX 现成 50.7 MB（HEAD 实测）、19 类含 skin/neck/hair/lip、2026-10 仍在维护（6 候选唯一活跃）。训练数据 CelebAMask-HQ 为 non-commercial 协议——约束的是数据集再分发，我们非商业免费开源，风险低但需拍板。
+
+**面部**：Vision 76 点地标（faceContour/眼/眉/鼻/唇）+ yaw 门拼脸轮廓，旧版整链交付；点选分割（layer B）一点人脸即得像素级蒙版。无交互像素级唇/眼分割做不了——但与皮肤是同一模型的同一输出，引入即顺带解决。Vision 先行，不单独引模型。
+
+**身体**：Vision person 是整人 matte（macOS 12+，三档 accurate/balanced/fast），instance 版区分多人；姿态 19 关节点/手部 21 关节点（swiftinterface 逐字数得）转蒙版只能自研膨胀，不立项。部位细分（臂/腿/衣服）只有 SCHP 能给，但权重许可未声明 + LIP non-commercial + 无官方 ONNX（导出报 `aten::adaptive_avg_pool2d` 须改代码，issue #6 实证）+ 2021 停更，先不做。整人 alpha 引入 RVM mobilenetv3 fp16：代码 GPL-3.0（与我们同许可）、官方 ONNX 7.2 MB（HEAD 实测）、官方 CoreML、全身多人。
+
+| 类别 | 方案 | 引入模型 | 代价 | 排期 |
+|---|---|---|---|---|
+| 皮肤 | yakhyo resnet18.onnx，Vision 链回落 | 是 | +50.7 MB（运行时下载则零增）；ANE 速度待实测 | B-AIM 内引入 |
+| 面部 | Vision 先行，像素级随皮肤顺带 | 否（复用） | 边际 0 | Vision 先行 |
+| 身体 | Vision 整人先行 + RVM alpha；SCHP 不做 | RVM 可选 | +7.2 MB；CPU/ANE 速度待实测 | Vision 先行；RVM 进 B-AIM 可选 |
+
+## 需要用户定的事
+
+1. **皮肤/面部引入 yakhyo 权重，接受 CelebAMask-HQ non-commercial 背景吗？** 推荐接受（约束对象是数据集再分发；MIT + 活跃 + ONNX 现成是 6 候选最优）。不接受则皮肤退回多边形级。
+2. **权重随包还是运行时下载（50.7 + 7.2 MB）？** 推荐运行时下载（dt/Alcedo 全是此先例）。
+3. **身体部位细分（SCHP 类）明确先不做吗？** 推荐先不做（许可/体积/ONNX/维护四门皆弱；整人 + alpha 已覆盖调色 90% 用法，推断）。
+
+没查到的已在产物中如实标注：各仓 star 数（GitHub API 限流 403，仅 SCHP 1.3k 取自仓库页）、SCHP/MODNet 权重字节数（Drive 直链）、全部候选的 ANE 实测速度、除 MediaPipe 公平性数（mIoU 77.23%、Monk 肤色档 68.25%~79.18%）外的亚洲人/侧脸/暗光专项报告。

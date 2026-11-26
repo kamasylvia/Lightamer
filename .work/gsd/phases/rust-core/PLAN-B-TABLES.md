@@ -1,5 +1,5 @@
 # PLAN-B-TABLES — 阶段 B 会话版长表（正文见 PLAN-B.md）
-
+> crate 名说明：文中一律用改名之后的新名（旧前缀加模块名 → `lightamer-X`；L3 占位 crate → `lightamer-ai`；改名在 B 期开工前执行）。此前的研究与核验日志里是旧名，指同一 crate。不改名：顺序夹具 `dt-order-679d594f5d.json`、模块标识、darktable 源码名。
 > 日期 2026-11-26。口径：表名 `T-B*`；命令标识照 T-A8 字面；层号照 T-F9。
 
 ---
@@ -40,7 +40,8 @@ CREATE TABLE photos (
   current_hash        TEXT NOT NULL,             -- 当前快照的键（缺省 = hash64_decimal，见 snapshots）
   trash_original_path TEXT,                      -- 在 Trash 内才非空
   trash_original_kind INTEGER CHECK (trash_original_kind IN (0, 1)),
-  missing             INTEGER NOT NULL DEFAULT 0 -- 引用式文件失联标记
+  missing             INTEGER NOT NULL DEFAULT 0, -- 引用式文件失联标记
+  is_export           INTEGER NOT NULL DEFAULT 0  -- 导出产物标记（A-18：导出作业完成时登记；1 = 导出产物，见 PLAN-B §1.1）
 );
 CREATE INDEX idx_photos_path ON photos (path_kind, path);
 CREATE INDEX idx_photos_rating ON photos (rating);
@@ -96,7 +97,7 @@ CREATE TABLE favorites (
   name      TEXT NOT NULL
 );
 ```
-索引注记：智能相册会查的列、`label`、`missing`、`albums.kind`、两张连接表的反向列现在没有索引，是有意的：等 B15 的十万行测出数字再定加哪些。
+索引注记：智能相册会查的列、`label`、`missing`、`is_export`、`albums.kind`、两张连接表的反向列现在没有索引，是有意的：等 B15 的十万行测出数字再定加哪些。
 
 写路径不变量（B13′ 测试钉死）：① 一步提交 = 单事务（snapshots 查找或另存 + steps insert + photos update）；② undo/redo/goto = 游标的变更是和当前快照、处理版本号镜像写在同一条 `UPDATE` 里（`UPDATE photos SET cursor, current_hash, process`）；③ 裁剪超限步同事务删步，余步 `idx` 重编 0..n（游标同移）；孤儿快照关会话时清，`verify` 报告孤儿数与悬空引用（不存引用计数）；④ `photos.process/current_hash` 与游标步一致（verify 核对）；⑤ 处理版本号不是 1 的照片，`photos.process` 存的值和它当前步快照里的相同（写入时不依赖列默认值这一条走代码检查，不走行为测试）；⑥ 快照键命中时逐字节比对规范 JSON，不同即碰撞，另存一行并在日志里记下，测试里注入一对碰撞的键，证明两份不同的设置不会被当成一份。
 
@@ -104,7 +105,7 @@ CREATE TABLE favorites (
 
 ## T-B2 命令到波的分配（全覆盖：每条恰一波）
 
-T-A8 共 31 条命令（原文 20 行，多条一行含多命令，已逐条拆开）+ A7a 已登记的编辑、历史、作业、交互命令 + 本文件补入 2 条（`library.relink`，ARCHITECTURE.md §2 和 §9 的 R2 点名、T-A8 漏列；`display.set`，塔台补入，见 PLAN-B.md §7 T4）。
+T-A8 共 31 条命令（原文 20 行，多条一行含多命令，已逐条拆开）+ A7a 已登记的编辑、历史、作业、交互命令 + 本文件补入 3 条（`library.relink`，ARCHITECTURE.md §2 和 §9 的 R2 点名、T-A8 漏列；`display.set`，塔台补入，见 PLAN-B.md §7 T4；`mask.generate`，B14A 登记）。
 
 | 命令 | 登记/实现/测试的波 | 备注 |
 |---|---|---|
@@ -130,6 +131,7 @@ T-A8 共 31 条命令（原文 20 行，多条一行含多命令，已逐条拆�
 | `favorite.add` | B15 | 收藏文件夹 |
 | `favorite.remove` | B15 | 取消收藏 |
 | `display.set` | B6 | 会话级显示辅助参数，不记步（塔台补入，见 PLAN-B.md §7 T4） |
+| `mask.generate` | B14A | AI 蒙版生成作业启动（类/点选 + 参数 + 精细化选项）；推理与后处理在作业内，命令只登记启动 |
 | `develop.set` | A7a（B13′ 接持久化） | 登记 A7a；落库 B13′，不双记 |
 | `develop.reset` | A7a（B13′ 接持久化） | 同上 |
 | `develop.copy` | A7a（内存剪贴板，不落库） | 剪贴板是会话态，不持久化 |
@@ -149,14 +151,14 @@ T-A8 共 31 条命令（原文 20 行，多条一行含多命令，已逐条拆�
 | `adjustments.export` | C 期（可选） | A-15：B 期不做 |
 | `adjustments.import` | C 期（可选） | 同上 |
 
-零新命令的波：B1–B5、B7–B11（模块/管线/解码）、B14（opacity 走 `develop.set` 参数）、B17/B18/B19（界面只调已有命令）、B20（只跑不改）；B6 登记 `display.set` 一条（塔台补入）。
-机检：`dt-cli commands` 输出的 id 集合 = 上表"≤当前波"行集合（B12′ 起每波断言）。
+零新命令的波：B1–B5、B7–B11（模块/管线/解码）、B14（形状/组合/混合参数走 `develop.set`）、B17/B18/B19（界面只调已有命令）、B20（只跑不改）；B6 登记 `display.set` 一条（塔台补入）；B14A 登记 `mask.generate` 一条。
+机检：`lightamer-cli commands` 输出的 id 集合 = 上表"≤当前波"行集合（B12′ 起每波断言）。
 
 ---
 
 ## T-B3 和原计划的差异（逐波 lane 明细）
 
-原计划 = `PLAN.md` §3（76 lane / 208 h）；新计划 = `PLAN-B.md` §3（81 lane / 223 h）。
+原计划 = `PLAN.md` §3（76 lane / 208 h）；签字版 = 81 lane / 223 h；新计划 = `PLAN-B.md` §3（105 lane / 295 h）。
 
 | 波 | 原（lane × h） | 新（lane × h） | 差 | 改因（一行） |
 |---|---|---|---|---|
@@ -173,17 +175,18 @@ T-A8 共 31 条命令（原文 20 行，多条一行含多命令，已逐条拆�
 | B11 | 6 × 2 = 12 | 6 × 2 = 12 | 0 | 同上 |
 | B12→B12′ | 3 × 3 = 9 | 4 × 3 = 12 | +1/+3 | 历史读移出；会话包与库 |
 | B13→B13′ | 3 × 3 = 9 | 4 × 3 = 12 | +1/+3 | 双写 XMP 删除；单事务 + merge/sync + 粘贴门 + 崩溃注入 |
-| B14 | 5 × 3 = 15 | 2 × 3 = 6 | −3/−9 | 退回启用位 + 不透明度；余部 → C-6 |
-| B15 | 4 × 3 = 12 | 7 × 3 = 21 | +3/+9 | 会话行为 + 三级缓存 + 14 命令（含补入 relink）+ 0.5 s 门 |
+| B14 | 5 × 3 = 15 | 10 × 3 = 30 | +5/+15 | 基础包 B14-0…B14-3（蒙版调研 Q1；brush/parametric 全量/raster/flexi → C-6） |
+| B14A | — | 15 × 3 = 45 | +15/+45 | AI 蒙版波新开（蒙版调研 §0/Q3 + SKIN；风光/深度经用户确认；塔台把估时从 12 调到 15 lane） |
+| B15 | 4 × 3 = 12 | 8 × 3 = 24 | +4/+12 | 会话行为 + 三级缓存 + 14 命令（含补入 relink）+ 0.5 s 门 + 导出产物浏览（A-18） |
 | B16 | 3 × 3 = 9 | 4 × 3 = 12 | +1/+3 | Output 默认 + activity 进度/取消 |
 | B17 | 5 × 3 = 15 | 5 × 3 = 15 | 0 | + execute-only 机检 + L5 菜单表 |
 | B18 | 4 × 3 = 12 | 4 × 3 = 12 | 0 | + PresentSink 点名 + 暖切图门 |
 | B19 | 4 × 3 = 12 | 5 × 3 = 15 | +1/+3 | + 会话浏览器 |
 | B20 | 2 × 3 = 6 | 3 × 3 = 9 | +1/+3 | 会话 e2e + 三门复量 + 备份演练 |
-| 合计 | 76 / 208 h | 81 / 223 h | +5/+15 h | 含自审 ×1.2 ≈ 268 h ≈ 34 个 8h 日 |
+| 合计 | 76 / 208 h | 105 / 295 h | +29/+87 h | 含自审 ×1.2 ≈ 354 h ≈ 44 个 8h 日 |
 
-对照三版估时：PLAN 原案 76/208 → ARCH T-A7（乙）79/217 → 本文件（甲）81/223。
-甲比乙多的 2 lane = B13′ 持久化接线测试面（乙的后台刷文件换成单事务断言）与 B20 备份演练。
+对照四版估时：PLAN 原案 76/208 → ARCH T-A7（乙）79/217 → 签字版（甲）81/223 → 本次修订 105/295（含塔台把 B14A 从 12 lane 调到 15 lane）。
+甲比乙多的 2 lane = B13′ 持久化接线测试面（乙的后台刷文件换成单事务断言）与 B20 备份演练；本次相对签字版 +24 lane / +72 h（`Output/` +1/+3、B14 2→10 lane（+8/+24）、B14A +15/+45）。
 
 ---
 
@@ -201,7 +204,7 @@ T-A8 共 31 条命令（原文 20 行，多条一行含多命令，已逐条拆�
 
 ---
 
-## T-B5 性能门分配（共 10 门：T11 五门 + A-10 三门 + 导出/内存两门）
+## T-B5 性能门分配（共 12 门：T11 五门 + A-10 三门 + 导出/内存两门 + B14A 两门）
 注：T11 的批量粘贴 101 张门被 A-10 的一万张门取代，故 T11 只落五门；导出、内存两行的出处见说明列。
 
 | 门 | 目标 | 首次 | 复量 | 说明 |
@@ -216,16 +219,19 @@ T-A8 共 31 条命令（原文 20 行，多条一行含多命令，已逐条拆�
 | 万张粘贴可见 | < 1 s | B13′ | B20 | A-10；不含缩略图 |
 | 冷开 | ≤ 4 s | B20 | — | 含启动 |
 | 连续编辑内存 | RSS ≤ 起始 + 200 MB / +20% | B18（30 min） | B20（30 min） | 两口径（B18 卡验收⑤绝对值，B20 比例） |
+| AI 单类生成 | ≤ 3 s/张（61MP，推理 + 后处理，ort CPU） | B14A | B20 | 推断，B14A 实测替换 |
+| AI 点选响应 | ≤ 2 s/点（encoder 已加载，含解码 + 后处理） | B14A | B20 | 推断，B14A 实测替换 |
 
 ---
 
-## T-B6 dt-apple 增量（B 期）
+## T-B6 lightamer-apple 增量（B 期）
 
-| 波 | dt-apple 增量 | 说明 |
+| 波 | lightamer-apple 增量 | 说明 |
 |---|---|---|
 | B12′ | 无 | 边界门照过 |
 | B13′ | 无 | 同上 |
 | B14 | 无 | 同上 |
+| B14A | Vision 人物/人脸/实例/点选执行 + Apple 提供者 | Provider 的 Apple 侧实现（`macos.rs` 内）；能力表只加平台事实字段 |
 | B15 | 无 | 内嵌快路径 = rawspeed 缩略图 + 纯 Rust JPEG；ImageIO 可选快路径排 C 期 |
 | B16 | 无 | 三编码器纯 Rust |
 | B17 | 无 | 同上 |

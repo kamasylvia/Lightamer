@@ -1,0 +1,88 @@
+Working...
+PASS / 1 error + 13 minor
+
+复审范围：RESEARCH.md + RESEARCH-TABLES.md 全文；行号抽查 40+ 处（dt/Alcedo/lumen/lightcraft 全覆盖）；T-M2 全部 16 个 ● + 4 个 ◐ 逐个开源码确认 + 3 个 — grep 确认；许可逐条对原文；Q4 亲跑 git；B14 对 PLAN-B §1.9/§7 + APPLE-BOUNDARY + T-F9。
+
+## Error（1）
+
+**E1 — Alcedo 商用警告引文指错文件（两处同根）**
+- 位置：RESEARCH.md §2.2（"S3OD … Alcedo 明确不作声明（`NOTICE.txt:48` 起）"）、T-M5（"`NOTICE.txt:48/83-90` + 面板常驻提示"）。
+- 证据：仓库根只有 `NOTICE`（无 `.txt`），且全文 39 行（`wc -l NOTICE` = 39）——`:48` 与 `:83-90` 越过 EOF，读者按引文找不到。真正文本在 `scripts/ai_models/ai_mask_model_set_v1_NOTICE.txt`（118 行）：S3OD 沿革不声明约 :48-60（"Alcedo Studio does not state whether these terms apply…"）、MaSS13K 商用警告约 :80-90（"For commercial use of the Sky model…contact the authors"）。结论本身为真，T-M4 也收录了正确文件（亲读 :18-90），只是 §2.2/T-M5 写错文件名。
+- 修法：两处 `NOTICE.txt:48…` 改为 `scripts/ai_models/ai_mask_model_set_v1_NOTICE.txt:48…`。
+
+## Minor（13）
+
+**M1 — dt 现行混合模式"约 30"与自列 36 个矛盾**
+- 位置：§1.4（"约 30 个现行"）、T-M1a（"约 30 个现行模式"）。
+- 证据：`blend.h:50-96` 枚举 0x00–0x29 共 42 项，标 obsolete/deprecated 恰 6 个（`LICENSE` 无关；grep `OBSOLETE|deprecated`），现行 = 36；T-M1a 自列清单数出来也是 36（21 单列 + lab 系 2 + hsv 系 2 + lab 单通道 3 + rgb 单通道 3 + 5）。
+- 修法：改为"36 个现行 + `REVERSE` 位，obsolete 6 个"。
+
+**M2 — `ai_models.h` 行数错（~230 vs 538）**
+- 位置：T-M4（"`src/common/ai_models.{c,h}` | 3085/~230"）。
+- 证据：`wc -l` 实测 `.c` = 3085 ✓、`.h` = 538。
+- 修法：改为 3085/538。
+
+**M3 — 写历史函数名不精确**
+- 位置：§1.5、T-M4（"`dt_masks_read/write_masks_history`（`:2578`/`:2668`）"）。
+- 证据：`:2578` = `dt_masks_read_masks_history` ✓；`:2668` = `dt_masks_write_masks_history_item`（精确名 `dt_masks_write_masks_history` 在 `masks.c` 不存在，grep 零命中）。
+- 修法：写侧改全名 `dt_masks_write_masks_history_item`。
+
+**M4 — XMP 引文范围只覆盖读路径却称"读写"**
+- 位置：§1.5、T-M1a（"XMP：`masks_history` 二进制 blob（`exif.cc:4697-4952`）"）。
+- 证据：读循环起于 ~4678（`findKey("Xmp.darktable.masks_history")`），4697-4952 在读路径内 ✓；但写路径 `xmpData.add("Xmp.darktable.masks_history")` 在 :5591，系列化 :5596-5639，全在范围外。
+- 修法：范围改为读 :4678-~4952 + 写 :5591-5639，或文案改"读路径"。
+
+**M5 — Alcedo gRPC "5 组 rpc"口径未说明，实际 7 个方法**
+- 位置：§2.2（"Load/Unload/Session/Decode/Task 5 组 rpc（`proto:30`）"）。
+- 证据：`segmentation.proto:33-45` 有 7 个 rpc：Load/Unload/GetSegmentationStatus/StartSession/Decode/EndSession/RunTask。GetStatus 被略去，Session 拆两个。
+- 修法：改为"7 个 rpc（5 组语义：Load/Unload/Status/Session×2/Decode/Task）"或注明分组口径。
+
+**M6 — lightcraft `render.rs:1679` 缺 crate 路径，T-M4 未收录**
+- 位置：§4.4（"WGSL 只实现 5 基础 kind，AI 形回 CPU（`render.rs:1679`）"）。
+- 证据：`crates/pipeline/src/render.rs` 不存在；实际是 `crates/gpu/src/render.rs:1679`（"// no kernel: evaluate on the CPU" ✓）。内容为真：:1590-1665 给 Linear/Radial/LuminanceRange/ColorRange/Brush 分发 kind 0-4（`mask.wgsl:37-79` 五分支对应），其余形状落 None 走 CPU（:1678-1688 调 `shape_alpha`）。但读者按字面去 pipeline 下找不到，且 T-M4 lightcraft 表无此文件。
+- 修法：补全路径 `crates/gpu/src/render.rs:1679`，T-M4 补一行。
+
+**M7 — `masks.rs:160-189` 范围少报约 9 行**
+- 位置：§4.3（"组件级 invert→guided refine→整 mask invert→amount（`:160-189`）"）。
+- 证据：`evaluate_one` 自 :160 起，per-comp invert + Add=max（:177 ✓）在范围内；但整 mask invert 在 :193-195、amount 在 :196-198，超出 189。
+- 修法：范围改为 `:160-198`。
+
+**M8 — lumen"五画布工具"引文过窄**
+- 位置：T-M1b（"brush/linear/radial/object/color 五画布工具（`widgets.py:821`）"）。
+- 证据：:821 `mousePressEvent` 只分发 sample/color/pick/object；brush/linear/radial 的 tool 装配证据在 `app.py:1055`（`canvas.tool = mask['kind] if in ('brush','linear','radial')`）与画笔面板 `app.py:560/588-592`。工具存在，引文一行举证不全。
+- 修法：引文补 `app.py:1055`。
+
+**M9 — `MaskShape` 13 变体非 12**
+- 位置：§4.1（"`MaskShape` 12 变体"）。
+- 证据：`settings.rs:1064` 起枚举实数 13 个（Brush/Linear/Radial + Color/Luminance/Depth + Subject/Sky/Background + Object/Prompt + People/Landscape）；T-M1g 自己也列全 13 个，仅"12"这个数字错。
+- 修法：改为 13。
+
+**M10 — Q1 B14-1 静默丢了经典组 `sum` 算子**
+- 位置：§Q1 B14-1（"经典组 union/intersection/difference/exclusion"）。
+- 证据：`masks.h:66-70` 经典组 5 个（UNION/INTERSECTION/DIFFERENCE/EXCLUSION/SUM）；§1.1/T-M1a 自列 5 个含 sum。Q1 范围只列 4 个，未说明 sum 去留（顺延还是有意砍）。
+- 修法：补一句 sum 去向（入 B14-1 或顺延 C-6）。
+
+**M11 — B14-2 "blend v15 参数编解码"落点与 T-F9 冲突**
+- 位置：§Q1 B14-2 + 纪律检查（"落点 `dt-blend`（L1）+ `dt-pipeline`，层表 T-F9 不动"）。
+- 证据：T-F9 明文"blend v15 编解码 = dt-history，栅格化 = dt-blend"（FRAMEWORK-TABLES.md:188）。B14-2 把 codec 放进混合包，纪律检查又只写 L1 落点——codec 若进 dt-blend 则违 T-F9，若进 dt-history（L2）则纪律检查漏写。
+- 修法：明确 codec 进 `dt-history`（L2），纪律检查落点补 L2。
+
+**M12 — SpektraLab 上限引文漂移**
+- 位置：§5、T-M1c（"8 蒙版×6 component（`Mask.swift:194`）"）。
+- 证据：`maxCount = 8` 在 :198、`maxComponents = 6` 在 :200；单行引用对第二个事实漂移 6 行（>5）。另路径缺前缀（实际 `modern_UI/Spektrafilm/Spektrafilm/Model/Mask.swift`，全文 SpektraLab 引文同例，建议统一补前缀）。
+- 修法：改为 `:198/:200` 并补路径前缀。
+
+**M13 — Q4 遗漏 `gtk.h`**
+- 位置：§Q4（"`64051a66a3`…`blend_gui.c` 2+/38-，另带 `src/gui/gtk.c` 通用函数"）。
+- 证据：亲跑 `git show --numstat 64051a66a3`：blend_gui.c 2+/38- ✓ 精确；gtk.c 67+/9- ✓；另有 gtk.h 5+/0- 未提及。"GUI only"结论不受影响。
+- 修法：补"及 `gtk.h` 5+"。
+
+## 已确认无误的要点（抽样结论）
+
+- **行号**：dt 点结构 `masks.h:232-297` 六段逐字节对、经典组 :66-70、flexi :120-125、bypass/invert :84-92（含 OP_INVERT=:92 ✓）、`blend.h` mask_mode/combine/guide/blendif/params 段全对、`blend.c:1006/:1579` 双入口、`raster.c:28-40`、`pixelpipe_cache.c:166`、各 `.c` 行数 16 个全对；Alcedo `mask_model.hpp:33-39/:74/:87/:112/:157/:174/:239`、`ai_mask_recipe.hpp:37/:85` 精确、`model_set.rs` 五 role 行全对、`proto:178-186`、`mask.cl:285`、`graph_compiler` Brush 抛错（:309 起 5 行内）、`document_transfer.cpp:365-368` 精确、`primary_grade.cl:299-310` 精确、三面板行数 650/299/353 精确；lumen `model.py:60-67`、`selection.py:61-404` 八处全对、`engine.py` 五处全对、`compute.py` provider 序与 CPU 回退对、无 Vision（仅 revision 误命中）；lightcraft `settings.rs:992/:1002/:1064-1136`、`masks.rs:22/:103-110/:177/:292/:320/:367`、`segmask` 量化 + MAX_SIDE=1024、`lib.rs:78/:86/:89-103`、`fetch.rs:31` 精确 3.44GB、`worker.rs:36/:40-52/:93/:483-493`、`segment.rs:32`、`detector` merge/pick_prominent 全对。SpektraLab `FeatureFlags:41`、max/min `:254-255`、sidecar、MasksSection brush 注释（:118，引用 :113 漂移恰 5 行按规则算过）；yiyin mask 命中与 exiftool :143（multi-segment）对；RawLab 路线图/四处非蒙版引用对（clipping :728、`.mask` :391 均在引用范围内）。
+- **T-M2**：16 个 ● 全部 formal（lumen 四类：MODELS + automatic + create_auto_mask UI + engine 渲染；Alcedo 四任务 + Prompt：TaskKind + task_masks + 650 行面板 + sidecar；LC background/subject/Object/Prompt：渲染臂 + 10 宫格创建 tile；dt object：object.c 2638 行 + blend_gui 10 处引用 + dtdata + config 键；lumen object/风光/foreground：ONNX + canvas tool/任务入口）；4 个 ◐ 属实（LC Sky 为"Classical sky heuristic until the segmenter lands (M12)"启发式；skin/person/hair 仅 DNG matte（`for_shape`）；People 有展示 label 无创建 tile ✓）；3 个 — 确认无（dt skin 仅 asking 误命中；Alcedo face 仅 interface 误命中；yiyin subject 仅测光 multi-segment）。
+- **许可**：dt GPL + `ai_models.json` 全文无许可字段 ✓；lumen MIT + 五权重 MIT/BSD/Apache（清单均无 bytes 字段、仓库无实体，"没查到"属实）✓；Alcedo GPL-3.0-only + CUDA §7（LICENSE:676-685 ✓）+ SAM2 Apache/S3OD MIT/DINOv3/自训 head GPL 条目 27-30 ✓ + MaSS13K/S3OD 警告内容 ✓（仅引文文件名错，见 E1）+ 面板提示（AiModelDownloadStatementDialog.qml:76/97 + i18n）✓；lightcraft MIT OR Apache + segment 仅 Apache + SAM 权重 Meta License 非 OSI gated ✓ + YuNet/SFace/AuraFace ✓ + candle =0.9.2（workspace Cargo.toml:114-115）✓；SpektraLab GPL-or-later + CC BY-SA ✓；RawLab GPL-only + DualDn CC BY-NC/Restormer Academic ✓；yiyin GPL 全文 vs package.json:10 MIT 矛盾 ✓。
+- **B14 纪律**：光栅化/混合放渲染作业、命令只改参数 ✓（与 §1.9 有界/无界界线一致）；CPU 纯 Rust、零 Apple 新增 ✓；落点 L1 + pipeline ✓（除 M11 codec 一处）；估时：4 形状有效移植面约 1.5-2.5k 行 C（circle 渲染核 ~500 行 vs 文件 1520 行，余为 GUI/交互）+ 组/混合/缓存，30h 偏紧但远不到 3 倍 → 量级通过。另 B4（4×3h RCD）/B7（4×2.5h 双模块）类比同数量级。
+- **Q4**：`refs/dt-master` 仍 detached 于 679d594f5d ✓；`dt-master-latest` = FETCH_HEAD = 2e777184fe ✓；蒙版路径 log 唯一 `64051a66a3` ✓；`337d47b88e` 仅碰 FindONNXRuntime.cmake ✓；除 blend_gui.c/gtk.c/gtk.h 外 masks*/blend*/blends/blendop.cl 零 diff ✓。"1 笔 GUI 提交"成立。
+
+修法优先级：E1 与 M11（许可引文、层表冲突）建议合入自审回注；其余 minor 为引文精度与数字口径，不影响 §7 四项用户决策。
