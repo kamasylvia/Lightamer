@@ -1,0 +1,127 @@
+Working...
+# B12′-b Report: Seven Session Commands, Backup/Restore Jobs, CLI, Demo
+
+> lane B12′-b（omp 执行）。HEAD 起始 `4dde1955620e5eb11a94ea4a443620818ffbe7e0`（亲核）。
+> 全程中文；代码注释与标识符英文；commit message 英文。
+> 最终提交 `6615c1af9e875f9f508b806c7c83017627b3e177`（32 文件，零 push）。
+
+## 结论头
+
+- 七条会话命令全登记（注册表 13→20），真实会话、只读校验、备份/恢复/扫描三作业、模板、CLI 会话文件 + `--hold`、演示脚本全交付；255 测试全绿（208 + 47）。
+- `cargo fmt --check`、`clippy -- -D warnings`、文档零警告、四 xtask 门、边界脚本、演示脚本全绿；`rust-ci-lite.sh` 全绿。
+- 两处执行中发现并修掉的设计缺口：`job.cancel` 会话门（restore 无会话时不可取消）、restore-open 失败不清目标；一起 CLI 输出缓冲致演示误判（改流式输出）。
+
+## 七条命令（各一行）
+
+- `session.new(name, parent)`：建会话包并打开；已开会话时拒绝。
+- `session.open(path)`：打开会话文件夹或库文件（就地补齐），并启动失联扫描作业；已开时拒绝。
+- `session.close()`：合并 WAL，释放锁；无真实会话时拒绝。
+- `session.verify()`：只读校验，返回 findings 报告；无真实会话时拒绝。
+- `session.backup(dest, include_trash?)`：校验目标后启动备份作业，返回作业标识。
+- `session.restore(backup, dest)`：校验两端后启动恢复作业，拷回后按 open 流程打开；已开时拒绝。
+- `template.save(name)`：存相册和收藏的结构（无任何照片）到模板目录。
+
+七条都不记历史步；参数清单见 `lightamer-cli commands <id>`（注册表测试逐参数钉死）。
+
+## 真实会话在引擎里
+
+`Engine` 的会话槽是三态：`None`/`Draft`（`open_draft`，内存照片，测试与对照保留）/`Real(Session)`（握着前一半的锁 + 数据库连接）。一次只开一个。`has_session()` 覆盖草稿与真实（旧命令行为不变）；新门分两档：`new/open/restore` 要求无会话（`Disabled` + "already open"），`close/verify/backup/template.save` 要求真实会话（无会话 `NoSession`，草稿 `Disabled` + "no real session"）。引擎程序名默认 `lightamer-engine`，CLI 设为 `lightamer-cli`。打开真实会话后引擎照片为空是正常的（B15 导入）。新错误变体 `CommandError::Store { cmd, reason }` 包 catalog 的拒绝（含 `InUse` 持有人描述），一行人话。
+
+## 作业的边界
+
+命令只做有界活：`backup/restore` 命令内只做目标校验（经 catalog，引擎零文件操作），然后返回作业标识；`open` 同步打开后返回扫描作业标识。三作业跑在池线程上，用自己的数据库连接，进度经 `report`、完成经事件；`JobCtx::fail` 是新增的无 panic 失败通道（原只有 panic 能到 `Failed`，而 panic 在本 crate 禁用）。取消经 `job.cancel`（作业是引擎级的——为此把它的 `needs_session` 从 true 改为 false，否则无会话的 restore 不可取消；A7a 测试不受影响）。`collect()` 内收 restore 投递：worker 先发 `Session`（`Send`，编译器亲证）再返回，`collect` 看到完成即安装 + 补扫描作业；中途另开了会话则关掉送达的不覆盖。备份/恢复取消或出错清自己建的目标（自建根整个删，预给空根只清孩子）；恢复的 open 半段失败同样清（`restore_and_open`，见 R2）。
+
+## 校验查什么
+
+`session.verify` 只读（`SELECT` + `integrity_check`）：完整性、孤儿快照（info，无修法）、悬空引用（error）、游标越界、process 镜像、`display_aux` 解析（坏则 warning，修法 `display.set`）、存路径换算、文件存在性、超限（照片 >1000 即 `VERIFY_INLINE_PATH_LIMIT`，逐文件项交后台并报 info）、无锁提示（info）。warning/error 必带修法命令标识（未登记的为以后波次，文档点名）；单项 200 条封顶。测试断言校验前后库文件字节相同。
+
+## 主机名怎么修的
+
+`lock.rs` 的 `host_name()` 原只读环境变量与 `/etc/hostname`（macOS 两无）。加第三 fallback：`hostname(1)`（先 `/bin/hostname`，再 PATH），失败回空；结果 `LazyLock` 进程内缓存。零新依赖。测试钉住本机非空；演示第 6 步拒绝信息出现 `(process 20769 on this computer)` 为实证。
+
+## 修订记录（执行中发现并修掉）
+
+- R1：`job.cancel` 的 `needs_session: true` 使无会话的 restore 作业不可取消。改为 false。A7a 测试与坏参数表不受影响。
+- R2：restore 拷完但 open 失败（超前版本库）时目标残留。新增 `catalog::restore_and_open`（拷 + 开 + 开失败清目标）；加两测试（垃圾库、999 版库，均 `Failed` + 目标 absent）。
+- R3：演示第 6 步误报"双开被接受"。根因是 CLI 跑完才一次性打印：`--hold` 的 keeping 行 20 秒后才落盘，轮询看到时锁已放。`run_file` 改流式 sink（每行产生即送达；二进制打印并 flush），加流式测试；演示重跑全绿。
+- R4（复审回注）：minor-1 commit message 一词之改，随收口 amend 落入同一 commit。另注：复审数引擎 rg 命中 15，我数 16——重数确认 16（develop.rs 8 + engine.rs 8），逐行全为基线 `develop.copy` 行，属复审计数口径差，结论一致，无代码动作。
+
+## 第 10 节验收（命令与输出）
+
+- 起始 HEAD：`4dde1955620e5eb11a94ea4a443620818ffbe7e0`。守卫：`GUARD PASS (heavy=0 free=74%…)` exit 0。
+- `cargo test -p lightamer-engine --locked`：68/68（44 单测 + 13 会话命令 + 11 会话作业）。`cargo test -p lightamer-catalog --locked`：32/32（17 旧 + 备份 6 + 校验 4 + 扫描 2 + 模板 2 + 主机名 1）。点名项→测试名：建包握锁 `session_new_builds_package_and_holds_lock`、就地补齐 `session_open_adopts_existing_folder_in_place`（+ `_accepts_database_file_path`）、三拒绝 `open_new_restore_refuse_while_session_open_with_reason`、关 `session_close_releases_lock_and_leaves_no_wal`、校验三件（`…_reports_nothing_on_healthy`/`…_reports_planted_problems`/`…_keeps_database_bytes` + catalog 侧四件）、备份作业 `session_backup_returns_before_job_finishes`（门控池中断言 `Queued` + 进度全序）、取消三件（before-start/mid-run/busy + catalog 预给空根分支）、恢复六件（duplicates_and_opens/cancel/bad_source/两失败清理 + 开时拒绝）、扫描 `session_open_scans_missing_files_as_job`（门控 `Queued` + 三行 0/1/0）、模板（引擎子进程 + catalog round_trip/default_dir）、注册表 `registry_holds_twenty_commands_with_unique_ids_and_docs`（20 条逐参数钉死）、主机名 `owner_note_carries_a_nonempty_host_on_this_machine`。
+- `cargo test --workspace --locked`：255 = 208 + 47 全绿（74 个 ok，0 失败）。
+- `cargo clippy --workspace --all-targets --locked -- -D warnings` exit 0；`cargo fmt --all --check` 干净；`RUSTDOCFLAGS="-D warnings" cargo doc` exit 0。
+- xtask 四门：layers OK（engine→catalog L4→L3 合法）、order-sync 97、no-iop-names 4 roots clean、apple-boundary 182 文件零违反；`Scripts/rust-apple-boundary.sh` ALL GREEN 7/7。
+- 引擎无文件操作：rg 16 行全是基线 `develop.copy` 行（与开工前逐行一致，本波零新增；`std::fs`/`File::`/`create_dir`/`read_dir` 零命中）。
+- 真实应用支持目录：`Application Support` 6 处全是默认值定义/注释/假 HOME；三处模板测试全部经子进程 `.env()` 隔离；`~/Library/Application Support/Lightamer/Templates` 不存在。
+- 演示 exit 0（输出见下）。CLI 三集成测试全绿（含 exit 2 拒绝、`--hold` + 模板落环境目录）。
+- `Scripts/rust-ci-lite.sh`：exit 0，ALL GREEN（255 通过；154s 一轮）。
+- 封存面 diff：无输出。提交 32 文件全在纪律清单内。
+
+## 演示脚本输出
+
+`Scripts/rust-session-demo.sh` exit 0（`…` = 该轮临时目录前缀）：
+
+```text
+GUARD PASS (heavy=0 free=70% swap=?M disk=?GB)
+==> 1. create a session
+line 1: session.new ok outcome={"database":"…/Demo/Demo.lmsessiondb","root":"…/Demo","unlocked":false,"uuid":"3272d887-…"} photos=[] digest=13696086043340055060
+line 2: session.close ok outcome={"closed":true,"root":"…/Demo"} photos=[] digest=13696086043340055060
+…/Demo/{Capture,Demo.lmsessiondb,Output,Selects,Trash,session.lock}
+==> 2. verify it: no findings
+line 1: session.open ok outcome={…,"job":1,…}
+line 1: job 1 started / progress 0/0 / finished success=true cancelled=false
+line 2: session.verify ok outcome={"count":0,"findings":[]}
+line 3: session.close ok
+==> 3. drop an empty placeholder in Capture/
+==> 4. back up, list it, check the database
+line 2: session.backup ok outcome={"dest":"…/Demo-backup","job":2}
+line 2: job 2 started / progress 1/0 / finished success=true cancelled=false
+…/Demo-backup/{Capture,Capture/placeholder.txt,Demo-backup.lmsessiondb,Output,Selects,Trash}
+==> 5. restore elsewhere, open it, verify
+line 1: session.restore ok outcome={"dest":"…/Demo-restored","job":1}
+line 1: job 1 started / progress 1/0 / finished success=true cancelled=false
+line 1: job 2 started / progress 0/0 / finished success=true cancelled=false
+line 2: session.verify ok outcome={"count":0,"findings":[]}
+line 3: session.close ok
+==> 6. double open refused; kill the holder; open again
+line 1: session.open FAIL session.open: session …/Demo is already open in lightamer-cli 0.1.0 (process 20769 on this computer); close it there first
+lightamer-cli: check failed: 1 of 1 lines failed
+reopen after kill: ok
+==> 7. adopt an existing folder; originals untouched
+line 1: session.open ok … / line 1: job 1 … finished / line 2: session.close ok
+originals unchanged
+==> 8. clean up
+demo: ALL GREEN
+```
+
+## 给用户看的汇报
+
+做成了什么：第一波的后一半——会话引擎落地。不用写代码，建会话、开会话、校验、备份、恢复、存模板七件事全是命令：
+
+```bash
+printf '%s\n' \
+  '{"id": "session.new", "params": {"name": "Demo", "parent": "/tmp/w1"}}' \
+  '{"id": "session.verify", "params": {}}' \
+  '{"id": "session.close", "params": {}}' > /tmp/w1.jsonl
+./target/debug/lightamer-cli run --file /tmp/w1.jsonl
+```
+
+备份恢复是后台作业（能取消、有进度），校验只读（前后字节不变），双开被拒并告知谁在用（第 6 步：后台握 20 秒，前台被拒，强杀后重开成功）。完整八步看 `Scripts/rust-session-demo.sh`（临时目录，约半分钟，exit 0）。
+
+还没做：照片导入（B15，本波打开会话后引擎里没照片是正常的）、历史落库（B13′）、修校验发现的命令（verify 只报不修）、缩略图与界面。
+
+## Commit
+
+`6615c1af9e875f9f508b806c7c83017627b3e177`（首提交 `8823e744` + 收口 amend，32 文件 +4582/-78，`refs #32`，零 push）。
+
+## 复审结论头
+
+`PASS / 0 error + 1 minor`（`B12p-b-review.log`，复审对象 `8823e744`）。11 项全亲手重跑通过。唯一 minor：commit message lockfile 措辞（已随 amend 改准）。
+
+## 未做 / 未验
+
+- 未做：无。1–9 节全部交付（含前一半留的两件事）。
+- 未验：无。非 macOS 目标按任务书不跑。诚实注记：`session_backup_cancel_mid_run_removes_partial_dest` 依赖 1200 文件的时间裕量（注释写明），其余取消路径全确定。
+
