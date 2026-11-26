@@ -45,18 +45,30 @@ version = "0.1.0"
 [[package]]
 name = "dt-iop-color"
 version = "0.1.0"
+dependencies = [
+ "dt-iop-traits",
+]
 
 [[package]]
 name = "dt-iop-display"
 version = "0.1.0"
+dependencies = [
+ "dt-iop-traits",
+]
 
 [[package]]
 name = "dt-iop-geom"
 version = "0.1.0"
+dependencies = [
+ "dt-iop-traits",
+]
 
 [[package]]
 name = "dt-iop-raw"
 version = "0.1.0"
+dependencies = [
+ "dt-iop-traits",
+]
 
 [[package]]
 name = "dt-iop-traits"
@@ -73,6 +85,13 @@ version = "0.1.0"
 [[package]]
 name = "dt-registry"
 version = "0.1.0"
+dependencies = [
+ "dt-iop-color",
+ "dt-iop-display",
+ "dt-iop-geom",
+ "dt-iop-raw",
+ "dt-iop-traits",
+]
 
 [[package]]
 name = "xtask"

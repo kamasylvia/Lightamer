@@ -1,0 +1,126 @@
+# A3 Report: Module Descriptors and Auto-Discovery Registry (resume)
+
+结论头：PASS。97 个基线模块桩全生成，raw/jpg 双链 97 条逐位与夹具一致，探针两方向绿，
+`rust-ci-lite.sh` 全绿。零新依赖，`dt-core`/`dt-api` 零改动。
+
+基线：darktable 上游 `master` 提交 `679d594f5d`（`src/common/iop_order.c` 的
+`v50_order` + `v50_jpg_order`）。接手时 HEAD `cbba0d9c`，machine-guard 起跑前通过
+（`GUARD PASS (heavy=0 free=73% swap=?M disk=?GB)`）。
+
+## 接手时的状态（续做）
+
+上一条 lane 留下 13 个已跟踪修改 + 13 项 `crates/` 未跟踪新文件。逐件核完：
+
+在位且可用的（留用）：
+
+- `crates/dt-iop-traits/src/lib.rs`：`ModuleDesc` 全族（`OrderKey`/`OrderKeys`/
+  `ModuleGroup`/`ParamsDesc`/`ModuleFlags`/`ColorSpace`/`ColorRequirement`/
+  `Control`/`HistoryKeys`）+ `stub_sets_only_id_and_order` 测试。
+- 四个域 crate 的 `build.rs`（目录 `rerun-if-changed` + 逐文件双保险）与 `lib.rs`
+  （`include!` + `MODULES` 重导出）。
+- `crates/dt-registry/src/lib.rs`：`all_descs`/`find`/`raw_chain`/`jpg_chain`，自带
+  3 个自洽测试（覆盖、排序）。
+- `crates/xtask/src/{main,iop_order,gen_stubs,sync,no_names}.rs`：三个子命令全实现，
+  `iop_order` 自带 4 个单测。塔台说的「`xtask` 三个子命令没做」不准，以亲核为准。
+- 夹具 `crates/dt-registry/fixtures/dt-order-679d594f5d.json` + `README.md`。
+
+发现的问题（本波修掉）：
+
+1. **6 个重复桩**：`atrous`/`equalizer`/`invert`/`retouch`/`sharpen`/`spots` 各在两个域
+   各有一个目录（103 个目录 vs 97 行夹具），`cargo test -p dt-registry` 当场失败
+   （`left: 97, right: 103`）。根因是上一条 lane 多次跑生成器、前次输出没清。
+   修法：重跑 `gen-iop-stubs`，`sweep_other_domains` 自动归位（`invert`→raw，
+   其余 5 个→geom），终态 raw=8 geom=21 color=22 display=46，零重复。
+2. **`raw_chain` 测试假设错误**（本波新写测试时发现，不是半成品的错）：上游 v50 表行序
+   不是优先级单调的（`lut3d` 36.0 排在 `colortransfer` 37.0 后面）。管线顺序是
+   `(priority, tie)` 排序，不是表行序；测试侧先把夹具同式排序再逐位比。
+3. `gen-iop-stubs` 对 `mask_manager`/`colorreconstruct` 报 fallback 警告：核过上游，
+   前者无分组函数（特殊模块），后者源文件名是 `colorreconstruction.c`（op 名≠文件名，
+   分组 `BASIC|TECHNICAL` 按规则同样落 display）。结论与规则一致，不改代码。
+4. 格式：`cargo fmt --check` 在半成品 4 个文件有 diff（含 `gen_stubs.rs`/
+   `iop_order.rs`）；`cargo fmt --all` 修掉。
+
+缺的（本波补齐）：`ParamsDesc` 按 A-12/A-15 重写；registry 四类测试；探针测试+
+`Scripts/rust-discovery-probe.sh`；`crates/README.md` 更新；本报告；自审；提交。
+
+## 模块数与分域
+
+- 基线具名模块：**97**（`grep -c '"name"'`，哨兵已除外；命令见验收节）。
+- 分域：raw=8 geom=21 color=22 display=46（`gen-iop-stubs` 输出）。
+- 分域规则（`assign`，按序）：① T2 冻结指派 35 个；② raw 优先级 `< 9.0`→raw；
+  ③ tags 含 `DECORATION`→display；④ tags 含 `DISTORT`/`CROPPING`/`GEOMETRY`→geom；
+  ⑤ `default_group()` 主标签 `COLOR`→color、`TONE`/`EFFECT`→display、
+  `CORRECT`→geom、`BASIC`→display、纯 `EFFECTS`→display；⑥ 无信息回落 display
+  （2 个，见上）。规则已写进 `crates/README.md`。
+
+## 描述字段的增删及理由
+
+相对 T3 草案：`id`/`display_key`（`Option` 化）/`group`/`order`/`flags`/
+`colorspaces`/`panel`/`history` 照草案（未填字段一律 `None` = 「未设」）。
+唯一大改是 **`params`**，按续做指令（A-12/A-15：darktable 历史兼容不再是需求，
+历史只存我们自己的会话库）：
+
+- 删：`struct_name`/`size_bytes`/`version`/`migrate_fn`（C 结构体布局四件套）。
+  半成品的 `ParamsDesc` 是按原任务书第 1 条（C 布局）写的，续做指令明确推翻，
+  整段重写。
+- 加：`ParamField { name: &'static str, ty: ParamType }` +
+  `ParamType { Float, Int, Bool, Enum, Curve }`，
+  `ParamsDesc { fields: Option<&'static [ParamField]> }`。每个参数一个名字一个类型，
+  本波 `fields` 全 `None`（空着不填），A4b 历史模型来填。
+- `ModuleDesc::stub` 形状不变（只设 `id`+`order`），桩生成器零改。
+
+另把 `raw_chain`/`jpg_chain` 的排序闭包抽成 `raw_cmp`/`jpg_cmp` 私有函数，
+供负测复用同一比较器（行为零变）。
+
+## 重新编译条件实测与增量耗时
+
+- 加文件触发重编：`touch .../temperature/note.txt` 后
+  `cargo check -p dt-iop-color -v` 报
+  `Dirty dt-iop-color ... the file 'crates/dt-iop-color/src/modules' has changed`
+  并重编（0.06s）。目录级 `rerun-if-changed` 生效。
+- 改一个模块文件后 `time cargo check -p dt-iop-color`：`real 0m0.055s`
+  （门 40s，`rust-budget.sh` 同口径量得 0s）。
+
+## 第 6 节验收（命令与输出）
+
+1. `cargo test -p dt-registry` → 7 passed（`raw/jpg_chain_matches_fixture_
+   position_by_position` 各 97 条逐位 id+prio+tie；`swapped_tie_changes_raw_order`
+   负测；`ids_are_unique`；沿用 3 个自洽测试）+ doctest 1 passed，退出 0。
+2. `Scripts/rust-discovery-probe.sh` → present PASS / absent PASS /
+   `ALL GREEN (workspace restored)`，跑完 `git status` 无 `zz_probe` 残留。
+3. `rg -n '"(rawprepare|demosaic|colorout)"' crates/dt-core crates/dt-api` →
+   无输出（退出 1）。
+4. `cargo run -p xtask -- check-no-iop-names` →
+   `OK (97 names, 3 roots clean)`，退出 0。
+5. `cargo run -p xtask -- check-order-sync` →
+   `OK (97 modules, fixture .../dt-order-679d594f5d.json)`，退出 0。
+6. `time cargo check -p dt-iop-color` → real 0.055s（≤40s）。
+7. `Scripts/rust-ci-lite.sh` → `tests total passed=33`，
+   `rust-budget: overall PASS`，`ALL GREEN`，退出 0。许可证检查无新增依赖，
+   未碰 `Scripts/licenses-allow.txt`。
+8. 新增依赖：无（`Cargo.lock` 只有内部 path 依赖边），`docs/LICENSE-AUDIT.md`
+   无需追加。
+9. `cargo metadata --locked --no-deps` → 19 个包。
+10. `git show --name-only HEAD` 路径检查：见提交节。
+
+## 提交
+
+- 初版：`f668227b`（代码+初版报告）；自审 PASS（0 error / 0 minor）后报告定稿+
+  `A3-review.log` 入版，amend 链：内容定稿 `fc73ad90` → 哈希回填 `1284ea8d` →
+  注记定稿（终版，`git rev-parse HEAD` 实测为准）。
+  注：文件内容自包含其 commit 哈希数学无解；本行只记 amend 链上真实存在过的值，
+  不写终版哈希。终版与 `1284ea8d` 仅本注记行不同。
+- `git show --stat HEAD`（终版实测）：125 files changed；要点：97 个桩目录 +
+  4×build.rs + traits/registry/xtask + 夹具 + 探针脚本 + 报告/log。
+## 未做 / 未验
+
+- 未做：无。第 6 节 10 条全做；`dt-core`/`dt-api` 按纪律零改动（`git status`
+  无此二路径）。
+- 未验：`--cold` 全量构建计时未跑（`rust-budget.sh` 默认跳过，门 360s，暖机全套
+  仅数秒，无风险）；探针脚本在 CI/干净克隆上未跑（本机两方向已绿，逻辑无机器
+  相关项）。
+## 自审修订记录
+
+自审结论：`PASS`，0 error / 0 minor（`.work/gsd/phases/rust-core/waves/A3-review.log`）。
+自审实例独立全量比对夹具 97 行零偏差、确认测试逐位力度、实跑探针两方向、
+复核三 crate 零模块名。无修订。

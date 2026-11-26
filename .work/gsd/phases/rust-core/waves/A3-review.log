@@ -1,0 +1,32 @@
+Working...
+PASS
+
+A3 波四项全过。基线：`git rev-parse HEAD` = `f668227b…`（与任务 commit 一致）；上游 `refs/dt-master HEAD` = `679d594f5d93cde043703ba8ff26873d0e475905`（`Ensure safe OpenCL maths`），与夹具文件名后缀一致。
+
+1. 夹具真从上游解析：全量 97 行零偏差
+- 上游：`Lightamer-rust-spike/refs/dt-master/src/common/iop_order.c`，`v50_order` L306-427，`v50_jpg_order` L556-679。夹具：`crates/dt-registry/fixtures/dt-order-679d594f5d.json` L1-99。
+- 实测（regex 提两表 + JSON 全比）：`C raw rows: 97 C jpg rows: 97 fixture rows: 97 / mismatches: 0 / name sets equal: True`；`fixture order == raw row order: True`；`prio-text mismatches: 0`（字面量文本级，非仅数值）。
+- 五条抽查（名字/优先级/行内序逐项对）：
+  - `rawprepare`：C raw L307 `1.0` 行 0 / jpg L558 `1.0` 行 0；夹具 L2 `raw 1.0/0 jpg 1.0/0` ✓
+  - `28.5` 七模块组（同优先级多模块）：C raw L347-355 `channelmixerrgb→contrastntexture→diffuse→censorize→negadoctor→blurs→primaries` 行 34-40；jpg L597-603 同序；夹具 L36-42 `raw_tie 34-40 jpg_tie 34-40` ✓
+  - `colorin`/`denoiseprofile`（jpg 28.0 大组）：C jpg L569 `colorin` 行 10、L571 `denoiseprofile` 行 11；夹具 L35 `jpg 28.0/10`、L12 `jpg 28.0/11`，raw 侧 L346 行 33 / L317 `9.0` 行 10 ✓
+  - `lut3d`（非单调位）：C raw L392 `36.0` 行 65（落在 46.7 之后）；夹具 L67 `36.0/65` ✓
+  - `finalscale`（raw/jpg 分叉）：C raw L417 `69.4` / jpg L669 `69.5` 行 88；夹具 L90 `raw 69.4 jpg 69.5 tie 88` ✓
+- 生成链可信：`crates/xtask/src/iop_order.rs:222-262 join_tables`（tie = 表行下标，两表互查缺名即 Err）+ `:265-281 render_fixture`（一行一对象严格形）。
+
+2. 顺序测试逐位比较，非长度/集合：力度强
+- `crates/dt-registry/src/lib.rs:192-212` raw、`215-233` jpg：夹具按 `(prio, tie)` 排序后，逐位断言 `id` + `priority.to_bits()` + `tie`（L203-211 / L224-232）。注释 L194-195 显式点名 lut3d 36.0 非单调陷阱。
+- 负测 `236-260 swapped_tie_changes_raw_order`：自动找首个同 raw_prio 相邻对，互换 tie 重排后断言顺序翻转——tie 维度真生效，非摆设。
+- 另有 `83-92` 全覆盖无重、`273-276` 链已排序、`263-270` id 唯一。实测：`cargo test -p dt-registry --lib` → `7 passed; 0 failed`。
+- 注记（非问题）：`119-163 fixture_rows` 为行扫描孪生解析器（L117-118 注释：tests 无法 import xtask binary crate，故意重复；xtask 侧 `iop_order.rs:285-286` 同注）。`number_field` 字符集仅 `[0-9.]`，闭环内夹具恒正数可控。
+
+3. 探针脚本真跑过两方向：实跑 ALL GREEN，无残留
+- 脚本 `Scripts/rust-discovery-probe.sh:4-5` 声明两方向，`:14-28` present（建 `zz_probe/mod.rs` + `DT_DISCOVERY_PROBE=present`）、`:30-33` absent（删目录 + `=absent`），`:11-12 trap` + `:36-43` 双重残留门（目录存在 / git status 命中即 exit 1）。
+- 断言端 `crates/dt-registry/tests/discovery_probe.rs:9-26`：present 断言 `find("zz_probe").is_some()`，absent 断言 `is_none()`，未设 env 则 skip（防误跑）。
+- 实测输出：`present PASS` → `absent PASS` → `ALL GREEN (workspace restored)`；复查 `git status --porcelain -- crates/dt-iop-display/src/modules | grep zz_probe` → `no zz_probe residue`，`ls modules | grep zz_probe` → `probe dir gone`。（工作区另有 `.work/gsd/phases/…` untracked 文件，与探针无关，探针目录干净。）
+
+4. 三 crate 源码真无基线模块名：机检 + 抽查双过
+- 机检 `crates/xtask/src/no_names.rs:9-10` 扫描三根、`:16-37` 97 名全量扫、`:91-109` 逐行 `"name"` 字面量命中上报（严方向：注释命中也算，误报安全）；`fixtures` 数据目录跳过（L14-15 / `:74-89`）；接线 `main.rs:102-108`。实测 `cargo run -p xtask -- check-no-iop-names` → `OK (97 names, 3 roots clean)`。
+- 独立抽查（`.rs` 范围，与机检口径一致）：`rg "\"exposure\""|"filmicrgb"|"colorin\"" crates/dt-core crates/dt-api crates/dt-registry -g '*.rs'` → 三名皆 `(no hit)`。注：不限 `-g '*.rs'` 时三名仅命中 `fixtures/dt-order-*.json`（数据文件，机检正确豁免）。
+
+发现：0 error / 0 minor。

@@ -1,5 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Geometry modules: lens/cacorrect/ashift/flip/crop/… (B7 fills it).
+//! Geometry modules, auto-discovered from `src/modules/*/mod.rs`.
+//!
+//! Each child directory holding a `mod.rs` file is one module. The build
+//! script scans the directory at compile time and generates the `mod`
+//! declarations plus the `MODULES` table, so adding a module is adding a
+//! directory; no list in the core changes.
+
+/// Auto-discovered modules (generated; see `build.rs`).
+pub mod modules {
+    include!(concat!(env!("OUT_DIR"), "/modules_gen.rs"));
+}
+
+/// Re-exported descriptor table; see `modules::MODULES`.
+pub use modules::MODULES;
 
 #[cfg(test)]
 mod tests {
