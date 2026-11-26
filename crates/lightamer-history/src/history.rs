@@ -7,7 +7,7 @@
 //! Snapshot history of one photo.
 //!
 //! Each [`HistoryStep`] holds a full [`PhotoSettings`] snapshot behind an
-//! [`Arc`](std::sync::Arc), plus the label of the command that committed it.
+//! [`Arc`], plus the label of the command that committed it.
 //! [`HistoryStack`] adds the cursor (undo/redo/goto), the step cap, and the
 //! drag-merge interaction: `begin` … `end` folds any number of live updates
 //! into one step, `cancel` returns to the pre-interaction state.
@@ -33,7 +33,7 @@ const INITIAL_LABEL: &str = "import";
 pub struct HistoryStep {
     /// Which command committed this step.
     pub label: String,
-    /// Full settings snapshot, shared by [`Arc`](std::sync::Arc).
+    /// Full settings snapshot, shared by [`Arc`].
     pub settings: Arc<PhotoSettings>,
 }
 

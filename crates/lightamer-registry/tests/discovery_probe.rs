@@ -24,6 +24,9 @@ fn probe_expectation() {
             lightamer_registry::find("zz_probe").is_none(),
             "zz_probe must vanish once its directory is removed"
         ),
-        other => panic!("bad LIGHTAMER_DISCOVERY_PROBE={other}"),
+        other => assert!(
+            ["present", "absent"].contains(&other),
+            "bad LIGHTAMER_DISCOVERY_PROBE={other}"
+        ),
     }
 }

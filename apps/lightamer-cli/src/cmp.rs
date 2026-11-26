@@ -136,7 +136,7 @@ pub fn read_png(path: &Path) -> Result<Image, Error> {
         raw.as_chunks::<2>()
             .0
             .iter()
-            .map(|pair| u16::from_be_bytes([pair[0], pair[1]]))
+            .map(|pair| u16::from_be_bytes(*pair))
             .collect()
     } else {
         raw.iter().map(|&byte| u16::from(byte)).collect()
@@ -208,6 +208,18 @@ fn finalize(width: u32, height: u32, bit_depth: u8, channels: u8, tol: f64, acc:
     }
 }
 
+/// Error for a channel accumulator shorter than its channel count.
+fn short_accumulator(channel: usize) -> Error {
+    Error::new(format!("short accumulator: channel {channel} missing"))
+}
+
+/// Error for an image whose samples end before `index`.
+fn short_image(index: usize, len: usize) -> Error {
+    Error::new(format!(
+        "short image: sample {index} missing ({len} samples)"
+    ))
+}
+
 /// Compare two decoded images sample by sample.
 ///
 /// # Errors
@@ -240,10 +252,22 @@ pub fn compare_images(a: &Image, b: &Image, opts: &Options) -> Result<Stats, Err
             let bx = if opts.mirror_x_b { width - 1 - x } else { x };
             let mut pixel_beyond = false;
             for c in 0..channels {
-                let va = a.samples[(y * width + x) * channels + c];
-                let vb = b.samples[(y * width + bx) * channels + c];
-                acc.sum_ch_a[c] += u64::from(va);
-                acc.sum_ch_b[c] += u64::from(vb);
+                let ia = (y * width + x) * channels + c;
+                let ib = (y * width + bx) * channels + c;
+                let va = *a
+                    .samples
+                    .get(ia)
+                    .ok_or_else(|| short_image(ia, a.samples.len()))?;
+                let vb = *b
+                    .samples
+                    .get(ib)
+                    .ok_or_else(|| short_image(ib, b.samples.len()))?;
+                *acc.sum_ch_a
+                    .get_mut(c)
+                    .ok_or_else(|| short_accumulator(c))? += u64::from(va);
+                *acc.sum_ch_b
+                    .get_mut(c)
+                    .ok_or_else(|| short_accumulator(c))? += u64::from(vb);
                 let diff = va.abs_diff(vb);
                 acc.sum += u64::from(diff);
                 acc.max = acc.max.max(diff);
@@ -337,6 +361,7 @@ pub fn format_stats(stats: &Stats, a_name: &str, b_name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use super::*;
     use png::Encoder;
     use std::path::PathBuf;

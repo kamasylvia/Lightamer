@@ -3,6 +3,14 @@
 //!
 //! Thin CLI over [`fetch`], [`render`], [`cmp`], [`xmp`] and [`selftest`];
 //! `Scripts/oracle.sh` only forwards to this binary.
+#![deny(
+    clippy::indexing_slicing,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::todo,
+    clippy::unimplemented
+)]
 
 pub mod capabilities;
 pub mod cmp;

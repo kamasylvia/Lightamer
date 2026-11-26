@@ -80,7 +80,7 @@ pub fn run_capture(
 pub fn stderr_tail(output: &CmdOutput, max: usize) -> String {
     let bytes = &output.stderr;
     let start = bytes.len().saturating_sub(max);
-    String::from_utf8_lossy(&bytes[start..]).into_owned()
+    String::from_utf8_lossy(bytes.get(start..).unwrap_or_default()).into_owned()
 }
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -146,6 +146,7 @@ pub fn write_file(path: &Path, bytes: &[u8]) -> Result<(), Error> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use super::*;
 
     #[test]

@@ -45,7 +45,7 @@
 //!    [`ParamSpec`] list, an enablement check, and the run function.
 //! 2. Validate everything up front in the run function (all photos first,
 //!    then mutate), commit one step per photo labelled with the command id,
-//!    and queue change events on the [`RunCtx`].
+//!    and queue change events on the [`command::RunCtx`].
 //! 3. Add tests: the happy path, each error the command can return, the
 //!    atomicity row (state and digest unchanged on error), and the events the
 //!    call emits. Never register a command the engine cannot run yet — an

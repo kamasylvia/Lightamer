@@ -2,6 +2,16 @@
 //! Arg parsing + exit codes for lightamer-cli (hand-rolled; no arg-parser dep).
 //!
 //! Exit codes: 0 ok; 1 check failed (gates, verify, prefs, selftest); 2 usage/IO error.
+// Binary entry shim: fallible work lives in the library and maps to an exit
+// code here, so the entry itself takes the developer-tool exemption.
+#![allow(
+    clippy::indexing_slicing,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::todo,
+    clippy::unimplemented
+)]
 
 use lightamer_cli::{capabilities, cmp, commands, fetch, render, selftest, util, xmp};
 use std::path::{Path, PathBuf};

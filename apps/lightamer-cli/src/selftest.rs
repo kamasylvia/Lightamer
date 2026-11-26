@@ -372,20 +372,23 @@ pub fn run(opts: &Options) -> Result<String, util::Error> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use super::*;
 
     #[test]
     fn legs_cover_three_groups_times_two_backends_plus_two_repeats() {
         assert_eq!(LEGS.len(), 8);
         let mut groups = [0, 0, 0];
+        let mut unknown = 0;
         for leg in LEGS {
             match leg.group {
                 "g0" => groups[0] += 1,
                 "g1" => groups[1] += 1,
                 "g2" => groups[2] += 1,
-                _ => panic!("bad group"),
+                _ => unknown += 1,
             }
         }
+        assert_eq!(unknown, 0, "bad group");
         assert_eq!(groups, [3, 3, 2]);
         assert_eq!(LEGS.iter().filter(|l| l.name.ends_with("-r2")).count(), 2);
     }

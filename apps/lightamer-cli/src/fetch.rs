@@ -239,6 +239,7 @@ pub fn ensure_dmg(lock: &Lock, cache: &Path) -> Result<PathBuf, Error> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use super::*;
 
     const SAMPLE: &str = "# comment\n\nversion=5.6.2\nurl=https://example.com/a.dmg\n\

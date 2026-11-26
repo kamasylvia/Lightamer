@@ -474,6 +474,7 @@ fn append_log_header(log_path: &Path, attach_log: &str, detach_log: &str, opts: 
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use super::*;
 
     #[test]

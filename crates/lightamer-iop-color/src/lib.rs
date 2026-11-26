@@ -5,6 +5,14 @@
 //! script scans the directory at compile time and generates the `mod`
 //! declarations plus the `MODULES` table, so adding a module is adding a
 //! directory; no list in the core changes.
+#![deny(
+    clippy::indexing_slicing,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::todo,
+    clippy::unimplemented
+)]
 
 /// Auto-discovered modules (generated; see `build.rs`).
 pub mod modules {
@@ -16,6 +24,7 @@ pub use modules::MODULES;
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     #[test]
     fn package_metadata_resolves() {
         assert_ne!(env!("CARGO_PKG_NAME"), "");

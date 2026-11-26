@@ -8,6 +8,14 @@
 //!
 //! Fields that later waves have not filled yet are [`None`]. A fresh stub
 //! built with [`ModuleDesc::stub`] sets only `id` and `order`.
+#![deny(
+    clippy::indexing_slicing,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::todo,
+    clippy::unimplemented
+)]
 
 /// Sort key placing a module in one default chain.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -282,6 +290,7 @@ impl ModuleDesc {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use super::{ModuleDesc, OrderKey};
 
     #[test]

@@ -12,7 +12,7 @@
 //! renders, encodes, backups, network waits) starts as a job: the work runs
 //! on a pool thread against an immutable snapshot it captured, progress and
 //! completion land in a results queue, and [`Engine::collect`][crate::Engine::collect]
-//! turns the queue into [`Event`][crate::Event]s on the engine thread.
+//! turns the queue into [`Event`]s on the engine thread.
 //!
 //! This wave registers no command that starts a job (there is no real
 //! background work yet); the pool, the table, and `job.cancel` ship now so

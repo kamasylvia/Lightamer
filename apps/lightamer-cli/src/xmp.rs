@@ -114,14 +114,21 @@ impl DtParamsEncoder for FlipParams {
     }
 }
 
+/// One lowercase hex digit for a 4-bit nibble.
+fn hex_nibble(nibble: u8) -> char {
+    (match nibble {
+        0..=9 => b'0' + nibble,
+        _ => b'a' + (nibble - 10),
+    }) as char
+}
+
 /// Lowercase hex of bytes (darktable's default XMP encoding).
 #[must_use]
 pub fn hex_lower(bytes: &[u8]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(bytes.len() * 2);
     for &byte in bytes {
-        out.push(DIGITS[usize::from(byte >> 4)] as char);
-        out.push(DIGITS[usize::from(byte & 0xf)] as char);
+        out.push(hex_nibble(byte >> 4));
+        out.push(hex_nibble(byte & 0xf));
     }
     out
 }
@@ -186,6 +193,7 @@ pub fn emit_xmp(derived_from: &str, entries: &[&dyn DtParamsEncoder]) -> String 
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use super::*;
 
     /// Canonical file name the golden fixtures use.
@@ -195,7 +203,9 @@ mod tests {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../fixtures/oracle")
             .join(name);
-        std::fs::read_to_string(&path).unwrap_or_else(|_| panic!("missing {name}"))
+        let text = std::fs::read_to_string(&path);
+        assert!(text.is_ok(), "missing {name}");
+        text.unwrap_or_default()
     }
 
     #[test]

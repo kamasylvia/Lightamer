@@ -8,7 +8,7 @@
 //!
 //! Each command is one static [`CommandSpec`]: an id, a one-line summary, a
 //! machine-readable parameter list, an enablement check, and the run function.
-//! Per-area modules ([`develop`][crate::develop], [`history`][crate::history],
+//! Per-area modules (`develop`, `history`,
 //! [`jobs`][crate::jobs]) own static spec arrays; [`command_specs`] concatenates
 //! them and [`find_command`] looks one id up.
 //!

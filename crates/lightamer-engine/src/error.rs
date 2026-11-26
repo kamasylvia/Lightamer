@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! What is wrong with a command call: one typed error per failure mode.
 //!
-//! Every variant renders as one human-readable line (see [`Display`][std::fmt::Display]).
+//! Every variant renders as one human-readable line (see [`Display`]).
 //! There is no catch-all: a new failure mode gets a new variant.
 
 use std::fmt::{Display, Formatter, Result as FmtResult};

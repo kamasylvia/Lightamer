@@ -4,6 +4,14 @@
 //! Depends on the four domain crates and concatenates their `MODULES` tables.
 //! This crate names no module of its own; the `check-no-iop-names` task fails
 //! the build if a baseline module name ever appears here as a string literal.
+#![deny(
+    clippy::indexing_slicing,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::todo,
+    clippy::unimplemented
+)]
 
 use lightamer_iop_traits::ModuleDesc;
 
@@ -70,6 +78,7 @@ pub fn jpg_chain() -> Vec<&'static ModuleDesc> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use super::{all_descs, jpg_chain, raw_chain};
     use lightamer_iop_traits::ModuleDesc;
 

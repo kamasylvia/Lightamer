@@ -65,3 +65,24 @@
 
 纪律（PLAN §3.0）：不改封存面；新增依赖先过 A1（本波零依赖）；
 核心代码零 dt op 名（机检在 A3 落）。
+
+## 不崩溃的 lint 规则（A9 收口）
+
+产品 crate（层表 L0–L5 共 26 个，以 `cargo xtask layers` 的 TABLE 为准）在**库目标的根部**声明六条拒绝：
+
+```rust
+#![deny(
+    clippy::indexing_slicing,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::todo,
+    clippy::unimplemented
+)]
+```
+
+测试代码（`#[cfg(test)]` 模块）在模块内放开前三条（直接下标/切片、`unwrap`、`expect`）；`panic!`/`todo!`/`unimplemented!` 在测试里同样禁止。`lightamer-testkit` 的辅助代码按测试代码对待（该 crate 现按产品标准持有全部六条）。新 crate 一建出来就带上这几行，不等有逻辑再补。
+
+开发工具豁免，但须在根部写明豁免哪几条与理由：`xtask` 整个 crate；`lightamer-cli` 的二进制入口（`src/main.rs`）；四个域 crate 的构建脚本（`build.rs`，panic/expect 是 cargo 报错的正常途径）。`lightamer-cli` 的库按产品 crate 对待。
+
+检查口径（`Scripts/rust-ci-lite.sh` 每波都跑）：`cargo clippy --workspace --all-targets --locked -- -D clippy::indexing_slicing -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic -D clippy::todo -D clippy::unimplemented` 须退出 0。

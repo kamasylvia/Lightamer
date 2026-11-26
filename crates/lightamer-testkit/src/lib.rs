@@ -26,6 +26,7 @@
 //! the part it could not run the same way.
 #![forbid(unsafe_code)]
 #![deny(
+    clippy::indexing_slicing,
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,

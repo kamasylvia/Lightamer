@@ -1,5 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Repo maintenance tasks: i18n keys, order fixture/stubs, sync, name checks, layering.
+// Dev tool: failures surface through cargo to the developer; panics and
+// expects are that error path, not product behavior.
+#![allow(
+    clippy::indexing_slicing,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::todo,
+    clippy::unimplemented
+)]
 
 mod apple_boundary;
 mod gen_stubs;
