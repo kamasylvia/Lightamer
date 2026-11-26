@@ -7,7 +7,7 @@
 ## T-B1 会话库列定义（schema v1，`<Name>.lmsessiondb`，WAL）
 
 约定：`INTEGER` 主键即 rowid 别名；哈希一律十进制 TEXT（§1.2 纪律）；时间一律 Unix 秒 `INTEGER`；布尔 `INTEGER 0/1`。
-`PRAGMA user_version = 1`；`journal_mode = WAL`；`synchronous = NORMAL`（强退不丢已提交的命令，库不会坏；断电可能丢最近一次 WAL 同步之后的提交。`FULL` 每次提交多一次同步，B13′ 把两档的耗时都量出来，默认 `NORMAL`）；`foreign_keys = ON`。
+`PRAGMA user_version = 1`；`journal_mode = WAL`；`synchronous = FULL`（用户 2026-11-27 裁决，A-21：每次提交都同步，强退和断电都不丢已提交的命令。代价是每次提交多约 1 毫秒，USB 机械盘上量的；`fullfsync` 不开）；`foreign_keys = ON`。
 
 ```sql
 CREATE TABLE _meta (
