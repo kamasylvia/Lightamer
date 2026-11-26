@@ -56,3 +56,18 @@
 - **我自己重跑的**：`cargo test -p dt-registry` 9 个测试通过；`cargo xtask check-no-iop-names` 通过，查了 97 个名字、3 个目录；`cargo xtask check-order-sync` 通过；`rg` 在 `dt-core`、`dt-api` 里找不到任何模块名；探针脚本两个方向都通过，工作区复原；`Scripts/rust-ci-lite.sh` 退出 0，共 33 个测试；`cargo metadata` 仍是 19 个包。
 - **参数描述已按 A-15 改**：只有一个字段列表，类型是「我们的设置模型」的字段，没有 C 结构体的字节布局。
 - **lane 的自审**：`PASS`。
+
+## A3R 分层重排、分层检查、测试套件（2026-11-26，commit `6bfed45d`，20 分钟）
+
+- **改动边界**：提交只含允许的路径。Swift 的产品代码和工程文件没有出现。
+- **重排**：现在是 28 个包，`crates/` 下 27 个加 `apps/dt-cli`。`cargo xtask layers` 打印每一层有哪些 crate，结论是没有违规。改名是 `git mv`：`git log --follow` 能从 `dt-pipeline` 追到它还叫 `dt-core` 时的那个提交。源码和脚本里没有留下旧名字。
+- **A3 的产物没被碰**：从重排前的提交到重排后的提交，模块桩目录和顺序夹具的 `git diff --stat` 是空的。
+- **分层检查我自己做了九次活体试验**，每次临时加一条依赖，跑检查，再撤掉：
+  - 该报的都报了，退出 1：L0 的 `dt-color-math` 依赖 L1 的 `dt-meta`（向上）；`dt-pipeline` 把测试套件当普通依赖；`dt-geom` 依赖同层的 `dt-raster`（方向反了）。
+  - 该放的都放了，退出 0：`dt-color-math` 依赖 `dt-geom`、`dt-raster` 依赖 `dt-geom`、`dt-decode` 依赖 `dt-meta`、`dt-history` 依赖 `dt-registry`。同层链的方向是排在后面的可以依赖排在前面的。
+  - 我第一次挑的例子不好：让 `dt-iop-traits` 依赖 `dt-registry` 会形成循环依赖，cargo 自己先报错了，检查没跑到。换成一个不成环的例子之后才验到。
+  - 一条措辞小问题：同层方向反了的时候，报错文字说的是「只能依赖严格更低的层」，没有说清是同层链的方向反了。判得对，话没说准，留给后面顺手改。
+- **其余我自己重跑的**：全工作区 62 个测试通过，其中 `xtask` 22 个；`check-order-sync` 和 `check-no-iop-names` 通过；`Scripts/rust-ci-lite.sh` 退出 0，日志里能看到分层检查那一步。
+- **署名**：取自 LightCraft 的两个文件（`crates/xtask/src/layers.rs` 和 `crates/dt-testkit/src/lib.rs`）文件头有来源行，`NOTICE` 里有 LightCraft 的条目。
+- **分层检查查不到的**：传递依赖。它只看直接依赖，经过中间 crate 绕到高层是查不出的。这一条和 LightCraft 自己的检查一样，写在检查文件的头部说明里。
+- **lane 的自审**：`PASS / 0 error + 0 minor`。
