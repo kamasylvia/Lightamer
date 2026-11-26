@@ -1,0 +1,31 @@
+# omp-framework-summary — 框架调研 lane 交付总结（2026-11-26）
+
+## 产物（4 个，只在 `.work/gsd/phases/rust-core/`）
+
+- `FRAMEWORK.md`：§0（27 行）+ §1–§13 + 旧笔记对账附录 + 裁决点（无）+ 复审修订记录。
+- `FRAMEWORK-TABLES.md`：T-F1–T-F11 长表（层表、分发口、规格、管线、图库、XMP、取舍、映射+新布局、取用代码 17 项、波次）。
+- `framework-review.log`：独立 omp 复审，`PASS / 0 error + 2 minor`，两 minor 已回注修订。
+- 本文件。
+
+## 核心结论
+
+新分层：L0（geom/raster/color-math/iop-traits/sysmem）→ L1（四域/meta/color/blend/decode/scenes）
+→ L2（registry→history→pipeline 同层链）→ L3（catalog/preview/apple + gpu/merge/mcp/lightamer 占位）
+→ L4 dt-engine（含 export/memory/import）→ L5 dt-gpui；Exempt（apps/dt-cli、xtask）+ dt-testkit；
+退役 dt-api/dt-app/dt-export（fold 进 engine）；dt-core→dt-pipeline、dt-library→dt-catalog 改名。
+取舍：照搬 8 / 改造 11 / 不学 9。计划：A 新增 A3R（2 lane）+ A7a 重做（+1），B13+1/B15+2/B16+1；
+93→100 lane，251.5h→271.5h。三大调和：blob+访问器（C1）、不管线只取纪律（C2）、SQLite 真相+双版本正交（C3/C7）。
+
+## 关键证据抽查（复审已重跑）
+
+- `xtask/src/layers.rs` 316 行，TABLE `:35-71`，检查 `:171-218`，单测 `:254-316`。
+- `Session::execute` `engine/src/lib.rs:512-513`；`CONTROLS` 122 行（`controls.rs:171-292`，590 行文件）。
+- 等价门 `MEAN 0.5 / MAX 3`（`equivalence.rs:16-17`）；`cases()` 31 组（旧笔记 26 已对不上）。
+- `memory.rs` 318 行（RAM/4，1/2+1/4+1/8+2×）；`journal.rs` 709 行（`VERSION=9`）；29 crate + 3 app。
+- 旧笔记另三处对不上：24→29 crate、缓冲池 ≤2GB→256MB（`ctx.rs:208`）、"canary" 全仓 0 命中。
+- F5 三数（347ms/0.72s/0.5s）docs+crates 全文 grep 无命中，判查不到，A-10 门待实测。
+
+## 纪律
+
+只读 LC（`git status` 干净）；本仓只写 4 个交付文件（`git status` 余者属 A3 lane）；零构建测试；
+零 commit/push；未碰用户照片库。用时约 25 分钟（含复审 77 秒），远低于 170 分钟墙钟。

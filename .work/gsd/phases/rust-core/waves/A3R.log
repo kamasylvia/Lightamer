@@ -1,0 +1,157 @@
+Working...
+A3R 交付。终版 `6bfed45d`（amend 链 `70c7a54b`→`7c398fa6`→`6bfed45d`），零 push。复审 `PASS / 0 error + 0 minor`。报告全文如下（= `.work/gsd/phases/rust-core/waves/A3R-REPORT.md`，哈希以本条为准）：
+
+# A3R Report: Workspace Re-layout, Layer Check and Testkit
+
+> 波次 A3R（重排），`refs #32`。起始 HEAD `933cde89`（亲核：
+> `git rev-parse HEAD` = `933cde89eed0bcdae9c2057a7ae11a5fec7bfca1`）。
+> 全程中文，代码/标识符英文，commit message 英文。
+
+## 结论
+
+- `PASS`：28 个包，分层检查绿，62 个测试全绿，无新依赖，模块桩与夹具零改动。
+- 改名经 `git mv`（历史可追），退役 3 空壳职责并进 `dt-engine` 规划。
+- 活体负测：上行边必报、撤回干净；复审结论见末尾修订记录。
+
+## 新分层布局（T-F9 落地）
+
+| 层 | crate | 允许依赖 |
+|---|---|---|
+| L0 | dt-geom、dt-raster、dt-color-math、dt-iop-traits、dt-sysmem | 无工作区依赖；同层链 `[dt-geom, dt-color-math, dt-raster]` |
+| L1 | dt-iop-raw、dt-iop-geom、dt-iop-color、dt-iop-display、dt-meta、dt-color、dt-blend、dt-decode、dt-scenes | L0；同层链 `[dt-meta, dt-decode]` |
+| L2 | dt-registry、dt-history、dt-pipeline | L0/L1；同层链 `[dt-registry, dt-history, dt-pipeline]` |
+| L3 | dt-catalog、dt-preview、dt-apple（仅 macOS）、dt-gpu、dt-merge、dt-lightamer | L0–L2 |
+| L4 | dt-engine（含 export/memory/import/作业） | L0–L3 |
+| L5 | dt-gpui（A7b 建，表已登记）、dt-mcp | L0–L4 |
+| testkit | dt-testkit | 只许 dev-dependency |
+| exempt | apps/dt-cli、xtask | 不查 |
+
+动作：`dt-core`→`dt-pipeline`、`dt-library`→`dt-catalog`（`git mv`）；
+删 `dt-api`、`dt-app`、`dt-export`（职责并进 `dt-engine`）；
+`crates/dt-cli`→`apps/dt-cli`，成员 `["crates/*", "apps/*"]`；
+新建 12 空壳（L0×4、L1×2、L3×3、L4×1、L5×1、testkit×1），A2 同款风格。
+现有依赖边（四域→traits、registry→四域+traits）重排后仍合方向，未动。
+
+## 分层检查：比 LightCraft 多查什么、没查什么
+
+来源：`xtask/src/layers.rs`（LC 316 行，commit `0da998f2`），改造后
+`crates/xtask/src/layers.rs`，命令 `cargo xtask layers`。
+
+多查（新增规则）：
+
+- `Dangling`：TABLE 登记了但工作区不存在的 crate 报错（LC 不查，
+  它的 `export` 条目已悬空）。例外 `PLANNED = ["dt-gpui"]`：排期未建，
+  缺席不报错、在位也行。
+
+没查（与 LC 相同，写在文件头文档里）：
+
+- 传递依赖：输入只有直接边，经中间 crate 够到高层查不出。
+
+改造点（行为等价换实现）：
+
+- TABLE/同层链/UI 名单按 T-F9 换；UI 名单 `["gpui*"]`，`UI_MIN_LAYER = 5`。
+- 全包名直查，无前缀剥离；`Standalone` 变体与规则保留（TABLE 零使用，同 LC）。
+- `from_metadata` 改吃 JSON 文本，自带无依赖小 JSON 解析器（本波零新依赖，
+  不引 `serde_json`）；`check` 下沉 `check_with` 以便给 `Standalone` 造表单测。
+
+规则→单测（16 个，全在 `layers::tests`）：下行整图 `clean_downward_graph_passes`、
+上行 `upward_dependency_flagged`、同层 `sideways_dependency_flagged`、
+三链 `l0_chain_allowed_one_way` / `l1_chain_meta_decode` /
+`l2_chain_registry_history_pipeline`、界面 `ui_crates_forbidden_below_l5`、
+未登记 `unregistered_crate_flagged`、套件 `testkit_dev_only`、豁免
+`exempt_crates_skipped`、独占 `standalone_rule_fires`、悬空
+`dangling_table_entry_flagged`、排期 `planned_crate_may_be_missing`、
+解析 `metadata_shape_parses` / `metadata_errors_are_typed` /
+`json_reader_handles_escapes_and_unicode`。
+
+测试套件：`crates/testkit/src/lib.rs`（LC 190 行）近原样更名
+`dt-testkit`（`SKIP_LOG_ENV=LIGHTAMER_SKIP_LOG`、`Need::Fonts` 文档泛化；
+测试避 `unwrap/expect` 以合 crate 级 deny）。已有测试
+`dt-registry/tests/discovery_probe.rs` 的早退分支改调
+`dt_testkit::skip!(Input, …)`，`dt-registry` 加 dev-dependency，接线得证。
+署名：两文件头 `Derived from lightcraft …（commit 0da998f2）`，
+`NOTICE` 按 N1 加条目（远端实测 `github.com/storytold/lightcraft`，
+`MIT OR Apache-2.0`）。
+
+## 验收（命令与输出）
+
+起始：`Scripts/machine-guard.sh` → `GUARD PASS (heavy=0 free=73% swap=?M disk=?GB)`，
+退出 0（构建前跑一次）。
+
+1. 包数：`cargo metadata --locked --no-deps --format-version 1 | jq '.packages | length'`
+   → `28`。
+2. `cargo xtask layers` → 退出 0；打印 L0–L5/testkit/exempt 分组与逐 crate 表，
+   尾行 `OK: 28 crates, no layering violations.`。当前边：
+   四域→`dt-iop-traits`，`dt-registry`→四域+traits+`dt-testkit (dev)`。
+3. 活体负测：往 `crates/dt-iop-traits/Cargo.toml` 追加
+   `[dependencies] dt-history = { path = "../dt-history" }`（注：任务书示例的
+   `traits→registry` 成环，cargo metadata 先拒、到不了检查；改用同样上行的无环边），
+   `cargo xtask layers` → 退出 1，
+   `dt-iop-traits (L0) -> dt-history (L2) [Normal]: may only depend on strictly lower layers`。
+   撤回后 `diff` 与备份一致，`cargo xtask layers` 回绿，
+   `git status --porcelain -- crates/dt-iop-traits/` 无输出。
+4. `cargo test -p xtask --locked` → `22 passed; 0 failed`
+  （layers 16 + iop_order 4 + main 2）。
+5. `cargo test --workspace --locked -j6` → 55 个测试目标全 `ok`，
+   `passed` 加总 62。对账：33（A3）− 3（退役 `dt-api`/`dt-app`/`dt-export` 各 1）
+   + 11（新建空壳各 1）+ 4（testkit 单测）+ 1（testkit doctest）
+   + 16（xtask layers 新增）= 62。
+6. `cargo xtask check-order-sync` → `OK (97 modules, fixture …/dt-order-679d594f5d.json)`；
+   `cargo xtask check-no-iop-names` → `OK (97 names, 3 roots clean)`，
+   根已换 `crates/dt-pipeline`、`crates/dt-engine`、`crates/dt-registry`
+  （`no_names.rs:10`）。
+7. `Scripts/rust-discovery-probe.sh` → `present PASS`、`absent PASS`、
+   `ALL GREEN (workspace restored)`，退出 0。
+8. `Scripts/check-licenses.sh`（无参数）→ `allow=28 exception=0 fail=0 total=28`，
+   退出 0。
+9. `Scripts/rust-ci-lite.sh` → 依次守卫/许可证/**分层**/构建/测试/预算，
+   日志含 `Dependency layering (FRAMEWORK.md T-F9)` 与
+   `OK: 28 crates, no layering violations.`，尾行 `ALL GREEN`，退出 0。
+10. 桩与夹具：`git diff --stat 933cde89 HEAD -- 'crates/dt-iop-*/src/modules'
+    crates/dt-registry/fixtures` 无输出（复审实例逐字节复核，见 review log）。
+11. `git log --follow --oneline -- crates/dt-pipeline/Cargo.toml`
+    到达 `097890cb`（创建 `dt-core` 的 A2 提交，见提交节）。
+12. `rg -n 'dt-core|dt-api|dt-app|dt-export|dt-library' crates apps Scripts` →
+    仅 `crates/README.md` 改名注记 4 行（文档豁免）与 `dt-apple` 两处
+    `dt-app` 子串误 hit；加边界复查确认源码脚本零真残留。
+13. `NOTICE` 含 `LightCraft derivation (wave A3R…)` 条目；两移植文件头
+    `Derived from lightcraft … (commit 0da998f2)`。
+14. Swift 零改动：`git show --stat` 无 `App/`、`LightamerCore/`、`LightamerIOP/`、
+    `Tests/`、`Project.swift`、`Tuist.swift`、Xcode 工程。
+
+另：`cargo fmt --all --check` 干净；
+`cargo clippy --workspace --all-targets -- -D warnings` 绿。
+
+## 提交
+
+- 内容：终版 `6bfed45dd4e84e66697d19e32811e46209bfa5da`
+ （amend 链 `70c7a54b`→`7c398fa6`→`6bfed45d`；报告内嵌哈希取链上真实值，
+  终版以 `git rev-parse HEAD` 为准）。
+- `git show --stat HEAD`：43 files changed, 1898 insertions(+), 63 deletions(-)。
+  两处显示期配对伪影（等相似空壳所致，数据无损）：
+  ① stat 里 `dt-api/app/export` 的删除行可能配成指向某新建空壳的 R 箭头；
+  ② `git log --follow -- crates/dt-pipeline/Cargo.toml` 的穿越路径字母是
+  `dt-api`（并列 tiebreak 取首），但到达的 `097890cb` 正是创建 `crates/dt-core/`
+  的 A2 提交（`git ls-tree 097890cb crates/` 可验）；字面穿越证据是 lib.rs：
+  `R100 crates/dt-core/src/lib.rs → crates/dt-pipeline/src/lib.rs`。
+  新建空壳 Cargo.toml 首行 `# A3R layered shell.` 注释是为让真配对 9/10 稳赢的
+  刻意区分（改名/搬家文件不动），非 A2 风格漂移。
+
+## 未做 / 未验
+
+- 未做：无。第 7 节 14 条全做；`dt-gpui` 按计划本波不建（检查表已登记，
+  `PLANNED` 覆盖）。
+- 未验：`--cold` 全量构建计时未跑（`rust-budget.sh` 默认 SKIP，门 360s；
+  暖机全套数秒，无风险）；干净克隆上的 `cargo xtask layers` 未跑
+  （只读 `cargo metadata`，无机器相关项；复审实例在同一工作区重跑）。
+
+## 自审修订记录
+
+复审结论：`PASS / 0 error + 0 minor`（`.work/gsd/phases/rust-core/waves/A3R-review.log`，
+独立 `omp -p` 实例，送审 `7c398fa6`）。复审重跑第 7 节 15 项（含自做活体负测），
+逐规则 diff LC `check` 无抄漏，3 桩+夹具哈希逐字节一致，`show --stat` 全允许、
+Swift 零命中。终版 amend 只加 review.log 与本节，代码面与送审逐字节一致
+（`git diff 7c398fa6 HEAD -- crates apps Cargo.toml Cargo.lock Scripts NOTICE` 无输出）。
+无回注修订。
+
+跳过/未验：`--cold` 计时、干净克隆 layers（见上）。风险：无——全链绿且复审独立复现。

@@ -1,0 +1,73 @@
+Working...
+A2 交付完。终版 commit `097890cb4b5559a897ba14f9e2d7b5ffdebd2f8a`（单提交，51 文件，零 push）。全文报告如下（与 `.work/gsd/phases/rust-core/waves/A2-REPORT.md` 同内容，终版 hash 仅此处可写）：
+
+# A2-REPORT — Rust Workspace Skeleton (lane A2)
+
+结论头：
+- 工作区 19 包（T2 清单 19 − `dt-gpui` + `xtask`）+ 5 脚本 + lint/profile 起点落盘；除许可证检查外验收全绿。
+- `Scripts/check-licenses.sh` exit 1：自有包的 `GPL-3.0-or-later` 不在 A1 允许清单（36 条全是宽松许可）里，19 包全 FAIL、4 条例外全 UNUSED——A1 脚本未覆盖"自有包许可"情形，需 orchestrator 在允许清单加一行，本波无权改 A1 文件。
+- Swift 零改动；`rust-ci-lite.sh` 止于许可证步（同根因），其余各步已单独跑绿。
+
+## 1. 基线
+
+- 本仓库 HEAD（执行前亲核）：`8736251021b26e6c17624c5d0cef01246679d302`（`git rev-parse HEAD`）。
+- 构建前守卫：`Scripts/machine-guard.sh` → `GUARD PASS (heavy=0 free=74% swap=?M disk=?GB)`，exit=0。
+- 工具链：`rustc 1.100.0`；`rustup component list --toolchain 1.100.0` 亲核 clippy/rustfmt 均为 installed；`rust-toolchain.toml` 钉 `1.100.0`。
+- 并行度：`.cargo/config.toml` `[build] jobs = 6` + 脚本显式 `-j6`；全程一次一个重活，未用 `caffeinate`，未下载安装任何软件。
+
+## 2. 交付
+
+- 根：`Cargo.toml`（`members = ["crates/*"]`）、`Cargo.lock`（19 包）、`rust-toolchain.toml`、`.cargo/config.toml`、`.gitignore`（追加 `/target/` + `**/*.rs.bk`）。
+- `crates/`：17 个 lib（SPDX 头 + 一行 `//!` 用途 + `package_metadata_resolves` 测试）、`dt-cli`（打印名与版本）、`xtask`（`check-i18n` 骨架）、`crates/README.md`。无 `dt-gpui`（A7b 建）；零外部依赖，crate 间零互相依赖（锁表无 `source =` 行可证）。
+- `Scripts/rust-{guard,build,test,budget,ci-lite}.sh`，全部可执行；`machine-guard.sh` 复用零改动。
+- 执行中机修两记：① `cargo fmt --all` 修 xtask 一行超长；② `cargo clippy --fix --workspace --all-targets` 修 pedantic 的 `doc_markdown` 与 `assert_is_empty`（19 文件）。
+
+## 3. lint 与 profile 起点及理由
+
+- `[workspace.lints.rust]`：`unsafe_code = "deny"`（B2 的 FFI 在 `dt-decode` 加局部 allow；deny 可被覆盖而 forbid 不行）；`missing_docs = "warn"`。
+- `[workspace.lints.clippy]`：`pedantic = "warn"`（本波已实证抓到真问题且机修成本低；后续冲突在模块内局部 allow 并注明）。
+- `[profile.release]`：`opt-level = 3` + `lto = "thin"` + `strip = "symbols"`（80MB 门起点；perf 波再调）。dev 用默认增量。
+- `[alias]`：`xtask`、`c`/`t`/`l`、`tree-deps`（A6 机检用）。
+
+## 4. 验收命令与输出（任务书 §5 逐条）
+
+```
+$ bash -n ×5 → 全 BASH-N-OK；shellcheck：CONFIRMED-NO-SHELLCHECK（未跑）
+$ time Scripts/rust-build.sh --cold → done in 9s，real 0m9.946s ≤ 360s ✓ exit=0
+$ Scripts/rust-test.sh → fmt OK / clippy OK / tests total passed=19；exit=0 ✓
+$ time cargo check -p dt-iop-color --locked -j6 → real 0m0.078s ≤ 40s ✓
+$ Scripts/rust-budget.sh --cold → cold 10s / check 0s / dt-gpui N/A / target 2MB(3052KB)；overall PASS ✓
+  注：首次 1s 读数曾疑异常；自审后深查证实计时诚实，暖机真值约 0.25s
+  （cargo Finished 0.25s + 19 Compiling + 删除验证三方互证），全程 0.25s–15s 均为负载波动。
+$ Scripts/rust-guard.sh → GUARD PASS；exit=0 ✓
+$ Scripts/check-licenses.sh → allow=0 exception=0 fail=19 total=19，4 例外全 UNUSED；exit=1 ✗
+  根因：allow 清单 36 条无 GPL-3.0-or-later。提案：加一行（A1 文件，交 orchestrator）。
+$ cargo xtask check-i18n → no key-table dir 'i18n' (i18n starts at B17); nothing to compare.；exit=0 ✓
+$ cargo metadata --locked --no-deps → packages: 19（= 19 − dt-gpui + xtask）；Cargo.lock 19 包零外部源 ✓
+$ ./target/debug/dt-cli → dt-cli 0.1.0；exit=0 ✓
+$ git status（除 .work/）→ 仅本波路径 + 非本波的 evidence/gui/paste-tiers.csv（未碰） ✓
+$ git diff --stat -- Scripts/machine-guard.sh Scripts/test-direct.sh → 空 ✓
+$ Swift 路径 grep → 零命中 ✓
+```
+
+`rust-ci-lite.sh` 全串：守卫 PASS 后止于许可证步（同根因），exit=1；构建/测试/预算已单独跑绿。
+
+## 5. commit
+
+- 基线 Hash：`9e4d74b17b1488c02c6fc8d0bc80710f1abbe93f`（50 文件，918 insertions；stat 全文见入库报告）。
+- 终版 Hash：`097890cb4b5559a897ba14f9e2d7b5ffdebd2f8a`（51 文件，1033 insertions；amend 加 review log + §8 + 预算脚本硬化）。
+
+## 6. 构建目录
+
+- `du -sk target/` = 3052KB（≈2MB）；`git check-ignore target` 命中，未入库。
+
+## 7. 未做 / 未验
+
+**未做**：① 许可证红灯（提案交 orchestrator）；② ci-lite 全绿未演示（止于许可证步）；③ `dt-gpui`（A7b）；④ 业务逻辑（按计划不做）；⑤ `evidence/gui/paste-tiers.csv` 非本波文件，未动。
+**未验**：① shellcheck（本机无）；② `rust-guard.sh --wait` 长轮询/BLOCK 分支；③ 非 macOS 空壳（A6）；④ `rust-test.sh` 失败计数分支（无失败样本）；⑤ 自审结论见 `A2-review.log`。
+
+## 8. 终审修订记录
+
+自审 `PASS`（0 error + 0 minor，独立实例 125s 重跑，见 `A2-review.log`）。基线后三处 amend：① `rust-budget.sh` 计时硬化（`date +%s` + 删除验证，改后三轮 overall PASS）；② 报告 §5/§8/§4 注回填；③ `A2-review.log` 落盘。另：index 有一行他方 staged 的 `.gitignore` 重复块，worktree 与 HEAD 干净一致——非本波写入，未碰。
+
+跳过/未验项 + 风险：同 §7；许可证红灯是唯一红项，根因明确、一行可解，但文件越权，需 orchestrator 下一波前处理，否则 A3 起每波的 `rust-ci-lite.sh` 都红。

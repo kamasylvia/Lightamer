@@ -1,0 +1,54 @@
+Working...
+# omp-core-design-summary（核心设计 lane 交付摘要）
+
+时间 2026-11-25 夜→26 00:3x，墙钟约 150 分钟（含双份自审与修订）。产品树零改动，零 commit/push。
+输入：FEATURE-SCOPE.md（103 模块/21 域/P0 范围）、SPIKE-RUST-APPLE.md、rawspeed SPIKE.md（偏色 22.8）、refs/dt-master @ 679d594f5d（只读此树）。
+
+## C1 管线→trait（读源码）
+
+57 回调全表（T1，另 process_plain 非表成员）：REQUIRED 3，P0 取 13。
+管线 13 步：S0 建图→S1 提交→S2 前推→S3 缓存→S4 反推→S5 格式→S6 旁路（跳）→S7 tiling→S8 进变换→S9 拾色（跳）→S10 process→S11 出变换→S12 blend（P0 短路）→S13 写缓存。
+Rust：`IopModule` trait（op_name/flags/commit/process/roi 对/tiling/colorspace）+ `Params: Default+Serialize` + `PieceData` + `Pipeline` 调度；同步 fn，rayon 行并行，`PipeError` 显式。五类管线同构不同配额，P0 取 FULL+EXPORT。
+
+## C2 第 0 期清单（读源码，全表 T2）
+
+21 模块（clipping deprecated 除名），v50 顺序 rawprepare→…→gamma，顶层 37,561 行（全量 47,986）。
+20/21 双版（gamma CPU-only）；外部依赖 lcms2/lensfun/cairo 三处；CPU/GPU 差异注释零命中。
+裁决事实：WB=temperature；lens 三合一；三曲线模块默认全关；overexposed 无 params；显示链 colorout→gamma。
+
+## C3 解码 spike（编译+实测，源码 decode-spike-src/，程序在 rust-spike/core-design-spike/）
+
+- rawspeed 无 Bayer 去马赛克（仅 Canon sRAW 插值器）——任务预设为空集，转基线标定。
+- A7R5 全帧 5 次中位：decode ~46ms，bilinear 27.8ms，MHC 43.4ms（checksum 跨构建逐位同）。
+- 元数据对照：black 512/white 15360；wb 2536/1024/1778；cameras.xml 矩阵 verbatim（T4b）；CIRAW neutral ARW(0.345350,0.362652) vs DNG-T0(0.335336,0.356312)；几何 9568x6376 vs 9504x6336。
+- 线性对比（中心对齐）：RAW mean 0.169/max 8.19，gain 拟合后 mean 0.140/max 5.55；无-WB 版最近（0.1285），WB 是主色偏源。差已分到 5 项，不对齐预期内。
+- 偏色：writer tag 合规；T0 复现 22.784，T1 unit 恶化 55.935（R 归零），T2 拟合 23.275（不改善→非 WB 可缩放残差）。根因推断：cameras.xml vs Apple 内置 profile 数据源差；真修需色卡标定（本 lane 外，查到 tag 层+两轮诊断）。
+- 结论：起步 = rawspeed + 移植 RCD；Apple 模块 CIRAW 腿作可选兼容（P0 默认关）。
+
+## C4 对照工具（官方 5.6.2，证据 decode-oracle-evidence/）
+
+包：88,884,896 B，sha256 6ff88e58…def0c，只挂载直调 cli。隔离 HOME+CFFIXED_USER_HOME；pref 首跑前 export（exit 0，域存在）；`--core --conf` 运行期生效不写回→预置 darktablerc；XMP 最小历史+auto_presets=0+xmp_version=4（跨相机全量拷贝错裁剪；iop_order_version 可省略；sidecar 禁 XML 注释——初稿误归因版本 5，真因注释）。
+三组×双后端全分辨率 PNG16：重复轮像素逐位同；CPU-CL mean ≈0.014 LSB16，max 842–904（~10px），in_tol ≥0.99999994。跨组曝光/flip 均生效。
+附带：1600px 缩放路 flip 差 1px（全分辨率镜像 0.0000/0.0000 逐位同）；Pillow 截断 16 位 RGB（改 cv2）。g1-exposure.xmp 系被取代的全量历史尝试，留证；正用 g1m/g2m。
+清理 done：prefs 比对逐位同（免还原）；卷已卸；删前 /tmp/dt-oracle 2.8G（包 97M + out 2.4G + work 83M + 隔离 HOME ~12M），已删。
+
+## C5/C6/C7
+
+- GPU：WGSL+wgpu 为底，P0 全 CPU，Metal 快路径仅 Apple 模块。P0 核约 6000 行 OM（估算）；73 .metal 命中 P0 仅 6；61MP 单缓冲 ~976MB，预算 4GB。
+- 布局：dt-core/dt-iop-traits/4 合包 iop/dt-decode/dt-color/dt-mask-blend/dt-apple（恒成员+空壳+target 依赖，Capabilities 运行时表）/dt-app/dt-gpui/dt-cli/dt-lightamer。
+- 移植 6 步（骨架→commit→process→roi→golden→版权头）；lane 模块 38+infra 14=P0 ≈52（估算）。
+
+## 裁决点（5，见 §8）
+
+RCD-only 起步；cacorrect 对都含；CIRAW 腿 P0 默认关；P0 全 CPU；模块 crate 按域合包。
+
+## 自审（双份，合档 core-design-review.log）
+
+Review A：PASS / 3 error + 11 minor；Review B：PASS / 1 error + 10 minor。核心数字两份全部复跑通过。统一修订 20 项见 §10（含 E1 版本规则、A-E1 --conf、A-E3 Cargo 门控、57 回调重编号、M9 脚本归档等，每项自验证或证据入库）。
+
+## 交付文件
+
+CORE-DESIGN.md（§0 18 行内容）、CORE-DESIGN-TABLES.md（T1–T8）、decode-oracle-evidence/（16 件）、decode-spike-src/（14 件）、core-design-review.log（双份合档）、本文件。
+仓外：rust-spike/core-design-spike/（源码+二进制+转储 1.9GB，留位）。
+跳过/未验：RCD 真实移植、色卡标定、无-WB 机理、--conf 持久化语义、OCL→WGSL 自动层、gpui 接线、法务复核、非 A7R5/非 macOS（见 §9）。风险：52 lane 纯估算；偏色真修另立项。
+

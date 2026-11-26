@@ -1,0 +1,23 @@
+Working...
+## SPIKE-RUST-APPLE 最终摘要
+
+结论表（复审判定 `PASS / 3 error + 10 minor`，全部 findings 已修订，记录在报告 §6）：
+
+| 项 | 结论 | 关键证据 |
+|---|---|---|
+| S4 Metal 着色器 | **跑通** | 仓库原样 `Passthrough.metal` + `ExposureKernels.metal`，Rust 运行时编译/派发/读回；257×193 RGBA32Float，793,616 B，与 Swift 参照 `cmp` 一致，双方 sha256 `b0e01d2f…` |
+| S1 CIRAW | **跑通** | 9504×6336、RGBA16Float、解码器版本 `["7","8","9"]`；直接路径中位 **945.7 ms**（复跑 890.4）；rawspeed→122 MB 内存 DNG→CIRAW 中位 **398.6 ms**（复跑 356.4） |
+| S3 ImageIO + ColorSync | **跑通（ICC 有保留）** | JPEG 1,810 B / HEIC 1,291 B / AVIF 1,160 B；sRGB 被写为 nclx、无 ICC payload；ROMM ICC 补测确写 JPEG APP2、HEIC `prof`；ColorSync sRGB→P3 输出与 Swift 逐字节相同（sha256 `88cffad7…`） |
+| S2 Vision | **有保留地跑通** | 完成回调经 mpsc 回主线程（回调 ThreadId(3)）；CC0 样张 9/9 无脸 → 人脸 0/0；非空对照 `VNDetectRectanglesRequest` 1 框 `0.232867,0.065037,0.251476,0.171964`，与 Swift 逐字符一致 |
+| S5 UI/核心桥 | **跑通** | UniFFI 0.32.2：sync、async（42）、事件回调全通；`MTLTexture` 以 u64 过桥、无图像序列化，Rust 写首行，Swift 读回 `[12,200,77,255]`（`replaceRegion`/`getBytes` 各一次 API 拷贝） |
+
+**直接回答：不必全用 Swift。** 四项 Apple 能力 Rust 都能直接驱动，UI 层原生 AppKit/Swift 足够。限定：① MSL 着色器是 Apple 专属资产，跨平台需第二实现/翻译层；② 四项能力仍把核心钉在 macOS，需 trait + 第二实现（lcms2/rawspeed/image-rs/ONNX）才可移植；③ CIRAW 不是唯一且不是最快路径，但 rawspeed 路线需先做色彩标定（既有证据 `mean_abs_diff 22.8/255`）并处理 LGPL-2.1 义务。
+
+绑定缺口与解法（报告 §2）：ColorSync 无 Rust 绑定 → 手写 13 项 extern（3 函数 + 6 静态符号 + CFRelease + 3 个 CG/CF 函数）；profile 序列必须传字典数组；Vision `boundingBox` 在 `VNDetectedObjectObservation`；UniFFI self 句柄占名 `ptr`，参数需改名；async 不自动建 tokio reactor，改 runtime-free timer future。
+
+未验证（报告 §4）：人脸非空、Vision landmarks/horizon/分割、AVIF 10-bit/HDR 与自定义 ICC、ColorSync 其它布局、CIRAW v9/其它相机、75 个 shader 全量、rawspeed 色彩标定/RSS 峰值、swift-bridge、跨平台。
+
+交付与清理：
+- 仓内：`.work/gsd/phases/rust-core/SPIKE-RUST-APPLE.md`、`SPIKE-RUST-APPLE-src/`（Cargo.toml/Cargo.lock/全部 Rust+Swift+shim+shader 源，无构建产物）、`SPIKE-RUST-APPLE-evidence/`（日志+对比输出，96 K）、`spike-review.log`、`omp-spike-summary.md`；目录合计 236 K。
+- 仓外：`/Volumes/UNITEK/Documents/Development/Lightamer-rust-spike/` 保留可执行与对比产物，13 M；`target/` 2.2 GB 已删。
+- 产品树零改动；零 commit / 零 push；未开窗口、未合成事件、未读用户照片库。

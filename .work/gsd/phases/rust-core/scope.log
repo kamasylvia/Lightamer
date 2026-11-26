@@ -1,0 +1,79 @@
+Working...
+盘点完成。四个产物已落盘 `.work/gsd/phases/rust-core/`：`FEATURE-SCOPE.md`、`FEATURE-SCOPE-TABLES.md`、`scope-review.log`、`omp-scope-summary.md`。零 commit、零产品树改动。独立复审判 6 error + 11 minor，已逐条修，修订记录见 `FEATURE-SCOPE.md` §6。
+
+以下为 `omp-scope-summary.md` 全文。
+
+---
+
+# omp-scope-summary — 功能范围盘点（darktable + darktamer → Lightamer）
+
+> 只读 lane 终稿。明细表 = `FEATURE-SCOPE-TABLES.md`；结论/证据 = `FEATURE-SCOPE.md`；
+> 独立复审 = `scope-review.log`。
+
+## 一句话
+
+darktable 基线 = **103 个 iop 模块源（100 `.c` + 3 `.cc`）/ 149,074 行**（另 17 个解码 helper `.c` / 10,106 行）+ **21 个功能域**；darktamer 在基线上加 **8 个功能 + 品牌化 + 1 个 Rust 数学核心**（76 commits / 109 文件 / +14,808−933）；Lightamer 对 103 个 iop 是 **有 43 / 部分 26 / 没有 33**，对 21 个功能域是 **有 12 / 部分 4 / 没有 5**。缺口集中在非暗房模式（打印、联机、地图、幻灯片、Lua）和 darktable 的长尾 legacy 模块。
+
+## 关键更正（必须先说）
+
+- 本机 `/Volumes/UNITEK/Documents/Development/darktable` **不是纯净官方树**，是 darktamer 分叉工作树：`git describe` = `darktamer-0.0.4-109-g16ca3f76d6`，`git remote -v` 有 `github`（上游）与 `github-fork`（kamasylvia/darktamer）两个 remote，HEAD 领先 `github/master` **76 commits**。
+- 因此 Q1 的「官方基线」取本地 ref `github/master` = `679d594f5d`（2026-11-22）；Q2 的「darktamer 多了什么」直接用 `github/master..HEAD`，**不需要 GitHub API、不需要浅克隆**，克隆目录大小 = 0。
+- 任务书里「master，无 remote」「本机没有 darktamer 副本」两条事实线索与实测不符，按实测执行。
+
+## Q1 — darktable 功能面（摘要）
+
+- **iop**：103 个模块源（100 `.c` + 3 `.cc`）= 149,074 行；另 17 个 helper `.c`（demosaicing/hlreconstruct）10,106 行。`add_iop` 唯一注册名：fork 101，上游 98。逐模块用途/行数/计算面外部依赖见 Table 1。
+- **计算面外部库**：绝大多数 iop 只依赖 GLib/GTK + 可选 OpenCL；`#include` 证实的只有 `lcms2`（2 个）、`libpng`（3 个）、`rawspeed`（2 个）、`lensfun`（1 个，`lens`）；无 iop 直接 include exiv2。`pango/cairo` 全是 UI 绘图。
+- **功能域 21 个**，量级最大的三块：暗房链 207k 行（iop 模块 + helper + develop）、蒙版与混合 62k 行、主题/快捷键/自绘控件 30k 行。
+- **HDR/全景**：有 HDR 包围合成（`hdr_alignment.cc` 1,930 行，SIFT+RANSAC）；**没有全景拼接**。
+- **非暗房模式**：`views/` 7 个 = lighttable / darkroom / print / tethering / map / slideshow (+ view.c)；打印 6,247、联机 4,987、地图 8,344、幻灯片 4,494 行。
+- **导出**：13 个编码器（jpeg/png/tiff/heif/avif/webp/jxl/j2k/pdf/xcf/pfm/ppm/copy）+ 6 个存储目标（disk/gallery/email/latex/piwigo/clipboard）。
+- **上游已有 AI 与 MCP**：`src/ai/` 4,557 行 + `ai_models` 3,085 + `neural_restore` 4,861；`src/mcp/` 5,344 行。fork 是在上游 MCP 上加 GUI 常驻。
+
+## Q2 — darktamer 自定义（摘要）
+
+76 commits（75 non-merge + 1 merge），109 文件，+14,808/−933。逐条表见 Table 3：
+
+1. **yiyin / framing 边框**（23 commits）：`borders.c` 1,081→3,863 行，吸收 `yiyin.c`；basic/blur/film-strip 三模式，3 行 EXIF 信息条、字体/透明度可配；新 kernel `framing.cl`；UI = 面板 + 首选项。
+2. **skinsmooth 磨皮**（23 commits）：新 `iop/skinsmooth.c` 1,158 行 + `skinsmooth.cl` + `common/ai/skinmask.c` + `vision_bridge.c` + `vision_osx.mm` + Rust crate；平台 = macOS Vision + 可选 OpenCL。
+3. **skinmask 皮肤域栅格蒙版**（1 commit，+353）：新 `iop/skinmask.c`，无独立面板。
+4. **reshape 颌线重塑**（2 commits）：新 `iop/reshape.c` 481 + `reshape.cl` + Rust `reshape.rs` 793；平台 = Vision 关键点。
+5. **CIRAW 解码后端**（3 commits）：新 `imageio_ciraw.m/.h`，opt-in，不替换 rawspeed 默认路；平台 = macOS Core Image。
+6. **MCP 常驻 GUI server**（6 commits，16 文件 +2,323/−156）：`mcp_gui_server.c/h`、`mcp_framing.c/h`、`preferences_mcp.c/h`，工具覆盖导入/打开/改栈/导出/评分色标/集合与选区/样式；POSIX unix socket。
+7. **watermark 画内锚定**（3 commits，+64/−28）。
+8. **HEIF 扩展名/质量**（2 commits，+50/−10）：`.heic` 复选框、默认质量 75。
+9. **品牌化**：About/Splash/Welcome/图标/打包 ~30 文件。
+10. **Rust 数学核心**：`rust/math-core` 2 crates / 3 源文件 3,289 行（framing 1,075；skinsmooth 1,421 + reshape 793），C ABI 回 C。**这是「非 UI 用 Rust」的现成先例。**
+
+盘全程度：76 commits 全量读过 subject + name-status；未逐 hunk 读 diff；未拉 GitHub issue 台账。
+
+## Q3 — Lightamer 现状（摘要）
+
+- **iop**：有 43 / 部分 26 / 没有 33 / n/a 1。
+- **模块注册实数**：直接 `register` 47（含 DEBUG `TestGain`）+ gated 6（FilmicRGB/Sigmoid/AgX/DenoiseProfile/NLMeans/Bilateral）= 生产 52；`retouch` 走 `Layers/Retouch` 层形态，不在 registry。
+- **功能域**：有 12（暗房、图库、导入、色彩管理/DRT、蒙版/混合、HDR 合成、修饰、LUT、首选项、MCP、AI、SpektraFilm）；部分 4（导出 6 vs 13 格式、标签/色标/评分缺层级 tag/IPTC、样式/预设、主题/快捷键）；没有 5（打印、联机、地图/geotag、幻灯片、Lua）。
+- **Lightamer 已超出 darktable**：全景拼接、焦点合成、HDR 合成、节点式 DRT、版本分支、`.lalb` 项目库、自有 MCP、AI 标签/评分/深度、软打样/EDR。
+- **最大空洞**：非暗房 5 域 + darktable 长尾 legacy iop（basecurve、colorbalance、negadoctor、diffuse、blurs、defringe、censorize、primaries、satcurvergb 等）+ retouch 之外的修饰链。
+
+## Q4 — 分期建议（建议，非结论）
+
+**P0（不做不能日常用）**：导入 → 图库浏览/选片 → RAW 解码 → 基础暗房（曝光/白平衡/曲线/裁剪/镜头）→ 色彩管理 + DRT → sidecar/历史/撤销/版本 → 蒙版 + 混合基础 → 导出 JPEG/PNG/TIFF/HEIC → 首选项/菜单骨架。
+
+**P1（专业工作流与差异化）**：调色全量（ColorBalanceRGB/ColorWheels/ColorZones/HLS/LUT/SpektraFilm）、Retouch/Liquify + fork 人像链（skinsmooth/skinmask/reshape）、framing/yiyin、图库检索/标签/IPTC、批量导出/命名/元数据、HDR/全景/焦点合成、HDR/EDR 视口/软打样、AI 选片评分、完整蒙版工具。
+
+**P2（以后）**：打印、联机拍摄、地图/geotag、幻灯片、Lua/插件生态、长尾 iop、主题/快捷键编辑器。
+
+理由：P0 是一条照片从卡到成品的闭环；P1 是「为什么不用 Lightroom」的差异化；P2 是非常用路径或依赖外部硬件/服务。
+
+## 没查到的
+
+- Lightamer 参数面深度（只按注册表/文件存在判定，「部分」为保守标记）。
+- darktable 每个 iop 的 CPU/OpenCL 双腿覆盖。
+- darktable 间接依赖链（只按 `.c/.cc` 的 `#include` 判定）。
+- darktamer 逐 hunk diff 与 GitHub issue 台账。
+- Lightamer 样式与 darktable styles 的语义等价性、自定义快捷键映射表。
+- 打印/幻灯片/联机/地图仅 `grep -ril` 判无，未逐目录深挖半成品。
+
+## 复审
+
+`scope-review.log`：独立 `omp -p` 实例重跑命令抽查，判 **6 error + 11 minor**（首行未带 PASS 前缀，结论 = 不 PASS）。6 个 error 与 11 个 minor 已逐条修，修订记录见 `FEATURE-SCOPE.md` §6。修订后未重跑第二轮复审（时间预算到点）。

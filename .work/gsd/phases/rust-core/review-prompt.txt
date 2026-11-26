@@ -1,0 +1,14 @@
+你是独立复审实例。只读审查，不要修改任何文件、不要 commit。被审对象：
+- /Volumes/UNITEK/Documents/Development/Lightamer/.work/gsd/phases/rust-core/SPIKE-RUST-APPLE.md
+- 同目录 SPIKE-RUST-APPLE-src/（源码副本）与 SPIKE-RUST-APPLE-evidence/（日志/对比输出）
+- 仓外工作区 /Volumes/UNITEK/Documents/Development/Lightamer-rust-spike/（可执行文件在 out/bin/）
+- 参照仓 /Volumes/UNITEK/Documents/Development/Lightamer/（产品树应零改动）
+
+重点核三件事，必须给证据（file:line 或命令输出）：
+1. 逐字节对比是否真的做了：读对比代码（Rust 侧写文件、Swift 侧写文件、外部 cmp/sha256），核对 evidence 里的 sha256/cmp/diff 输出；可直接复跑：S4 用 `out/bin/s4-metal shaders`（在仓外工作区根目录）与 `out/bin/s4-swift-ref shaders`，S3 用 `out/bin/s3-imageio` 与 `out/bin/cs-probe`，S2 用 `out/bin/s2-vision` 与 `out/bin/s2-swift`。注意 S5 需要 `DYLD_LIBRARY_PATH=out/bin`。
+2. 耗时是怎么量的：核对代码中的计时区间、轮数、中位数定义，判断报告数字是否与日志一致；指出任何把「含回读」说成「纯解码」之类的口径问题。
+3. 没做成的项有没有被写成做成：逐条核 §4 与 §0，特别是人脸 0/0、swift-bridge 未试、rawspeed 用预编译库、Metal 只 2 个 kernel、跨平台未测。
+
+同时检查：纪律（未开窗口/未合成事件/未碰用户照片库/仓内只写 rust-core/零 commit）、依赖版本与许可证、target 清理与大小声明、报告内部数字自洽。
+
+输出格式：第一行 `PASS / N error + N minor`，随后逐条 findings（error/minor + 证据 + 建议修订）。不要改文件。

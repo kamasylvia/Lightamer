@@ -1,0 +1,59 @@
+# omp-plan-summary — Rust 全量重写分波计划（交付说明）
+
+基线：仓库 HEAD `1f9c1adb83399b5e403a8419d5fc65859c9f5a2f`；上游 `refs/dt-master` @ `679d594f5d` = **`release-5.7.0-2234`**（不是发布版，所以一切布局/顺序钉 `release-5.7.0` tag）。
+
+## 交付物
+
+| 文件 | 内容 |
+|---|---|
+| `.work/gsd/phases/rust-core/PLAN.md` | §0 一页纸（29 行）、§1 16 条裁决落点 + 技术取舍 + 与调研的冲突更正、§2 架构基线、§3 阶段 A/B 的 29 张逐波卡片（每张 10 项）、§4 C/D 清单、§5 质量门/检查点/73 着色器用法、§6 风险与没查到的、§7 修订记录 |
+| `.work/gsd/phases/rust-core/PLAN-TABLES.md` | T1 许可证、T2 布局与预算、T3 描述字段、T4 发现机制取舍、T5 顺序夹具与 21 模块行、T6 XMP 三候选三测、T7 模块清单、T8 波次/lane 对账、T9 73 着色器逐类、T10 C/D 划分、T11 性能基线 |
+| `.work/gsd/phases/rust-core/plan-review.log` | 独立复审台账 + 实例 2 全文（`PASS / 6 error + 12 minor`） |
+| 本文件 | 交付说明 |
+
+产品树零改动，零 commit，零 push；只写这四个文件（另删掉了一个临时的 `plan-review-3.log`）。
+
+## 计划的形状（数字）
+
+- 阶段 A 地基 **9 波 / 17 lane / 43.5 h**；阶段 B 第 0 期 **20 波 / 76 lane / 208 h**；A+B = **29 波 / 93 lane / 251.5 h**（含自审与修订 ≈302 h ≈ 38 个 8h 日，单机、一次一个重活）。
+- 模块 lane：第 0 期 21 个模块 = **38 lane**（与 `CORE-DESIGN` 同数）；B 的其余 38 lane = 管线/解码 5 + 历史 6 + 蒙版 5 + 图库 4 + 导出 3 + UI 15。与 `CORE-DESIGN` 的 52 lane 的差额 = 界面 15 + 历史 6 + 蒙版上调 3。
+- 模块总数：`release-5.7.0` 的 v50 表 **93 个具名模块**（+ 哨兵）；第 0 期 21，C 期 50，D 期 20，永不实现 2（clipping/useless），内部占位 1（mask_manager）；基线之外 5 个（含 **spektrafilm**）。
+- 第一个能日常修图的版本：**B20 之后**；B11 后 CLI 能逐模块过 golden；B16 后无界面全链闭环。
+- 着色器存量：73 个 = 19 个 P0 直接参考 / 35 个 P1 参考 / 10 个独有功能参考 / 9 个用不上。
+
+## 关键取舍（计划采纳的）
+
+1. 去马赛克只 RCD + passthrough，第 0 期只支持 Bayer；X-Trans 走 passthrough + 警告（Markesteijn 排 C）。
+2. 第 0 期全 CPU；着色器后置 WGSL + wgpu；Metal 只在 Apple 模块。
+3. CIRAW 默认关（偏色 22.8/255 未解），连回退开关也不进 UI。
+4. 参数布局 = 手写 `#[repr(C)]` + clang 生成 sizeof/offsetof 夹具；迁移只留最近两版，失败丢条；只支持小端。
+5. XMP 库不定死：A4a 三测定 `xmp_toolkit` / `xmpkit` / XML 直改；写回只改我们的节点。
+6. 模块发现 = 域 crate 内 `build.rs` 扫目录（Cargo 无 glob 依赖，linkme 方案仍要手改清单，等于留名单）；顺序 = 描述里的 (优先级, tie 序)，raw/jpg 两套（24 个模块优先级不同）。
+7. oracle = 官方包带 sha 的缓存（`~/.cache/lightamer-oracle/`），与源码同 tag；门 = mean < 1 LSB16 且 in_tol > 0.9999。
+8. 核心↔界面 = 命令/查询/事件 + `PresentSink` 句柄；视口输入先走 `on_input`，A7b 实测，失败退 NSView 子类。
+9. 第 0 期蒙版范围上调（drawn + parametric + 组合 + normal 混合 + 几何变形），因为用户要求带蒙版的 dt 图也同观感；`CORE-DESIGN` 的「blend 只做短路」不够。
+
+## 对调研的 7 处更正（有证据）
+
+1. `CORE-DESIGN` §6 无自动发现 → A3 的目录扫描 + 描述字段。
+2. `CORE-DESIGN` §7「参数版本 1、不做迁移」→ 按 dt 布局 + modversion + 最近两版迁移。
+3. T2 的 params 字节 4 处是 **master** 值：temperature 24→20B、demosaic 60→48B、highlights 40→48B、colorin 1048→1044B（`release-5.7.0`）。
+4. `HISTORY-COMPAT` 的 temperature v5 / colorin v8 也是 master；5.7.0 与 5.6.2 都是 v4 / v7。
+5. `FEATURE-SCOPE` 的 98 个 `add_iop` 是 fork HEAD；5.7.0 的 v50 是 93。
+6. **`spektrafilm` 不在 5.7.0 发布版**（用户指定用它，但没有官方 oracle）→ C-2 从 master 取源，验收降为往返 + 目视 + 与 darktamer 成片比对（R11）。
+7. `CORE-DESIGN` §9 的 rawspeed「LGPL-2.1」与上游现状冲突 → A1 以 gitlink 提交的 LICENSE 为准；无论 2.1-or-later 或 3.0 都可整体按 GPL-3.0 分发。
+
+另：`CORE-DESIGN` §1 的 S6/S12 只做 blend 短路、crate 名 `dt-mask-blend` 也在 §1.3 一并更正为 `dt-blend` 与上调后的蒙版范围。
+
+## 独立复审
+
+- 实例 1（`omp -p --thinking max`，900 s）：**超时无结论**（`EXIT=124`，`[Stopped by SIGTERM]`）。
+- 实例 2（同参数，1200 s，缩窄读取面）：**`PASS / 6 error + 12 minor`**。6 个 error 与 12 个 minor 全部逐条处置（§7.3）：jpg 优先级 5 处、28.5 组 6 个、墙钟 251.5 h、crate 数 19 与 `dt-registry`、Swift 冻结落点、93 条夹具；另修 7 处不可机检验收、i18n 门的产出波、裸 issue 号、快捷键路径、gpui 目录层级、T3 同名冲突、colorspaces.c 归属、A4a 前向依赖、52 vs 76 lane 对账、30–37/40 与 36/60 fps 口径。
+- 实例 3（420 s，只查结构四项）与并行的 `reviewer` 子代理：**定稿时仍未产出**，在 `plan-review.log` 按未完成登记。
+
+## 未完成 / 缺口（诚实标注）
+
+- 复审只覆盖计划的结构与数字一致性，**未**逐条比对 `FEATURE-SCOPE` 的行数与依赖面，**未**验证 C 期 50 个模块的划分合理性（设计取舍，非可机检事实）。
+- `release-5.7.0` 是否有官方 macOS dmg 未查；若没有，A5 按预案降级 5.6.2 并先跑 tag 差异报告。
+- 21 个模块的完整 `sizeof` 只手算了 7 个（4 个与 T2 不符）；其余由 A4b 的夹具定。
+- 全部 lane 时长是估算（口径：调研 lane 实测 1–2 h/千行带测；实现卡片按 2–3 h/lane 记）；墙钟按机器级单重活折算，不是日历承诺。

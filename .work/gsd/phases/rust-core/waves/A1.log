@@ -1,0 +1,69 @@
+Working...
+# A1-REPORT — License and Dependency Audit（lane A1，终版）
+
+结论头：
+- 审计表覆盖 854 个 crate（双 spike 并集）+ T1 全 13 项 + rawspeed/lensfun/lcms2/数据包/未来候选；例外 4 条（E1 自例外 + W 自有包 3）。
+- rawspeed = LGPL-2.1-or-later（证伪 LGPL-3.0 说法），静态链接整体 GPL-3.0，与 darktable 同构；lensfun 代码 LGPL-3.0 / 数据 CC-BY-SA-3.0；lcms2 MIT。
+- 脚本正例双 0、负例/非法数据双 1；`bash -n` 过；本机无 shellcheck；终审 PASS（0 error + 0 minor）。
+
+## 1. 基线
+
+- 本仓库 HEAD（执行前亲核）：`a97cd47af6f550009d9bc29a7e61cbc2cbed9b74`（`git rev-parse HEAD`）。
+- 上游参考树 HEAD = `679d594f5d`（`release-5.7.0-2234`）；rawspeed gitlink `0c16fee77…` 与 A-6 一致（`git ls-tree` 亲核）。
+- 仓内双锁 vs 外部双工作区 `cargo metadata` 逐项比对差集双 0；并集 854，交集 63。
+- 墙钟约 07:40–09:10（含自审），150 分钟预算内。
+
+## 2. 审计覆盖（`docs/LICENSE-AUDIT.md`，1037 行）
+
+- §4.1：854 行 crate 表（机检：854 行、零畸形、零重名），证据 = 锁文件行号 + `cargo metadata` license 字段 + repository 地址。
+- §4.2 点名：MPL-2.0（11 包：uniffi×8 + cbindgen/dwrote/option-ext）、Unicode-3.0（22+2，全树无 Unicode-DFS-2016）、CC0（2+2）、ISC（5+5）、0BSD（2+1）、Unlicense 族、NCSA 合取、BSL 析取、E1（self_cell，取 Apache-2.0 分支）、W（自有包×3）。
+- T1 全 13 项对账（§7）；两处更正：① rawspeed 非 LGPL-3.0；② gpui 族 license 字段实测非空。
+- 未来依赖（§5，只登记不取舍）：`rusqlite`/`libsqlite3-sys` MIT、`jpeg-encoder` (MIT OR Apache-2.0) AND IJG、`xmp_toolkit`/`xmpkit` MIT OR Apache-2.0、XML 直改无新增。
+- 数据包：lensfun DB = CC-BY-SA-3.0 独立分发；rawspeed `cameras.xml` 随包（dt 同款）。
+
+## 3. rawspeed 三问
+
+1. **LGPL-2.1-or-later**：`LICENSE` = 2.1 全文（502 行）；244 头 `version 2 … or any later`、8 头 `version 2.1 … or any later`；`README.rst:35` 指 lgpl-2.1；全树零 LGPL-3.0 声明。如实记录的不一致：LICENSE 系 2.1 文本而多数头写 `version 2`，同为 or-later。
+2. **静态链接**：or-later 升整体 GPL-3.0 分发，义务 = GPL-3.0 本体，无额外重链接义务。动态分支仅记录。
+3. **darktable**：静态编入（`src/external/CMakeLists.txt:60` + rawspeed `CMakeLists.txt:203 STATIC` + `src/CMakeLists.txt:1309-1311`），以整体 GPL-3.0-or-later 涵盖，无单独声明。
+4. **推荐**：静态链接 + 整体 GPL-3.0-or-later（同 dt），NOTICE 登记 + 保留 LICENSE 文本 + pin 可得。
+
+## 4. C 库
+
+- lensfun：代码 LGPL-3.0（only 口径）/ 数据 CC-BY-SA-3.0；dt 不钉版本（`FindLensFun.cmake` 40 行无版本要求）；无 T1 纯 Rust 候选，保留。
+- lcms2：MIT；静态链接保留声明；无成熟纯 Rust ICC 候选，保留。
+- libpng/libtiff/libjpeg 不引入 C 库；exiv2 不采用。
+
+## 5. 验收命令与输出
+
+```
+$ bash -n Scripts/check-licenses.sh && echo BASH-N-OK            → BASH-N-OK
+$ command -v shellcheck                                           → 无（亲核）
+$ ./Scripts/check-licenses.sh …/Lightamer-rust-spike             → exit=0 allow=101 exception=2 fail=0 total=103
+$ ./Scripts/check-licenses.sh …/Lightamer-gpui-spike/viewport    → exit=0 allow=812 exception=2 fail=0 total=814
+$ 负例 /tmp/lic-neg（AGPL-3.0-only + 无 license）                 → exit=1 fail=2，两包皆 FAIL
+$ 允许清单追加非法行 'BAD | LINE'                                → exit=1 ERROR :61（测后恢复，cmp 一致）
+$ ./Scripts/check-licenses.sh（无参数，根尚无工作区）             → exit=1 no Cargo.toml（符合预期）
+```
+
+中途修复：gpui 元数据 4.2MB 经 argv 传参 exit=126，改临时文件传参后双绿。最终 amend 后复验正例仍 `allow=101 exception=2 fail=0 total=103`。
+
+## 6. 提交（终版，一个 commit，零 push）
+
+- 终版：`e19be3701697bcd9ef2e75a72e4a501c56b03a5e`（`docs(rust-core): license and dependency audit with check script`，`refs #32`，逐路径 add）。
+- 终审基线：`b75404b0c3602c4e58e7e0ef40b3a14ff0edc94e`；基线后差集（`git diff b75404b0 HEAD --name-only`，亲核）仅 REPORT 回填 + review.log 落盘。
+- `git show --stat`（终版）：8 files，1413+/2-（REPORT 91、review.log 40、NOTICE 45、README 6、脚本 123、allow 60、exceptions 13、AUDIT 1037）。
+
+## 7. 未做 / 未验
+
+**未做**：① 上游 rawspeed master 最新许可未核（以钉住提交为准）；② lensfun/lcms2 版本号未定（A2 补）；③ Adobe XMP SDK 许可未核（A4a 核）；④ 自有包 license 字段未补（外部仓只读，产品工作区建好后退役 W 例外）；⑤ 未来依赖仅预收 IJG 合取。
+
+**未验**：① shellcheck（本机无）；② 根无参数正向路径（A2 后复验）；③ NOTICE 条目数全自动对账（待 A2）；④ 自审 PASS，见 `A1-review.log`。
+
+## 8. 终审修订记录
+
+终审 PASS（0 error + 0 minor），产品文件零修订。复审独立验证：义务码 P=783/U=24/PD=22/M=11/P-isc=10/W=3/E1=1；仓内/外部双锁各 IDENTICAL。
+
+## 9. 工具备注（诚实披露）
+
+854 行 crate 表由脚本生成并拼入（`write` 正文 + 程序化拼接，机检 854/0/0），未手敲——批量数据正确性优先；`A1-review.log` 系 `cp` 复审实例 stdout 落盘，无转录。

@@ -1,0 +1,49 @@
+Working...
+交付完成。仅写 `.work/gsd/phases/rust-core/`，产品树零改动，零 commit。
+
+## 落盘
+
+| 文件 | 内容 |
+|---|---|
+| `.work/gsd/phases/rust-core/CORE-INVENTORY.md` | 正文 §0–§8（223 行） |
+| `.work/gsd/phases/rust-core/CORE-INVENTORY-TABLES.md` | 大表 §A–§K（663 行） |
+| `.work/gsd/phases/rust-core/core-review.log` | 独立 omp 复审原始输出 + 修订状态 |
+| `.work/gsd/phases/rust-core/omp-core-summary.md` | 交付摘要 |
+
+## 核心数字
+
+| 档 | 文件 | 行 | 占比 |
+|---|---:|---:|---:|
+| 纯逻辑 | 197 | 59,720 | 38.2% |
+| 着色器宿主 | 118 | 43,225 | 27.7% |
+| Apple 适配 | 66 | 31,221 | 20.0% |
+| UI 耦合 | 50 | 21,884 | 14.0% |
+| **合计（本 lane 口径）** | **431** | **156,050** | **100%** |
+
+- Swift 总量：Core 80,887 / 232，IOP 36,719 / 105，App 非 UI 38,442 / 94；Metal 73 文件 / 13,317 行 / 186 kernels。
+- 范围外邻近非 UI 另列：Catalog 4/1,229、Settings 非 UI 模型 3/818、`EditorState+FilmMigration` 77；纳入后 439 文件 / 158,174 行。
+- Apple 依赖：`CIRAWFilter` 5/18；`CIContext` 21/64、`CIImage` 13/84；`CGColorSpace` 40/221、`CGColorConversion` 2/10（ColorSync C API 0）；Vision 4/28（7 import）；ImageIO 读 18/95、写 17/71；Metal 102/1,485；CoreML 3/28 符号口径（字面 `MLModel` 32/3、7 import）；CoreText 4/38；UTType 9/13；SQLite 6/117；`CVPixelBuffer` 45/3。
+- 测试：530 文件 / 4,623 方法；7 单测 target + 1 UI suite。可直接作 Rust 对照 **400 文件 / 3,455 方法**；非 Metal 233 文件 / 2,121 方法；Golden/Parity 61 文件 / 429 方法。
+
+## 六问要点
+
+1. **模块地图**：Core 16 目录；IOP 54 目录 / 56 opName / 59 metal；App 非 UI 7 目录。`State/` 非 UI 绑定 1,604 行 / 7 文件；`@Observable` 9,352 行 / 17 文件，`PipeCoordinator` 3,293 行最大。
+2. **Apple 依赖**：按解码、色彩、Vision、CoreML、编码、Metal、元数据、文本、SQLite 归并；每种给出输入/输出/同步性与候选边界，`CIImage/CGImage/MTLTexture` 不进入核心 API。
+3. **着色器**：73 文件逐行/kernel/宿主全表；约定 = texture 0/1、`.rgba32Float` 工作、`.bgra8Unorm` 显示、`.rgba16Float` EDR、8×8 纹理 / 16×16 buffer / 64×1 归约、uniform 16 字节 stride + `piece.data`、4 文件函数常量；原子 5 文件、texture3d 2、texture1d 1、uint 1、sample 2、实际 `read_write` 1（literal 提及 11）。
+4. **必须不变**：`.lra` v13 / 22 顶层键；`.lalb` user_version 6 / 13 实体表 + 2 FTS5 + 6 触发器；FNV-1a 64 + decimal string + sortedKeys；37 UserDefaults 键 + 2 前缀（7 目录范围，邻近 4 键另列）；MCP 34 工具 / **14** 需控制权；导出 6 元数据开关 + ICC/DRT 输出约定。
+5. **测试**：IOPP 84/587、IOP 100/843、LAYERS 67/576、LIB 83/802、SESS 26/289、EXPORT 40/391、APP 127/1,135；UI 1/3。APP/UI/AppKit 用例不能直接当 Rust 对照。
+6. **难度**：逐模块主导档见 TABLES §J；纯逻辑先行块 = Hash/Sidecar/Library/Catalog/Presets/Graph/Film 数学/ColorMatch/Stack 纯算法/MCP 协议层。估 ±10–15%。
+
+## 复审
+
+独立 `omp -p --auto-approve --thinking max` 已跑，结论：
+
+`FAIL / 2 error + 8 minor`
+
+2 个 error：MCP 控制权实为 14（`refine_masks` 也注册）；App 非 UI 范围漏 Catalog/Settings/根扩展。8 个 minor：IOP 测试归属、530 文件列和、`read_write` 口径、CoreML 口径、§K metal 命令、UserDefaults 邻近键、Parity 名单、Metal 词界口径。
+
+以上 10 项均已回注，逐条对照见 `CORE-INVENTORY.md` §8；未做第二轮独立复审，`core-review.log` 保留首轮 FAIL 记录。
+
+## 未覆盖
+
+未逐文件重跑四档归类；`.lalb` 列清单未逐列对照 DDL；34 个 MCP schema 未逐字节核；未构建/跑测试/开 GUI；未测性能；未读用户照片库。
