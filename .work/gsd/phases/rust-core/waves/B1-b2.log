@@ -1,0 +1,187 @@
+Working...
+# B1-b2 REPORT — Pipeline execution fixes: immediate cache insert, make-room eviction, tile-cap removal, frame上限
+
+结论头：B1-b2 四处修正完成——逐节点即时写缓存、分配前淘汰让路、删 `max_tile_bytes`、上限公式加前置拒绝；
+全工作区测试由 511 涨到 522（+11），另有第三份默认不跑的计时测试；61MP 五节点从超预算报错变成成功（中位数 141.8ms），
+`Scripts/rust-ci-lite.sh` 全绿，复审 `PASS / 0 error + 4 minor`（四处全修，见 §12）。
+
+## 0. 起点与 HEAD
+
+- 起始 HEAD（亲核）：`60b236d405362ed9ea28fed085b949a4ab994b9b`（B1-b 代码提交 `4525602e` 之后；`git rev-parse HEAD`）。
+- 基线：`cargo test --workspace --locked -j6` → 全绿，`--list` 计 513 个（511 跑 + 2 ignored），与 B1-b 报告一致（151.2s）。
+- 构建前守卫：`Scripts/machine-guard.sh` → `GUARD PASS (heavy=0 free=64% swap=?M disk=?GB)`。
+- 全程并行度 `-j6`，无 `caffeinate`，无 Swift 构建，无图形程序。
+- 动手前在未改代码上确认塔台的分析：新增的 `idle_61mp_five_nodes` 计时测试在 B1-b 代码上跑出
+  `OutOfBudget { detail: "node 'test_identity' needs a plane: memory budget exceeded: need 2890432512 bytes
+  with 1926955008 already used, 821824061 left of 2748779069 cap" }`——第三帧分配时用掉
+  1926955008（= 2 × 963477504）再要 963477504，超 2748779069 预算，与「链长 × 整帧」峰值一致。
+
+## 1. 修1：逐节点即时写缓存（`render.rs`）
+
+B1-b 把一次渲染里所有节点的输出攒在 `pending` 里，到结尾一起写缓存，峰值 = 链长 × 整帧。
+改后每个节点算完立刻 `insert`，峰值 = 缓存 + 正在用的输入 + 新输出，与链长无关。
+
+- 命中即时 `touch`（B1-b 攒到结尾，现改成立刻）；成功收尾时把本趟的键按逆执行序再 touch 一遍，
+  恢复 B1-b 的「上游最新近」规则（下游改参数复用上游，反之不成立），未知键（被拒/中途淘汰）忽略。
+- 取消或出错：已完成节点的画面留在缓存里（键由内容决定，完整有效）；只保证没有半截画面进缓存。
+  分块中途取消的节点一个条目不留（`cancel_between_tiles_aborts_cleanly` 原断言不动，见 §8）。
+- B1-b 的「取消/出错后缓存一个字节不动」测试按新意思改写，见 §8 逐处清单。
+
+## 2. 修2：分配前淘汰让路（`render.rs` + `cache.rs`）
+
+新画面（节点输出、分块暂存对、空链拷贝）走 `alloc_room`：先试分配，被预算拒绝时把缓存里
+「本次渲染没有命中」的条目按最久没用逐个淘汰（`PlaneCache::evict_oldest_except`），
+到放得下为止；淘汰光了还不够，才报 `OutOfBudget`。本次命中的条目是活输入，永不让路。
+
+- 上游对照：`_get_oldest_cacheline`/`_get_cacheline`（`pixelpipe_cache.c:208-255`）取最旧行复用；
+  尺寸失配重算仍沿用 `_get_by_hash` 同款（B1-b 已定）。
+- 淘汰只动缓存席位：条目被别的持有者（调用方手里的输出、本趟的 `prev`）攥着时，
+  淘汰不释放字节，循环继续；可淘汰的席位是有限的，循环必终止。
+- 预检（修4）通过后，无外部持有时必能放下；有外部持有攥满预算时仍报 `OutOfBudget`（有测试钉住）。
+
+## 3. 修3：删 `max_tile_bytes`（`kinds.rs`，二选一之删除）
+
+删掉 `PipeQuota.max_tile_bytes`（B1-a 表的 256/256/64/16 MiB 列），配额只剩预算 + 槽位数。
+理由：块大小已经由活预算定死（`可用 / factor` 再夹单块下限，`tiling::decide`），
+静态上限没有上游对应（`tiling.c` 只看可用内存），接进去要自造「上限低于下限时谁赢」的
+优先级规则——删比接诚实。删后块大小的约束只剩两条：预算（能分多小）与下限（最小一块）。符号级零残留：`rg max_tile_bytes` 仅命中 kinds.rs 删除注记 doc 与 PIPELINE.md 历史注记两处说明文字。
+`decide` 签名不动（B1-a 调用点零触碰）。现有配额测试同步改（见 §8）。
+
+## 4. 修4：上限公式与前置拒绝（`render.rs`）
+
+公式（`Pipe::max_frame_bytes`）：最大帧字节数 =（预算 − 2 × 单块下限）÷ 2。
+依据：一个节点运行时输入和输出两帧必须同时在（硬约束，除以 2）；
+`2 × 单块下限` 是分块暂存对在最小块下的余量（`decide` 保证单块不小于下限，
+暂存对按最大块分配，最小就是两块下限）。
+
+执行时用的是更精的逐节点形（`check_footprints`，跑之前就拒，不分配、不写缓存）：
+节点 0 需 输出 + 2 × 下限 ≤ 预算（它的输入是调用方的画面，不占预算），
+其余节点需 输入 + 输出 + 2 × 下限 ≤ 预算；任一节点超了报新变体
+`RenderError::FrameTooLarge { node, need_bytes, budget_bytes }`（点名节点下标、要多少、预算多少）。
+选新变体不复用 `OutOfBudget`：前者是「这帧在这根管上永远跑不了」（确定性拒绝），
+后者是「这次没排下」（持有人放手/换小图可解），两句人话不一样。
+
+两句诚实话（写进文档和注释）：块大于下限时暂存对超余量，分块节点仍可能中途报预算不够
+（分了类型，不崩）；保证只对闲管成立——调用方手里攥着的输出不参与淘汰。
+
+## 5. 缓存写入时机和让路规则（事实汇总）
+
+- 写入时机：节点算完立刻 `insert`；命中立刻 `touch`；成功收尾逆序 touch 恢复上游最新近。
+  拒绝（超半预算字节上限/槽位满且全是更新近的）只不上缓存，渲染照常成功。
+- 让路：`alloc_room` 在预算拒绝后淘汰「本次未命中、最久没用」，命中的永不让；
+  淘汰光还不够 → `OutOfBudget`，临时的全归还，已完成的保留。
+- 取消/出错：已完成保留（完整），未完成的（分块中途取消的节点）一个条目不留。
+- `sysmem` 零改动：`remaining()`/`acquire_shared` 现有接口够用，未动该目录。
+
+## 6. 上限表（16 GiB 机器，`quota_for`/`singlebuffer_floor` 推导值，测试逐位钉死）
+
+| 实例 | 预算（字节） | 下限 | 最大帧（字节） | 最大帧（像素） | 6100 万像素（963,477,504 B） |
+|---|---|---|---|---|---|
+| Full | 2,748,779,069 | 77,510,737 | 放得下（占 77.7%） |
+| Export | 2,748,779,069 | 77,510,737 | 放得下（占 77.7%） |
+| Preview | 858,993,459 | 22,649,241 | 上限只到 22.6M（预览只接小图） |
+| Thumbnail | 515,396,075 | 14,008,975 | 上限只到 14.0M（缩略图只接小图） |
+
+（字节列：1,240,171,806 / 1,240,171,806 / 362,387,865 / 224,143,605。）依据同 §4。塔台估计的「八千多万像素」落在 77,510,737 上，对得上。
+
+## 7. 6100 万像素两例计时（发行版，串行，`--test-threads=1`）
+
+命令：`cargo test --release -p lightamer-pipeline --locked --offline -j6 -- --ignored idle_61mp --nocapture --test-threads=1`
+（两例并跑会互相扰：同进程 RSS 叠加、自报峰值失真，见「未验」）。
+
+- B1-b 单恒等节点（重跑）：未命中中位数 **26.8ms**（门 200ms，过；B1-b 量 27.5ms，塔台量 27.1ms），
+  命中 **0.003ms**，峰值常驻自报 **1840MB**（与 B1-b 的 1840MB 逐位一致；`load1=2.96 ncpu=10 guard_ok=true`）。
+- 新增五恒等节点（16 GiB Full 预算 2748779069 + 128 MiB 下限）：未命中中位数 **141.8ms**
+  （门 1000ms，过），峰值常驻自报 **2759MB**（≈ 输入 0.9G + 输入输出两帧 1.8G，与设计峰值一致；
+  `load1=2.98 ncpu=10 guard_ok=true`），4GB 停手线下约三成。B1-b 代码上此例报超预算（见 §0）。
+
+## 8. 按新意思改写的测试逐处清单（一处是一处）
+
+1. `cancel_after_first_node_aborts_cleanly` → `cancel_after_first_node_keeps_completed_planes`：
+   断言改为缓存留 1（节点 0 的键对得上、内容等于输入）、节点 1-2 无条目、预算用 1024；
+   干净重渲命中节点 0、节点 1-2 各跑一次、输出逐位。
+2. `warm_cache_cancel_keeps_cache_untouched` → `warm_cache_cancel_keeps_completed_planes`：
+   断言不变（缓存 2、预算 2048、探针 1/1），理由改成新语义（命中即时 touch、未完成不添），
+   加两条目内容断言。
+3. `cancel_between_tiles_aborts_cleanly`：断言不动（缓存 0、预算 0），注释改成「半截画面永不进缓存」的正面表述。
+4. `tight_budget_skips_cache_renders_ok_and_returns_bytes`：断言不动，只改注释（「结尾提交」→「即时插入被拒」）。
+5. `error_out_of_budget_is_typed_and_restores_budget` →
+   `error_out_of_budget_returns_transient_bytes_after_full_eviction`：旧场景（100 字节预算渲 8x8）
+   现被足迹预检以 `FrameTooLarge` 拒绝，改写成外部持有攥满预算的场景：两份调用方输出占满 2048，
+   第三张足迹能过、让路淘汰最后一个条目（释放 0 字节）后仍报 `OutOfBudget`，缓存空，
+   放手后预算归零。
+6. `quotas_are_sane_and_ordered`：删两条 `max_tile_bytes ≤ 预算` 断言（字段已删）。
+7. `sixteen_gib_splits_the_pool_by_share`：`max_tile_bytes` 断言换成 Thumbnail 槽位数断言（2）。
+
+新增 11 个跑 + 1 个计时（管线 71→82）：`six_node_chain_renders_within_three_frame_budget`（修1）、
+`cancel_after_third_node_keeps_completed_planes`（修1，六节点取消在第四位前）、
+`error_after_completed_nodes_keeps_completed_planes`（修1，出错镜像）、
+`render_level_eviction_takes_oldest_first`（修2，最旧先走）、
+`allocation_evicts_cache_until_plane_fits`（修2，分配路淘汰）、
+`make_room_evicts_around_planes_hit_this_run`（修2，命中保护，`ptr_eq` 同分配）、
+`evict_oldest_except_skips_protected_oldest_first`（修2，缓存级单元）、
+`pipe_reports_max_frame_bytes_per_kind`（修4，四数逐位）、
+`renders_at_max_frame_boundary_succeed_per_kind`（修4，四实例边界成功）、
+`oversized_frame_is_typed_and_leaves_no_trace`（修4，超限两例）、
+`cross_photo_eviction_then_selective_recompute`（修5，串联）、
+`idle_61mp_five_nodes_reports_miss_median`（计时，默认不跑）。
+
+修5 的形状偏差（任务书示例数字在同一根管上数学不可兼得）：紧管预算 3 帧 → 缓存上限 1.5 帧只留得住
+一个平面，六位前缀在乙渲染完必然只剩末位，重渲只能全重算，不可能「前两位命中」。
+测试做法：甲填缓存、乙六节点链成功且甲条目全淘汰、预算不超（紧管，3072 字节）；
+改第三位参数后前两位命中、后四位重算（同链形状在 GIB 管上，调用计数 1/1/2/2/2/2）。
+键的链式前缀性质两边同一套代码，紧管测淘汰、宽管测选择性，如实分开。
+
+## 9. 验收（命令与输出）
+
+- 管线：`cargo test -p lightamer-pipeline --locked` → 82 通过 0 失败 2 ignored（71 + 11）。
+- 全工作区：`cargo test --workspace --locked --offline -j6` → 全绿 522 通过（511 + 11），0 失败。
+- `cargo xtask layers` → `OK: 29 crates, no layering violations`。
+- `cargo xtask check-no-iop-names` → `OK (97 names, 4 roots clean)`。
+- `Scripts/rust-apple-boundary.sh` → `ALL GREEN`（7/7）。
+- `Scripts/check-licenses.sh` → `allow=852 exception=1 fail=0 total=853`，退出 0（与 B1-b 逐字同，无新增依赖）。
+- 六条 lint：`cargo clippy --workspace --all-targets --locked --offline -j6 -- -D warnings
+  -D clippy::indexing_slicing -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic
+  -D clippy::todo -D clippy::unimplemented` → 退出 0。
+- `cargo fmt --all --check` → 退出 0。
+- 文档：`RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked --offline` → 退出 0。
+- 封存面：`git diff --stat 60b236d4 HEAD -- crates/lightamer-history crates/lightamer-registry
+  crates/lightamer-catalog crates/lightamer-engine apps crates/lightamer-apple 'crates/lightamer-iop-*/src/modules'` → 无输出。
+- `docs/PIPELINE.md`「执行」一节按改后事实重写（写入时机、让路规则、上限表），配额表删单块上限列。
+- `Scripts/rust-session-demo.sh` → `demo: ALL GREEN`，退出 0。
+- `Scripts/rust-history-demo.sh` → `demo: ALL GREEN`，退出 0。
+- `Scripts/rust-ci-lite.sh` → `rust-ci-lite: ALL GREEN`，退出 0（135.2s；测试 522 通过）。
+- `git show --name-only HEAD` 只含允许路径（7 文件：报告 + review.log + README + cache/kinds/render.rs + PIPELINE.md）。
+- Commit：`cfca6531`（`git commit --amend` 收口，见 §12）。
+
+## 10. 给用户看的汇报
+
+修好了 B1-b 留下的四处：长链渲染不再随节点数涨内存（6100 万像素五节点从报错变成功，
+1.4 秒的一半不到）；缓存满着别的照片时新照片照常渲，旧的按最久没用让路；
+配额里没人用的单块上限删了；每种实例能处理多大的图现在有公式、有表、有前置拒绝
+（16G 机器上完整分辨率到 7750 万像素，用户的 6100 万余量两成多）。
+还没做：B1-c（渲染作业接引擎）。上限保证只对闲管成立；Preview/Thumbnail 的上限
+只到 22.6M/14.0M 像素，大图走 Full/Export。
+
+## 11. 复审的结论头
+
+复审实例独立重跑 §9（`B1-b2-review.log`，只读未改代码）：`PASS / 0 error + 4 minor`——管线 82/522 测试数、四治理件、六条 lint、`fmt`、文档零警告、许可证 `852/1/0/853`、双 demo、ci-lite 全绿全对上；计时两例复核（五节点 138.7ms/2758MB，我方 141.8ms/2759MB；单节点 27.7ms/1840MB，我方 26.8ms/1840MB，方差内）；行为四条逐项核（insert 唯一提交点、淘汰次序与终止性、上限四数手算逐位、改写 7 处逐处对）。Findings M1–M4 见 §12（四处全修）。
+
+## 12. 修订记录 / 未做 / 未验
+
+- 修订记录（复审 `PASS / 0 error + 4 minor`，四处全修）：
+  - M1（测试注释写反）：`render_level_eviction_takes_oldest_first` 注释 "node 0 yields, node 1 survives" 与断言相反——成功收尾逆序 touch 后最旧的是 node 1（`keys_a[1]` 被淘汰，`keys_a[0]` 存活）。已改注释，断言不动（行为本就正确）。
+  - M2（grep 口径）：`max_tile_bytes` 全仓残留 2 处均为说明文字（kinds.rs 删除注记 doc、PIPELINE.md 历史注记），符号级零残留（字段/构造/透传/引用已清，`tiling.rs` 零触碰）。无代码改动，口径见 §3 末句。
+  - M3（报告与 HEAD）：§9 预写了 review.log 在提交内，复审时 HEAD 尚无该文件；amend 后 7 文件齐，复审日志在列，所言属实，无改动。
+  - M4（空链预检缝隙）：`render_empty` 不过 `check_footprints`（空链无节点下标可点名），超预算大帧走 `OutOfBudget`。行为已分类型，补 PIPELINE.md 空链口径一句，不另立变体。
+  修订后复验：管线 82 绿、六条 lint 0 error、`fmt` 干净（amend 前重跑，命令见 §9）。
+- Commit：`cfca6531`（最终提交；与 `72dab616` 仅差报告 Commit 行 1 行）。
+- 未做：B1-c 范围；roi 变体分块、色彩变换执行、块级并行（B1-b 遗留，原样未动）；
+  `sysmem` 零改动（现有接口够用）；单块网（`TILING_FULL_ROI`）语义仍无（B1-a 遗留）。
+- 未验：`/usr/bin/time -l` 旁证没跑成——`target/release/deps` 在本机上不存在
+  （`cargo test --release` 照常编译运行，自报数与 B1-b 逐位一致，旁证缺一）；
+  计时两例必须串行（`--test-threads=1`），并跑时同进程 RSS 叠加、自报峰值失真且双双变慢
+  （曾量到 4596MB + 313.8ms，串行后 2759/1840MB + 141.8/26.8ms），以后加计时例须保持串行口径；
+  非 macOS 编译（单目标纪律）；机械盘/高负载下的计时数。
+
+最终提交 `cfca6531`，7 文件，零 push，临时文件已删。跳过/未验项 + 风险：`time -l` 旁证缺一（自报数与 B1-b 逐位一致，风险低）；修5 紧管/宽管分腿证明（数学不可兼得，已如实披露）；空链超限走 `OutOfBudget` 非 `FrameTooLarge`（已文档化，行为分类型）。
