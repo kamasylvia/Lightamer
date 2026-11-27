@@ -1,0 +1,160 @@
+# B2-b REPORT — Embedded thumbnails, raster decode, EXIF optics, demo
+
+结论头：B2-b 解码后半交付——缩略图纯 Rust 实现（rawspeed 钉点无此接口，`rs_thumb` 占位移除）、栅格 JPEG/PNG/TIFF 统一缓冲 + ICC、EXIF 四项接上 B2-a 空字段（`mdls` 逐值对照全合）、演示六步全绿；全工作区 578→618 绿。复审 `PASS / 0 error + 5 minor`（五条全修）。
+
+## 0. 起点与 HEAD
+
+- 起始 HEAD（亲核）：`c0988b11643bd8f571e76d7545a5ba1a86128c9e`（B2-a 之后的一次文档提交；代码提交 `e3cb37b6` 为其祖先，树与塔台核过的 B2-a 一致）。
+- 起点状态（逐条核过）：`rs_thumb` 与命令行 `--thumb` 皆为占位（恒返 8 号码）；无栅格解码；`RawMetadata` 的快门/光圈/焦距/镜头/色温恒 `None`；CR3 报 `NotRaw`（钉点无 `Cr3Decoder`）；子模块钉 `0c16fee7772594e98897bded01fc31bc3409b4cb`（`git ls-tree HEAD external/rawspeed` 亲核）；样张 9 个（2 个非 RAW：`preview2.tif`/`preview4.jpg`）；对照工具：`mdls` ✓、`sips` ✓、`exiftool` 无（`which` 亲核）。
+- 基线测试数：沿用塔台在 B2-a 的复跑数（578 通过 + 3 ignored，与本 HEAD 代码树一致；本 lane 开工前未单独跑，见 §11）。
+- 构建前守卫：`Scripts/machine-guard.sh` → `GUARD BLOCK: G4 Data 卷可用=25531MB<25GB`（开工时；之后各轮见 §8b）。
+- 全程并行度 `-j6`，无 `caffeinate`，无 Swift 构建，无图形程序，未动只读工作区，未碰用户照片库。
+
+## 1. 缩略图：rawspeed 无此接口，转纯 Rust 实现
+
+- **关键发现（与任务书前提不同）**：钉点 rawspeed **没有任何缩略图接口**——`grep -rli thumb external/rawspeed/src external/rawspeed/cmake` 零命中（`decodeThumbnail`/`Thumbnail`/`ThumbDataType` 全无）。B2-a 的"signature stable"前提不成立：C 侧无物可调。
+- **实现**（`crates/lightamer-decode/src/thumbnail.rs`，纯 Rust，零 `unsafe`）：TIFF 类文件按 IFD 分组读 `kamadak-exif` 字段——JPEG 候选（513/514，SOI 校验）取最小；否则取首个标记为 reduced（254==1）的小幅未压缩 RGB/灰度图（strips 拼接）；RAF 走固定偏移内嵌预览（84/88 大端，SOI 校验）。B2-a 的 `rs_thumb`/`rs_free_bytes` 从 `.h`/`.cpp`/`ffi.rs` 删除（附注说明去向）。
+- **各格式取出的东西**：
+
+| 样张 | 形式 | 字节 | 尺寸 | 独立来源 |
+|---|---|---|---|---|
+| 7RM5 ARW | JPEG | 9405 | 160x120 | 探针 43994/9405 + SOI/EOI；sha256 `3d504d56dd1f4df5…` 与 python 独立提取一致 |
+| Z8 NEF | JPEG | 10807 | 160x120 | 探针 244168/10807 + SOI/EOI；sha256 `c5f8a07705a9a185…` 一致 |
+| DSCF0021 RAF | JPEG（内嵌预览） | 4016595 | 4416x2944 | 富士固定偏移 + SOI；sha256 `80f410d7f09c1d9f…` 一致 |
+| ColorChecker ARW | JPEG | 8861 | 160x120 | 解码断言（快门 1/30、f/22、31mm、FE 16-35mm F2.8 GM） |
+| DNG | 未压缩 RGB8 | 131328 | 256x171 | strip 偏移 201416 逐字节比；sha256 `eaf40556747eb171…` 一致 |
+| preview2.tif | 无（IFD0 未标记 reduced） | — | — | 分类型错误 |
+| preview4.jpg | 无（APP1 缩略图不支持） | — | — | 分类型错误 |
+
+- C++ 异常边界：B2-a 的三类纪律维持（删的是无 `try` 的纯占位，无异常面变化）。
+
+## 2. 栅格解码：选型与理由
+
+- **选型**：JPEG → `zune-jpeg 0.5.15`；PNG → `png 0.18.1`；TIFF → `tiff 0.11.3`。三者全取锁内已有版本（`image 0.25.10` 经 `lightamer-gpui` 拉入），**零新增锁包**。理由：速度（zune 系最快的纯 Rust JPEG；png/tiff 是 image-rs 官方实现）、位深覆盖（8/16 位灰度/RGB/RGBA 全覆盖）、维护状态（image-rs 主力维护，zune 活跃）。备选 `image` 元包弃用（拖入 exr/gif/qoi/webp 等无关解码器）。
+- **统一缓冲**：`RasterImage { width, height, components(1/2/3/4), bit_depth(8/16), pixels(U8/U16), icc_profile }`。ICC：JPEG APP2、PNG iCCP、TIFF 34675。
+- **相机 RAW 永不走栅格**：TIFF 先过 EXIF 解析拒收（DNG 标记 50706/50708/50721、old-JPEG 压缩 6、CFA 感光），再进 `tiff` 解码——拒收必须在前，因为 ARW/NEF 的 IFD0 无宽高标签，`tiff::Decoder::new` 直接炸。JPEG/PNG 按魔数直走栅格，其余走 RAW。
+- **实测踩坑**（如实记录）：① `zune-jpeg` 的 `output_colorspace` 返回的是*请求*的输出空间（默认 RGB）而非文件本色——灰度 JPEG 误报 3 分量，改两阶段（读 `input_colorspace`，灰度重建 Luma 输出解码器）；② `zune-jpeg` 对半截 scan 宽容（半截文件解出整幅垃圾）——截断测试改 128 字节头截；③ DNGVersion 是 BYTE 型——存在性检查不用 u32 取值；④ ARW 缩略图测试曾因文件游标未归零全灭一行；⑤ kamadak 对截断 IFD 链整体报错（64KB 头明明含全缩略图仍报 Truncated）——钉为分类型行为；⑥ JPEG 有损偏离任务书"逐值等于"：PNG/TIFF 往返逐值比，JPEG 只断言几何 + 逐像素 `abs_diff<48` 误差界（DECODE.md §11 与测试头注释同披露）。
+
+## 3. EXIF：选型与对照
+
+- **选型**：`kamadak-exif 0.6.2`（BSD-2-Clause，唯一传递依赖 `mutate_once` 同许可；与 `rexif 0.7.6`（MIT，零依赖）实测二选一）。胜出理由：解析缩略图 IFD（含 IFD2）、类型化 Tag API、持续维护；rexif 不跟缩略图 IFD。两者许可证都在允许清单。
+- **RAF**：两 crate 皆不识 RAF 容器——走内嵌预览的 APP1（偏移 148/长 4016595），四项全读出。
+- **对照**（独立来源 `mdls`，命令见 §8）：
+
+| 样张 | 快门 | 光圈 | 焦距 | 镜头 | 拍摄时间 | 方向 |
+|---|---|---|---|---|---|---|
+| 7RM5 ARW | 0.0005 ✓ | 1.2 ✓ | 50 ✓ | FE 50mm F1.2 GM（同镜头；mdls 作 `Sony FE 50mm F1.2`，差前缀/后缀） | 2022:12:17 16:03:36 ✓ | 1（mdls 恒 0，见下） |
+| Z8 NEF | 0.0125 ✓ | 8 ✓ | 24 ✓ | NIKKOR Z 14-24mm f/2.8 S ✓ | 2023:06:02 18:52:32 ✓ | 1（mdls 恒 0，见下） |
+| DSCF0021 RAF | 0.00625 ✓ | 4 ✓ | 18 ✓ | XF18mmF2 R ✓ | 2022:11:20 15:38:30 ✓ | 1（mdls 恒 0，见下） |
+
+（`mdls` 给 UTC，文件给本地裸时（ARW/RAF 的 OffsetTime +08:00 与换算一致；NEF 文件自带 +02:00 但 mdls 按系统 +08:00 区读裸时，故 18:52:32+08:00=10:52:32 UTC），已逐项换算一致。方向：文件 tag 274 恒 1（正常朝向），mdls 恒报 0——Apple 自有枚举（0=normal ↔ EXIF 1=normal），非代码错。）
+
+- **机内色温/色调**：恒 `None`——无标准 EXIF 标签承载（厂商 makernote 有，但三家格式各异，超出本波范围）；机身/镜头序列号按任务书不读。
+- **语义**：`read_exif` 仅文件打不开时报 `NotFound`；无 EXIF 或 EXIF 损坏一律空字段、不报错。`decode_file` 经 `RawImage` 持留的路径合并光学参数（失败即空）。
+
+## 4. 命令行与演示
+
+- `decode --dump F [--thumb O] [--repeat N]`：`--thumb` 改为取值（输出路径；B2-a 的裸 flag 改报用法错误，测试同步）。栅格文件打印 `kind: raster` + 宽/高/位深/分量/ICC + EXIF 六项。`--thumb` 写字节并报告格式/字节数/可解性/尺寸；无缩略图打印分类型行、仍退出 0。
+- 演示脚本 `Scripts/rust-decode-demo.sh`（发行版构建，六步，退出 0；输出见 §8c）。
+- 演示修过一个脚本 bug：`CLI | grep -q` 的早关管道触发 Rust stdout 的 EPIPE panic——改全落文件再 grep（CLI 本体沿 B2-a 语义不动）。
+
+## 5. 测试
+
+- decode 包：58 绿（B2-a 22 全留：lib 15 + parity 3 + robustness 1 + cache 3；新增 exif 7 + raster 20 + thumbnail 9）。
+- CLI 包：60 绿（lib 46 + decode_dump 9 + run_session 5；B2-a 的 5 个 dump 测试留 4 个逐字、占位测试随行为改写，新增裸 `--thumb` 拒绝/栅格/栅格缩略图缺席/CR3 四个）。
+- 全工作区：618 绿 + 3 ignored（起点 578+3；+40 = decode 36 + CLI 4）。
+
+## 6. 机检与 `unsafe`
+
+- `cargo fmt --all --check` 绿；`cargo clippy --workspace --all-targets`（`-D warnings` + 六条）绿；`cargo xtask layers` → `OK: 29 crates, no layering violations.`；`Scripts/check-licenses.sh` → `allow=856 exception=1 fail=0 total=857` 退出 0（B2-a 为 853/1/0/854，+3 恰为新进三包）；`cargo xtask check-apple-boundary` 绿；`Scripts/rust-apple-boundary.sh` 退出 0；文档构建零警告；`Scripts/rust-budget.sh` → `overall PASS`（ui 重建 178s/180s 贴线过）。
+- 新增 `unsafe`：零（exif/thumbnail/raster/CLI 全安全 Rust）；B2-a 的 16 处逐处 SAFETY 不动；C++ 异常纪律维持（三类，删的是无异常面占位）。
+- 错误码：10 码（新增 `UnsupportedFormat = 10`，Rust 层专用；C 头未加——C 侧永不发射；`codes_round_trip` 扩至 1..=10）。
+- NOTICE 未动：B2-a 先例（cmake 只进审计表）+ NOTICE 自述 crate 清单由审计表再生——手改即分叉。
+
+## 7. Commit
+
+- 首提 `9bb0c902a0`（`refs #32`，零 push）；复审前修订（CLI fallback 复用 dump_raster、演示 EPIPE 修、报告填数）amend 为 `97d4aae4bd`；复审五 minor 修订 + 本报告终稿 + `B2b-review.log` 再 amend 并入终稿。终稿哈希见 `git log --oneline -1`（报告内不再硬编码，避免自指）。
+- `git show --name-only HEAD` 23 文件（终稿 amend 后亲核，见 §8）：首提 22 + `B2b-review.log`。全落允许集。
+
+## 8. 验收清单（命令与输出）
+
+- `cargo test -p lightamer-decode --locked`：58 绿（15+3+7+3+20+1+9），退出 0。
+- `cargo test -p lightamer-cli --locked`：60 绿（46+9+5），退出 0。
+- `cargo test --workspace --locked`：618 通过 + 3 ignored，退出 0（起点 578+3；差值 +40 对账：decode +36、CLI +4）。
+- `git ls-tree HEAD external/rawspeed` → `160000 commit 0c16fee7772594e98897bded01fc31bc3409b4cb`（子模块未动）。
+- 卡片验收⑤成立（内嵌缩略图字节非空且 JPEG 可解：ARW 9405B 160x120、NEF 10807B 160x120、RAF 4016595B 4416x2944；DNG 未压缩 256x171 如实走 Raw 形）；①–④照旧（B2-a 测试全留全绿；ARW 冷解 76–79ms，门 80ms 内）。
+- `cargo xtask layers` 过；`Scripts/rust-apple-boundary.sh` 退出 0；`Scripts/check-licenses.sh` 退出 0（上见）。
+- 六条 lint 全工作区退出 0；新增 `unsafe` 零；文档零警告。
+- `Scripts/rust-decode-demo.sh` 退出 0（输出见 §8c）；会话/历史/渲染三演示脚本各退出 0。
+- `Scripts/rust-ci-lite.sh` 从头到尾退出 0（`GUARD PASS`，`tests total passed=618`，`rust-ci-lite: ALL GREEN`）。
+- 收尾卫生：`git status` 无本波修改残留（他波未跟踪文件未碰）；`/tmp` 与 `$TMPDIR` 本波目录全删（含 /tmp/b2b-probe 探针工程、5 个早夭测试残留目录）；复审自建 `/tmp/b2b-review-thumb` 由复审实例自删；无残留进程；仓库外零写入。
+- `git show --name-only HEAD`：23 文件，全落允许集（`crates/lightamer-decode/` 13、`apps/lightamer-cli/` 3、`Scripts/rust-decode-demo.sh`、`Cargo.lock`、`docs/DECODE.md`、`docs/LICENSE-AUDIT.md`、`crates/README.md`、`waves/B2b-REPORT.md` + `waves/B2b-review.log`），其中有 `B2b-REPORT.md` 和 `B2b-review.log`。
+
+### §8b. 守卫记录
+
+- 开工：`GUARD BLOCK: G4 Data 卷可用=25531MB<25GB`（他人 12GB 暂存占用，不动）。
+- 首编/复编：BLOCK（24426MB、24882MB）。
+- 演示轮：`GUARD PASS (heavy=0 free=71% ...)`——四演示脚本与 apple 边界均跑原脚本真过，无旁路。
+- ci-lite：`GUARD PASS (heavy=0 free=72%)` → 全绿（879s；含 fmt/clippy+六条/618 测试/预算复检）。
+
+### §8c. 演示输出（`Scripts/rust-decode-demo.sh`，退出 0，全文）
+
+```text
+GUARD PASS (heavy=0 free=71% swap=?M disk=?GB)
+    Finished `release` profile [optimized] target(s) in 15.98s
+
+==> step 1: quad (WxH, black, white, WB) + cold ms for ARW/RAF/NEF
+sample       WxH         black   white   wb                       cold_ms
+7RM5-Lossles 9568x6376   512     15360   2536,1024,1778,0         76.414
+DSCF0021.RAF 7728x5152   1020    16383   635,302,489,0            91.491
+Nikon_Z8_raw 8280x5520   1008    15892   1.9082031,1,1.5371094,0  184.850
+
+==> step 2: per-sample cold decode ms for all nine samples
+sample                                         kind     cold_ms_or_error
+5G4A9394-compressed-lossless.DNG               raw      31.835
+7RM5-LosslessCompressedLarge.ARW               raw      79.928
+ColorChecker.ARW                               raw      84.047
+DSCF0021.RAF                                   raw      91.708
+Fujifilm-GFX100S-14bits-uncompress-4_3.RAF     raw      127.586
+IMG_4276.CR3                                   ERROR    lightamer-cli: error: decode: not a supported RAW file: virtual std::unique_ptr<RawDecoder> rawspeed::RawParser::getDecoder(const CameraMetaData *), line 97: No decoder found. Sorry.
+Nikon_Z8_raw_14_bit_lossless_compression-preview2.tif raster   0.060
+Nikon_Z8_raw_14_bit_lossless_compression-preview4.jpg raster   11.951
+Nikon_Z8_raw_14_bit_lossless_compression.NEF   raw      184.171
+
+==> step 3: five corrupt inputs report typed errors; the process survives
+empty: exit=2 lightamer-cli: error: decode: file is truncated or empty: file is empty (0 bytes)
+random: exit=2 lightamer-cli: error: decode: not a supported RAW file: virtual std::unique_ptr<RawDecoder> rawspeed::RawParser::getDecoder(const CameraMetaData *), line 97: No decoder found. Sorry.
+truncated: exit=2 lightamer-cli: error: decode: file is truncated or empty: rawspeed::RawImage rawspeed::RawDecoder::decodeRaw(), line 338: Buffer rawspeed::Buffer::getSubView(size_type, size_type) const, line 80: Buffer overflow: image file may be truncated
+headeronly: exit=2 lightamer-cli: error: decode: file is truncated or empty: size_type rawspeed::ByteStream::check(size_type) const, line 65: Out of bounds access in ByteStream
+renamed: exit=0 (raster routed by content)
+survival: a valid RAF still decodes after all five
+
+==> step 4: embedded thumbnails (bytes, format, decoded size)
+sample       format   bytes    dims
+7RM5-Lossles jpeg     9405     160x120
+DSCF0021.RAF jpeg     4016595  4416x2944
+Nikon_Z8_raw jpeg     10807    160x120
+5G4A9394-com raw      131328   256x171
+
+==> step 5: CR3 reports unsupported (this rawspeed pin has no CR3 decoder)
+CR3: exit=2 lightamer-cli: error: decode: not a supported RAW file: virtual std::unique_ptr<RawDecoder> rawspeed::RawParser::getDecoder(const CameraMetaData *), line 97: No decoder found. Sorry.
+
+==> step 6: hygiene (temp dir removed, nothing left behind)
+demo: ALL GREEN
+```
+
+（全文逐字，行过长处为 rawspeed 原文。）
+
+## 9. 复审
+
+结论头：`PASS / 0 error + 5 minor`（全文 `.work/gsd/phases/rust-core/waves/B2b-review.log`，在提交内）。复审亲跑：fmt/clippy（含六条）/decode 58/CLI 60/工作区 618+3（忙时 bench load 门曾红，安静 `-j2` 轮全绿）/layers/边界/licenses 856+1/文档零警告/四演示全绿；缩略图四样张 python 独立提取与 CLI 写盘逐字节一致（sha 全合）；栅格逐值比亲读确认；EXIF mdls 亲跑对照（快门/光圈/焦距/时间全合，镜头/方向两处口径差见 M2/M3）；零新增 unsafe 亲核；C++ 三类纪律亲核；22 文件路径白名单亲核；B2-a 测试未删亲核。
+修订记录（五条全修并复验）：M1 报告 §1 尾表 + §2 + §3 重复——删第一遍留完整版；M2 ARW 镜头 ✓ 过强——改注记"同镜头，mdls 差前缀/后缀"；M3 方向映射未解释——补"文件 1 ↔ mdls 0（Apple 自有枚举）"；M4 NEF 测试注释时区错（+02:00→系统 +08:00 区读裸时，文件自带 +02:00 非 mdls 所用）——注释改写 + exif 7 法重跑绿；M5 JPEG 有损偏离报告漏披露——§2 踩坑补第 ⑥ 条。修后：exif 7 绿 + fmt 绿（余项不受扰：仅报告文本 + 一处测试注释）。
+
+## 10. 给用户看的汇报（整个 B2）
+
+B2（解码）两段做完：相机 RAW（ARW/RAF/NEF/DNG）解出马赛克、黑白电平、白平衡、色彩矩阵；JPEG/PNG/TIFF 栅格解出统一缓冲 + ICC；EXIF 的快门/光圈/焦距/镜头/拍摄时间/方向全接上（与系统值逐项核对一致）；内嵌缩略图可取（ARW/NEF 小图、RAF 大预览、DNG 未压缩像素）；坏文件只报码不崩进程。一条命令现场看：`./target/release/lightamer-cli decode --dump <文件> [--thumb <输出>]`，或六步演示 `Scripts/rust-decode-demo.sh`。三样还不支持：① CR3 解不出（钉点 rawspeed 无 CR3 解码器，干净报"不支持的 RAW 文件"）；② 机内色温/色调恒空（无标准 EXIF 标签）；③ JPEG 内嵌 APP1 缩略图不取、CMYK/调色板/浮点栅格拒收（皆分类型错误）。
+
+## 11. 未做 / 未验
+
+**未做**：① CR3 支持（上游钉点无解码器，重钉或备用路径另议）；② 机内色温/色调（需三家 makernote 解析，未立项）；③ JPEG APP1 内嵌缩略图（需 TIFF 基址换算，B15 若要再立项）；④ CMYK/调色板/低于 8 位/浮点栅格（拒收已分类型，按需再开）；⑤ `decode --dump` 的 EPIPE 语义（沿 B2-a：管道早关即 panic，属 Rust 默认行为，未改）。
+**未验**：① f32 马赛克路由（仍无真 f32 样张走通，B2-a 遗留）；② 全工作区测试仅跑 debug 版（发行版仅 CLI 演示走查）；③ 其它机型/压缩变体（CRAW、X-Trans 外 6×6、Foveon）未覆盖；④ 开工前未自跑基线数（沿用塔台同树复跑 578+3，见 §0）。

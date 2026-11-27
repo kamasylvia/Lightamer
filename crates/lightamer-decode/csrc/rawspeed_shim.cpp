@@ -440,24 +440,6 @@ uint64_t rs_mosaic_hash(const rs_image* img, rs_error* err) {
   return 0;
 }
 
-int32_t rs_thumb(const rs_image* img, uint8_t** out_bytes, size_t* out_len,
-                 rs_error* err) {
-  if (err) {
-    err->code = RS_OK;
-    err->message[0] = '\0';
-  }
-  if (out_bytes)
-    *out_bytes = nullptr;
-  if (out_len)
-    *out_len = 0;
-  (void)img;
-  setErr(err, RS_ERR_THUMB_UNAVAILABLE,
-         "embedded thumbnails need B2-b (no thumbnail API in rawspeed)");
-  return -1;
-}
-
-void rs_free_bytes(uint8_t* bytes) { std::free(bytes); }
-
 void rs_free(rs_image* img) { delete img; }
 
 int32_t rs_ensure_meta(rs_error* err) {

@@ -7,7 +7,8 @@
 //! [`error::DecodeError`], the process-once camera database, decoded
 //! [`image::RawMetadata`], and owned cropped [`image::Mosaic`] planes.
 //!
-//! Raster decoding (JPEG/TIFF/PNG) and embedded thumbnails arrive in B2-b.
+//! Raster decoding (JPEG/TIFF/PNG) and embedded thumbnails arrived in B2-b
+//! (pure Rust; the camera-RAW path stays on rawspeed).
 #![deny(
     clippy::indexing_slicing,
     clippy::unwrap_used,
@@ -18,6 +19,7 @@
 )]
 
 pub mod error;
+pub mod exif;
 // B2-a: this crate owns the rawspeed FFI boundary. `unsafe` is confined to
 // `ffi` (declarations) plus one documented block per extern call in `image`;
 // every block carries a `SAFETY` comment naming the contract it upholds.
@@ -25,12 +27,17 @@ pub mod error;
 pub mod ffi;
 #[allow(unsafe_code)]
 pub mod image;
+pub mod raster;
+pub mod thumbnail;
 
 pub use error::{DecodeError, ErrorCode};
+pub use exif::{ExifOptics, read_exif};
 pub use image::{
     CfaColor, CropBox, DecodedImage, Mosaic, MosaicKind, RawImage, RawMetadata,
     cameras_xml_bundled_path, classify_for_test, decode_file, invert_3x3,
 };
+pub use raster::{RasterImage, RasterPixels, decode_raster};
+pub use thumbnail::{Thumbnail, ThumbnailFormat, jpeg_dimensions, read_thumbnail};
 
 #[cfg(test)]
 mod tests {

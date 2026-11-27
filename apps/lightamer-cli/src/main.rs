@@ -44,7 +44,7 @@ const HELP: &str = "lightamer-cli: darktable oracle tool\n\
      bench setup --parent D --name N --photos K          plant K empty photos (dev tool, not import)
      bench paste --session S --photos K [--runs R]       time one paste over K photos, R rounds (dev tool)
      render-demo [--size N]                              B1 render pipeline demo on synthetic pixels
-     decode --dump F [--thumb] [--repeat N]              B2-a decode probe: fields + timings (dev tool)
+     decode --dump F [--thumb O] [--repeat N]         B2 decode probe: fields + timings + raster + thumb (dev tool)
      run on a real session prints the file's photo ids shortened to 8 chars
      \n\
      exit: 0 ok; 1 check failed; 2 usage/IO error";
@@ -494,9 +494,10 @@ fn cmd_decode(args: &Args) -> Result<(), Failure> {
     if !(1..=16).contains(&repeat) {
         return Err(Failure::Usage("--repeat wants 1..=16".to_owned()));
     }
+    let thumb = args.value("--thumb")?.map(PathBuf::from);
     decode::dump(&decode::DumpRequest {
         file: PathBuf::from(dump),
-        thumb: args.present("--thumb"),
+        thumb,
         repeat,
     })?;
     Ok(())

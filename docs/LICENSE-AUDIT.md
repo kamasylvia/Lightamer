@@ -394,6 +394,7 @@
 | itertools | 0.13.0 | V | MIT OR Apache-2.0 | V:3569 | https://github.com/rust-itertools/itertools | 纯 Rust 静态链接 | P |
 | itertools | 0.14.0 | V | MIT OR Apache-2.0 | V:3578 | https://github.com/rust-itertools/itertools | 纯 Rust 静态链接 | P |
 | itoa | 1.0.19 | AV | MIT OR Apache-2.0 | A:293 V:3587 | https://github.com/dtolnay/itoa | 纯 Rust 静态链接 | P |
+| jpeg-encoder | 0.7.1 | L | (MIT OR Apache-2.0) AND IJG | L:3691 | https://github.com/vstroebel/jpeg-encoder | 测试期依赖（JPEG 夹具合成，不进产物） | P |
 | jiff | 1.0.3 | V | Unlicense OR MIT | V:3593 | https://github.com/BurntSushi/jiff | 纯 Rust 静态链接 | PD |
 | jiff-core | 1.0.2 | V | Unlicense OR MIT | V:3611 | https://github.com/BurntSushi/jiff | 纯 Rust 静态链接 | PD |
 | jiff-static | 1.0.3 | V | Unlicense OR MIT | V:3620 | https://github.com/BurntSushi/jiff | 纯 Rust 静态链接 | PD |
@@ -404,6 +405,7 @@
 | jni-sys-macros | 0.4.1 | V | MIT OR Apache-2.0 | V:3665 | https://github.com/jni-rs/jni-sys | 纯 Rust 静态链接 | P |
 | jobserver | 0.1.35 | V | MIT OR Apache-2.0 | V:3675 | https://github.com/rust-lang/jobserver-rs | 纯 Rust 静态链接 | P |
 | js-sys | 0.3.107 | V | MIT OR Apache-2.0 | V:3685 | https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys | 纯 Rust 静态链接 | P |
+| kamadak-exif | 0.6.2 | L | BSD-2-Clause | L:3708 | https://github.com/kamadak/exif-rs | 纯 Rust 静态链接 | P |
 | khronos-egl | 6.0.0 | V | MIT/Apache-2.0 | V:3696 | https://github.com/timothee-haudebourg/khronos-egl | 纯 Rust 静态链接 | P |
 | khronos_api | 3.1.0 | V | Apache-2.0 | V:3707 | https://github.com/brendanzab/gl-rs/ | 纯 Rust 静态链接 | P |
 | kqueue | 1.2.1 | V | MIT | V:3713 | https://gitlab.com/rust-kqueue/rust-kqueue | 纯 Rust 静态链接 | P |
@@ -456,6 +458,7 @@
 | multiversion | 0.8.1 | V | MIT OR Apache-2.0 | V:4100 | https://github.com/calebzulawski/multiversion | 纯 Rust 静态链接 | P |
 | multiversion-macros | 0.8.1 | V | MIT OR Apache-2.0 | V:4110 | https://github.com/calebzulawski/multiversion | 纯 Rust 静态链接 | P |
 | multiversion_no_op | 1.0.0 | V | Apache-2.0 OR MIT | V:4122 | https://github.com/hsivonen/multiversion_no_op | 纯 Rust 静态链接 | P |
+| mutate_once | 0.1.2 | L | BSD-2-Clause | L:4355 | https://github.com/kamadak/mutate_once-rs | 纯 Rust 静态链接 | P |
 | naga | 30.0.2 | V | MIT OR Apache-2.0 | V:4128 | https://github.com/gfx-rs/wgpu | 纯 Rust 静态链接 | P |
 | naga-types | 30.0.2 | V | MIT OR Apache-2.0 | V:4154 | https://github.com/gfx-rs/wgpu | 纯 Rust 静态链接 | P |
 | ndk-sys | 0.6.0+11769913 | V | MIT OR Apache-2.0 | V:4166 | https://github.com/rust-mobile/ndk | 纯 Rust 静态链接 | P |
@@ -1152,3 +1155,23 @@
   （LLVM OpenMP 运行时，Apache-2.0 w/ LLVM exception）、SDK `zlib`。
   动态链接，不改变整体 GPL-3.0 分发的合规结论（§3 Q2）。
 - `Scripts/check-licenses.sh` 实测退出 0（计数见 B2a-REPORT 验收节）。
+
+## §15 B2-b 新增依赖采用记录（2026-11-27，lane B2-b，append-only）
+
+- `lightamer-decode` 新增 4 个运行时依赖（`cargo tree -p lightamer-decode
+  --depth 1` 实测）：`kamadak-exif 0.6.2`（新，EXIF 读取）、`png 0.18.1`
+  （复用，锁内已有）、`tiff 0.11.3`（复用）、`zune-jpeg 0.5.15`（复用）。
+  测试期另增 `jpeg-encoder 0.7.1`（新，JPEG 夹具合成，不进产物）、`flate2
+  1.1.11`/`png`/`tiff`（复用）。
+- 锁文件新增 3 个包（`git diff Cargo.lock` 实测）：`kamadak-exif 0.6.2`
+  （`BSD-2-Clause`）、`mutate_once 0.1.2`（其唯一传递依赖，
+  `BSD-2-Clause`）、`jpeg-encoder 0.7.1`（`(MIT OR Apache-2.0) AND IJG`，
+  即审计表 §5 预登记的未来依赖表达式，逐字一致）。三者许可证（`cargo
+  metadata` 实测）全部已在 `Scripts/licenses-allow.txt`，无需例外。
+  已按表列格式追加三行（锁列 `L`，证据列 `L:<行>` 指本仓 `Cargo.lock`
+  的 `[[package]]` 起始行）。
+- 候选比较（见 B2b-REPORT）：EXIF 在 `kamadak-exif` 与 `rexif 0.7.6`
+  （MIT，零依赖）之间实测二选一，前者胜出（解析缩略图 IFD + 类型化
+  Tag API + 持续维护）；后者未采用，不进锁。栅格三件全取锁内已有版
+  本（`image 0.25.10` 经 `lightamer-gpui` 拉入），零新增。
+- `Scripts/check-licenses.sh` 实测退出 0（计数见 B2b-REPORT 验收节）。

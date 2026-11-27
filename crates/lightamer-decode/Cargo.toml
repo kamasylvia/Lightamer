@@ -14,5 +14,27 @@ publish.workspace = true
 cmake = "0.1"
 cc = "1"
 
+[dependencies]
+# B2-b: pure-Rust raster + EXIF. Every license below is on
+# Scripts/licenses-allow.txt (see docs/LICENSE-AUDIT.md §B2-b):
+# kamadak-exif/mutate_once are BSD-2-Clause; png/tiff are MIT OR
+# Apache-2.0 / MIT; zune-jpeg is MIT OR Apache-2.0 OR Zlib.
+# png/tiff/zune-jpeg reuse the locked versions pulled by `image`
+# (lightamer-gpui); only kamadak-exif (+mutate_once) is new.
+exif = { package = "kamadak-exif", version = "0.6" }
+png = "0.18"
+tiff = "0.11"
+zune-jpeg = "0.5"
+
+[dev-dependencies]
+# Test-only synthesis. jpeg-encoder's license is the pre-registered
+# `(MIT OR Apache-2.0) AND IJG` allow-list line (audit §5); flate2 is
+# already locked (for PNG iCCP chunks in tests).
+jpeg-encoder = "0.7"
+flate2 = "1"
+# Integration tests reuse the same locked encoders for fixture synthesis.
+png = "0.18"
+tiff = "0.11"
+
 [lints]
 workspace = true

@@ -11,7 +11,7 @@ use core::ffi::c_char;
 use std::cell::Cell;
 use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::ptr::NonNull;
 
 use crate::error::{DecodeError, ErrorCode};
@@ -149,10 +149,11 @@ pub struct RawMetadata {
     pub white_level: Option<i32>,
     /// As-shot white-balance multipliers R/G1/B/G2, when reported.
     pub white_balance: Option<[f32; 4]>,
-    /// In-camera color temperature in kelvin. Always `None`: rawspeed does
-    /// not expose it (B3 derives CCT from the multipliers if needed).
+    /// In-camera color temperature in kelvin. Always [`None`]: neither
+    /// rawspeed nor standard EXIF tags carry it (B3 derives CCT from the
+    /// multipliers if needed).
     pub white_balance_kelvin: Option<f32>,
-    /// In-camera tint. Always `None`: rawspeed does not expose it.
+    /// In-camera tint. Always [`None`] (same reason as above).
     pub white_balance_tint: Option<f32>,
     /// XYZ-to-camera matrix under D65, verbatim from rawspeed.
     pub color_matrix_xyz_to_cam: Option<[f32; 9]>,
@@ -161,15 +162,19 @@ pub struct RawMetadata {
     pub color_matrix_cam_to_xyz: Option<[f32; 9]>,
     /// ISO speed, when reported.
     pub iso: Option<u32>,
-    /// Exposure time in seconds. Always `None`: rawspeed's metadata carries
-    /// no exposure fields.
+    /// Exposure time in seconds, from EXIF (`None` when the file carries
+    /// no EXIF optics).
     pub exposure_time: Option<f64>,
-    /// Aperture f-number. Always `None`: rawspeed exposes no EXIF optics.
+    /// Aperture f-number, from EXIF (`None` when absent).
     pub aperture: Option<f32>,
-    /// Focal length in mm. Always `None`: rawspeed exposes no EXIF optics.
+    /// Focal length in mm, from EXIF (`None` when absent).
     pub focal_length: Option<f32>,
-    /// Lens model. Always `None`: rawspeed exposes no EXIF optics.
+    /// Lens model, from EXIF (`None` when absent).
     pub lens_model: Option<String>,
+    /// Capture time, from EXIF `DateTimeOriginal` (`None` when absent).
+    pub capture_time: Option<String>,
+    /// Orientation, from EXIF (`None` when absent).
+    pub orientation: Option<u16>,
     /// Pixel subsampling.
     pub subsampling: (u32, u32),
     /// Pixel aspect ratio.
@@ -230,6 +235,9 @@ pub struct RawImage {
     handle: NonNull<ffi::RsImage>,
     /// Whether `rs_decode` has succeeded.
     decoded: bool,
+    /// Source path, kept so [`RawImage::metadata`] can merge EXIF optics
+    /// (B2-b; rawspeed exposes none).
+    path: PathBuf,
     /// Handles are `Send` (independent decoders) but not `Sync`.
     _not_sync: PhantomData<Cell<()>>,
 }
@@ -472,6 +480,7 @@ impl RawImage {
                 Ok(Self {
                     handle,
                     decoded: false,
+                    path: path.to_path_buf(),
                     _not_sync: PhantomData,
                 })
             },
@@ -537,6 +546,10 @@ impl RawImage {
         } else {
             None
         };
+        // EXIF optics are best-effort: absent or corrupt metadata leaves the
+        // fields `None` and never fails the call (`read_exif` only errors
+        // when the file cannot be opened at all).
+        let optics = crate::exif::read_exif(&self.path).unwrap_or_default();
         Ok(RawMetadata {
             decoder: take_str(&info.decoder),
             make: take_str(&info.make),
@@ -573,10 +586,12 @@ impl RawImage {
             color_matrix_xyz_to_cam: (info.has_color_matrix != 0).then_some(info.color_matrix),
             color_matrix_cam_to_xyz: cam_to_xyz,
             iso: u32::try_from(info.iso_speed).ok().filter(|v| *v != 0),
-            exposure_time: None,
-            aperture: None,
-            focal_length: None,
-            lens_model: None,
+            exposure_time: optics.exposure_time,
+            aperture: optics.aperture,
+            focal_length: optics.focal_length,
+            lens_model: optics.lens_model,
+            capture_time: optics.capture_time,
+            orientation: optics.orientation,
             subsampling: (
                 to_u32(info.subsampling_x, "subsampling")?,
                 to_u32(info.subsampling_y, "subsampling")?,

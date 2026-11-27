@@ -1,0 +1,82 @@
+PASS / 0 error + 5 minor
+# B2-b 独立复审日志（只读 lane）
+- 复审对象：HEAD `97d4aae4 feat(rust-core): B2-b thumbnails, raster decode, EXIF optics, demo`（`git log --oneline -1` 亲核）+ `.work/gsd/phases/rust-core/waves/B2b-REPORT.md`（HEAD 版；工作区另有 4 行未提交 sha 注记，见 §6）。
+- 报告另读：`waves/B2a-REPORT.md`、`PLAN-B.md` B2 卡（验收①–⑤）、`waves/B2b-prompt.md`。
+- 全程中文；结论头英文。命令逐项亲跑，不轻信报告数字。
+- 未碰用户照片库（`~/QSync/Medias/Photos/Workspace` 未读未列），未读凭据，未改任何被测文件；临时文件已清（见 §9）。
+
+## 0. 起点与守卫
+- `git log --oneline -1` → `97d4aae4 feat(rust-core): B2-b thumbnails, raster decode, EXIF optics, demo`；其父 `c0988b11`、祖父 `e3cb37b6`，与报告 §0 一致。
+- 样张：`ls ~/Library/Application\ Support/Lightamer/TestRAW/` → 9 个（DNG/ARW×2/RAF×2/CR3/tif/jpg/NEF），与报告 §0 一致。
+- 对照工具：`which mdls sips exiftool` → mdls ✓、sips ✓、exiftool 无（与报告 §0 一致）。
+- 构建前守卫：`Scripts/machine-guard.sh` → `GUARD PASS (heavy=0 free=60% swap=?M disk=?GB)`，EXIT=0。之后各重活前均 PASS（free 54%–58%）；负载门另见 §1（bench 测试自带 load 门，与 guard 无关）。
+- 并行度全程 `-j6` 以内（workspace 末轮用 `-j2`，见 §1 说明），无 caffeinate，一次一个重活（clippy/测试/文档/演示串行）。
+
+## 1. 验收清单重跑（逐项命令与输出）
+1. `cargo fmt --all --check` → EXIT=0（绿）。
+2. `cargo clippy --workspace --all-targets --locked -j6 -- -D warnings -D clippy::indexing_slicing -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic -D clippy::todo -D clippy::unimplemented` → `Finished dev profile in 1m45s`，CLIPPY_EXIT=0（绿）。
+3. `cargo test -p lightamer-decode --locked -j6` → 15(lib)+3(cache)+7(exif)+3(parity)+20(raster)+1(robustness)+9(thumbnail)=58 绿，0 失败，DECODE_EXIT=0。与报告 §5/§8（58=15+3+7+3+20+1+9）逐项一致；B2-a 22（15+3+1+3）全留。
+4. `cargo test -p lightamer-cli --locked -j6` → 首跑 load 11.3 时 44+2 失败（bench 两用例，见下）；load 回落 8.8 后重跑 → lib 46 + main 0 + decode_dump 9 + run_session 5 =60 绿，CLI_EXIT=0。与报告 §5（60=46+9+5）一致。
+   - 首跑失败明细（环境，非回归）：`bench::tests::paste_refuses_a_session_short_of_photos` panic `Skipped { load_one: 12.19, cpus: 10 }`；`paste_times_one_hundred_photos_and_counts_events` panic `the test machine was busy; rerun when quiet`。`bench.rs:276 machine_busy()` 即 `rust-budget.sh load_busy` 口径（load/cpu>1.0 判忙）；`bench.rs` 不在 HEAD 改动集（`git diff HEAD~1..HEAD --stat -- bench.rs` 空，上次改动 `bcace6f4` B13′），系并行他 lane（darktamer `cargo test --release -p math-skinsmooth` rustc + 多 omp 会话）推高负载所致。decode_dump 9/9 在忙时亦全绿（与负载无关）。
+   - run_session 同理：忙时 `cli_bench_setup_and_paste_end_to_end` panic `UNRELIABLE (load 11.74 on 10 cpus)`；安静后 5/5 绿。
+5. `cargo test --workspace --locked` → `-j6` 忙时（load 10.72）卡同上 2 bench；`-j4` 剩 1（run_session bench）；`-j2` 安静轮 → `WS_EXIT=0`，`grep -c "^test result: ok"`=91，`passed=618 ignored=3 failed=0`（`grep -oE` 求和）。与报告 §5/§8（618+3，起点 578+3，+40=decode 36+CLI 4）一致。注：`-j2` 仍在任务书 `-j6 以内`范围内；降并行只为压自诱发负载，不改代码。
+6. `cargo xtask layers` → `OK: 29 crates, no layering violations.`，EXIT=0。
+7. `cargo xtask check-apple-boundary`（报告 §6 提及，顺带核）→ `OK: 29 crates, 235 rust files, no Apple-boundary violations.`，EXIT=0。
+8. `Scripts/rust-apple-boundary.sh` → `STEP 6/7 PASS`、`STEP 7/7 PASS (x86_64-unknown-linux-gnu)`、`ALL GREEN`，EXIT=0。
+9. `Scripts/check-licenses.sh` → `allow=856 exception=1 fail=0 total=857`，EXIT=0。与报告 §6 一致（B2-a 853/1/0/854，+3 恰为 Cargo.lock 新增三包，见 §6）。
+10. `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked -j6` → `Finished in 1m06s`，DOC_EXIT=0（零警告）。
+11. `Scripts/rust-decode-demo.sh` → GUARD PASS + release 构建 27s，六步全打印，`demo: ALL GREEN`，DEMO_EXIT=0。step4 缩略图行与报告 §8c 逐值一致（9405/4016595/10807/131328 + dims）。计时慢于报告（ARW 119 vs 76ms、RAF 125 vs 91ms、NEF 230 vs 184ms），系负载所致；演示不设计时门，B2-a 80ms 门（安静机 64–73ms 典型）不受影响。
+12. 另三演示：`rust-session-demo.sh` → `ALL GREEN`；`rust-history-demo.sh` → `bench paste median 213.3ms gate=1000ms PASS` + `ALL GREEN`；`rust-render-demo.sh` → `ALL GREEN`。三者 EXIT=0。
+
+## 2. 缩略图字节独立比对（亲手提，与 CLI 写盘比大小+sha256）
+- 独立方法：python 直读文件（不经被测代码）。TIFF 类通用 IFD 解析（II/MM、tag 513/514/254/273/279）；RAF 读 84/88 大端 offset/len；DNG 读 strip 段。
+- ARW：3 IFD 各带 JPEG（495076/9405/11469421），最小即 IFD1 @43994 len 9405，SOI ffd8/EOI ffd9，sha256 `3d504d56dd1f4df5cf3d00f45d0533390b44ceedbce510dde383dce2d279380c`。CLI `decode --dump ARW --thumb O` 写 9405B，同 sha → 逐字节一致。报告 §1（43994/9405 + smallest-first）属实。
+- NEF：1 IFD @244168 len 10807，SOI/EOI，sha256 `c5f8a07705a9a18513cb7bba06ef7c4ca8d30046776b8838d9bad8ba94b52fbe`。CLI 同字节同 sha → 一致。报告 §1（244168/10807）属实。
+- RAF：84/88 → off 148 len 4016595，SOI ffd8，sha256 `80f410d7f09c1d9fbd902c9c0bf52b859aa0ada585d8e6e17aa517d0b27daab4`。CLI 同字节同 sha → 一致。报告 §1（固定偏移 84/88 + 4016595）属实。
+- DNG：IFD0 256x171 RGB8 compression 1，strip @201416 len 131328（无 513/514）。python 切片 sha256 `eaf40556747eb17117046b141d9c81c8b2325dd46695a20770ca2e55970c7278`；CLI raw thumb 同 len 同 sha，`equal=True` → 一致。报告 §1（strip 201416）属实。
+- 可解性：`sips -g pixelWidth/pixelHeight` 三 JPEG 缩略图 → 160x120、160x120、4416x2944，与 CLI `thumbnail_dims` 及报告一致。
+- rawspeed 无缩略图接口复核：`grep -rli thumb external/rawspeed/src external/rawspeed/cmake` → EXIT=1（零命中）；全仓仅 `README.rst` 一处 prose（`supply a viewable image or thumbnail`），非 API。报告 §1（`rs_thumb` 占位移除，转纯 Rust）前提成立。注：`grep|head; echo $?` 取的是 head 状态，须看 `PIPESTATUS[0]`（复审已纠）。
+
+## 3. 栅格往返真逐值比
+- 读 `crates/lightamer-decode/tests/raster.rs`：`assert_u8_roundtrip`/`assert_u16_roundtrip` 末行 `assert_eq!(pixels, written)`（PNG 5 法 + TIFF 5 法全走此，逐值真比）；`assert_jpeg_geometry` 走几何 + `abs_diff<48` 逐像素误差界（注释明写 `never pixel-exact`，文件头注释亦明写 `JPEG is lossy, sanity-bounded, not exact`）。
+- `docs/DECODE.md` §11 同样明写 `synthesized JPEGs decode with right geometry (lossy: bounded, not exact)`。行为正确（JPEG 有损不可逐值比，任务书“逐值等于”确需偏离）。
+- 偏离披露：代码头 + DECODE.md 已披露，但 `B2b-REPORT.md` 正文未提该偏离（见 M5）。
+
+## 4. EXIF mdls 对照（亲跑，与报告 §3 表逐值对）
+- `mdls` 三样张（`grep -E "ExposureTime|FNumber|FocalLength|LensModel|ContentCreationDate |Orientation|ISOSpeed"`）：
+  - ARW：0.0005 / 1.2 / 50 / `Sony FE 50mm F1.2` / 2022-12-17 08:03:36 UTC / Orientation 0 / ISO 100。
+  - NEF：0.0125 / 8 / 24 / `NIKKOR Z 14-24mm f/2.8 S` / 2023-06-02 10:52:32 UTC / 0 / 64。
+  - RAF：0.00625 / 4 / 18 / `XF18mmF2 R` / 2022-11-20 07:38:30 UTC / 0 / 125。
+- CLI `decode --dump`（release/debug 同值）：ARW `0.0005/1.2/50/FE 50mm F1.2 GM/2022:12:17 16:03:36/1`；NEF `0.0125/8/24/NIKKOR Z 14-24mm f/2.8 S/2023:06:02 18:52:32/1`；RAF `0.00625/4/18/XF18mmF2 R/2022:11:20 15:38:30/1`。与报告 §3 表逐值一致。
+- 对照结论：快门/光圈/焦距三项全合；拍摄时间 UTC→本地 +8h 全合（ARW 08:03→16:03、NEF 10:52→18:52、RAF 07:38→15:38）；镜头 NEF/RAF 字串全等，ARW 差 vendor 前缀与 GM 后缀（见 M2）；方向 mdls 恒 0 vs 文件恒 1（见 M3）。
+- 文件真相（python 独立读 Exif SubIFD）：ARW 1/2000、12/10、500/10、`DateTimeOriginal 2022:12:17 16:03:36`、tag 42036(LensModel)`FE 50mm F1.2 GM`、IFD0 274=1；NEF 10/800、800/100、240/10、`2023:06:02 18:52:32`、42035=`NIKON`、42036=`NIKKOR Z 14-24mm f/2.8 S`、274=1。代码所读即文件字节，mdls 差异在 Apple 侧归一化/枚举，不属代码错。
+- 机内色温恒 None 有据：`exif.rs:23-24` + `optics_from_parsed` 恒 `None` + DECODE.md §5（`no standard EXIF tag carries them`）；EXIF 2.3 标准无 Kelvin 标签（`WhiteBalance` 仅 auto/manual 枚举），厂商值在 makernote（三家各异，任务书外）。CLI 打印 `wb_kelvin: none (no standard EXIF tag carries it)`。报告 §3（恒 None + 无标准标签）属实。
+
+## 5. unsafe / 异常边界 / 错误码 10
+- 新模块零 unsafe：`grep -rn unsafe exif.rs thumbnail.rs raster.rs decode.rs` → EXIT=1（零命中）。全仓仅 `ffi.rs`/`image.rs`（`unsafe extern` 1 + `unsafe {}` 15 + `unsafe impl Send` 1 = 报告口径 16 处 SAFETY 块）+ `lib.rs` 两处 `allow(unsafe_code)` 门，与 B2-a（M3 后）一致，未增未改。
+- C++ 异常出不了边界：`git show HEAD -- rawspeed_shim.*` 证实删的是无 `try` 纯占位（`rs_thumb` 直接 `setErr+return -1` + `rs_free_bytes` 纯 `free`）；现存纪律维持三类（`rs_open`/`rs_decode` 三臂 bad_alloc/exception/...；`rs_fill_info`/`rs_mosaic_hash`/`rs_ensure_meta` 两臂兜底 INTERNAL；`rs_mosaic_u16`/`rs_mosaic_f32` 防御 try/catch 返 NULL；余口纯取数）。报告 §1/§6（无异常面变化）属实。
+- 错误码 10 Rust 独占三处一致：`error.rs`（`UnsupportedFormat=10` + 注释 `Rust-layer only; the C ABI never emits it` + `from_i32` 10 臂 + `codes_round_trip 1..=10`）/ C 头（仅 0..9，无 10，8 注释改为 `embedded thumbnail absent (Rust layer)`）/ `docs/DECODE.md` §4（10 行注 `Rust layer; the C ABI never emits it`）。前后一致。
+
+## 6. 路径白名单 / 子模块 / allow 清单
+- `git show --stat HEAD` 22 文件：`B2b-REPORT.md` + `Cargo.lock` + `Scripts/rust-decode-demo.sh` + `apps/lightamer-cli/{src/decode.rs,src/main.rs,tests/decode_dump.rs}` + `crates/README.md` + `crates/lightamer-decode/{Cargo.toml,csrc/*(2),src/{error,exif,ffi,image,lib,raster,thumbnail}.rs,tests/{exif,raster,thumbnail}.rs}` + `docs/{DECODE,LICENSE-AUDIT}.md`。全落任务书允许集（`crates/lightamer-decode/`、`apps/lightamer-cli/`、`Scripts/rust-decode-demo.sh`、`Cargo.lock`、`docs/DECODE.md`、`docs/LICENSE-AUDIT.md`、`crates/README.md`、`waves/B2b-REPORT.md`），无越界。`NOTICE` 未动（报告 §6 已说明理由：审计表再生制，手改即分叉；B2-b 无需 NOTICE 条目，见 LICENSE-AUDIT §15）；根 `Cargo.toml` 未动（无需改）。复审日志待执行实例 amend 并入（任务书退出的次序）。
+- `git ls-tree HEAD external/rawspeed` → `160000 commit 0c16fee7772594e98897bded01fc31bc3409b4cb`，与 B2-a 钉点一致，子模块未动。
+- `git diff HEAD~1..HEAD -- Scripts/licenses-allow.txt` → 空（未动）。`Cargo.lock` diff 仅 +3 包（`kamadak-exif 0.6.2` + `mutate_once 0.1.2` + `jpeg-encoder 0.7.1`），许可证（BSD-2-Clause / `(MIT OR Apache-2.0) AND IJG`）皆在 allow 清单，审计表 §15 已追加三行（`L` 列 + `L:<行>` 证据），与 `check-licenses.sh` +3（854→857）对账一致。栅格三件（zune-jpeg/png/tiff）确为锁内复用（`image 0.25.10` 经 gpui 拉入），零新增。
+- 工作区另有未提交改动：`B2b-REPORT.md` 4 行（§1 表四格追加 sha256 注记 `3d504d56…/c5f8a077…/80f410d7…/eaf40556…`），与本复审独立算得四 sha 逐字一致，系执行实例在审中补记，非复审改动，不计入 HEAD 核验。
+
+## 7. B2-a 测试未删
+- `ls crates/lightamer-decode/tests/` → cache/exif/parity/raster/robustness/thumbnail 六件全在；`git show --stat HEAD` 证实 cache/parity/robustness 零改动，exif/raster/thumbnail 为新增；`apps/lightamer-cli/tests/run_session.rs` 零改动。
+- `decode_dump.rs` diff：4 法逐字留（fields/timings、corrupt、repeat、missing-flag），1 法改写（`thumb_flag_prints_placeholder` → `thumb_flag_writes_bytes_and_reports_format`，B2-a 裸 flag 占位随 `--thumb O` 破坏性变更同步，唯一改写且合理），4 法新增（bare-thumb 拒绝/栅格/栅格缩略图缺席/CR3）。decode_dump 9/9 绿（含改写法断言 4016595/SOI/dims）。
+- 计数对账：decode 58 = B2-a 22（lib 15+parity 3+robustness 1+cache 3）+ 36（exif 7+raster 20+thumbnail 9）；CLI 60 = lib 46（含原 5 dump 语义延续）+ dump 9 + session 5。B2-a 语义测试一个未删。
+
+## 8. 发现清单（0 error + 5 minor）
+- M1（minor，报告结构）：`B2b-REPORT.md` §1 尾表 + §2 + §3 重复出现两次（L55–83 复述 L17–53；第二遍 §2 多第 ⑤ 条 kamadak 截断注记）。建议执行实例 amend 前删一遍，留完整版（第二遍 §2 + 任一 §3）。
+- M2（minor，措辞）：报告 §3 表 ARW 镜头标 `FE 50mm F1.2 GM ✓` 示“mdls 全合”，实测 mdls 为 `Sony FE 50mm F1.2`（有 Sony 前缀、无 GM 后缀），字串不等。文件字节（tag 0xA434）确为 `FE 50mm F1.2 GM`（python 独立读），代码正确；仅报告 ✓ 过强。建议改注记为“同镜头，mdls 归一化差前缀/后缀”。
+- M3（minor，注释缺失）：报告 §3 方向标 `1 ✓`，实测 mdls 恒 `0`（三样张），映射未解释。文件 tag 274 确为 1（python 独立读），代码正确；mdls 0 疑为 Apple 自有枚举（0=normal ↔ EXIF 1=normal）。建议报告或测试注释补一笔映射。
+- M4（minor，注释算错）：`crates/lightamer-decode/tests/exif.rs:51` NEF 注释 `(= 18:52:32 +02:00)` 应为 `+08:00`（10:52:32 UTC +8 = 18:52:32，与 ARW/RAF 同 +8）。断言值正确，仅注释时区写错。
+- M5（minor，报告漏披露）：JPEG 有损偏离（任务书称“逐值等于”，实现为几何 + `abs_diff<48` 误差界）在 `tests/raster.rs` 头注释与 `docs/DECODE.md` §11 均已披露，但 `B2b-REPORT.md` 未提。建议 §2 或 §5 补一句“JPEG 有损只断言几何+误差界，非逐值比”。
+- 非发现（诚实记录，不计数）：① 工作区 `-j6` 忙时 bench 2 失败、`-j4` 剩 1，`-j2` 安静轮 618+3 全绿——失败全系 load 门（自诱发 + 他 lane 背景 load），代码无回归，安静机重跑即过。② 演示计时慢于报告（负载），演示无计时门。③ 报告 §7/§8/§9 的 TBD（终稿哈希/收尾卫生/复审结论）系审前 HEAD 正常态，待执行实例按“退出的次序” amend 填齐。
+
+## 9. 收尾卫生
+- 复审自建：`/tmp/b2b-review-thumb/`（4 缩略图 + dump 日志）与 `/tmp/b2b-review-workspace.log` 已删；`ls /tmp | grep lightamer-decode-demo` 无残留；无残留进程（重活全串行结束）；仓库外零写入（构建全在 `target/`）。
+- 本日志唯一写出：`.work/gsd/phases/rust-core/waves/B2b-review.log`（覆盖写）。工作区其余未跟踪 `*.pid`/旧日志（他波遗留）未碰；`B2b-REPORT.md` 工作区 4 行 sha 注记（执行实例所加）未碰。
+- 审完即退。

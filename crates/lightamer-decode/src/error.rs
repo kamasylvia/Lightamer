@@ -25,10 +25,14 @@ pub enum ErrorCode {
     OutOfMemory = 6,
     /// The file's compression is not supported.
     UnsupportedCompression = 7,
-    /// Embedded thumbnails need B2-b (no thumbnail API in rawspeed).
+    /// No embedded thumbnail in this file.
     ThumbnailUnavailable = 8,
     /// Null handle, misuse, camera-database failure, or unknown cause.
     Internal = 9,
+    /// Content (or variant) this decoder does not handle: non-JPEG/PNG/TIFF
+    /// bytes in the raster path, camera-RAW TIFFs, CMYK JPEGs, sub-8-bit or
+    /// palette rasters. Rust-layer only; the C ABI never emits it.
+    UnsupportedFormat = 10,
 }
 
 impl ErrorCode {
@@ -50,6 +54,7 @@ impl ErrorCode {
             6 => Self::OutOfMemory,
             7 => Self::UnsupportedCompression,
             8 => Self::ThumbnailUnavailable,
+            10 => Self::UnsupportedFormat,
             _ => Self::Internal,
         }
     }
@@ -65,8 +70,9 @@ impl ErrorCode {
             Self::DecompressFailed => "RAW decompression failed",
             Self::OutOfMemory => "out of memory",
             Self::UnsupportedCompression => "compression not supported",
-            Self::ThumbnailUnavailable => "embedded thumbnail not available in B2-a",
+            Self::ThumbnailUnavailable => "embedded thumbnail not available",
             Self::Internal => "internal decode error",
+            Self::UnsupportedFormat => "unsupported file format",
         }
     }
 }
@@ -128,14 +134,14 @@ mod tests {
 
     #[test]
     fn codes_round_trip() {
-        for code in 1..=9 {
+        for code in 1..=10 {
             assert_eq!(ErrorCode::from_i32(code).as_i32(), code);
         }
     }
 
     #[test]
     fn unknown_codes_become_internal() {
-        for code in [0, -1, 10, 99, i32::MIN, i32::MAX] {
+        for code in [0, -1, 99, i32::MIN, i32::MAX] {
             assert_eq!(ErrorCode::from_i32(code), ErrorCode::Internal);
         }
     }

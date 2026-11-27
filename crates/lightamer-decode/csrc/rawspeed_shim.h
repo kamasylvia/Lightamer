@@ -29,7 +29,7 @@ enum {
   RS_ERR_DECOMPRESS = 5,  // decoder/decompressor failed on readable input
   RS_ERR_NOMEM = 6,
   RS_ERR_UNSUPPORTED_COMPRESSION = 7,
-  RS_ERR_THUMB_UNAVAILABLE = 8, // embedded thumbnails need B2-b (see rs_thumb)
+  RS_ERR_THUMB_UNAVAILABLE = 8, // embedded thumbnail absent (Rust layer)
   RS_ERR_INTERNAL = 9           // null handle, misuse, meta-db failure, unknown
 };
 
@@ -116,12 +116,9 @@ const float* rs_mosaic_f32(const rs_image* img);
 // Used as the cross-implementation anchor (oracle vs shim).
 uint64_t rs_mosaic_hash(const rs_image* img, rs_error* err);
 
-// Embedded thumbnail bytes. B2-a placeholder: rawspeed at the pinned commit
-// exposes no thumbnail API, so this always reports RS_ERR_THUMB_UNAVAILABLE.
-// B2-b parses EXIF thumbnails and fills this in. Signature is stable.
-int32_t rs_thumb(const rs_image* img, uint8_t** out_bytes, size_t* out_len,
-                 rs_error* err);
-void rs_free_bytes(uint8_t* bytes);
+// Embedded thumbnails (B2-b) live in pure Rust (`thumbnail.rs`): rawspeed at
+// the pinned commit exposes no thumbnail API, so the B2-a `rs_thumb` /
+// `rs_free_bytes` placeholder pair is removed rather than filled.
 
 void rs_free(rs_image* img); // NULL-safe
 

@@ -199,15 +199,6 @@ unsafe extern "C" {
     pub fn rs_mosaic_f32(img: *const RsImage) -> *const f32;
     /// FNV-1a 64 over the cropped plane (see header).
     pub fn rs_mosaic_hash(img: *const RsImage, err: *mut RsError) -> u64;
-    /// Embedded thumbnail bytes (B2-a: always unavailable, see header).
-    pub fn rs_thumb(
-        img: *const RsImage,
-        out_bytes: *mut *mut u8,
-        out_len: *mut usize,
-        err: *mut RsError,
-    ) -> c_int;
-    /// Release thumbnail bytes from [`rs_thumb`].
-    pub fn rs_free_bytes(bytes: *mut u8);
     /// Release a handle (NULL-safe).
     pub fn rs_free(img: *mut RsImage);
     /// Parse the singleton camera database now (see header).
