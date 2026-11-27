@@ -1,0 +1,143 @@
+5 error + 17 minor
+
+复审对象：.work/gsd/phases/portrait-research/PORTRAIT.md（全文）+ ONE-PAGER.md（全文）。
+参考仓基线（已验，见附录 A）：Alcedo f4d36474/v0.3.7、Lumen f520192/v2.3.2，双仓干净。
+抽核：正文引用亲自复验 60+ 条，覆盖两仓 × 算法/许可/用法三类（通过清单见附录 B）。
+A: = AlcedoStudio 仓相对路径；L: = lumen-raw 仓相对路径。
+
+---
+ERROR（事实错，需改正文；结论本身均成立，错的是证据陈述）
+---
+
+E1. PORTRAIT.md §3.6 N-A2b（N-A3b 同引）：QML grep「零命中」为假
+- 位置：N-A2b「QML 目录 200 项 grep `beauty|retouch|portrait|face|skin|whiten` 零命中」；N-A3b 复用同一说法。
+- 问题：①裸 grep 命中 86 个文件（surface/interface/cardSurfaceColor 等噪声）；②即使排除 surface/interface/preface，仍有 4 处实质命中：
+  EditorGeometryPanel.qml:103「portrait photograph」（裁剪方向注释）、AiModelsSettingsPanel.qml:328「Hugging Face」（模型来源标签）、EditorVersionsPanel.qml:1209-1211「mono face / UI face」（字体简称）。
+- 应改成：「QML 200 项 grep（排除 surface/interface 前 86 文件命中，均为噪声）实质命中仅 3 处良性：portrait=裁剪方向注释、Hugging Face=模型来源、mono/UI face=字体；无 Portrait/Beauty/Face/Whiten 功能面板」。N-A3b 同步改。
+- 证据：A:alcedo_studio/src/ui/alcedo_main/qml/EditorGeometryPanel.qml:103、A:.../AiModelsSettingsPanel.qml:328、A:.../EditorVersionsPanel.qml:1209-1211。
+
+E2. PORTRAIT.md §3.6 N-L3b：「lumen/ 86 个 .py」数字错
+- 位置：N-L3b「`lumen/` 86 个 `.py` 全列举无 bokeh/portrait-mode/relight 模块」。
+- 问题：HEAD f520192 下 `lumen/*.py` 实测 97 个（86 少 11 个）。
+- 应改成：97 个（列举结论不变：仍无 bokeh/portrait-mode/relight 模块，复核人重验确认）。
+- 证据：L:lumen/ 目录 `ls *.py | wc -l` = 97。
+
+E3. PORTRAIT.md §3.6 N-L3a：所述 grep 与所列命中对不上
+- 位置：N-L3a「跨 `lumen/` grep `bokeh|虚化|背景替换|relight|portrait.?mode` 仅命中景深合成（merge.py:14）、前景蒙版、发丝细化」。
+- 问题：该模式在 L:lumen/ 下实测零命中——它不可能命中「景深合成」（无「虚化」子串）。所列三处是另一模式（景深|前景|发丝）的命中：L:lumen/merge.py:14、L:lumen/ai_models.py:40、L:lumen/auto_masks.py:67。
+- 应改成：「所述模式零命中；近似物（另以 景深|前景|发丝 查得）仅三处：多张堆栈景深合成、前景/景深蒙版名、发丝边缘细化 tooltip，均非单图人像虚化」。
+- 证据：L:lumen/ 上述模式 grep 零命中；近似物见 L:lumen/merge.py:14、L:lumen/ai_models.py:40、L:lumen/auto_masks.py:67。
+
+E4. PORTRAIT.md §1.3：2.1.2「人像关键词零命中」为假
+- 位置：「2.1.2（2026-10-29）：GPS 水印/更新镜像/图库修复，人像关键词零命中」。
+- 问题：2.1.2 章节 L:CHANGELOG.md:128 含「来自闭眼分析的人脸检测」（图库损坏根因叙事中引用的 OpenCV 警告来源）。
+- 应改成：「功能性人像关键词零命中；:128 缺陷叙事附带提及闭眼分析的人脸检测一次，非功能变更」。（无人像变更结论不变；2.3.1/2.3.2 的 :1-52 零命中复核通过。）
+- 证据：L:CHANGELOG.md:128。
+
+E5. PORTRAIT.md §3.1：「仓库内零权重文件」绝对化为假
+- 位置：「仓库内零权重文件（`A:scripts/ai_models/` 只有包定义；测试夹具仅 `.7z` 占位）」。
+- 问题：仓内有两份真实权重：A:alcedo_studio/src/config/models/bayer.safetensors（158868 B）与 xtrans.safetensors（136516 B），系 DemosaicNet 随仓权重，被 A:.../decoders/processor/nn/demosaicnet_cache.cpp 等引用并经 CMakeLists 安装。
+- 应改成：「AI 蒙版权重在仓库内零文件（scripts/ai_models/ 只有包定义；测试夹具 .7z 均为 1-2KB 占位）；仓内另有 DemosaicNet 随仓权重两份（bayer/xtrans.safetensors），与 AI 蒙版无关」。
+- 证据：A:alcedo_studio/src/config/models/bayer.safetensors、A:.../xtrans.safetensors；引用见 A:alcedo_studio/src/decoders/processor/nn/demosaicnet_cache.cpp、A:alcedo_studio/src/ui/alcedo_main/CMakeLists.txt。
+
+---
+MINOR（行号漂移 1-3 行 / 措辞收紧 / 补引用补证据）
+---
+
+M1. PORTRAIT.md §3.3：`L:CHANGELOG.md:100` 行号漂移
+- 祛痘 8 张实测段（5–17%→0.2–3.7%、22–78%→39–83%）实在 :99；:100 是镜框段。应改成 :99。证据：L:CHANGELOG.md:99-100。
+
+M2. PORTRAIT.md §3.3：`L:lumen/culling.py:37` 行号漂移
+- DETECT_EDGE=1280 实在 :36；:37 是 MIN_FACE 注释。应改成 :36。证据：L:lumen/culling.py:35-37。
+
+M3. PORTRAIT.md §3.2：CPU_ONLY 注释引用偏窄
+- 「单张 CPU 比 DirectML 快」注释在 L:lumen/selection.py:84-85，:87 只是元组行。引用应扩为 :84-87。证据：L:lumen/selection.py:84-87。
+
+M4. PORTRAIT.md §3.1：DINOv3「重分发须附文本」引用撑不起
+- 义务本身为真，但 A:.../ai_mask_model_set_v1_NOTICE.txt:42-43 未载明。应补引用 A:third_party_licenses/DINOv3-LICENSE.md:28（`you shall provide a copy of this Agreement ...`）。证据：该文件 :22-28。
+
+M5. PORTRAIT.md §3.6 N-L2 辅证：`auto_adjust.py`「无 face 命中」缺排除语
+- 实有 2 处，均为 surface（L:lumen/auto_adjust.py:9 注释、:75 注释），无面部逻辑。应改成「无 face 命中（仅 surface 两处注释）」。证据：该文件 :9、:75。
+
+M6. PORTRAIT.md §3.6 N-L1b：括号把非命中写成命中
+- color.py 肤色权重并非该 grep 模式的命中（color.py 无 mask 字样；模式命中仅 L:lumen/portrait.py 内 skin mask）。应改成「模式命中仅 portrait.py 内部肤色掩膜；color.py 肤色权重系另查相近物」。证据：L:lumen/color.py:278-282（vibrance_weights，无 mask 一词）。
+
+M7. PORTRAIT.md §3.3/P4：YuNet「权重文件本身没有单独声明」绝对化含推断
+- 仓内可验证部分成立：L:assets/ 下仅 YuNet-LICENSE.txt（MIT，Shiqi Yu 2020），无权重侧文本；L:THIRD_PARTY.md:34 与 L:assets/culling-assets.json:3 均把 MIT 归于训练代码仓/模型名下。但上游 opencv_zoo 对该 .onnx 有无单独声明，只读离线无法核，正文未引上游核查即下断语。
+- 应改成「仓库内无权重侧单独声明文本（随包 MIT 文本来自训练代码仓）；上游侧未核」或补上游核查。证据：L:assets/YuNet-LICENSE.txt:1-3、L:THIRD_PARTY.md:34。
+
+M8. PORTRAIT.md §3.6 N-A5：易混淆物清单不全 + DCP Portrait 缺引用
+- 仓内 portrait 命中除正文所列两处外还有：A:.../ui/edit_viewer/crop_geometry.hpp:120、A:.../ui/edit_viewer/crop_geometry.cpp:215-221（裁剪方向）、A:.../app/export_recipe_builder.cpp:316（4:5 portrait 输出限）、A:.../qml/EditorGeometryPanel.qml:103（同 E1），均为方向/尺寸语义。
+- 「DCP 厂商风格名 Portrait」为真但无引用，应补 A:docs/roadmap/alcedo_studio/raw-processing/dcp_camera_profile_plan.md:69（Standard/Vivid/Portrait）与 A:.../dcp_profile_tone_curve_study.md:78。
+- 另：A:docs/roadmap/alcedo_studio/edit/node_mask_editor/phase_nm10_adjustment_transfer_plan.md:89「Warm Portrait」系对话框 mock 示例文本，非 shipped 预设（shipped 面 A:alcedo_studio/src/config/ 内 portrait 零命中；8 曲线预设无 portrait 已验），建议加注排除。
+
+M9. PORTRAIT.md §3.2：掩膜输入尺寸与 background=1-subject 无引用
+- 数字本身全对。建议补：L:MODEL.md:116-118（sky 320/person 384/U2NetP 320）、L:MODEL.md:102（MiDaS 256）、L:MODEL.md:19（encoder 512/decoder 256）、L:lumen/selection.py:146（NETWORK 表）、L:lumen/selection.py:317-318（background 取反）。
+
+M10. PORTRAIT.md §3.2：「macOS 经 CoreML EP，失败回 CPU」无引用
+- 属实。建议补 L:lumen/compute.py:182（COREML）、:362（CoreML→CPU 回退链）。
+
+M11. PORTRAIT.md §3.2：后处理第三级「渲染羽化」无引用
+- 建议补 L:lumen/model.py:72-75（feather 默认）及具体应用点。
+
+M12. PORTRAIT.md §3.2：「2.1.2 起 GitHub 失败回退新加坡→香港镜像」无引用
+- 属实。建议补 L:CHANGELOG.md:122-125。
+
+M13. PORTRAIT.md §3.3：「导出不再需要模型」无引用
+- 属实。建议补 L:CHANGELOG.md:83。
+
+M14. PORTRAIT.md §3.3：「macOS 门槛 arm64 15+（Qt/ORT 要求）」无引用
+- 属实，「与人像链路无关」判断成立（人像链 CPU 可跑）。建议补 L:requirements-macos.txt:1-4。
+
+M15. PORTRAIT.md §3.3：去黑眼圈「只提亮不压暗」与代码有 25% 出入
+- 代码 L:lumen/portrait.py:681 负向以 .25 系数作用（非零），上游 L:CHANGELOG.md:80 亦写「只提亮不压暗」。建议加注「负向按 25% 作用（:681），上游文档写不压暗」。
+
+M16. PORTRAIT.md §3.3：JAW 点数与上游文档口径差未注
+- 正文按代码写「下颌 8 点」正确（L:lumen/portrait.py:67 为 8 元组）；但上游 L:CHANGELOG.md:81 写「下颌六个点」。建议加注上游文档/代码口径差。
+
+M17. PORTRAIT.md §1 头：review.log「附件节」前向引用落空
+- 「复验命令与输出见本目录 `review.log` 附件节」——本 review.log 为独立复审结论文件，不含其复验命令输出。建议删该指向或另补其复验日志。
+
+---
+否定性结论双证据核验（N-A1..N-A6、N-L1..N-L4）
+---
+
+- N-A1：成立。(a) proto 5 任务 + host 4 任务 + 按序号 toggles（A:.../segmentation.proto:167-176、A:.../ai_mask_recipe.hpp:37,85-90）；(b) mask_icons 14 图标全列举无部件（A:alcedo_studio/src/config/mask_icons/，复核数得 14 ✓）。
+- N-A2：结论成立，证据须修。(a) src 全文 grep 零命中，复核重跑确认 ✓；(b) 前半（18 调整，A:.../adjustment_catalog.cpp:34-51，复核数得 18 ✓）成立，后半 QML 零命中见 E1。
+- N-A3：结论成立，证据须修。(a) FaceDetect 族 src 零命中，复核重跑确认 ✓；(b) 同 E1。
+- N-A4：成立。(a) bokeh 族 src+rust 零命中，复核重跑确认 ✓；(b) 18 调整无虚化类 + Background 仅蒙版任务 + 0.3.4 发布说明未提虚化（多源，可视为第二证据束）。
+- N-A5：成立。(a) 8 预设 + 30+5 胶片 + .alcpreset 用户机制（A:.../tone_curve_presets.cpp:31-39、A:docs/changelog/0.3.5.en.txt:12、0.3.7.en.txt:19）；(b) changelog 全目录 portrait 零命中（复核重跑：仅 interface 两处 ✓）。易混淆清单补全见 M8。
+- N-A6：结论成立，证据须修。(a) catchlight/VNDetect/FaceDetect 族零命中，复核重跑确认 ✓；(b) 同 E1。附带披露（semantic portrait 标签 A:.../semantic_label_config.hpp:96、Jina CC-BY-NC A:.../model_asset_catalog.cpp:51-52、SigLIP2 Apache-2.0 :53-54）全部核对无误。
+- N-L1：成立。(a) 三处枚举（L:lumen/selection.py:80-83、L:lumen/model.py:60-62）✓；(b) 细分 grep：复核确认无蒙版实现命中（命中仅 portrait.py skin mask；身体部位零命中 ✓），括号措辞见 M6。
+- N-L2：成立。(a) KEYS 7 项（L:lumen/portrait.py:44）✓；(b) L:CHANGELOG.md:78-83 无曝光 ✓；辅证 auto_adjust 见 M5。
+- N-L3：结论成立，两条证据均须改（E2+E3）。复核人独立重验：所述模式零命中 ✓；近似物确为堆栈/蒙版名/tooltip 非虚化物 ✓；97 文件无 bokeh 模块 ✓。
+- N-L4：成立。(a) catchlight|眼神光全仓零命中，复核重跑确认 ✓；(b) KEYS + SKIN/FEATURES 滑杆枚举无眼神光（L:lumen/portrait.py:44、L:lumen/portrait_panel.py:20-21），虹膜引用 :63,502-503,738 全部核对无误 ✓。
+
+---
+许可三句核验（代码 / 权重 / 训练数据分开）
+---
+
+Alcedo AI 蒙版（§3.1）：①代码 GPL-3.0-only + CUDA §7 附加 ✓（A:THIRD_PARTY_NOTICE.txt:4）。②权重：SAM2.1 Apache-2.0 ✓（NOTICE :27）、S3OD MIT ✓（:41）+ DINOv3 License ✓（:42-43；重分发附文本义务为真但引用须补，见 M4）、双自训 head GPL-3.0 ✓（:68/:82）、转制未改权重 ✓（:28-29/:44-46）。③训练数据：SAM SA-1B/SA-V ✓（:30-31）、s3od-synth 仅 FLUX.1 Krea [dev] 合成图 + FLUX NC ✓（:50-52）+ teacher 四数据集 ✓（:53-54）+ 不表态传导 ✓（:56-57 原文 `does not state whether these terms apply`）、people COCO+OI ✓（:69-72）、sky MaSS13K 无清晰许可 ✓（:83-87）+ 0.3.4 警告 ✓（0.3.4.en.txt:5-7）。无推断写成事实。
+Lumen 蒙版五权重（§3.2）：①代码 MIT ✓（L:LICENSE:1-3）。②THIRD_PARTY.md:20-37 归属（SkySeg MIT/DeepLabV3 BSD-3/U2NetP Apache-2.0/MiDaS MIT/EfficientViT Apache-2.0）逐行核对无误 ✓；五份 LICENSE 文本经查均为通用代码许可、不含 weight/model 字样，「无超出包文本的单独权重声明」成立 ✓。③训练数据无单独声明 ✓（MODEL.md/THIRD_PARTY.md/culling-assets.json 内仅数据集名称提及 ImageNet/ADE20K/COCO_WITH_VOC_LABELS_V1，无许可声明）。
+Lumen 人像双模型（§3.3）：①MIT ✓。②YuNet 随包 MIT 文本确与训练代码仓（Shiqi Yu 2020，THIRD_PARTY.md:34 首引 libfacedetection.train）一致 ✓；「权重本身无单独声明」仓内成立、上游未核，见 M7。FaceMesh Apache-2.0 ✓（MediaPipe-LICENSE.txt:1-2）+ 转换未改权重 ✓（THIRD_PARTY.md:35）。③两者训练数据无单独声明 ✓（全仓无 WIDER/FDDB/VGG/Celeb/FFHQ 许可说明）。
+N-A6 附带（CLIP）：Jina CC-BY-NC-4.0 ✓、SigLIP2 Apache-2.0 ✓（model_asset_catalog.cpp:51-54）。
+P1-P10 许可行：与 §3 一致，未发现把无声明说成有声明；P4 双「没有单独声明」与 M7 同口径。
+
+---
+附录 A：版本基线复验
+---
+
+- Alcedo HEAD f4d364746e948c3d743bdfa062470975623337d2 = f4d36474 ✓；describe v0.3.7 ✓；status 干净 ✓；日期 2026-11-25 ✓；--since=2026-09-20 计数 1159 ✓。
+- Lumen HEAD f520192b1aba0c8a97903d1892a9a4f479d41675 = f520192 ✓；describe v2.3.2 ✓；status 干净 ✓；日期 2026-11-21 ✓；计数 25 ✓。
+- QML 目录项 200 ✓（其中 .qml 192 + 8 其他）；L:assets/models/ 仅 4 JSON ✓；Alcedo .7z 夹具 1-2KB 占位 ✓；双仓 .onnx/.pt 零文件 ✓（Alcedo 另有两份 .safetensors 见 E5；Lumen 仓内无 .onnx ✓）。
+- B14A 卡片引用 W:phases/rust-core/PLAN-B.md:423-434：范围行与 15 lane/45h 核对无误 ✓。
+
+---
+附录 B：抽核通过清单（除 E/M 所列外，以下引用全部逐字/逐值核对通过）
+---
+
+算法-Alcedo：ai_mask_recipe.hpp:25-27/:37/:85-90；segmentation.proto:167-176/:174/:183-186；model_set.rs:19-21/:104-124；segmentation/mod.rs:8-10/:35-45；tone_curve_presets.cpp:31-39；adjustment_catalog.cpp:34-51（18 种）；ai_mask_model_set_v1.json 五组 size（:71/:73/:75/:77/:79 + :85/:97/:109/:121/:133）；EditorAiMaskPanel.qml:6-12。
+算法-Lumen：portrait.py:44/:47/:65/:67/:77/:79-80/:84/:95-123/:133-161/:165-186/:198-214/:236/:251/:262/:285-314/:365-395/:397-437/:439-472/:474-496/:502-503/:544-562/:565-647/:650-686/:689-696/:699-723/:726-786（786 行）；portrait_panel.py:20-21/:35/:79/:84/:138/:147/:224；culling.py:106/:108/:115；compact_models.py:28-30；selection.py:80-83/:87/:109/:190；model.py:28-30/:60-62/:399/:593-595（12 风格之「柔和人像」）；color.py:278-282；engine.py:1202-1212；merge.py:14；app.py:343。
+许可：THIRD_PARTY_NOTICE.txt:4-5/:200-202；ai_mask_model_set_v1_NOTICE.txt:24-31/:39-57/:66-72/:80-89；third_party_licenses/DINOv3-LICENSE.md:28；model_asset_catalog.cpp:51-54；semantic_label_config.hpp:96；THIRD_PARTY.md:20-37；LICENSE:1-3；YuNet-LICENSE.txt:1-3；MediaPipe-LICENSE.txt:1-2；MODEL.md:19/:28-33/:102/:107/:116-118；culling-assets.json:3-16（232589 B / 4920995 B / f12e127 / opset 17 均对上）；editing-assets.json（123112917/16470362/a2f0c59）；runtime-assets.json（66764249/44094917/175997079/4574861）；ai_models.py:31/:36/:38-44（15 模型）。
+用法：0.3.4.en.txt:6/:15；0.3.5.en.txt:12；0.3.6.en.txt:14；0.3.7.en.txt:5/:19；CHANGELOG.md:53/:78/:92/:99/:103/:107/:110/:122-125/:146/:157；:1-52 人像关键词零命中 ✓；changelog 全目录 grep（排除后）零命中 ✓；src+rust 两轮 grep 零命中 ✓（复核重跑）；N-L4 全仓 grep 零命中 ✓（复核重跑）；lumen/ Vision grep 零命中 ✓（复核重跑）；requirements-macos.txt:1-4/:18-20 ✓。
+ONE-PAGER.md：逐句与 PORTRAIT.md 对照一致，无独立事实错误（继承 E/M，P1 portrait.py:511-786 范围 ✓）。

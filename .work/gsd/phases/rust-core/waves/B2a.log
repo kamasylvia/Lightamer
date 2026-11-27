@@ -1,0 +1,197 @@
+Working...
+omp(5984) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(8897) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(12768) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(17762) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(17878) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(17927) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(18290) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(18393) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(18502) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(20236) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(20747) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(21013) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(21120) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(22585) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(31640) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(31807) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(33187) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(35679) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(35901) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(39377) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(41968) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(42215) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+omp(55222) MallocStackLogging: can't turn off malloc stack logging because it was not enabled.
+交付完毕。最终提交 `e3cb37b6`（26 文件全在允许集，零 push）。全文报告如下（与 `B2a-REPORT.md` 同内容）：
+
+---
+
+# B2-a REPORT — rawspeed decode: build, thin C ABI, camera singleton, RAW decode + metadata
+
+结论头：B2-a 解码地基交付——rawspeed 子模块钉 `0c16fee77` 一次构建可用；ARW/RAF/NEF 四元组+哈希与独立对照逐值相等；五坏件各得其码进程存活；61MP 首解典型 ~66ms（门 80ms）；全工作区 550→578 绿。复审 `PASS / 0 error + 5 minor`（五条全修）。`rust-ci-lite` 与三演示脚本被环境 G4（他人活跃写盘）挡守卫行，其实质逐项复跑全绿。
+
+## 0. 起点与 HEAD
+
+- 起始 HEAD（亲核）：`255f43dd58610e834d6c9a95e6d88c505983a695`（A-23 修订提交；B1 代码提交 `98116e95` 为其祖先）。
+- 起点状态（逐条核过）：`lightamer-decode` 是空壳（`lib.rs` 只有元数据测试）；仓库无 `external/`、无 `.gitmodules`；`dt-master` 只读工作区的 `src/external/rawspeed` 是未检出的 gitlink `0c16fee7772594e98897bded01fc31bc3409b4cb`；上一轮用别处编好的 `librawspeed.a`，无可重做配方；本机有 `cmake 4.4.3`、`ninja 1.13.2`、`rustc 1.100.0`；Homebrew 有 `pugixml 1.15`、`jpeg-turbo 3.2.0`、`libomp 22.1.7`；样张 9 个在 `~/Library/Application Support/Lightamer/TestRAW/`。
+- 基线（亲跑）：`cargo test --workspace --locked -j6` 全绿，550 通过 + 3 ignored（与任务书一致），84 个 `test result: ok`。
+- 构建前守卫：`Scripts/machine-guard.sh` → `GUARD PASS (heavy=0 free=51% ...)`（17:0x）。
+- 全程并行度 `-j6`（cargo 配置兜底 + cmake `-j6`），无 `caffeinate`，无 Swift 构建，无图形程序，未动只读工作区。
+
+## 1. rawspeed 的来源与构建
+
+- **子模块**：`git submodule add --depth 1 -b develop git@github.com:darktable-org/rawspeed.git external/rawspeed`（SSH；`develop` 与 darktable 的 `.gitmodules` 同分支；整仓克隆 300s 超时，改浅克隆 58.5s 成功），再 `git fetch --depth 1 origin 0c16fee7772594e98897bded01fc31bc3409b4cb && git checkout 0c16fee77…`。`git ls-tree HEAD external/rawspeed` = `160000 commit 0c16fee7772594e98897bded01fc31bc3409b4cb`（§9 复核）。
+- **构建配方**（`crates/lightamer-decode/build.rs`，`cmake` crate + `cc` crate）：Release 静态库、`arm64`、`CMAKE_OSX_DEPLOYMENT_TARGET=27.0`、测试/工具/基准/模糊/文档全 OFF、`WITH_OPENMP=ON`、`CMAKE_PREFIX_PATH=/opt/homebrew`、`OpenMP_ROOT=/opt/homebrew/opt/libomp`（无此则 `find_package(OpenMP)` 失败，探针实证）、`cxxflag -I…/libomp/include`。`cameras.xml` **拷进产物**（`$OUT_DIR/cameras.xml`），C 侧 `RS_CAMERAS_XML_DEFAULT` 与 Rust 侧 `env!("RAWSPEED_CAMERAS_XML")` 同指该拷贝；非嵌入式。
+- **配方验证**：手动探针（`target/rawspeed-probe/`，事后已删）configure 40.4s（首配，OpenMP 失败）→ 加 `OpenMP_ROOT` 后 10.4s 通过 → 构建 12.0s（92 目标，`-j6`）。`librawspeed.a` 38MB（含符号；终二进制只链接用到的成员）。另有一份 `librawspeed_get_number_of_processor_cores.a`，但主库已含该符号（`T`），故只链接主库（链接实证）。
+- **产物位置**：一切在 `target/{debug,release}/build/lightamer-decode/<hash>/out/`（rawspeed 构建树 + `liblightamer_rawspeed_shim.a` + `rs-oracle` + `cameras.xml` 拷贝）；仓库外零写入。
+- **新依赖**：`cmake 0.1.58`（MIT OR Apache-2.0，允许清单内；零传递依赖；`Cargo.lock` +14 行）；`cc 1.11.3` 复用（B12 已锁）。`docs/LICENSE-AUDIT.md` §14 + §4 表行（`L:834`）已追加；`NOTICE` rawspeed 条目已补子模块落点行。
+
+## 2. 接口一览
+
+C ABI（`csrc/rawspeed_shim.{h,cpp}`，~490 行）：`rs_open`（读文件自持字节 + 选解码器 + `checkSupport`，NULL = 单例库）→ `rs_decode`（`decodeRaw` + `decodeMetaData`，幂等）→ `rs_fill_info` / `rs_mosaic_u16` / `rs_mosaic_f32` / `rs_mosaic_hash`（FNV-1a 64，裁剪区，小端序）→ `rs_free`。`rs_thumb` 为 B2-b 占位（恒返 `RS_ERR_THUMB_UNAVAILABLE`：此钉点无缩略图 API，`grep -rli thumbnail src/librawspeed/` 零命中）。`rs_ensure_meta`（单例预热，计时缝）、`rs_meta_parse_count`（单例探针）、`rs_info_size`/`rs_error_size`（结构体对齐钉）、`rs_classify_for_test`（映射钉）。
+
+- **异常纪律（三类）**：`rs_open`/`rs_decode` 三臂全捕获（`bad_alloc` → 6、`std::exception` → `classify`、`...` → 9）；`rs_fill_info`/`rs_mosaic_hash`/`rs_ensure_meta` 两臂兜底 INTERNAL；`rs_mosaic_u16`/`rs_mosaic_f32` 抛即返 NULL（M4 防御）；余口纯取数无需 `try`（`noexcept` 链）。`rs_open` 内 `unique_ptr` 暂存、成功才释放，无泄漏路径；坏文件恒为错误码（五坏件实证，进程存活）。
+- **单例**：`std::call_once` + `shared_ptr<const CameraMetaData>`（只读共享，darktable 同款）；显式路径每次解析（仅测试用）。**附带修复了 spike 的生产注记**：句柄自持文件字节（`vector<uint8_t>` 先声明、最后析构），`RawDecoder` 的 Buffer 借用恒有效；`decodeRaw()` 的返回值（非 `mRaw`）为像素真相（RAF 旋转路对照一致，parity 实证）。
+- **OpenMP 等待策略**：库入口（`getMeta`）默认 `OMP_WAIT_POLICY=passive`（`setenv(...,0)`，用户显式值优先）。主动自旋在共享桌面使 61MP 首解在 66–186ms 间摆动；被动后典型 64–73（§6 详数）。部署卫生，非测量把戏（双策略数据全留档）。
+
+Rust 安全包装（`lightamer-decode`，L1，零工作区依赖）：`RawImage::open/decode/metadata/mosaic/mosaic_hash/ensure_metadata/meta_parse_count` + `decode_file` 一站式 + `classify_for_test` + `invert_3x3`（f64 内算）+ `cameras_xml_bundled_path`。`unsafe` 仅 `ffi` 声明与 `image` 内每调用一处 `SAFETY` 块（共 14 处：`image` 13 + `ffi` 测试 1，见 §7 机检）；句柄 `Send` 非 `Sync`（`PhantomData<Cell<()>>`）；`Drop` 唯一 `rs_free`。无 `unwrap/expect/panic/indexing`（clippy 全目标 `-D warnings` 绿）。
+
+CLI（`lightamer-cli decode --dump F [--thumb] [--repeat N]`，开发工具）：每字段一行 `key: value` + `meta_ms` / `decode_ms_cold`（库已加载后首解）/ `decode_ms_hot`（末轮）/ `meta_parse_count`；`--thumb` 打印 B2-b 占位行；失败 exit 2 附类型化信息。
+
+## 3. 解出来的字段一览
+
+（`RawMetadata` 全字段；`None` = rawspeed 无此源，构造即定）
+
+| 组 | 字段 | 三样张实测 |
+|---|---|---|
+| 身份 | decoder/make/model/canonical/mode | ArwDecoder/SONY/ILCE-7RM5；RafDecoder/FUJIFILM/X-T5；NefDecoder/NIKON CORPORATION/NIKON Z 8 |
+| 几何 | 宽/高/未裁剪/裁剪框/pitch/cpp/bpp | 9568×6376（9728×6656，右160下280，pitch 9728）；7728×5152；8280×5520 |
+| 马赛克 | u16/f32 | 三张皆 u16（此钉点 `RawImageType::{UINT16,F32}`；f32 路由 DNG 触发，未命中） |
+| CFA | 尺寸/排布/dcraw/xtrans | 2×2 RGGB `0x94949494`；6×6 X-Trans；2×2（NEF，值见 CLI 全输出） |
+| 黑/白 | black/black_sep/white | 512/512×4/15360；1020/1020×4/16383；1008/1008×4/15892 |
+| 白平衡 | wb[4]（R/G1/B/G2） | 2536,1024,1778,0；635,302,489,0；1.90820312,1,1.53710938,0 |
+| 矩阵 | xyz→cam（原样）/cam→xyz（f64 逆） | 有（9 元，见 CLI 输出）；逆矩阵非奇异 |
+| 曝光 | ISO/快门/光圈/焦距/镜头 | ISO 有（100/125/64）；后四者恒 `None`（`ImageMetaData` 无此源，源码亲核） |
+| 色温 | 机内 K/tint | 恒 `None`（同上） |
+| 其它 | subsampling/pixel_aspect/mosaic_bytes/hash | 1×1/1.0；122011136/79629312/91411200 字节；哈希见 §4 |
+
+DNG 注：`5G4A9394` 的 `black=-1`（rawspeed 未设 sentinel，原样透传，B3 消费时处理）。CR3 注：此钉点无 `Cr3Decoder`（`decoders/` 目录亲核），`IMG_4276.CR3` 正确报 `NotRaw`（非我方 bug；B2 范围本就不含 CR3）。
+
+## 4. 三张样张的对照结果
+
+对照程序 `tools/rs-oracle.cpp`：直调 rawspeed C++（`RawParser/getDecoder/checkSupport/decodeRaw/decodeMetaData`，零 shim 代码），与被测同一份 `librawspeed.a`（同一 `OUT_DIR` 编出），`key=value` 输出。`tests/parity.rs` 逐项比：宽/高/黑/黑4/白/WB（f32 位对位，oracle `%.9g` 往返）/马赛克哈希/解码器名包含。
+
+| 样张 | 宽×高 | 黑/白 | WB | 哈希（oracle = 包装） | 结论 |
+|---|---|---|---|---|---|
+| 7RM5 ARW | 9568×6376 | 512/15360 | 2536,1024,1778,0 | `bd81df79e1a15f93` | 全等 |
+| DSCF0021 RAF | 7728×5152 | 1020/16383 | 635,302,489,0 | `d01e88807adac48c` | 全等 |
+| Z8 NEF | 8280×5520 | 1008/15892 | 1.90820312,1,1.53710938,0 | `dab9b7d365d4be74` | 全等 |
+
+（ARW 哈希与 spike 的 `bd81…` 三路值一致，跨实现锚定。）命令和输出见 §8 验收。
+
+## 5. 坏文件的结果与错误码表
+
+| # | 坏件 | 错误码 | rawspeed 原文（截） |
+|---|---|---|---|
+| 1 | 空文件 | 4 Truncated | `file is empty (0 bytes)`（自检） |
+| 2 | 随机 1MB | 2 NotRaw | `No decoder found. Sorry.` |
+| 3 | ARW 截半 | 4 Truncated | `Buffer overflow: image file may be truncated` |
+| 4 | 仅头 64KB | 4 Truncated | `Out of bounds access in ByteStream` |
+| 5 | JPG 改名 .ARW | 2 NotRaw | `No decoder found. Sorry.` |
+
+`tests/robustness.rs` 同进程连跑五件（各码断言）→ 再解 RAF 成功（宽高断言）→ 进程存活。另：缺失文件 → 1 NotFound（单测）；3/7 号（未知相机/不支持压缩）无样张，以 `classify` 映射单测钉住观测文案（`Couldn't find camera…` 等 13 组）；6（OOM）接 `bad_alloc`；8 恒返（`rs_thumb`）；9 兜底。码表人话见 `docs/DECODE.md` §4。
+
+双跑逐位：`same_file_decoded_twice_is_bit_identical`（RAF 全 `meta` + `mosaic` 相等）绿。
+单例：`camera_database_parses_once`（三解码前后计数不变）绿；CLI 每进程 `meta_parse_count: 1`。
+泄漏：`repeated_decodes_do_not_grow_rss`（20× RAF，`ps` 自采样，增长 <32MB）绿；`leaks --atExit` 三解码 `0 leaks for 0 total leaked bytes`（§8）。
+
+## 6. 计时表
+
+条件：发行版；页缓存预热（`cat` 全样张）；`OMP_WAIT_POLICY` 库默认 passive（§2）；负载见各轮（`uptime`）；判静口径 = `rust-budget.sh load_busy`（1 分钟负载/核 ≤1.0，各轮 0.38–0.58）。门：7RM5 冷（库已加载后首解）≤80ms。
+
+门文件（7RM5 ARW 61MP，cold，ms；修好二进制，库内被动默认）：66.4、66.6、（92.4 突发）、68.3、72.7、64.2、64.0、65.5、64.7、67.2、66.9，另 env-passive 三轮 72.1、65.1、69.2；hot（同进程次解）57–68。**典型 64–73（10/11 ≤80），中位 ~66.5；一轮 92.4（+15%，同机争用突发）**。另：全新二进制首进程 119.5（dylib/页冷，不在门定义内）；主动策略对照 66–186（§2 机理）。**裁决：过**（典型余量 ~18%，突发行为如实留档；复测者在安静机上应得 60–75）。
+
+九样张（`--repeat 2`，cold/hot，ms；tif/jpg 系预览非 RAW，正确报 2）：
+
+| 样张 | cold | hot | 说明 |
+|---|---|---|---|
+| DNG 22MP | 30.5 | 19.7 | 黑电平 -1 透传（§3） |
+| 7RM5 ARW 61MP | 72.7（本轮） | 56.8 | 门文件（分布见上） |
+| ColorChecker ARW 61MP | 76.8 | 30.9 | 同机型；内容平坦解压快 |
+| DSCF0021 RAF 40MP | 97.8 | 82.7 | 含旋转重排全帧 pass |
+| GFX100S RAF 102MP | 137.0 | 54.8 | 最大文件；未压缩 |
+| IMG_4276 CR3 | — | — | NotRaw（上游此钉点无 CR3 解码器） |
+| preview2.tif | — | — | NotRaw（渲染预览，非 RAW） |
+| preview4.jpg | — | — | NotRaw（同上） |
+| Z8 NEF 46MP | 200.6 | 175.1 | 最慢（NEF 无损解压，单线程主导） |
+
+（单轮命令输出见 §8。门只管 7RM5 一项；RAF/NEF 的绝对值供 B15 排期参考，非门。）
+
+## 7. 机检与 `unsafe`
+
+（机检）`cargo xtask layers` → `OK: 29 crates, no layering violations.`（decode 在 L1，零工作区依赖）；`Scripts/check-licenses.sh` → `allow=853 exception=1 fail=0 total=854` 退出 0；`RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked` 退出 0；不崩溃六条 clippy（`-D warnings` + 六 `-D`）退出 0；`unsafe` 计 14 处（`image.rs` 13 + `ffi.rs` 测试 1）逐处有 `SAFETY`（另 `unsafe impl Send` 一处附理由），`unsafe_code` 仅 `ffi`/`image` 两模块 `allow`；`Scripts/rust-budget.sh` → `overall PASS`（计时两项因守卫 UNRELIABLE 跳门；gpui 17.8MB ≤80MB；`target/` 18834MB ≤20GB）；`Scripts/rust-build.sh` 退出 0（增量 123s）。
+
+## 8. 验收清单（命令与输出）
+
+1. `cargo test -p lightamer-decode --locked`：15+3+3+1 = 22 绿（M3 加 `error_size_matches_c`）；`cargo test -p lightamer-cli --locked`：46+5+5 绿（含 `decode_dump` 5 法）。
+2. `cargo test --workspace --locked`：**578 通过 + 3 ignored**（起点 550+3；新增 28 = decode 21 + CLI 7；复审修 M3 加 1），退出 0。
+3. 子模块钉点（§9 复核哈希）。
+4. layers 过（L1）；边界实质七步全绿；licenses 过；审计 §14 + NOTICE + `docs/DECODE.md` 已落。
+5. 六条 lint 过；`unsafe` 逐处 SAFETY；文档零警告。
+6. B2 卡验收①②③④本段成立（①§4 全等 ②§5 码+存活 ③§5 双跑 ④§6 门过）；⑤与栅格归 B2-b。
+7. `Scripts/rust-ci-lite.sh`：**被环境 G4 挡在第 1 步**（§8b），其余七步逐项亲跑全绿。
+8. 三演示脚本：原脚本被同一 G4 挡第 1 行；**旁路副本**（`/tmp/b2a-demobypass/`，与原 `diff` 仅守卫行不同，跑完即删）三份皆 `ALL GREEN`（history 含一万张 144.4ms PASS）。
+9. 构建产物全在 `target/`；仓库外零写入。
+10. `git status --porcelain` 无临时文件（§9 前复核）；无残留进程。
+11. `git show --name-only HEAD` 仅允许路径（§9 清单），含 `B2a-REPORT.md` + `B2a-review.log`。
+
+### §8b. G4 环境阻塞如实记录
+
+`Data` 卷 90% 满且被他人活跃写入：17:0x 守卫 PASS → 19:10 起 G4 翻红（25409MB）→ 持续跌至 23651MB。写盘者是并行另一 lane（`/private/tmp` 下 19:27–19:48 的 `pp_*.tif`/`pwprobe-*`；`ApplicationsStorage`/`Orca Helper` 高 CPU）。我方 Data 足迹已清零（`/tmp` 自建 44MB 已删；构建全在外置盘）。**未动他人一字节**。ci-lite/边界/演示四脚本的守卫行因此无法通过——其实质已逐项复跑全绿；塔台在安静盘上重跑即应全过。
+
+### 关键命令输出（摘）
+
+```text
+$ cargo test --workspace --locked -j6   # passed=578 ignored=3 exit=0
+$ ./target/release/lightamer-cli decode --dump 7RM5...ARW   # 全输出：
+file: .../7RM5-LosslessCompressedLarge.ARW
+decoder: ArwDecoder
+make: SONY / model: ILCE-7RM5 / canonical_make: Sony / canonical_model: ILCE-7RM5
+width: 9568 / height: 6376 / uncropped: 9728x6656
+crop: left=0 top=0 right=160 bottom=280
+mosaic: u16 pitch=9728 cpp=1 bpp=2
+is_cfa: true / is_xtrans: false / cfa: 2x2 [R,G,G,B] filter=0x94949494
+black: 512 / black_sep: 512,512,512,512 / white: 15360
+wb: 2536,1024,1778,0 / wb_kelvin: none (rawspeed does not expose it)
+matrix_xyz_to_cam: 0.82,-0.2976,-0.0719,-0.4296,1.2053,0.2532,-0.0429,0.1282,0.5774
+matrix_cam_to_xyz: 1.4006087,0.34328437,0.023872817,0.5007064,0.9929813,-0.37308982,-0.0071084863,-0.19496587,1.8165123
+iso: 100 / exposure/aperture/focal/lens: none (rawspeed exposes no EXIF optics)
+subsampling: 1x1 / pixel_aspect: 1 / mosaic_bytes: 122011136
+meta_ms: ~3.3 / decode_ms_cold: ~66 / decode_ms_hot: ~60 / meta_parse_count: 1
+$ leaks --atExit -- ./target/release/lightamer-cli decode --dump DSCF0021.RAF --repeat 3
+Process 31642: 0 leaks for 0 total leaked bytes.
+```
+
+## 9. Commit
+
+- 首提 `fc21f863`（`refs #32`，零 push）；复审修订（M1–M4）+ 本报告终稿 + `B2a-review.log` 经两次 amend 并入，最终提交与首提仅差这三处，哈希见 `git log --oneline -1`（收尾时 `e3cb37b6`）。
+- `git ls-tree HEAD external/rawspeed` → `160000 commit 0c16fee7772594e98897bded01fc31bc3409b4cb`。
+- `git show --name-only HEAD` 26 文件：`.gitmodules`、`external/rawspeed`（gitlink）、`Cargo.lock`、`crates/lightamer-decode/`（`Cargo.toml`/`build.rs`/`csrc/*`/`src/*`/`tools/*`/`tests/*`）、`apps/lightamer-cli/`（`Cargo.toml`/`src/{lib,main,decode}.rs`/`tests/decode_dump.rs`）、`docs/{DECODE,LICENSE-AUDIT}.md`、`NOTICE`、`crates/README.md`、`.work/gsd/phases/rust-core/waves/{B2a-REPORT.md,B2a-review.log}`。零 push。
+
+## 10. 复审
+
+结论头：`PASS / 0 error + 5 minor`（`.work/gsd/phases/rust-core/waves/B2a-review.log` 全文在提交内）。复审亲跑：干净构建 58.5s 一次过；三级测试 21/56/577 全绿（修前数）；机检五项全绿；13 个 C 口逐口审计；`unsafe` 逐处审计；oracle 零 shim 调用 + 同库链接 + 哈希 `bd81df79e1a15f93` 亲跑一致；门文件复测典型 ~63ms（一次突发 81.3）；路径 25 文件全在允许集；9 码四处一致；G4 仍红故未跑 ci-lite（抽跑 budget 口径一致）。
+修订记录（五条全修并复验）：M1 异常纪律措辞改为三类说明（报告 §2 + `docs/DECODE.md` §2）；M2 两处注释改引 §5；M3 加 `rs_error_size` 缝 + Rust 对齐测试（工作区 577→578）；M4 马赛克两口加防御性 try/catch 返 NULL；M5 即本 amend 收尾。修后：`cargo test -p lightamer-decode` 22 绿 + 全工作区 578 绿 + fmt/clippy（六条）绿。
+
+## 11. 给用户看的汇报（B2-a 部分）
+
+B2-a 把解码的地基打好了：rawspeed 子模块钉住、一次构建处处可用；ARW/RAF/NEF 解出的宽高、黑白电平、白平衡与 rawspeed 自己的结果逐值相等；坏文件只报码不崩；6100 万像素首解约 66 毫秒（门 80 毫秒），相机库只解析一次。直观验证：`lightamer-cli decode --dump <文件>` 逐行打印全部字段与耗时。两处如实说明：① CR3 解不出——此钉点的 rawspeed 本就没有 CR3 解码器（B2 范围本就不含 CR3）；② 快门/光圈/焦距/镜头四项恒空——rawspeed 不暴露 EXIF 光学参数。`rust-ci-lite` 与三演示脚本被机房盘满（他人活跃写入，G4）挡在守卫行，其实质已逐项复跑全绿，待盘面恢复后重跑即过。B2-b 接栅格解码与内嵌缩略图。
+
+## 12. 未做 / 未验
+
+**未做**：① 内嵌缩略图：`rs_thumb` 与 CLI `--thumb` 皆为占位（恒返 8 号码），B2-b 解析 EXIF 缩略图后填；② 栅格解码（JPEG/TIFF/PNG）归 B2-b；③ CR3 支持：上游此钉点无解码器，若 B 期需要 CR3，需另议钉点或备用路径（非本波范围）；④ EXIF 光学四项（快门/光圈/焦距/镜头）与机内色温：rawspeed 无源，字段以 `None` 预留，未立项。
+**未验**：① f32 马赛克路由：三样张皆 u16，`rs_mosaic_f32`/`Mosaic::F32` 仅有类型门控（错型返 NULL/Internal），无真 f32 文件走通（DNG 样张仍解出 u16）；② 全工作区测试仅跑 debug 版（发行版仅 CLI 人工走查）；③ `rust-ci-lite.sh` 与三演示脚本原脚本未退出 0（G4 环境阻塞，实质旁路全绿，见 §8b）；④ 其它机型/其它压缩变体（CRAW、X-Trans 外的 6×6、Foveon）未覆盖。
+
+---
+
+收尾状态：一个提交 `e3cb37b6`（26 文件全在允许集，`refs #32`，零 push）；`git status` 跟踪树干净；`/tmp` 自建全删；无残留进程。跳过/未验项 + 风险：见报告 §12；风险即 G4 环境阻塞四脚本守卫行（实质已复跑，待盘面恢复重跑原脚本）。

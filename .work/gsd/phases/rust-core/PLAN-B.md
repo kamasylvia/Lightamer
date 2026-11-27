@@ -38,7 +38,7 @@
 | `albums` + `album_photos` | 相册 / 智能相册（规则 JSON 存 `albums`，查询时求值）+ 虚拟引用 |
 | `favorites` | 收藏文件夹（路径 + 显示名） |
 
-**合计**：阶段 B 21 波 **105 lane / 295 h**（签字版 81 lane / 223 h，`+24 lane / +72 h`：`Output/` +1/+3、B14 由 2 lane 扩为 10 lane（+8/+24）、B14A 新开 +15/+45；相对原计划 76 lane / 208 h 为 +29/+87，见 §5）。
+**合计**：阶段 B 22 波 **112 lane / 313 h**（签字版 81 lane / 223 h，`+31 lane / +90 h`：`Output/` +1/+3、B14 由 2 lane 扩为 10 lane（+8/+24）、B14A 新开 +15/+45、B1d 新开 +7/+18（A-24）；相对原计划 76 lane / 208 h 为 +36/+105，见 §5）。
 含域内自审 ×1.2 ≈ 354 h ≈ 44 个 8h 日。阶段 A 计划 18 lane / 45.5 h（`ARCHITECTURE-TABLES.md` T-A7）不变。
 
 **三个性能数落在哪一波**（修订 A-10；口径沿 #26）：
@@ -187,7 +187,7 @@ B12′ 钉版本并登记 `docs/LICENSE-AUDIT.md`（此前 `png`/`serde` 系已�
 
 ---
 
-## §3 阶段 B 逐波计划（21 波，105 lane）
+## §3 阶段 B 逐波计划（22 波，112 lane）
 
 > 里程碑：B11 后 CLI 逐模块过 golden；B16 后无界面全链闭环（含会话 CLI）；**B20 后首个可用版**（导入→会话浏览→暗房→导出到 `Output/`→备份恢复闭环，21 模块对 darktable 官方版通过）。
 > 模块波默认：对照 = `Scripts/oracle.sh compare --module <op> --fixture fixtures/xmp/<op>-5.6.2.xmp`（A5 `emit-xmp` 手写夹具，模块版本号与布局按官方 5.6.2 产物）；回退 = 单模块目录删除 + 夹具还原；源码取 `release-5.7.0` tag（A-16）；参数 = 自有设置模型（A4b），无 `repr(C)`/modversion 断言。下面不再重复。
@@ -218,6 +218,19 @@ B12′ 钉版本并登记 `docs/LICENSE-AUDIT.md`（此前 `png`/`serde` 系已�
 8. **估时**：2 lane × 3 h（与原计划同）。
 9. **风险**：rawspeed cmake 在本机构建失败或 `cameras.xml` 路径漂移 → 用 dt 同款固定配方 + 资源随包，构建失败则本波标未完成并阻塞 B3（解码是全链前置）；`unsafe` 只许在 shim 内并逐处写安全说明（A6 同款 lint）。
 10. **任务书草案**：输入 = shim + 三样张 + `cameras.xml` + 钉住的提交；变换规则 = 薄 C ABI、单例 meta、错误码不 abort；验收 = 五条；产出 = 解码 crate + dump 命令。
+
+#### B1d 整链行带流式（A-24；紧跟 B2、在 B3 之前）
+
+1. **目标**：超过单帧上限的图在完整分辨率和导出实例上也能渲染——内存里只留条带或方块，结果与整帧逐位相同。
+2. **范围**：`lightamer-pipeline`（新入口 `render_stream`，不碰 `render`；条带执行器；余量方块执行器；输出帧的内存映射落盘；不设固定的像素上限，按资源拒绝）；`lightamer-iop-traits`（`StatsNeeds` 声明，默认 `Local`；`overlap` 与 `roi_in` 的一致性测试）；`lightamer-engine`（`InputSource::fetch_region`，默认 = 整帧加裁剪；引擎配置里的磁盘上限，默认 8 GB；超限自动转流式）；命令行演示。不做：代理统计（随第一个需要整图统计的模块）、改几何的模块（随各自的波，在那之前返回分了类型的拒绝）、预览和缩略图实例、按区域解码。
+3. **输入**：`streaming-research/RESEARCH.md`；Lumen RAW 的 `lumen/large_image.py` 和 `lumen/engine.py`（MIT，`NOTICE` 署名）：64 行的条带、`block_size(margin)`、`spatial_margin`、`process_region`、`allocate` 的内存映射；B1 的 `render.rs`、`module.rs`。
+4. **产出**：两种模式（条带、余量方块）的流式入口、带和块的规划器、输出帧落盘、区域输入接口、`StatsNeeds`、演示脚本 `Scripts/rust-stream-demo.sh`。
+5. **验收**：① 两亿像素的合成图、五个节点，在 16 GB 机器完整分辨率的预算内流式渲出，条带模式峰值常驻 < 1 GB；② 同设置的两千万像素图，整帧与流式逐字节相等（条带一例，含模糊节点的方块一例）；③ `overlap` 撒谎的模块被一致性测试拦下；④ 旋转类模块、要看整图的模块（`WholeImage`）在流式下返回分了类型的拒绝，预算与缓存原样；⑤ 磁盘上限可配，超过返回分了类型的错误；⑥ 双跑逐位。向用户汇报：两亿像素的演示、峰值内存、「上限由资源定」的实测（这台机器上能到多少）。
+6. **对照**：Lumen RAW 的两种模式和方块公式；没有像素对照（还没有真实模块）。
+7. **回退**：`render_stream` 与规划器删除；`StatsNeeds`、`fetch_region` 有默认实现，可留。
+8. **估时**：7 lane × 3 h（接口与规划、条带执行、方块执行、区域输入与落盘、引擎接线、验收测试与文档、复审各一；调研估 12 h 加 6 h）。
+9. **风险**：余量沿链累加后过大 → 方块的有效边长变小，内存仍受控（Lumen 的钳制）；每像素字节数和各模块的余量要用我们自己的数实测；导出作业按带消费要等 B16 → B1d 只交入口和演示，导出的接线归 B16。
+10. **任务书草案**：输入 = 调研 + Lumen 源码 + B1；变换规则 = 放得下整帧走 `render`、放不下自动转 `render_stream`，逐点链条带、含空间模块走方块，每一带或每一块跑完整条链、输入按累加的余量放大；验收 = 六条；产出 = 流式入口 + 规划器 + 落盘 + 区域输入 + 声明。
 
 #### B3 raw 头段四件（rawprepare / hotpixels / temperature / highlights）
 
@@ -574,7 +587,7 @@ B14 估时合计：10 lane × 3 h = 30 h（B14-0 2、B14-1 4、B14-2 2、B14-3 2
 | （新）C-0 | 无 | master 追赶波（4 模块 + 3 默认值，先评估对照源） | A-16 推迟项的归宿 | A-16 |
 | （C 期） | — | `adjustments.export/import`（可选） | A-15 代价一的补偿 | A-15 |
 
-估时对比：签字版 81 lane / 223 h → 新 **105 lane / 295 h**（+24/+72 h：`Output/`（B15）+1/+3、B14 由 2 lane 扩为 10 lane（+8/+24）、B14A 新开 +15/+45）。相对原计划 76 lane / 208 h 为 +29/+87 h。ARCH T-A7 曾估 79/217（乙方案）。
+估时对比：签字版 81 lane / 223 h → 新 **112 lane / 313 h**（+31/+90 h：`Output/`（B15）+1/+3、B14 由 2 lane 扩为 10 lane（+8/+24）、B14A 新开 +15/+45、B1d 新开 +7/+18（A-24））。相对原计划 76 lane / 208 h 为 +36/+105 h。ARCH T-A7 曾估 79/217（乙方案）。
 
 全表（含每波 lane 明细）见 T-B3。
 

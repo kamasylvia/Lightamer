@@ -1,0 +1,79 @@
+PASS / 0 error + 6 minor
+
+复审对象：`RESEARCH.md`（493 行）、`ONE-PAGER.md`（20 行）。方法：逐条打开源码原文核对行号与语义；复跑 grep/ls 六组；验算全部数字。
+
+## 一、Minor 清单（6 条，无 error）
+
+**M1・minor・§1.1・`pixelpipe_hb.c`/`develop.c` grep 命中数**
+- 笔记称：`strip|scanline|band|rows_per|chunk|stream`（大小写不敏感）扫 `pixelpipe_hb.c`+`tiling.c`+`pixelpipe_cache.c`“仅 1 命中——:3956 filmstrip”；`develop.c`“仅 `:1175,1195,2581,3361`”。
+- 原文实际：复跑同 pattern 得 `pixelpipe_hb.c` 5 命中——`:772,813,878,961` 均为 `downstream`（含 `stream` 子串，讲缓存失效，如 `:772 …invalidating downstream…`）+ `:3956 filmstrip`；`develop.c` 5 命中——`:1175,1195,2581,3044(upstream),3361`，笔记漏列 `:3044`。
+- 判定理由：计数不准（未声明对 upstream/downstream 子串的过滤口径），但新增命中均为非像素语义（缓存失效/上游/胶片条 UI），“零像素流命中”的实质证据复跑成立，否定结论不受影响。记 minor。
+
+**M2・minor・§1.2・`ls crates/` 28 个**
+- 笔记称：`ls crates/` 28 个 crate。
+- 原文实际：`ls /Volumes/UNITEK/Documents/Development/lightcraft/crates/ | wc -l` = 29（catalog codecs color denoise denoise-core develop engine faces fetch film geocode geom gpu inpaint lensdb mcp merge meta pipeline preview raster raw scenes segment slideshow sysmem testkit ui-egui wincolor）。
+- 判定理由：数量差一（疑新增 crate 致漂移），“无 stream/strip 模块”的实质结论复跑成立（`ls pipeline/src`、`raster/src` grep `stream|strip|scanline|tiling` 均零命中，exit 1）。记 minor。
+
+**M3・minor・§1.2・`export/prepare.rs:184-193` 与 `export/batch.rs:100-103` 路径**
+- 笔记称：`export/prepare.rs:184-193`（`too_big_for_memory`）、`export/batch.rs:100-103`（导出门并发）。
+- 原文实际：`lightcraft/crates/export/` 不存在；真身为 `crates/engine/src/export/prepare.rs:184-197`（`pub(super) fn too_big_for_memory(out…` 起于 `:184`，函数体至 `:197`，笔记引 `:184-193` 覆盖签名+前半）与 `crates/engine/src/export/batch.rs:100-103`（`/// Run one photo's export holding its working memory…` + `fn run_gated` + `export_gate().acquire`，行号逐行对）；`:199-208` 工作集公式“源 12B/px + 输出 36B/px…24 MP 导出峰值约 1.2GB”逐字在。
+- 判定理由：缺 `engine/src/` 路径段，按字面找不到文件；但行号与内容实质全对。两处同根，合并记一条 minor。
+
+**M4・minor・§6.2・`getrusage` 口径引 `B1-b2-REPORT:86-95`**
+- 笔记称：“峰值 RSS < 1GB（`getrusage` 自报，B1-b2 计时测试同款口径，`B1-b2-REPORT:86-95`）”。
+- 原文实际：该范围原文为“峰值常驻自报 **1840MB**”（`:92`）、“峰值常驻自报 **2759MB**”（`:94`），全文 grep `getrusage|rusage` 零命中（仅“常驻自报”）。
+- 判定理由：“自报峰值”口径实质对，但机制名 `getrusage` 在引用范围内无源。记 minor。
+
+**M5・minor・§1.5・“1024 金字塔 tile”引 `ViewportTileCache.swift:13`**
+- 笔记称：“预览是 1024 金字塔 tile + 112MB/36 块 LRU（`ViewportTileCache.swift:13`，亲验头 60 行）”。
+- 原文实际：`:13` 为 `public init(byteBudget: Int = 112 * 1024 * 1024, maxCount: Int = 36)`（112MB/36 实对）；头 60 行全文 grep `1024` 仅此一处字节换算，无“金字塔 tile 边长 1024”表述。
+- 判定理由：“112MB/36 块 LRU 只管显示”实质对，“1024 金字塔”定语在引用内无源，属夸大。记 minor。
+
+**M6・minor・§3.1・峰值例 `W=9504` 与 200MP 不自洽（算术本身正确）**
+- 笔记称：`N=21，W=9504，h=64，H=200 → 22×9504×164×16 ≈ 549MB`，相对整帧两帧 6.4GB 降约 12×。
+- 验算：22×9504=209,088；×164=34,290,432；×16=548,646,912B≈549MB（十进制）✓；200MP×16B=3.2GB/帧、两帧 6.4GB ✓；6.4G/0.549G≈11.7≈12× ✓。算术全对。
+- 判定理由：`W=9504` 无出处且与 200MP 不自洽——200MP 按 9504 宽则高 21044（宽高比 0.45，非真实画幅）；3:2 真宽应 ≈17320，对应峰值 ≈1.0GB，例低估约 1.8×。公式与算术正确，仅例选宽误导。记 minor。
+
+## 二、抽核出处明细（14 条，覆盖 §1–§5）
+
+1. `refs/dt-master/src/develop/pixelpipe_hb.c:2373-2378`“每模块输出申请整帧 `bufsize = bpp * roi_out->width * roi_out->height`”→ 原文 `:2374-2375` 即该两行（`:2372-2373` 为注释），`:2642-2644` 为 `dt_dev_pixelpipe_cache_get(pipe, hash, bufsize, …)` → 符合（行漂移 ≤2）。
+2. `refs/dt-master/src/develop/tiling.c:610-616`“`/* correct for size of ivoid and ovoid … */`，available 先减输入整帧+输出整帧+overhead”→ 原文 `:612` 即该注释，`:613-615` 即两帧相减 → 符合。
+3. `pixelpipe_hb.c:222-275`“export/thumbnail 预分配整帧 `sizeof(float)*4*width*height`；full 64、preview 12、preview2 5 行”→ 原文 `:224-225` export、`:236-237` thumbnail、` :255` 12、`:263` 5、`:271` 64 → 符合（ cited `:225-231`/`:237-243` 漂移 ≤2）。
+4. `tiling.c:1903-1921`“`factor = 1 + out/in`（`:1912`），`TILING_FULL_ROI` overlap=4（`:1920`）”→ 原文 `:1909-1912` ioratio+factor、`:1920` overlap=4 逐字在；`:1176` ptp/roi 分流 `memcmp…|| …TILING_FULL_ROI` 逐字在；`imageop.h:94` 即该 flag 定义；grep 得 12 个 iop 置位 → 符合。
+5. `lightcraft/crates/pipeline/src/lib.rs:190-192,196-199`“`MAX_OUTPUT_SIDE=65_535`、`MAX_OUTPUT_PIXELS=1<<30`，`check_output_size` 拒绝”→ 原文逐行对（含 `:191` 注释 `≈ 1.07 Gpx`）→ 符合（§1.6 表“1Gpx”为常规舍入，不罚）。
+6. `lightcraft/.../export/prepare.rs:184-193,199-208` + `batch.rs:100-103` + `memory.rs:25-31`“RAM/4 钳 [256MB,1.5GB]”→ 内容逐字对（见 M3 路径问题；`memory.rs:25-31` `default_budget`、`clamp(256<<20, cap=1.5GiB)`、`:14-24` 1/2-1/4-1/8-2×、` :95` cache halves、`:182-195` work/export gate 逐行对）→ 内容符合，路径记 M3。
+7. `lumen-raw/lumen/large_image.py:177-226` 三路分流 + `:10` STRIP_ROWS=64、` :134-141` FRAME_BYTES=100/fits、` :143-148` 边钳 [512,8192]、` :196-200` tone context、`:206-210` dehaze 3000px → 原文逐行对（`:224` strip 调 `engine.process`，`:215` 双循环调 `process_region`，`:191-192` 整帧）→ 符合。
+8. `lumen-raw/lumen/engine.py:1342-1350`“`the block matches the whole-frame render`”→ 原文 `:1347` 逐字在；`:910-922` margin 逐项累加、`:1231-1237` `nbytes>MAP_BYTES` 且缓存装不下转流式、`:1745-1746` `rowsperstrip=STRIP_ROWS`、`cuda.py:30,377`/`metal.py:36,499` STRIP_BYTES=48MB、` :8,12-15` 4 亿上限抛错 → 全符合。
+9. `AlcedoStudio/.../renderer/pipeline_scheduler.cpp:218-222`“FULL_RES_EXPORT 整帧解码”→ 原文 `:218-222`（`DecodeRes::FULL, true, ExecutorRole::Batch`）逐字对；`pipeline_executor.cpp:108-128` 整帧进出（`:109-113` Apply、`:124-128` Render）→ 符合（起始漂移 1 行）；`io/image/image_writer.cpp:664-675`（`:673-674` “FULL_RES_EXPORT buffers can be multi-hundred MB; cloning before downscale doubles peak memory”）→ 符合。
+10. `RawLab/lutools/src/core/hdr_stream.cpp:22-23`（decodeRows=256, tileEdge=128, cachedTiles=32）、`:504,543` 按带准入、`:620` `bandFirst += tileEdge` 逐带渲染追加写盘、`:649-657`（`:651` `width*height > 128000000 throw`）、`hdr_pipeline.cpp:1109` `exportTiledStream` → 全逐行对 → 符合。
+11. `RawLab/.../photo_effects.h:20-28`“A strip uses the full output dimensions”→ 原文 `:24` 逐字在 → 符合；`wavelet_denoise.cpp:542` 行带注释、`rendered_dng.h:17-18` 64 行 strip → 逐字对（Viewport 1024 见 M5）。
+12. 本仓 `lightamer-pipeline/src/render.rs:98-115`（`:106` input、` :112` final_out）、`tiling.rs:113-116`（`:115` resident=2×frame）、`:91-98` ptp 逐位相等、`render.rs:623-677`（`:632` 分配、`:663-671` process）、`:687-735`（`:698` 整帧输出、`:715-717` 暂存对）、`cache.rs:167-174` Arc 整帧、` :249-271` 准入淘汰、` :122-157` chain_keys 无带维度、`render.rs:775-776` “out of the full upstream plane”、`:914-922` copy_good_part → 全逐行对 → 符合。
+13. 本仓 `render.rs:541-565` check_footprints（`:549-555` 输入+输出+2×下限，`:556-562` FrameTooLarge）、`:318-336` max_frame_bytes 公式、`:469-498` render_empty、`lightamer-engine/src/render.rs:725-732`（`:731` `frame.as_slice().to_vec()`）、`:231-243` RenderedImage、`:126-133,169-176` fetch、` :530-550` final_roi_for、`:666` fetch、`:681` final_roi、` :717` render、` :221-229` ModuleSourceAdapter、`module.rs:91-94,103-117`、`chain.rs:195-215,228-256`、`tiling.rs:24` overlap → 全对 → 符合。
+14. dt 全局模块五组：`globaltonemap.c:560-565`（`:564-565` drago 整图）、`bilat.c:304-308`（`:307-308` LL 不分块）、`highlights.c:1074-1078`（`:1077-1078`）、`rawprepare.c:886-891`（`:889-890` detail-mask）、`liquify.c:305-311`（`:308-311` flags 无 ALLOW_TILING）+ `imageop.c:2542-2544` 门控 + `pixelpipe_hb.c:1496-1501` _piece_may_tile；`diffuse.c:790-812` + `:48` MAX_NUM_SCALES=10 → overlap=(1<<scales)≤1024 推导正确；`blurs.c:610-611` halo 注释、`bilat.c:275` overlap=ceil(4σ)、`exposure.c:107-110` deflicker 直方图 → 全对 → 符合。
+
+## 三、四组否定结论（各 ≥2 独立证据，均成立）
+
+- **darktable 无整链行带**：① 复跑 grep 零像素流命中（M1 计数瑕疵外，实质成立）；② `ls src/develop/`（blend/borders/develop/format/frame/imageop/lightroom/masks/pixelpipe/preview/tiling 等）无 strip/band/stream 文件，亲列成立。最接近 `tiling.c:1786-1800` 行带数学确在单模块 OpenCL 快分块内。成立。
+- **LightCraft 无整链流**：① `pipeline/src/`、`raster/src/` 无 stream/strip/scanline/tiling 模块（复跑 grep 零命中）+ `tiling|band` 全仓 grep 命中均为频带/纹理带/色带他物；② `render(&Rgb32f)`/`:714`/`plan(&Rgb32f)`（`:478`）签名整帧进出（四参全含 `src: &Rgb32f`，笔记简写实质对）。成立（M2、M3 不伤结论）。
+- **AlcedoStudio 无整链流**：① `src/` 25 条目（20+ 目录成立）、`renderer/` 仅 `pipeline_scheduler.cpp` 一文件（复跑成立），无流模块；② `io/` 精搜仅 EXIF 常量（StripOffsets/RowsPerStrip/StripByteCounts，复跑成立）；③ 整帧正向反证（抽核 9）。成立。
+- **RawLab 主链无整链流**：① `lutools/src` grep strip 得 7 文件，逐一排除：hdr_stream（HDR 链非主链）、rendered_dng/render_params（写盘格式）、wavelet（模块内 tile）、photo_basic_controls_v3（kColStrip=32 并行统计分条）、photo_effects（全幅宽）；② `photo_effects.h:24` 全幅宽语义。成立。
+
+## 四、数字（全有源、算术全对）
+
+- 7751 万像素 / 77.7%：`B1-b2-REPORT:79-80` 原值 77,510,737（笔记引 `:77-82` 覆盖，漂移 ≤2）；公式 (2,748,779,069−2×134,217,728)/2=1,240,171,806B，/16=77,510,737 ✓；77.7%=60,217,344(963,477,504B 测试图)/77,510,737，REPORT 原文 ✓（与 A7R5 真值 61,005,568 差 1.3% 系 REPORT“6100 万” nominal，笔记忠实转引，不罚）。
+- 122MB 马赛克：9568×6376=61,005,568（`CORE-DESIGN:88`，笔记引 `:89` 漂移 1 行，不罚）×2=122,011,136B≈122MB（十进制，与全文 MB 口径一致）✓；`rs_mosaic` uint16 行主序（`rawspeed_shim.h:57-59`、`cpp:121-122`）✓；`RawDecoder.h:56` `RawImage decodeRaw();` 无参 ✓（refs/dt-master 内 rawspeed 子模块为空，改验 `Lightamer-rawspeed-spike/.../RawDecoder.h:56`，内容逐字对）；shim `:47` `decodeRaw()` 三副本一致 ✓。
+- 549MB 峰值：算术 ✓（见 M6，例选宽问题单列）。
+- 4 亿 / 128MP / 1Gpx / 110M / 65535 / RAM-4 / 1.2GB：lumen `:8,12-15`、RawLab `:651`、LC `:190-192`（1<<30，注释 ≈1.07Gpx）、denoise `run.rs:17` 110M、`memory.rs`、`prepare.rs:199-208` 注释 → 全部原文逐字对 ✓。
+- 上限表 Preview 2265 万 / Thumbnail 1401 万（§3.8）：REPORT 原值 22,649,241 / 14,008,975，转述舍入正确 ✓。
+
+## 五、估算依据（成立，无遗漏）
+
+- B1 实际耗时有源：`waves/VERIFY.md:304`（B1-a“60 分钟加续做 8 分钟”=68，笔记写 68min 系求和转述，可接受）、`:317` 88 分钟、`:328` 36 分钟、`:342` 58 分钟；引用 `:304-354` 全覆盖；550 测试（`:349,357`）✓。
+- S1–S5 覆盖 §2–§5 全部改动点：2.1→S3 fetch_region；2.2→S2 render_stream；2.3 起步不写→S2（render_stream 内跳过，隐含但无第二落点）；2.4→S1 规划器+风险②二选一（显式）；2.5→S2 band 分支；2.6 RenderedImage→S3“导出作业按带消费”+§5.2 跳过（隐含，语义覆盖）；2.7→S3；§4→S1；§5.1→S2/S3；§5.3→零改+S6。roi-variant 与引擎交付面均有落点，无整处遗漏 ✓。
+
+## 六、ONE-PAGER（成立）
+
+- 20 行 ≤ 40 ✓；待定恰 5 件，每件均有推荐（1a/2a/3a/4a/5a）✓；峰值公式、先例结论、验收门与 RESEARCH 一致 ✓。
+
+跳过/未验：scout 二手读三处（LC `denoise-core/run.rs` tile 循环已顺手亲验 doc `:1-2` 相符；其余 scout 结论均有亲验行号交叉支撑）；未构建、未跑测试（只读纪律）。
+
