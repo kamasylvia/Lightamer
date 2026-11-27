@@ -22,6 +22,8 @@ pub mod chain;
 pub mod kinds;
 pub mod negotiate;
 pub mod render;
+pub mod spill;
+pub mod stream;
 pub mod tiling;
 
 #[cfg(test)]
@@ -37,4 +39,9 @@ pub use kinds::{
 };
 pub use negotiate::{ColorPlan, ColorStep, negotiate};
 pub use render::{NodeReport, OutputFrame, Pipe, RenderError, RenderRequest};
+pub use spill::{MappedFrame, StreamSink, StreamedOutput};
+pub use stream::{
+    BLOCK_MAX_SIDE, BLOCK_MIN_SIDE, STREAM_BYTES_PER_PIXEL, STRIP_ROWS, StreamMode, StreamPiece,
+    StreamPiecePlan, StreamPlan, StreamRefusal, StreamSummary, plan_stream,
+};
 pub use tiling::{MAX_TILES, Tile, TileGrid, TilingDecision, decide};

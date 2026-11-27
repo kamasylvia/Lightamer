@@ -15,7 +15,7 @@
 | L0 | `lightamer-geom` | 区域：`Roi`（x/y/w/h/scale，dt 取整移植）+ 相交/合并/平移/换缩放/包含/子区域，checked 整数 | B1-a 已填 |
 | L0 | `lightamer-raster` | 画面：`Frame`（缓冲+区域+格式，工作格式 float32 RGBA 预乘）+ 行区间/子视图/整体拷贝，u64 尺寸核算 | B1-a 已填 |
 | L0 | `lightamer-color-math` | 颜色矩阵数学与曲线 helper，无 profile 状态 | B3 |
-| L0 | `lightamer-iop-traits` | ModuleDesc/OrderKeys/ModuleGroup/ParamsDesc（自有设置模型）/ModuleFlags/ColorSpace/Control/HistoryKeys（A3）+ 对象安全 `IopModule`（commit/roi 对/tiling/process，JSON 参数 + 不透明提交）+ `PipeError` + 参数取值五 helper + `TilingReq`/`ImageInfo`/像素视图（含整片访问器）+ 按行并行 `par_map_rows`（rayon，与串行逐位相同） | A3 已填 / B1-a 接口已填 / B1-b 并行工具 |
+| L0 | `lightamer-iop-traits` | ModuleDesc/OrderKeys/ModuleGroup/ParamsDesc（自有设置模型）/ModuleFlags/ColorSpace/Control/HistoryKeys（A3）+ 对象安全 `IopModule`（commit/roi 对/tiling/process，JSON 参数 + 不透明提交）+ `PipeError` + 参数取值五 helper + `TilingReq`/`ImageInfo`/像素视图（含整片访问器）+ 按行并行 `par_map_rows`（rayon，与串行逐位相同）+ B1d-a 流式声明（`stats` 默认 `Local` + `check_overlap_covers`） | A3 已填 / B1-a 接口已填 / B1-b 并行工具 / B1d-a 流式声明 |
 | L0 | `lightamer-sysmem` | 硬上限字节预算：`Budget`（超限是错）+ RAII `Grant`（drop 归还）+ 共享 `SharedGrant`（`Arc` 授权，随画面走）+ 余量可问，线程共享 | B1-a 已填 / B1-b 共享授权 |
 | L1 | `lightamer-iop-raw` | raw 段模块桩 8 个（rawprepare/demosaic/…；`build.rs` 扫 `src/modules/*/mod.rs` 自动发现） | A3 桩 / B3 起填像素 |
 | L1 | `lightamer-iop-geom` | 几何模块桩 21 个（lens/crop/…） | A3 桩 / B7 起填像素 |
@@ -28,7 +28,7 @@
 | L1 | `lightamer-scenes` | 成像测试共用的确定性测试场景 | A5 |
 | L2 | `lightamer-registry` | 描述聚合 + 按标识查找 + raw/jpg 默认顺序链（`(prio,tie)` 排序）；夹具 `lightamer-registry/fixtures/dt-order-*.json` | A3 已填 |
 | L2 | `lightamer-history` | 照片设置（宽容 serde + 规范 JSON + FNV 缓存键）+ 快照历史栈 + 处理版本号（`HISTORY_LIMIT` 200）+ B13′-b1 栈重建（`from_steps`）/ 调整合并（`merge_adjustments`，模块/参数两档）/ `INITIAL_LABEL` 公开 | A4b 已填 / B13′-b1 落库接口 |
-| L2 | `lightamer-pipeline` | 管线内核（A3R 由 `dt-core` 改名）：有序链提交 + 前推/反推几何 + 格式协商（只出计划）+ ptp 分块决策（含单块下限）+ 四实例配额（物理内存公式，B1-b2 删单块上限）+ 预算配对画面 + B1-b 执行（`Pipe` 渲染入口 + 链式缓存键/LRU + 分块执行 + 取消 + 分类型错误）+ B1-b2 修正（即时写缓存 + 分配前淘汰让路 + 上限公式与前置拒绝）+ B1-c 渲染记录只读面（`NodeReport` + `Pipe::last_trace`，命中/调用数/毫秒） | B1-a 已填 / B1-b 执行已填 / B1-b2 修正已填 / B1-c 记录面 |
+| L2 | `lightamer-pipeline` | 管线内核（A3R 由 `dt-core` 改名）：有序链提交 + 前推/反推几何 + 格式协商（只出计划）+ ptp 分块决策（含单块下限）+ 四实例配额（物理内存公式，B1-b2 删单块上限）+ 预算配对画面 + B1-b 执行（`Pipe` 渲染入口 + 链式缓存键/LRU + 分块执行 + 取消 + 分类型错误）+ B1-b2 修正（即时写缓存 + 分配前淘汰让路 + 上限公式与前置拒绝）+ B1-c 渲染记录只读面（`NodeReport` + `Pipe::last_trace`，命中/调用数/毫秒）+ B1d-a 行带流式（`render_stream` + 双模式规划器 + 输出落盘） | B1-a 已填 / B1-b 执行已填 / B1-b2 修正已填 / B1-c 记录面 / B1d-a 流式已填 |
 | L3 | `lightamer-catalog` | 会话包：四目录布局 + SQLite schema v1（T-B1）+ 只追加迁移架 + 在线备份 + 单写者锁（LightCraft lock.rs 改造）+ 路径换算 + `_meta`（含 display_aux 槽位）+ B12′-b 整包备份/恢复（在线备份 + 文件拷 + 进度/取消）+ 只读校验 + 失联扫描 + 模板 + 主机名 + B13′-a 照片最小登记（照片行/默认快照/第 0 步单事务）+ 历史写路径（快照去重写 + 游标移动 + 读回 + 孤儿回收，`HistoryWriter` 单事务多推）+ B13′-b1 第 0 步标签对齐 `INITIAL_LABEL` / `HistoryWriter::move_cursor` | B12′ 已填 / B13′-a 历史落库 / B13′-b1 对齐 |
 | L3 | `lightamer-preview` | 预览缓存：内存 LRU + 磁盘缩略图 + 预取 | B15 |
 | L3 | `lightamer-apple` | Apple 边界：macOS 探针/空后端双实现 + 能力表（A6 已填；唯一可碰 Apple 绑定的 crate）+ 原生视口缝（A7b：一整数句柄 + 矩形/几何/输入纯数据类型，macOS 在 `macos.rs` 内实现，空后端报不支持） | A6 已填 / A7b 视口 |

@@ -510,3 +510,27 @@ LightCraft derivation (wave B12'-a, 2026-11-26):
   The derived file carries a `Derived from lightcraft` header naming the
   upstream path and commit. This file is GPL-3.0-or-later as part of
   Lightamer.
+
+Lumen RAW derivation (wave B1d-a, 2026-11-28):
+
+  Upstream: Lumen RAW (https://github.com/LeisureLinux/lumen,
+  local checkout at Release 2.3.2; MIT, Copyright (c) 2026 LUMEN RAW
+  contributors — same upstream and license as entry Q above).
+  Transliterated (algorithm shapes and constants, re-expressed in Rust;
+  no upstream code copied):
+    crates/lightamer-pipeline/src/stream.rs <- lumen/large_image.py
+      (STRIP_ROWS = 64 strips; block_size margin-block side
+      sqrt(available * 0.25 / FRAME_BYTES) - 2 * margin clamped to
+      512..=8192; FRAME_BYTES = 100 seed) and lumen/engine.py
+      (process_region: grown input runs the whole chain, inner part kept).
+    crates/lightamer-pipeline/src/spill.rs <- lumen/large_image.py
+      (allocate: outputs past a threshold spill to a memory-mapped temp
+      file, deleted when dropped).
+  Deliberate deviations: the block formula sizes against the pipe budget
+  (not probed available memory) for reproducible plans; no +4 margin slack
+  (upstream spatial_margin estimates per-tool margins by hand, ours are
+  declared overlaps guarded by a consistency check); spill files are
+  anonymous temp files (upstream keeps named files under LumenRAW-cache/).
+  Each use site carries its upstream file-and-function anchor in a comment.
+  MIT permits this use; this attribution preserves the notice. These files
+  are GPL-3.0-or-later as part of Lightamer.

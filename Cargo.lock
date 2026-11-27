@@ -4001,14 +4001,17 @@ version = "0.1.0"
 name = "lightamer-pipeline"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
  "libc",
  "lightamer-geom",
  "lightamer-iop-traits",
  "lightamer-raster",
  "lightamer-sysmem",
  "lightamer-testkit",
+ "memmap2",
  "rayon",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

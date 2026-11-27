@@ -261,7 +261,7 @@ pub(crate) fn to_wire(roi: &GeomRoi) -> WireRoi {
 }
 
 /// Wire shape back to validated geometry.
-fn from_wire(roi: &WireRoi) -> Result<GeomRoi, String> {
+pub(crate) fn from_wire(roi: &WireRoi) -> Result<GeomRoi, String> {
     GeomRoi::new(roi.x, roi.y, roi.width, roi.height, roi.scale)
         .map_err(|err| format!("{roi:?}: {err}"))
 }

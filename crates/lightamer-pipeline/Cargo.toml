@@ -16,6 +16,9 @@ lightamer-raster = { path = "../lightamer-raster" }
 lightamer-sysmem = { path = "../lightamer-sysmem" }
 serde_json = { version = "1" }
 libc = { version = "0.2" }
+bytemuck = { version = "1" }
+memmap2 = { version = "0.9" }
+tempfile = { version = "3" }
 
 [dev-dependencies]
 lightamer-testkit = { path = "../lightamer-testkit" }

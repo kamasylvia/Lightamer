@@ -100,6 +100,15 @@ pub trait IopModule: Send + Sync {
         TilingReq::default_for(rin, rout)
     }
 
+    /// What whole-image statistics this module needs before it renders.
+    ///
+    /// [`StatsNeeds::Local`](super::StatsNeeds) by default: output pixels
+    /// depend only on their support region, so the module streams band by
+    /// band with no extra help.
+    fn stats(&self) -> super::StatsNeeds {
+        super::StatsNeeds::Local
+    }
+
     /// Renders `rin` of `input` into `rout` of `output`.
     ///
     /// # Errors

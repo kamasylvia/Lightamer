@@ -1,0 +1,27 @@
+Working...
+PASS / 0 error + 3 minor
+
+待审 HEAD `586fc42c`（亲核，起点 `1535a9e2`）。只审已提交内容；工作区 tracked 零改动。全程串行重活、`-j6`。
+
+**1. 验收清单重跑（退出码逐项）**：`cargo fmt --all --check`=0；clippy 全工作区（`Scripts/rust-test.sh` 正本口径：`-D warnings`+perf+indexing_slicing+unwrap_used+expect_used+panic+todo+unimplemented，`CARGO_INCREMENTAL=0 -j6`）=0；`cargo test --workspace --locked --no-fail-fast`=0（见下）；`cargo xtask layers`=0（`OK: 29 crates, no layering violations.`）；`check-no-iop-names`=0（`OK (97 names, 4 roots clean)`）；`rust-apple-boundary.sh`=0（`ALL GREEN`）；`check-licenses.sh`=0；`cargo doc -D warnings`=0；session/render 演示=0/0（`ALL GREEN`）；history 演示=1（唯一原因见 minor-3）；`rust-ci-lite.sh`=0（`ALL GREEN`，245s）。测试数：`#[test]` 属性基线 616→HEAD 645（`git grep -c` 双亲核，+29 恰为 stream 18+spill 7+stats 4）；执行侧 644 passed/0 failed/4 ignored：645−1（cli capabilities.rs:160/181 apple/not-apple 互斥 cfg 只编其一）−4 ignored（200mp+2×idle_61mp+bench_paste_10k）=640 单元通过，+4 doc-test（apple/history/registry/testkit 各 1，testkit“6+1”即此）=644。分 crate：pipeline 111/3、traits 23、raster 9、sysmem 7、testkit 6，与 REPORT 逐字相符。首轮曾见 cli bench 2 例 fail，复跑单测证实为负载门（`Skipped { load_one: 12.49 }`/`machine was busy`），终轮 46/46 全绿，环境性抖动非本波问题。
+
+**2. 上游对照（只读，未构建运行）**：STRIP_ROWS=64（large_image.py:10）、strips（:38-39）、FRAME_BYTES=100（:134-136，注释 55–76 取整）、block_size（:143-148，`int((available*.25/FRAME_BYTES)**.5)-2*margin` 钳 512/8192）、allocate（:23-36，256MB 阈值+命名 memmap+`weakref.finalize` 清理）、margin 累加（large_image.py:212 与 engine.py:1359-1360 均为 `spatial_margin(a)+max(masks)`）、spatial_margin（engine.py:910-922，逐项 `+=`，:922 非零再 `+4`）、process_region（:1342，:1361 `target.grow(margin)` 全链跑放大区，:1390 `area.inner(target)` 只留内层）。我方三处有意偏离成立：①预算代探测内存（`block_side` 以 `budget/4` 入式，注释写明可复现）；②无 +4（`plan_stream` 纯 `saturating_add` 求和，stream.rs:367-370）；③匿名文件代命名缓存（`tempfile::tempfile()`，spill.rs:113-117，上游 :27-30 具名 `LumenRAW-cache/`）。行带行主序引用 :215-216 与 `for y/for x` 逐字相符。公式转写保序保钳制（`isqrt` 下取整对 `int(sqrt)`）。
+
+**3. 逐位相同是真比**：三例皆 `pipe.render` 对 `stream_assembled` 整帧 `as_slice()` 逐字节 `assert_eq`（stream.rs strips/blocks/mixed 三测）。方块例 `FakeBlur(actual 8, claimed 8)` 是真两遍 box blur（fakes.rs 横→纵 `sum/count`，钳制边界），非恒等；640²/512 边切出 2×2=4 块断言在案。混合例五节点 copy/gain/blur/gain/copy，但是 256² 帧只跑出 1 块（见 minor-2）。双跑 `streaming_twice_is_bitwise_identical` 真调两次 `stream_assembled` 再比。
+
+**4. 撒谎两档真拦**：①自相矛盾型 `FakeGrow(grow 8, overlap 0)` 被 `check_overlap_covers` 拒为 `OverlapMismatch`（planner 与 entry 双拒）；②自洽偷读型 `FakeBlur(actual 8, claimed 0)`（恒等 regions 故声明自洽）走条带，在边界用钳制边代替真邻居，出缝后 `assert_ne` 钉住。注释对两种形状的说法准确（“identity regions”“clamped edges instead of true neighbors”与 `FakeBlur::process` 的 `saturating_sub/min` 钳制一致）。
+
+**5. 拒绝先于一切分配**：`render_stream` 顺序 commit→forward→backward→negotiate→`plan_stream`（内含 `admit`）→逐块分配；首个预算分配在 `ensure_stream_room`（run_stream_piece 内），拒绝皆在 `plan_stream` 的 `?` 返回，无整帧足迹预检符合设计。预算/缓存断言充分（`used()==0`、`cache_len()==0`，拒绝路径零 `stream_alloc`、零缓存读写）；last_trace 见 minor-1。几何探针：16/32 中心块 growth 不一致拒 + 探针内 `rin⊇probe⊇rout` + 整帧 `contains`/growth 核对；FakeSpin（转置+1px 平移，96×64 非方帧使探针 containment 必败）、FakeScale(2,1)（rin 缩半盖不住探针）、FakeScale(1,2)（growth 8 vs 16 随区变）三档各走不同门，均绿。
+
+**6. 取消/出错无残留**：无显式 `Drop`，靠 `tempfile` 句柄关闭即删（匿名 `tempfile()` 无可见路径；`tempfile_in(dir)` 关闭即 unlink）+`MmapMut` 随结构体释放；`finish(self)` 出错路径消费 self 即关文件。三条残留测试皆真（落盘组装后 `drop(out)` 查空目录、未完成 `finish` 报错后查空目录、取消 `drop(sink)` 后查空目录）。跑后 `/tmp` 无 spill/stream/LumenRAW-cache 残留（882→887 增量全是我方复审日志与他 lane 文件，已删己方 8 个 scratch；执行 lane 的 `b1da-baseline*` 等未碰）；`git status` tracked 零改动；无残留构建/测试进程（仅执行 lane 与本复审两个 omp 会话，未碰）。
+
+**7. 边界**：`git diff --stat 1535a9e2..HEAD` 于 history/registry/catalog/engine/apps/modules/apple 五路径零输出；`render` 体零改动（`render` 在新 387..500，diff hunk 仅 import/枚举/Display/其前 +35 行插入与其后两处可见性，`352+35=387` 严丝合缝）；B1 零删（源码删行仅 `from_wire`/`geo_extent`/`alloc_room` 三处 `fn`→`pub(crate) fn`，另 PIPELINE/README 文档行改写）；14 个改动文件全在任务书允许清单（pipeline×7、iop-traits×3、Cargo.lock、NOTICE、crates/README.md、PIPELINE.md）；REPORT/review.log 未入 HEAD 属 PENDING-FINAL-HASH（退出序列 amend 步，预期中）。
+
+**8. REPORT 数字**：测试数/157/32/2605（`isqrt(2748779069/4/100)=2621−16`，20000/2605→8 列、10000/2605→4 行=32，release 实测断言全过）/行号引用（逐条对上游亲核无误）/分 crate 数/xtask 原文/许可证三版本（1.25.2/0.9.12/3.27.0，lock 亲核）/16GiB 预算常量（2,748,779,069+128MiB，与测试常量一致）全部相符；8 个 PENDING（200MP/CILITE/HISTORY-DEMO/FINAL-CHECK/FINAL-HASH/REVIEW/UNVERIFIED/REVIEW-FIXES）列齐、无应标未标。200MP 由我补数：`cargo test --release -p lightamer-pipeline --locked -- --ignored stream_200mp`（串行，门内 load1=8.17/10）exit 0，**条带峰值 66MB（<1GiB 门），方块峰值 1006MB（<4GiB 停手线）**，18.32s。
+
+minor-1——`last_trace`“原样”措辞过实：`render_stream`（stream.rs 入口 `set_last_trace(Vec::new())`）对一切运行先清空 trace，拒绝只是“清空后未写”（空）而非“原样保留旧 trace”；四处拒测在 fresh pipe 上断言 `is_empty()` 与实现一致但证不出“原样”。修法：REPORT L94 与 PIPELINE 拒绝节改“trace 留空”二字，或拒测预填 trace 再断言清空语义。二选一，一行。
+
+minor-2——混合链逐位例只跑出 1 块：256² 帧 < 512 下限，`summary.pieces==1`（stream.rs mixed 测），块间缝覆盖实际由 2×2 方块例承担。修法：帧放大到 ≥1024（或预算调小，`block_side` 可算）使混合例 ≥2 块，或注释写明“多块缝由方块例覆盖”。约 5 行。
+
+minor-3——history 演示未绿：exit 1，唯一败因是 10k paste bench 在 load 10.30/10cpu 报 `UNRELIABLE … skipping`（功能步 `after kill: 4 steps…` 全过）。环境性，非本波代码问题（本波未碰 history/cli）。修法：quiet-machine（load1/cpu≤1）补跑 `Scripts/rust-history-demo.sh` 取绿；REPORT 的 PENDING-HISTORY-DEMO 改此结论。
+

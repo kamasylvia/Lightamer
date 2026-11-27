@@ -46,6 +46,7 @@ use super::chain::{
 };
 use super::kinds::{PipeKind, quota, quota_for, singlebuffer_floor, system_physical_memory};
 use super::negotiate::negotiate as negotiate_plan;
+use super::stream::StreamRefusal;
 use super::tiling::{Tile, TileGrid, TilingDecision, decide};
 
 /// What one node did in the latest render: cache hit or recompute, how many
@@ -206,6 +207,19 @@ pub enum RenderError {
     },
     /// The cancel probe fired between nodes or between tiles.
     Cancelled,
+    /// Streaming refused before allocating anything: one module cannot
+    /// stream. The budget and the cache sit exactly as found.
+    StreamRefused {
+        /// Module id.
+        id: String,
+        /// Why it cannot stream.
+        reason: StreamRefusal,
+    },
+    /// Streaming output assembly failed (spill file, byte limit, piece shape).
+    Spill {
+        /// What failed.
+        detail: String,
+    },
 }
 
 impl fmt::Display for RenderError {
@@ -232,6 +246,10 @@ impl fmt::Display for RenderError {
             RenderError::Frame { detail } => write!(f, "render frame: {detail}"),
             RenderError::InputMismatch { detail } => write!(f, "render input: {detail}"),
             RenderError::Cancelled => write!(f, "render cancelled"),
+            RenderError::StreamRefused { id, reason } => {
+                write!(f, "streaming refused module '{id}': {reason}")
+            }
+            RenderError::Spill { detail } => write!(f, "streaming spill: {detail}"),
         }
     }
 }
@@ -313,6 +331,23 @@ impl Pipe {
     #[must_use]
     pub fn last_trace(&self) -> &[NodeReport] {
         &self.last_trace
+    }
+
+    /// Allocates one streaming scratch or sink plane, evicting unhit cache
+    /// entries oldest-first until it fits. The protected set stays empty:
+    /// streaming never peeks the cache, so no entry is a live input.
+    pub(crate) fn stream_alloc(
+        &mut self,
+        extent: FrameExtent,
+        why: &str,
+    ) -> Result<SharedFrame, RenderError> {
+        alloc_room(&self.budget, &mut self.cache, &HashSet::new(), extent, why)
+    }
+
+    /// Replaces the last-trace report (streaming writes node totals on every
+    /// exit, including cancel and failure).
+    pub(crate) fn set_last_trace(&mut self, trace: Vec<NodeReport>) {
+        self.last_trace = trace;
     }
 
     /// Largest uniform frame this pipe renders: `(budget − 2 × floor) / 2`,
@@ -500,7 +535,7 @@ impl Pipe {
 
 /// Geometry rect to frame extent (rois are validated non-negative, so the
 /// conversion only guards the impossible).
-fn geo_extent(roi: &GeomRoi) -> Result<FrameExtent, RenderError> {
+pub(crate) fn geo_extent(roi: &GeomRoi) -> Result<FrameExtent, RenderError> {
     let width = u32::try_from(roi.width).map_err(|_| RenderError::Frame {
         detail: format!("region width {} is not a frame width", roi.width),
     })?;
@@ -568,7 +603,7 @@ fn check_footprints(cap: u64, floor: u64, geos: &[NodeGeometry]) -> Result<(), R
 /// first) until it fits. Hit entries are the run's live inputs and never
 /// yield; when nothing evictable remains and the plane still does not fit,
 /// the budget refusal surfaces typed.
-fn alloc_room(
+pub(crate) fn alloc_room(
     budget: &Arc<Budget>,
     cache: &mut PlaneCache,
     protected: &HashSet<u64>,
