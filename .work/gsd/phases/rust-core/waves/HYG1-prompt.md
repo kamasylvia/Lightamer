@@ -49,7 +49,7 @@ Lightamer 在用 Rust 全量重写。用户 2026-11-27 问：「我们的 Rust �
 - `cargo test --workspace --locked` 绿；测试数不少于起点减去被删项的测试数（逐个对上）。
 - 没有行为变化：A7a 那份五行命令文件的汇总值不变（`waves/A7a-REPORT.md` §5 有文件和当时的数）；四个演示脚本（会话、历史、渲染、解码）都退出 0。
 - `cargo xtask layers` 等检查通过；`Scripts/rust-apple-boundary.sh` 退出 0；`Scripts/check-licenses.sh` 退出 0（没有新依赖）。
-- `Scripts/rust-ci-lite.sh` 从头到尾退出 0（守卫不过就等，不要绕；等不到就如实写明）。
+- `Scripts/rust-ci-lite.sh` 从头到尾退出 0（守卫不过就等，不要绕；等不到就如实写明）。派你的时候机器上有用户自己的重活在跑（负载可能到每个核一个多），构建和测试会慢：预算那一步如果因为负载红了，把当时的负载读数和那一步的耗时如实写进报告，不要绕，也不要反复重跑到绿。
 - `git show --name-only HEAD` 里只有下面「纪律」一节允许的路径；其中有 `HYG1-REPORT.md` 和 `HYG1-review.log`。
 
 ## 产物先落盘，再收尾
