@@ -36,5 +36,5 @@ pub use kinds::{
     PipeKind, PipeQuota, quota, quota_for, singlebuffer_floor, system_physical_memory,
 };
 pub use negotiate::{ColorPlan, ColorStep, negotiate};
-pub use render::{OutputFrame, Pipe, RenderError, RenderRequest};
+pub use render::{NodeReport, OutputFrame, Pipe, RenderError, RenderRequest};
 pub use tiling::{MAX_TILES, Tile, TileGrid, TilingDecision, decide};

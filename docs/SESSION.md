@@ -114,7 +114,7 @@
 
 ## Commands (B12′-b)
 
-引擎的七条会话命令（经 `execute` 登记；注册表现有 20 条）。会话类命令都不记历史步。
+引擎的七条会话命令（经 `execute` 登记；注册表现有 24 条，另两条渲染命令见下表末两行）。会话类命令都不记历史步。
 
 | 命令 | 参数 | 做什么 |
 |---|---|---|
@@ -125,6 +125,8 @@
 | `session.backup` | `dest`（目标目录）、`include_trash`（可选，默认 true） | 启动备份作业，返回作业标识 |
 | `session.restore` | `backup`（备份在哪）、`dest`（恢复到哪） | 启动恢复作业，拷回后按 `open` 流程打开 |
 | `template.save` | `name`（模板名，一个文件主干） | 存相册和收藏的结构 |
+| `render.request` | `photo`（照片标识）、`kind`（实例：`full`/`export`/`preview`/`thumbnail`） | 快照当前设置、代号加一并取代在飞的渲染，启动作业后立即返回代号与作业标识（B1-c；见 `docs/PIPELINE.md` 末节） |
+| `render.cancel` | `photo`、`kind`（同上） | 取消在飞的那一代，不起新的；无在飞时报 `{"cancelled": false}`（B1-c） |
 
 能不能跑：开着会话（草稿或真实）时 `open`、`new`、`restore` 拒绝，带原因；
 没有真实会话时 `close`、`verify`、`backup`、`template.save` 拒绝

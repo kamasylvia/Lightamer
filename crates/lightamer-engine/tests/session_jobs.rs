@@ -26,7 +26,10 @@ fn recorder(engine: &mut Engine) -> Rc<RefCell<Vec<Event>>> {
 /// The job an event belongs to, if it is a job event.
 fn event_job(event: &Event) -> Option<u64> {
     match event {
-        Event::PhotoChanged { .. } | Event::ClipboardChanged => None,
+        Event::PhotoChanged { .. }
+        | Event::ClipboardChanged
+        | Event::RenderReady { .. }
+        | Event::RenderFailed { .. } => None,
         Event::JobStarted { job }
         | Event::JobProgress { job, .. }
         | Event::JobFinished { job, .. } => Some(*job),

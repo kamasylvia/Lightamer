@@ -31,6 +31,7 @@
 use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
+use std::time::Instant;
 
 use lightamer_geom::Roi as GeomRoi;
 use lightamer_iop_traits::{ColorSpace, ImageInfo, PipeError, Plane, PlaneMut, Roi as WireRoi};
@@ -47,6 +48,35 @@ use super::kinds::{PipeKind, quota, quota_for, singlebuffer_floor, system_physic
 use super::negotiate::negotiate as negotiate_plan;
 use super::tiling::{Tile, TileGrid, TilingDecision, decide};
 
+/// What one node did in the latest render: cache hit or recompute, how many
+/// `process` calls it took, and how long they took. The engine copies these
+/// into its per-render record for demos and tests; `millis` is wall time on
+/// the calling thread (0.0 for hits, which call nothing).
+#[derive(Debug, Clone)]
+pub struct NodeReport {
+    /// Module id.
+    pub id: String,
+    /// Multi-instance index.
+    pub multi: u32,
+    /// Whether the output plane came from the cache (`process` not called).
+    pub hit: bool,
+    /// `process` calls for this node (0 on a hit, 1 untiled, tile count tiled).
+    pub process_calls: u32,
+    /// Milliseconds spent running this node (0.0 on a hit).
+    pub millis: f64,
+}
+
+impl NodeReport {
+    fn for_node(node: &CommittedNode, hit: bool, process_calls: u32, millis: f64) -> Self {
+        Self {
+            id: node.id.clone(),
+            multi: node.multi,
+            hit,
+            process_calls,
+            millis,
+        }
+    }
+}
 /// One pipe instance: a budget and a plane cache shared across renders.
 ///
 /// The budget cap, cache slots, and single-tile floor come from the kind's
@@ -58,6 +88,7 @@ pub struct Pipe {
     budget: Arc<Budget>,
     floor: u64,
     cache: PlaneCache,
+    last_trace: Vec<NodeReport>,
 }
 
 /// What one render needs. The caller defines `input_id` (any change to the
@@ -247,6 +278,7 @@ impl Pipe {
             budget: Arc::new(Budget::new(memory_budget)),
             floor,
             cache: PlaneCache::new(quota(kind).cache_slots, memory_budget / 2),
+            last_trace: Vec::new(),
         }
     }
 
@@ -271,6 +303,16 @@ impl Pipe {
     /// Drops every cached plane.
     pub fn clear_cache(&mut self) {
         self.cache.clear();
+    }
+
+    /// Per-node report of the latest render on this pipe, in execution order.
+    /// A hit reports `process_calls: 0`; a completed miss reports how many
+    /// `process` calls it took and how long they took. A cancelled or failed
+    /// run leaves the prefix it completed (a node that never finished leaves
+    /// no entry); an empty chain leaves nothing.
+    #[must_use]
+    pub fn last_trace(&self) -> &[NodeReport] {
+        &self.last_trace
     }
 
     /// Largest uniform frame this pipe renders: `(budget − 2 × floor) / 2`,
@@ -314,6 +356,7 @@ impl Pipe {
         if (req.cancel)() {
             return Err(RenderError::Cancelled);
         }
+        self.last_trace.clear();
         let chain = build_chain(req.lookup, req.nodes, req.image).map_err(RenderError::Chain)?;
         if chain.is_empty() {
             return self.render_empty(req);
@@ -353,6 +396,8 @@ impl Pipe {
                 if hit.frame.extent() == want {
                     self.cache.touch(*key);
                     protected.insert(*key);
+                    self.last_trace
+                        .push(NodeReport::for_node(node, true, 0, 0.0));
                     prev = Some(hit);
                     continue;
                 }
@@ -373,9 +418,12 @@ impl Pipe {
                 self.budget.cap(),
                 self.floor,
             );
-            let plane = match decision {
+            let started = Instant::now();
+            let (plane, process_calls) = match decision {
                 TilingDecision::NoTiling => {
-                    run_untiled(&self.budget, &mut self.cache, &protected, node, geo, input)?
+                    let plane =
+                        run_untiled(&self.budget, &mut self.cache, &protected, node, geo, input)?;
+                    (plane, 1)
                 }
                 TilingDecision::Tiled(grid) => run_tiled(
                     &self.budget,
@@ -388,6 +436,12 @@ impl Pipe {
                     req.cancel,
                 )?,
             };
+            self.last_trace.push(NodeReport::for_node(
+                node,
+                false,
+                process_calls,
+                started.elapsed().as_secs_f64() * 1000.0,
+            ));
             let plane = Arc::new(plane);
             // The plane is complete, so it lands in the cache at once: the
             // next node (or the next render) reuses it, and a later cancel or
@@ -639,11 +693,11 @@ fn run_tiled(
     grid: &TileGrid,
     input: &Frame,
     cancel: &dyn Fn() -> bool,
-) -> Result<SharedFrame, RenderError> {
+) -> Result<(SharedFrame, u32), RenderError> {
     check_input(&node.id, input, geo)?;
     let mut out = alloc_room(budget, cache, protected, geo_extent(&geo.output)?, &node.id)?;
     if grid.tiles.is_empty() {
-        return Ok(out);
+        return Ok((out, 0));
     }
     // Scratch pair sized to the largest tile, reused across all tiles.
     let mut widest: u32 = 1;
@@ -669,13 +723,15 @@ fn run_tiled(
         scratch_out: &mut scratch_out.frame,
         out: &mut out.frame,
     };
+    let mut calls: u32 = 0;
     for tile in &grid.tiles {
         if cancel() {
             return Err(RenderError::Cancelled);
         }
         run_tile(&mut run, tile)?;
+        calls += 1;
     }
-    Ok(out)
+    Ok((out, calls))
 }
 
 /// Scratch state one tiled node reuses across its tiles.
@@ -2880,5 +2936,156 @@ mod tests {
                 .iter()
                 .all(|v| v.to_bits() == product.to_bits())
         );
+    }
+    #[test]
+    fn trace_reports_miss_then_hit_with_matching_call_counts() {
+        let (probes, lookup, nodes) = six_gains([2.0, 3.0, 4.0, 5.0, 6.0, 7.0]);
+        let image = image();
+        let input = filled_frame(0, 0, 8, 8, 1.0);
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
+        render_with_id(
+            &mut pipe,
+            &nodes,
+            &lookup,
+            &image,
+            &input,
+            9,
+            geom(0, 0, 8, 8),
+        );
+        let trace = pipe.last_trace();
+        assert_eq!(trace.len(), 6);
+        for (index, report) in trace.iter().enumerate() {
+            assert!(!report.hit, "node {index} should miss cold");
+            assert_eq!(report.process_calls, 1);
+            assert!(report.millis >= 0.0);
+            assert_eq!(report.multi, 0);
+        }
+        assert_eq!(trace[0].id, "mod_a");
+        assert_eq!(trace[5].id, "mod_f");
+        render_with_id(
+            &mut pipe,
+            &nodes,
+            &lookup,
+            &image,
+            &input,
+            9,
+            geom(0, 0, 8, 8),
+        );
+        let trace = pipe.last_trace();
+        assert_eq!(trace.len(), 6);
+        for (index, report) in trace.iter().enumerate() {
+            assert!(report.hit, "node {index} should hit warm");
+            assert_eq!(report.process_calls, 0);
+            assert_eq!(report.millis.to_bits(), 0.0f64.to_bits());
+        }
+        for probe in &probes {
+            assert_eq!(probe.calls(), 1);
+        }
+    }
+
+    #[test]
+    fn trace_reports_partial_recompute_after_param_edit() {
+        let (probes, lookup, nodes) = six_gains([2.0, 3.0, 4.0, 5.0, 6.0, 7.0]);
+        let image = image();
+        let input = filled_frame(0, 0, 8, 8, 1.0);
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
+        render_with_id(
+            &mut pipe,
+            &nodes,
+            &lookup,
+            &image,
+            &input,
+            9,
+            geom(0, 0, 8, 8),
+        );
+        let mut edited = nodes.clone();
+        edited[2] = gain_node("mod_c", 8.0);
+        render_with_id(
+            &mut pipe,
+            &edited,
+            &lookup,
+            &image,
+            &input,
+            9,
+            geom(0, 0, 8, 8),
+        );
+        let trace = pipe.last_trace();
+        let hits: Vec<bool> = trace.iter().map(|report| report.hit).collect();
+        assert_eq!(hits, vec![true, true, false, false, false, false]);
+        let calls: Vec<usize> = probes.iter().map(|probe| probe.calls()).collect();
+        assert_eq!(calls, vec![1, 1, 2, 2, 2, 2]);
+        for report in trace.iter().filter(|report| !report.hit) {
+            assert_eq!(report.process_calls, 1);
+        }
+    }
+
+    #[test]
+    fn trace_counts_tiles_for_tiled_nodes() {
+        let probe = Arc::new(Probe::new());
+        let lookup = table(vec![Arc::new(FakeMem::new(
+            "mod_m",
+            Arc::clone(&probe),
+            8.0,
+            0,
+        ))]);
+        let image = image();
+        let input = pattern_frame(64, 64);
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, 200_000, 0);
+        render_ok(
+            &mut pipe,
+            &[node("mod_m")],
+            &lookup,
+            &image,
+            &input,
+            geom(0, 0, 64, 64),
+        );
+        let trace = pipe.last_trace();
+        assert_eq!(trace.len(), 1);
+        assert!(!trace[0].hit);
+        assert_eq!(trace[0].process_calls, 9);
+        assert_eq!(probe.calls(), 9);
+        assert!(trace[0].millis >= 0.0);
+    }
+
+    #[test]
+    fn trace_keeps_completed_prefix_on_failure() {
+        let probe_ok = Arc::new(Probe::new());
+        let probe_boom = Arc::new(Probe::new());
+        let lookup = table(vec![
+            Arc::new(FakeCopy::new("mod_a", Arc::clone(&probe_ok))),
+            Arc::new(FakeBackendFail::new("mod_boom", Arc::clone(&probe_boom))),
+        ]);
+        let image = image();
+        let input = filled_frame(0, 0, 8, 8, 1.0);
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
+        let nodes = vec![node("mod_a"), node("mod_boom")];
+        let no_cancel = || false;
+        let req = RenderRequest {
+            nodes: &nodes,
+            lookup: &lookup,
+            image: &image,
+            input: &input,
+            input_id: 7,
+            process: 1,
+            final_out: geom(0, 0, 8, 8),
+            cancel: &no_cancel,
+        };
+        assert!(pipe.render(&req).is_err());
+        let trace = pipe.last_trace();
+        assert_eq!(trace.len(), 1);
+        assert_eq!(trace[0].id, "mod_a");
+        assert!(!trace[0].hit);
+        assert_eq!(trace[0].process_calls, 1);
+        assert_eq!(probe_ok.calls(), 1);
+    }
+
+    #[test]
+    fn trace_is_empty_for_empty_chain() {
+        let lookup = table(vec![]);
+        let image = image();
+        let input = filled_frame(0, 0, 8, 8, 1.0);
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
+        render_ok(&mut pipe, &[], &lookup, &image, &input, geom(0, 0, 8, 8));
+        assert!(pipe.last_trace().is_empty());
     }
 }

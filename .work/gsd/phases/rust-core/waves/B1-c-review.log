@@ -1,0 +1,43 @@
+Working...
+PASS / 0 error + 3 minor
+
+待审提交 `669d05f71f`（`git log --oneline -1` 亲核一致）。
+
+## 验收逐条
+
+1. 分包测试（绿）：
+   - `cargo test -p lightamer-engine --locked`：66+26+6+1+25+18+16+13+11=182 通过，0 失败（含新 `render_jobs.rs` 16 法）。过。
+   - `cargo test -p lightamer-cli --locked`：44+0+5=49 通过，0 失败。过。
+   - `cargo test -p lightamer-pipeline --locked`：87 通过 + 2 ignored（计时测试），0 失败。过。
+2. `cargo test --workspace --locked`：全绿，0 失败；`-- --list` 计 552；`^test .+ ok$` 计 549，另 3 个 ignored 计时测试（`idle_61mp_five_nodes_reports_miss_median`、`idle_61mp_reports_miss_and_hit_medians`、`bench_paste_10k_reports_phases_for_both_sync_modes`）仍不跑。552=549+3；新增 27=引擎集成 16（`render_jobs.rs` `#\[test\]` 计 16）+引擎单测 5（`render.rs` 内计 5）+管线 5（`trace_*` 计 5）+CLI 演示 1。过。
+3. `cargo xtask layers` → `OK: 29 crates, no layering violations`；`cargo xtask check-no-iop-names` → `OK (97 names, 4 roots clean)`；`Scripts/rust-apple-boundary.sh` → `ALL GREEN`；`Scripts/check-licenses.sh` → `allow=852 exception=1 fail=0 total=853`（命中项为已登记 self_cell 双许可 E1）。过。
+4. 六条不崩溃 clippy（`-D warnings -D clippy::indexing_slicing -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic -D clippy::todo -D clippy::unimplemented`）退出 0；`cargo fmt --all --check` 干净退出 0；`RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked` 退出 0。过。
+5. `rg -n 'std::fs|create_dir|read_dir|std::fs::copy|fs::copy' crates/lightamer-engine/src` 无输出（exit 1）。过。
+6. `git diff --stat ceb878bf HEAD -- crates/lightamer-history crates/lightamer-registry crates/lightamer-catalog 'crates/lightamer-iop-*/src/modules' crates/lightamer-apple` 无输出。过。
+7. `Scripts/rust-session-demo.sh` / `rust-history-demo.sh` / `rust-render-demo.sh` 逐个串行从头到尾退出 0，均 `demo: ALL GREEN`（render-demo 末步含 hygiene 检查）。过。
+8. `Scripts/rust-ci-lite.sh` 从头到尾退出 0（`passed=549`、`rust-ci-lite: ALL GREEN`）。过。
+9. `git show --name-only HEAD` 共 23 路径：`.work/.../B1-c-REPORT.md`、`Cargo.lock`、`Scripts/rust-render-demo.sh`、CLI 5 处（`apps/lightamer-cli/Cargo.toml|commands.rs|lib.rs|main.rs|render_demo.rs`）、`crates/README.md`、engine 8 处（`Cargo.toml|command.rs|engine.rs|error.rs|event.rs|lib.rs|render.rs`+tests 3）、pipeline 2 处（`lib.rs|render.rs`）、`docs/PIPELINE.md|SESSION.md`。根 `Cargo.toml` 未动（允许但无变更）；无越界路径；`B1-c-review.log` 尚无（即本日志）。过。
+
+## 代码核对逐条
+
+- 命令先返回是真的：`crates/lightamer-engine/src/render.rs:397-448`（`run_request`）spawn（`engine.rs:320-334`：`jobs.insert` 纯内存行 + `pool.submit` 无界 `send`，`jobs.rs:199-203` 永不阻塞）之后只有 `track_render`（Vec push，`engine.rs:659-674`）、`render_slot_mut` 置 `in_flight`、返回 JSON；无 join、无 pipe 锁（`render_pipe` 仅 `Arc::clone`，`engine.rs:602-611`）、无 recv。`execute` 同步分发（`engine.rs:227-282`）不引入等待。单测 `request_returns_before_slow_job_finishes`（`render_jobs.rs:505-523`）断言返回时作业非终态。结论：真。
+- 取代规则：同对（照片，kind）才取代——`run_request` 只取同对槽的 `in_flight` 置取消标志（`render.rs:419-424,463` 用 `(photo,kind)` 键，槽定义 `render.rs:281-290`；`cancel_job_flag` 仅置位 `render.rs:390-395`）；`apply_delivery` 代号比对 `delivery.generation != slot.generation` 即整单丢弃（`render.rs:764-767`，像素/记录/事件全无）；渲染事件只在最新一代落地时发（`RenderReady` `render.rs:770-778`、`RenderFailed` `render.rs:779-790`，及无投递终态的同代号门 `render.rs:814-816`）；取消投递恒无事件（`render.rs:780-782`）。跨对隔离有单测 `supersede_isolated_across_kinds_and_photos`（`render_jobs.rs:400-438`）、三代 latest-wins 有单测（`render_jobs.rs:294-338`）。结论：真。
+- 作业线程不碰引擎状态：`run_render_job`（`render.rs:643-753`）签名只收 `JobCtx/tx/快照settings/注入源/管线锁`，无 `Engine` 引用；体内仅 `sort_chain→fetch→final_roi_for→pipe.lock→guard.render→tx.send`，锁在 send 前释放（`render.rs:727,736,741`），通道无界。结论：真。
+- 渲染不写库：`render.rs` 全文件零 `lightamer_catalog` 引用（grep 亲核）；请求时快照经 `photo_settings`（`engine.rs:853-863`）→`stored_history`（`engine.rs:570-574`）仅调 `find_photo_by_uuid`/`read_history`（`&Connection` 只读签名，`photos.rs:121-124`、`history_store.rs:527`）；`real_session_renders_and_leaves_store_untouched`（`render_jobs.rs:752-794`）转储比对可信：`store_dump`（`render_jobs.rs:734-749`）直连 db 文件列全照片 `cursor+steps(label+settings_json)`，渲染前后字符串相等，且关会话后内存像素清空。结论：真。
+- 演示 step5 取消的是自己起的渲染：`render_demo.rs:415-437` 顺序 ask（`slow_gen/slow_job`）→`render.cancel` 同（photo,kind）→断言 `cancelled==true`→`drain_until_job(slow_job)`→断言该 mark 后零渲染事件；代号打印 `slow_gen`。实跑输出 `generation 6 cancelled, no render event: ok`。结论：真。
+- 管线改动只为记录面：`git diff ceb878bf HEAD -- crates/lightamer-pipeline`（lib 1 行 + render 217 行）逐 hunk：新 `NodeReport`（id/multi/hit/process_calls/millis）+ `Pipe::last_trace` 只读面 + 各分支 `push` + `run_tiled` 返回 `(frame, calls)` 供计数 + `Instant` 计时 + 5 个 `trace_*` 单测；渲染数学/缓存/取消语义零改。结论：真。
+
+## 额外挑刺核对
+
+- `final_roi_for` 不可达分支：`render.rs:529-544`。`width/height` 源自 `FrameExtent` 的 `u32`（`frame.rs:14-23`），转 `i32` 失败臂可达（>2G 荒谬输入）；但落到 `Roi::new(x,y,w,h,1.0)` 时 w/h 恒 ≥0、scale 恒 1.0，而 `Roi::new` 仅以 `NegativeSize/BadScale` 失败（`roi.rs:66-72`），故 `render.rs:542-543` 的 `map_err` 臂不可达，属防御性代码。见 M1。
+- 4 槽缓存与 `[evicted,hit,miss,miss,miss]`：诚实。preview `cache_slots=4`（`kinds.rs:69-72`）；首渲 5 插入逐出 node0 平面；B1-b 逆序 touch（`render.rs:453-458`）使上游为 MRU——node0 重算时 `alloc_room` 按"最老先逐、跳过本轮 protected"（`render.rs:567-583`，此时 protected 为空）逐出的是 LRU 的下游平面而非 node1 平面，故 node1 命中、编辑点 node2 及其下游 miss。`render_demo.rs:367-379` 注释未点名该淘汰序规则，见 M3。
+- 跨通道时序：worker 内先 `tx.send(投递)`（`render.rs:728/737/742` 等）后返回，`worker_loop` 再发 `Finished`（`jobs.rs:253-263`）；引擎 `collect` 先 `jobs.drain()`（`engine.rs:340-346`，`drain` 即 `try_recv` 循环 `jobs.rs:386-394`）后 `finish_renders` 才 `try_recv` 投递（`engine.rs:679-725`）。同线程程序序 + mpsc send/recv 同步传递，终态可见蕴含投递可见；未发投递的作业（开工前跳过/panic）走 `apply_terminal_without_delivery`（`render.rs:798-826`）。论证成立，无竞态。
+- `render.cancel` 幂等：无在飞返回 `{"cancelled": false}` 且不 spawn（`render.rs:463-468`，单测 `render_jobs.rs:378-397`）；有在飞则取标记 + 置标志（`render.rs:469-474`），不 bump 代号。finish-then-collect 窗口的语义见 M2。
+
+## Findings
+
+- M1（`crates/lightamer-engine/src/render.rs:542-543`）：`final_roi_for` 的 `Roi::new(...).map_err` 臂不可达（见上）。建议：加一行注释点名"w/h 源自 u32 恒非负、scale 恒 1.0，此臂永不触发，防御性保留"，或保持现状。非行为问题。
+- M2（`crates/lightamer-engine/src/render.rs:450-475` + `engine.rs:679-725`）：finish-then-collect 窗口——作业已完成但 `collect` 未收投递时 `render.cancel` 返回 `cancelled:true`，随后 `collect` 仍落地像素并发 `RenderReady`（代号未变 + 投递非取消）。行为自洽（cancel 只停未完成工作；job 事件 `Finished{cancelled:false}` 与 render 事件一致），但 `cancelled:true` 字面偏乐观；现有测试只覆盖 cancel→drain 与 drain→cancel 两端。建议：PIPELINE.md/SESSION.md 或 cancel summary 加一句"cancel 只保证停止未完成的工作；已完成未收集的投递仍会落地"，或加一个门控池确定性单测钉住该窗口。
+- M3（`apps/lightamer-cli/src/render_demo.rs:367-379` + `crates/lightamer-pipeline/src/render.rs:453-458`）：step3 注释诚实但欠半句机制——`[false,true,false,false,false]` 的成立依赖 B1-b"上游 MRU"逆序 touch + `alloc_room` 最老先逐，否则 node0 重算会挤掉 node1 平面。建议：注释补半句点名该规则，防后人改逐出序时误伤演示断言。
+
+复审耗时：约 30 分钟。

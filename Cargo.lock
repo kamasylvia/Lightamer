@@ -3854,6 +3854,8 @@ dependencies = [
  "lightamer-apple",
  "lightamer-catalog",
  "lightamer-engine",
+ "lightamer-iop-traits",
+ "lightamer-raster",
  "png 0.18.1",
  "serde_json",
 ]
@@ -3875,8 +3877,11 @@ name = "lightamer-engine"
 version = "0.1.0"
 dependencies = [
  "lightamer-catalog",
+ "lightamer-geom",
  "lightamer-history",
  "lightamer-iop-traits",
+ "lightamer-pipeline",
+ "lightamer-raster",
  "lightamer-registry",
  "rusqlite",
  "serde",

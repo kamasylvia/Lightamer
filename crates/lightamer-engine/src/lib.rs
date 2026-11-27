@@ -100,6 +100,7 @@ pub mod event;
 mod history;
 pub mod jobs;
 mod real;
+mod render;
 mod session;
 
 pub use command::{CommandSpec, Outcome, ParamKind, ParamSpec, command_specs, find_command};
@@ -107,6 +108,10 @@ pub use engine::{CommandPhases, Engine};
 pub use error::CommandError;
 pub use event::{Event, Listener, ListenerId};
 pub use jobs::{JobCtx, JobId, JobInfo, JobStatus, POOL_SIZE};
+pub use render::{
+    InputError, InputSource, ModuleSource, RenderInput, RenderKind, RenderRecord, RenderedImage,
+    SKIP_DISABLED, SKIP_UNKNOWN_MODULE, SharedInputSource, SharedModuleSource, SkippedModule,
+};
 
 #[cfg(test)]
 mod tests {

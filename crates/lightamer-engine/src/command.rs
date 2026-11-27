@@ -155,6 +155,7 @@ pub fn command_specs() -> &'static [CommandSpec] {
         all.extend_from_slice(crate::history::SPECS);
         all.extend_from_slice(crate::jobs::SPECS);
         all.extend_from_slice(crate::session::SPECS);
+        all.extend_from_slice(crate::render::SPECS);
         all
     });
     &SPECS

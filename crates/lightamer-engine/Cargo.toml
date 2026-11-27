@@ -8,7 +8,10 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+lightamer-geom = { path = "../lightamer-geom" }
 lightamer-iop-traits = { path = "../lightamer-iop-traits" }
+lightamer-pipeline = { path = "../lightamer-pipeline" }
+lightamer-raster = { path = "../lightamer-raster" }
 lightamer-registry = { path = "../lightamer-registry" }
 lightamer-history = { path = "../lightamer-history" }
 lightamer-catalog = { path = "../lightamer-catalog" }

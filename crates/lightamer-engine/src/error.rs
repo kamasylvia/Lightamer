@@ -94,6 +94,11 @@ pub enum CommandError {
         /// What the store refused, in its own words.
         reason: String,
     },
+    /// A render was requested but no input source is installed.
+    NoInputSource {
+        /// The command that needed one.
+        cmd: String,
+    },
 }
 
 impl Display for CommandError {
@@ -126,6 +131,9 @@ impl Display for CommandError {
                 "{cmd}: reentrant call from an event listener is not allowed"
             ),
             CommandError::Store { cmd, reason } => write!(f, "{cmd}: {reason}"),
+            CommandError::NoInputSource { cmd } => {
+                write!(f, "{cmd}: no input source is installed")
+            }
         }
     }
 }
@@ -220,6 +228,12 @@ mod tests {
                     reason: "locked".to_owned(),
                 },
                 "c: locked",
+            ),
+            (
+                CommandError::NoInputSource {
+                    cmd: "render.request".to_owned(),
+                },
+                "render.request: no input source is installed",
             ),
         ];
         for (err, want) in cases {

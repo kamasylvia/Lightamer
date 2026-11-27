@@ -15,20 +15,25 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, channel};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use lightamer_catalog::{HistoryRead, Session};
 use lightamer_history::{BatchAdjustments, HistoryStack, HistoryStep, PhotoSettings};
 use lightamer_iop_traits::ParamsDesc;
+use lightamer_pipeline::Pipe;
 use serde_json::Value;
 
 use crate::command::{self, Outcome, RunCtx, checked_params};
 use crate::error::CommandError;
 use crate::event::{Event, Listener, ListenerId};
 use crate::jobs::{JobCtx, JobId, JobInfo, JobPool, JobStatus, JobTable, Task};
+use crate::render::{
+    PendingRender, RenderKind, RenderRecord, RenderSlot, RenderedImage, SharedInputSource,
+    SharedModuleSource,
+};
 
 /// A parameter lookup: module id to its declared fields, if any.
 type ParamLookup = Rc<dyn Fn(&str) -> Option<ParamsDesc>>;
@@ -92,6 +97,11 @@ pub struct Engine {
     lookup: Option<ParamLookup>,
     lru: VecDeque<String>,
     last_phases: CommandPhases,
+    input_source: Option<SharedInputSource>,
+    module_source: Option<SharedModuleSource>,
+    pipes: [Arc<Mutex<Pipe>>; 4],
+    renders: BTreeMap<(String, RenderKind), RenderSlot>,
+    pending_renders: Vec<PendingRender>,
 }
 
 /// Wall time the latest persisted batch command on a real session spent in
@@ -110,6 +120,26 @@ pub struct CommandPhases {
     pub compute: Duration,
     /// The single store transaction, through commit.
     pub write: Duration,
+}
+
+/// One pipe per kind, budgeted from live physical memory (or a conservative
+/// 8 GiB when the size is unreadable, so construction never fails).
+fn build_pipes() -> [Arc<Mutex<Pipe>>; 4] {
+    RenderKind::ALL.map(|kind| {
+        let pipe_kind = kind.pipe_kind();
+        let pipe = Pipe::new(pipe_kind).unwrap_or_else(|_| {
+            Pipe::with_budget_and_floor(
+                pipe_kind,
+                lightamer_pipeline::quota_for(pipe_kind, crate::render::FALLBACK_PHYS_BYTES)
+                    .memory_budget,
+                lightamer_pipeline::singlebuffer_floor(
+                    pipe_kind,
+                    crate::render::FALLBACK_PHYS_BYTES,
+                ),
+            )
+        });
+        Arc::new(Mutex::new(pipe))
+    })
 }
 
 impl Engine {
@@ -131,6 +161,11 @@ impl Engine {
             lookup: None,
             lru: VecDeque::new(),
             last_phases: CommandPhases::default(),
+            input_source: None,
+            module_source: None,
+            pipes: build_pipes(),
+            renders: BTreeMap::new(),
+            pending_renders: Vec::new(),
         }
     }
 
@@ -307,7 +342,10 @@ impl Engine {
         let count = events.len();
         self.dispatch(&events);
         self.finish_restores();
-        count
+        let render_events = self.finish_renders();
+        let render_count = render_events.len();
+        self.dispatch(&render_events);
+        count + render_count
     }
 
     /// One job's cancel flag, for the `job.cancel` run function.
@@ -355,6 +393,8 @@ impl Engine {
         self.state.photos.clear();
         self.state.clipboard = None;
         self.lru.clear();
+        self.renders.clear();
+        self.pending_renders.clear();
     }
 
     /// Loads one photo's stack from the open real session's store into the
@@ -536,6 +576,152 @@ impl Engine {
     /// Remembers a restore job's delivery channel until [`Engine::collect`].
     pub(crate) fn track_restore(&mut self, job: JobId, rx: Receiver<Session>) {
         self.pending_restores.push(PendingRestore { job, rx });
+    }
+
+    /// Installs the input source renders fetch their pixels from.
+    pub fn set_input_source(&mut self, source: SharedInputSource) {
+        self.input_source = Some(source);
+    }
+
+    /// Installs the module source renders resolve modules through.
+    pub fn set_module_source(&mut self, source: SharedModuleSource) {
+        self.module_source = Some(source);
+    }
+
+    /// The installed input source, if any.
+    pub(crate) fn input_source(&self) -> Option<SharedInputSource> {
+        self.input_source.clone()
+    }
+
+    /// The installed module source, if any (`None` renders empty chains).
+    pub(crate) fn module_source(&self) -> Option<SharedModuleSource> {
+        self.module_source.clone()
+    }
+
+    /// This kind's pipe, shared with its render jobs.
+    pub(crate) fn render_pipe(&self, kind: RenderKind) -> Arc<Mutex<Pipe>> {
+        let [full, export, preview, thumbnail] = &self.pipes;
+        let pipe = match kind {
+            RenderKind::Full => full,
+            RenderKind::Export => export,
+            RenderKind::Preview => preview,
+            RenderKind::Thumbnail => thumbnail,
+        };
+        Arc::clone(pipe)
+    }
+
+    /// One (photo, kind) pair's render slot, if it ever rendered.
+    pub(crate) fn render_slot(&self, photo: &str, kind: RenderKind) -> Option<&RenderSlot> {
+        self.renders.get(&(photo.to_owned(), kind))
+    }
+
+    /// One (photo, kind) pair's render slot, creating it on first request.
+    pub(crate) fn render_slot_mut(&mut self, photo: &str, kind: RenderKind) -> &mut RenderSlot {
+        self.renders.entry((photo.to_owned(), kind)).or_default()
+    }
+
+    /// One photo's latest finished pixels for one kind, if any render of
+    /// the pair finished. A clone: small frames copy cheaply, full frames
+    /// copy a plane.
+    #[must_use]
+    pub fn rendered_image(&self, photo: &str, kind: RenderKind) -> Option<RenderedImage> {
+        self.render_slot(photo, kind)
+            .and_then(|slot| slot.latest.clone())
+    }
+
+    /// What the latest generation's latest delivery did: per-node hit or
+    /// recompute plus the skips. For demos and tests.
+    #[must_use]
+    pub fn last_render_record(&self, photo: &str, kind: RenderKind) -> Option<RenderRecord> {
+        self.render_slot(photo, kind)
+            .and_then(|slot| slot.last_record.clone())
+    }
+
+    /// Latest requested generation of one pair (0 before the first request).
+    #[must_use]
+    pub fn render_generation(&self, photo: &str, kind: RenderKind) -> u64 {
+        self.render_slot(photo, kind)
+            .map_or(0, |slot| slot.generation)
+    }
+
+    /// Budget bytes one kind's pipe currently holds (cache plus any
+    /// in-flight render). For tests asserting bytes return.
+    #[must_use]
+    pub fn render_budget_used(&self, kind: RenderKind) -> u64 {
+        self.render_pipe(kind)
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .budget()
+            .used()
+    }
+
+    /// Remembers a render job's delivery channel until [`Engine::collect`].
+    pub(crate) fn track_render(
+        &mut self,
+        job: JobId,
+        photo: String,
+        kind: RenderKind,
+        generation: u64,
+        rx: Receiver<crate::render::RenderDelivery>,
+    ) {
+        self.pending_renders.push(PendingRender {
+            job,
+            photo,
+            kind,
+            generation,
+            rx,
+        });
+    }
+
+    /// Applies render deliveries whose jobs reached a terminal state. Only
+    /// the latest generation of each pair lands; anything older is dropped
+    /// whole. Returns the render events to dispatch.
+    fn finish_renders(&mut self) -> Vec<Event> {
+        let mut events = Vec::new();
+        let mut index = 0;
+        while index < self.pending_renders.len() {
+            let status = self
+                .pending_renders
+                .get(index)
+                .and_then(|pending| self.jobs.info(pending.job).map(|info| info.status));
+            match status {
+                None => {
+                    self.pending_renders.remove(index);
+                }
+                Some(JobStatus::Queued | JobStatus::Running) => {
+                    index += 1;
+                }
+                Some(status) => {
+                    let pending = self.pending_renders.remove(index);
+                    // Delivery precedes completion on the worker (send, then
+                    // return), so a finished job's message is already here;
+                    // a skipped job sent nothing and clears through the
+                    // terminal path instead.
+                    match pending.rx.try_recv() {
+                        Ok(delivery) => {
+                            if let Some(event) =
+                                crate::render::apply_delivery(&mut self.renders, delivery)
+                            {
+                                events.push(event);
+                            }
+                        }
+                        Err(_) => {
+                            if let Some(event) = crate::render::apply_terminal_without_delivery(
+                                &mut self.renders,
+                                &pending.photo,
+                                pending.kind,
+                                pending.generation,
+                                pending.job,
+                                &status,
+                            ) {
+                                events.push(event);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        events
     }
 
     /// Starts the missing-file scan behind `session.open` (and behind a
@@ -1119,6 +1305,22 @@ mod tests {
                     json!({"name": "t", "bogus": 1}),
                     json!({}),
                     json!({"name": "t"}),
+                ],
+            ),
+            (
+                "render.request",
+                vec![
+                    json!({"photo": "a", "kind": "preview", "bogus": 1}),
+                    json!({}),
+                    json!({"photo": "zz", "kind": "preview"}),
+                ],
+            ),
+            (
+                "render.cancel",
+                vec![
+                    json!({"photo": "a", "kind": "preview", "bogus": 1}),
+                    json!({}),
+                    json!({"photo": "zz", "kind": "preview"}),
                 ],
             ),
         ]

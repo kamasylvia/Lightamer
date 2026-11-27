@@ -380,7 +380,10 @@ fn flush_job_events(
                 }
                 emitter.push(line);
             }
-            Event::PhotoChanged { .. } | Event::ClipboardChanged => {}
+            Event::PhotoChanged { .. }
+            | Event::ClipboardChanged
+            | Event::RenderReady { .. }
+            | Event::RenderFailed { .. } => {}
         }
     }
     *taken = events.len();

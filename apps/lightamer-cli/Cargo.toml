@@ -14,6 +14,9 @@ png = "0.18"
 lightamer-apple = { path = "../../crates/lightamer-apple", optional = true }
 # A7a: engine registry for `commands` + `run`; serde_json for the JSONL calls.
 lightamer-engine = { path = "../../crates/lightamer-engine" }
+# B1-c: `render-demo` builds synthetic frames and a private gain module.
+lightamer-iop-traits = { path = "../../crates/lightamer-iop-traits" }
+lightamer-raster = { path = "../../crates/lightamer-raster" }
 # B13'-b2: `bench` plants and times sessions directly (the CLI is exempt
 # from the layer check; this is a developer tool, not an import command).
 lightamer-catalog = { path = "../../crates/lightamer-catalog" }

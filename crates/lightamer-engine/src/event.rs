@@ -50,6 +50,27 @@ pub enum Event {
         /// Whether a cancel was observed (only meaningful with success).
         cancelled: bool,
     },
+    /// The latest generation of one (photo, kind) pair finished rendering.
+    RenderReady {
+        /// The photo id.
+        photo: String,
+        /// The pipe kind word (`full`, `export`, `preview`, `thumbnail`).
+        kind: String,
+        /// The generation that finished.
+        generation: u64,
+    },
+    /// The latest generation of one (photo, kind) pair failed (cancelled
+    /// generations emit nothing; see the render module).
+    RenderFailed {
+        /// The photo id.
+        photo: String,
+        /// The pipe kind word (`full`, `export`, `preview`, `thumbnail`).
+        kind: String,
+        /// The generation that failed.
+        generation: u64,
+        /// One human-readable line saying why.
+        reason: String,
+    },
 }
 
 /// An event listener: called once per event, in subscription order.

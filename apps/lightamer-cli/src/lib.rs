@@ -18,6 +18,7 @@ pub mod cmp;
 pub mod commands;
 pub mod fetch;
 pub mod render;
+pub mod render_demo;
 pub mod selftest;
 pub mod util;
 pub mod xmp;
