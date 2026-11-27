@@ -1,0 +1,51 @@
+Working...
+# B1d-a 续做 lane 完工报告（stdout 完整版）
+
+最终提交：`e5f9c300b1`（`feat(b1d-a): whole-chain row-band streaming, pipeline side`，`refs #32`，单提交，16 文件，零 push）。报告正本：`waves/B1da-REPORT.md`；复审：`waves/B1da-review.log`。
+
+## 结论头
+
+- 整链行带流式（管线这一侧）已交付：`render_stream` 新入口、条带/方块双模式规划与执行、输出落盘、`StatsNeeds` 声明，28 个新测试 + 1 个默认不跑计时，全绿。
+- 全工作区 clippy（含六条不崩溃 lint + perf）、rustdoc、xtask、边界脚本、许可证检查全绿；`render` 函数体零改动。
+- 200MP 计时门内一次通过（条带 66MB / 方块 1006MB，复审独立复现一致）；ci-lite 全绿（644 通过）；三个演示全绿。复审 `PASS / 0 error + 3 minor`，3 minor 全处置。
+
+## 续做：盘上的半成品哪些完整、哪些半截、你补了什么
+
+上一实例（02:47 被代理 TLS 失败打断）留下未提交改动，一次没编译过，我逐文件核过。**完整的**（接着用）：`stats.rs`（`StatsNeeds` 三态 + `check_overlap_covers` + 4 测试）、`stream.rs`（`plan_stream` + `render_stream` + 17 测试）、`spill.rs`（`StreamSink` + 6 测试）、`fakes.rs` 五假模块、`render.rs` 两新错误 + 辅助（`render` 体零改动）——`cargo check` 与测试一次过。**半截的**（我补的）：200MP 计时测试（完全没有）→ 补 `stream_200mp_reports_strip_and_block_peaks`；取消+落盘组合测试 → 补 `cancelled_run_leaves_no_spill_residue`；`PIPELINE.md`「行带流式」节 + `NOTICE` Lumen 登记（都没写）→ 补完，另加 README 两行；clippy 9 处（`run_stream_piece` 超 100 行 + 测试浮点/`as`，1 处是我新测试抄的）→ 拆出 `emit_stream_piece`、`to_bits`/`try_from`/`#[expect]`；`FakeBlur` 一句空话注释 → 改写成实际语义。复审回注另修混合链 1 块→2×2 块 + REPORT 一处措辞。
+
+## 两种模式、公式与出处（Lumen `large_image.py`/`engine.py`，MIT，行号全亲核）
+
+- 条带：`overlap` 全零且不改几何 → 整宽带，64 行（`:10`），末条取余。方块：任一 >0 → 边长 `sqrt(预算×0.25÷100) − 2×余量`，钳 512–8192（`block_size :143-148`）。预算用实例预算（可复现）；每像素字节数初值 100（Lumen 61MP 实测 55–76 取整，`:134-136`；我方约 48，偏保守，B1d-b 实测再调）。
+- 余量 = 各模块 `overlap` 纯累加。**Lumen 另有 +4 富余**（`spatial_margin :922`），**我们不带**：上游余量是手估公式，+4 盖估计误差；我方是声明精确值 + 一致性测试看着。余量再大不拒绝。
+- 规划器纯函数（几何反推→取并→放大→钳帧）；执行逐块查取消、预算照收、复用双缓冲；空链/单节点/无输入头全钉住。缓存不读不写（比调研 §3.7 多禁读：流式轮整帧条目不可能存在，读命中只会盖住流式自己的路——报告与 PIPELINE 写明理由）。
+
+## 逐位相同、落盘、拒绝
+
+- 每块放大跑完整链、只交内层（`process_region :1342`）。三例整帧对流式逐字节比（条带/真模糊方块 2×2/混合五节点）+ 双跑 + 绝对坐标 + 200MP 常量断言。撒谎两档：自相矛盾被判据拒，自洽偷读被逐位缝拦（`assert_ne`）。
+- `StreamSink`：阈值内进内存，超了落匿名内存映射文件（`allocate :23-36`），drop 即删；字节上限调用方传，超了跑前拒；目录可指定，默认系统临时目录。
+- `StreamRefused` 全在分配前（预算/缓存原样、trace 留空）：几何（16/32 双探针+整帧核对，转置/放大/缩小各走不同门）、WholeImage、Proxy、OverlapMismatch。
+
+## 验收清单（命令与输出）
+
+- `cargo test -p lightamer-pipeline`：111 通过/3 ignored；`-p lightamer-iop-traits`：23；raster/sysmem/testkit：9/7/6+1。全工作区 644 通过（616+28）/4 ignored/零失败。B1 零删（删行仅三处可见性）。
+- `cargo xtask layers` OK（29 crates）；`check-no-iop-names` OK（97 names）；`rust-apple-boundary.sh` ALL GREEN（7/7）；`check-licenses.sh` exit 0（三新依赖表达式全在清单，版本与审计表逐字同，无需新行）。clippy 全工作区（六 lint+perf，非增量）exit 0；rustdoc `-D warnings` exit 0。
+- 历史/注册表/会话库/引擎/命令行/模块桩/Apple 零改动；`render` 体零改动（hunk 全在外）。
+- session/render 演示 exit 0；history 首跑 load 12.25 测不准判失败（B2-b 已登记脚本毛病⑥），load 8.90 重跑 exit 0（10k 粘贴 199.9ms ≤ 1000ms 门）。`rust-ci-lite.sh` exit 0，ALL GREEN，574 秒。
+- 200MP：`cargo test --release -p lightamer-pipeline --locked -- --ignored stream_200mp --nocapture`，门内（load 5.21/10）一次通过 18.26 秒；条带 66MB（门 1GB），方块 1006MB（止损线 4GB 内）。复审独立复现两数一致。
+- `git show --name-only HEAD` 16 文件全在允许清单；跑后 `git status` 本波干净、`/tmp/b1da-*` 已删、无残留进程（`lightamer-ipc-spike.json` 系他 lane，未碰）。
+
+## 复审与修订
+
+- 复审（独立 omp，22 分钟）：`PASS / 0 error + 3 minor`。重跑验收全部、逐项核 Lumen 行号、独立复现 200MP。
+- minor-1（trace「原样」措辞过实）→ REPORT 改「trace 留空」。minor-2（混合链只 1 块）→ 帧 256→1024，4 块，重绿。minor-3（history 未绿）→ load 8.90 重跑绿。
+
+## 给用户看的汇报
+
+超过单帧上限的图，现在能在完整分辨率下渲染了：管线多了一个流式入口，内存里一次只留一条带（64 行）或一个方块，整条链逐块流过去，结果和整帧逐字节相同。链上全是逐点运算走条带，有空间范围走方块（块大小按预算自动算，512 到 8192）；输出放不下内存可落磁盘文件，用完即删。会改几何、要看整图的模块现在会明确拒绝（等各自的波）；上限仍由资源定，没有写死的像素数。下一段（B1d-b）把引擎接上：超限自动转流式、磁盘上限做成配置、演示、实测这台机器能到多少。
+
+## 未做 / 未验
+
+- 未做：无。八条、测试、文档署名全做完；预览/缩略图、代理统计、几何流式按裁决本就不做。
+- 未验：无。12 条验收全绿，3 minor 全处置。
+
+跳过/未验项：无。风险：无新增——history 演示「测不准报成失败」的脚本毛病仍在（非本波路径），忙时重跑演示仍会误判。
