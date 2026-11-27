@@ -13,8 +13,24 @@
     clippy::unimplemented
 )]
 
+// EPIPE-safe `println!`/`print!`: the standard macros panic when stdout is
+// a closed pipe (`lightamer-cli ... | head -1`); these exit quietly instead
+// (see `util::print_stdout`). Textually scoped: shadows `std` for this
+// binary crate only, with identical formatting syntax.
+macro_rules! println {
+    ($($arg:tt)*) => {
+        lightamer_cli::util::print_stdout_line(&format!($($arg)*))
+    };
+}
+macro_rules! print {
+    ($($arg:tt)*) => {
+        lightamer_cli::util::print_stdout(&format!($($arg)*))
+    };
+}
+
 use lightamer_cli::{
-    bench, capabilities, cmp, commands, decode, fetch, render, render_demo, selftest, util, xmp,
+    bench, capabilities, cmp, commands, decode, fetch, render, render_demo, selftest, stream_demo,
+    util, xmp,
 };
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -44,6 +60,7 @@ const HELP: &str = "lightamer-cli: darktable oracle tool\n\
      bench setup --parent D --name N --photos K          plant K empty photos (dev tool, not import)
      bench paste --session S --photos K [--runs R]       time one paste over K photos, R rounds (dev tool)
      render-demo [--size N]                              B1 render pipeline demo on synthetic pixels
+     stream-demo [--mp N] [--only strip|block]           B1d streaming demo on synthetic pixels
      decode --dump F [--thumb O] [--repeat N]         B2 decode probe: fields + timings + raster + thumb (dev tool)
      run on a real session prints the file's photo ids shortened to 8 chars
      \n\
@@ -367,7 +384,13 @@ fn cmd_bench(args: &Args) -> Result<(), Failure> {
                 None => 3,
                 Some(text) => parse_count("--runs", Some(text))?,
             };
-            match bench::bench_paste(Path::new(&session), photos, runs)? {
+            let forced = std::env::var_os(bench::BENCH_IGNORE_BUSY_ENV).is_some_and(|v| v == "1");
+            let report = if forced {
+                bench::bench_paste_with_probe(Path::new(&session), photos, runs, || None)?
+            } else {
+                bench::bench_paste(Path::new(&session), photos, runs)?
+            };
+            match report {
                 bench::PasteReport::Measured {
                     runs_ms,
                     median_ms,
@@ -477,6 +500,35 @@ fn cmd_render_demo(args: &Args) -> Result<(), Failure> {
     Ok(())
 }
 
+fn cmd_stream_demo(args: &Args) -> Result<(), Failure> {
+    args.check_only(&["--only", "--mp"])?;
+    if !args.positionals.is_empty() {
+        return Err(Failure::Usage(
+            "stream-demo takes no positionals".to_owned(),
+        ));
+    }
+    let mp = match args.value("--mp")? {
+        None => 120,
+        Some(text) => text
+            .parse::<u32>()
+            .map_err(|_| Failure::Usage("--mp wants megapixels".to_owned()))?,
+    };
+    let only = match args.value("--only")? {
+        None => None,
+        Some(text) if text == "strip" => Some(stream_demo::StreamOnly::Strip),
+        Some(text) if text == "block" => Some(stream_demo::StreamOnly::Block),
+        Some(_) => {
+            return Err(Failure::Usage("--only wants strip or block".to_owned()));
+        }
+    };
+    let mut print = |line: &str| {
+        println!("{line}");
+        let _ = std::io::Write::flush(&mut std::io::stdout());
+    };
+    stream_demo::stream_demo(mp, only, &mut print)?;
+    Ok(())
+}
+
 fn cmd_decode(args: &Args) -> Result<(), Failure> {
     args.check_only(&["--dump", "--thumb", "--repeat"])?;
     if !args.positionals.is_empty() {
@@ -518,6 +570,7 @@ fn run(raw: &[String]) -> Result<(), Failure> {
         "run" => cmd_run(&split_args(rest)),
         "bench" => cmd_bench(&split_args(rest)),
         "render-demo" => cmd_render_demo(&split_args(rest)),
+        "stream-demo" => cmd_stream_demo(&split_args(rest)),
         "decode" => cmd_decode(&split_args(rest)),
         "help" | "--help" | "-h" => {
             println!("{HELP}");

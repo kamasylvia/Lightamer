@@ -31,8 +31,8 @@ use crate::error::CommandError;
 use crate::event::{Event, Listener, ListenerId};
 use crate::jobs::{JobCtx, JobId, JobInfo, JobPool, JobStatus, JobTable, Task};
 use crate::render::{
-    PendingRender, RenderKind, RenderRecord, RenderSlot, RenderedImage, SharedInputSource,
-    SharedModuleSource,
+    EngineConfig, KeptImages, PendingRender, RenderKind, RenderRecord, RenderSlot, RenderedImage,
+    SharedInputSource, SharedModuleSource,
 };
 
 /// A parameter lookup: module id to its declared fields, if any.
@@ -102,6 +102,8 @@ pub struct Engine {
     pipes: [Arc<Mutex<Pipe>>; 4],
     renders: BTreeMap<(String, RenderKind), RenderSlot>,
     pending_renders: Vec<PendingRender>,
+    render_config: EngineConfig,
+    kept: KeptImages,
 }
 
 /// Wall time the latest persisted batch command on a real session spent in
@@ -166,6 +168,8 @@ impl Engine {
             pipes: build_pipes(),
             renders: BTreeMap::new(),
             pending_renders: Vec::new(),
+            render_config: EngineConfig::default(),
+            kept: KeptImages::default(),
         }
     }
 
@@ -395,6 +399,7 @@ impl Engine {
         self.lru.clear();
         self.renders.clear();
         self.pending_renders.clear();
+        self.kept = KeptImages::default();
     }
 
     /// Loads one photo's stack from the open real session's store into the
@@ -588,6 +593,12 @@ impl Engine {
         self.module_source = Some(source);
     }
 
+    /// Installs the render configuration (spill limits, retention cap).
+    /// Jobs already running keep the config they started with.
+    pub fn set_render_config(&mut self, config: EngineConfig) {
+        self.render_config = config;
+    }
+
     /// The installed input source, if any.
     pub(crate) fn input_source(&self) -> Option<SharedInputSource> {
         self.input_source.clone()
@@ -596,6 +607,11 @@ impl Engine {
     /// The installed module source, if any (`None` renders empty chains).
     pub(crate) fn module_source(&self) -> Option<SharedModuleSource> {
         self.module_source.clone()
+    }
+
+    /// The render configuration, cloned into each render job at request time.
+    pub(crate) fn render_config(&self) -> EngineConfig {
+        self.render_config.clone()
     }
 
     /// This kind's pipe, shared with its render jobs.
@@ -621,12 +637,18 @@ impl Engine {
     }
 
     /// One photo's latest finished pixels for one kind, if any render of
-    /// the pair finished. A clone: small frames copy cheaply, full frames
-    /// copy a plane.
+    /// the pair finished and retention still holds it. Reading marks the
+    /// pair newest. A clone: small frames copy cheaply, full frames copy
+    /// a plane (mapped images share their spill file instead).
     #[must_use]
-    pub fn rendered_image(&self, photo: &str, kind: RenderKind) -> Option<RenderedImage> {
-        self.render_slot(photo, kind)
-            .and_then(|slot| slot.latest.clone())
+    pub fn rendered_image(&mut self, photo: &str, kind: RenderKind) -> Option<RenderedImage> {
+        let image = self
+            .render_slot(photo, kind)
+            .and_then(|slot| slot.latest.clone());
+        if image.is_some() {
+            self.kept.touch(&(photo.to_owned(), kind));
+        }
+        image
     }
 
     /// What the latest generation's latest delivery did: per-node hit or
@@ -699,9 +721,13 @@ impl Engine {
                     // terminal path instead.
                     match pending.rx.try_recv() {
                         Ok(delivery) => {
-                            if let Some(event) =
-                                crate::render::apply_delivery(&mut self.renders, delivery)
-                            {
+                            let cap = self.render_config.kept_bytes_limit;
+                            if let Some(event) = crate::render::apply_delivery(
+                                &mut self.renders,
+                                &mut self.kept,
+                                cap,
+                                delivery,
+                            ) {
                                 events.push(event);
                             }
                         }

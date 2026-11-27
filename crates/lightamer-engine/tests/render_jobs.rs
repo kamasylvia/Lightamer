@@ -334,7 +334,7 @@ fn latest_wins_three_slow_generations_keep_only_third() -> Result<(), Box<dyn st
         .ok_or("no kept pixels")?;
     assert_eq!(kept.generation, 3);
     assert_eq!((kept.width, kept.height), (16, 16));
-    assert_eq!(kept.pixels, scaled(gradient_pixels(16, 16), &[4.0]));
+    assert_eq!(kept.to_vec(), scaled(gradient_pixels(16, 16), &[4.0]));
     Ok(())
 }
 
@@ -461,11 +461,11 @@ fn supersede_isolated_across_kinds_and_photos() -> Result<(), Box<dyn std::error
     let kept_a = engine
         .rendered_image("a", RenderKind::Preview)
         .ok_or("a/preview kept nothing")?;
-    assert_eq!(kept_a.pixels, scaled(gradient_pixels(16, 16), &[2.0]));
+    assert_eq!(kept_a.to_vec(), scaled(gradient_pixels(16, 16), &[2.0]));
     let kept_b = engine
         .rendered_image("b", RenderKind::Preview)
         .ok_or("b/preview kept nothing")?;
-    assert_eq!(kept_b.pixels, scaled(gradient_pixels(16, 16), &[5.0]));
+    assert_eq!(kept_b.to_vec(), scaled(gradient_pixels(16, 16), &[5.0]));
     Ok(())
 }
 
@@ -625,7 +625,7 @@ fn empty_module_source_renders_identity_and_records_skips() -> Result<(), Box<dy
     let kept = engine
         .rendered_image("a", RenderKind::Preview)
         .ok_or("no kept pixels")?;
-    assert_eq!(kept.pixels, gradient_pixels(16, 16));
+    assert_eq!(kept.to_vec(), gradient_pixels(16, 16));
     let record = engine
         .last_render_record("a", RenderKind::Preview)
         .ok_or("no record")?;
@@ -659,7 +659,7 @@ fn render_uses_request_time_settings_snapshot() -> Result<(), Box<dyn std::error
         .rendered_image("a", RenderKind::Preview)
         .ok_or("no kept pixels")?;
     assert_eq!(kept.generation, 1);
-    assert_eq!(kept.pixels, scaled(gradient_pixels(16, 16), &[2.0]));
+    assert_eq!(kept.to_vec(), scaled(gradient_pixels(16, 16), &[2.0]));
     Ok(())
 }
 
@@ -696,7 +696,7 @@ fn chain_order_and_skips_match_registry_and_switches() -> Result<(), Box<dyn std
     let kept = engine
         .rendered_image("a", RenderKind::Preview)
         .ok_or("no kept pixels")?;
-    assert_eq!(kept.pixels, scaled(gradient_pixels(16, 16), &[2.0, 3.0]));
+    assert_eq!(kept.to_vec(), scaled(gradient_pixels(16, 16), &[2.0, 3.0]));
     let record = engine
         .last_render_record("a", RenderKind::Preview)
         .ok_or("no record")?;
@@ -812,7 +812,7 @@ fn real_session_renders_and_leaves_store_untouched() -> Result<(), Box<dyn std::
         .engine
         .rendered_image(&photo, RenderKind::Preview)
         .ok_or("no kept pixels")?;
-    assert_eq!(kept.pixels, scaled(gradient_pixels(16, 16), &[2.0]));
+    assert_eq!(kept.to_vec(), scaled(gradient_pixels(16, 16), &[2.0]));
     assert_eq!(store_dump(&fixture.db)?, before);
     // Closing drops the kept pixels with the session.
     real_common::close_fixture(&mut fixture)?;
@@ -864,7 +864,7 @@ fn real_session_supersede_keeps_only_latest() -> Result<(), Box<dyn std::error::
         .engine
         .rendered_image(&photo, RenderKind::Preview)
         .ok_or("no kept pixels")?;
-    assert_eq!(kept.pixels, scaled(gradient_pixels(16, 16), &[6.0]));
+    assert_eq!(kept.to_vec(), scaled(gradient_pixels(16, 16), &[6.0]));
     real_common::close_fixture(&mut fixture)?;
     Ok(())
 }

@@ -136,6 +136,22 @@ impl JobCtx {
     pub(crate) fn did_fail(&self) -> bool {
         self.failed.load(Ordering::SeqCst)
     }
+
+    /// A job context for direct `run_render_job` tests: the caller owns the
+    /// cancel flag and drains the results side.
+    #[cfg(test)]
+    pub(crate) fn for_test(id: JobId, cancel: Arc<AtomicBool>) -> (Self, Receiver<JobMsg>) {
+        let (results, rx) = channel();
+        (
+            Self {
+                id,
+                cancel,
+                results,
+                failed: AtomicBool::new(false),
+            },
+            rx,
+        )
+    }
 }
 /// One queued unit of background work.
 pub(crate) struct Task {

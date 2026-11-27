@@ -22,6 +22,9 @@ serde_json = { version = "1" }
 # Same rusqlite line as lightamer-catalog's dev-dependency (no new lock
 # packages): integration tests open databases directly to plant fixtures.
 rusqlite = { version = "0.43", default-features = false, features = ["bundled"] }
+# Same libc line as lightamer-pipeline's dependency (no new lock packages):
+# the ignored 200 MP test reads its own peak RSS through `getrusage`.
+libc = { version = "0.2" }
 
 [lints]
 workspace = true

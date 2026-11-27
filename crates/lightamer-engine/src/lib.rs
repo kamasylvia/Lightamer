@@ -109,8 +109,10 @@ pub use error::CommandError;
 pub use event::{Event, Listener, ListenerId};
 pub use jobs::{JobCtx, JobId, JobInfo, JobStatus, POOL_SIZE};
 pub use render::{
-    InputError, InputSource, ModuleSource, RenderInput, RenderKind, RenderRecord, RenderedImage,
-    SKIP_DISABLED, SKIP_UNKNOWN_MODULE, SharedInputSource, SharedModuleSource, SkippedModule,
+    DEFAULT_KEPT_BYTE_LIMIT, DEFAULT_SPILL_BYTE_LIMIT, DEFAULT_SPILL_MEMORY_THRESHOLD,
+    EngineConfig, InputError, InputSource, ModuleSource, RenderInput, RenderKind, RenderRecord,
+    RenderedImage, RenderedStore, SKIP_DISABLED, SKIP_UNKNOWN_MODULE, SharedInputSource,
+    SharedModuleSource, SkippedModule, StreamMode, StreamReport,
 };
 
 #[cfg(test)]

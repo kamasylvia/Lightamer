@@ -101,12 +101,18 @@ fn cli_run_session_file_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn bench_cli(args: &[String]) -> Result<std::process::Output, Box<dyn std::error::Error>> {
+fn bench_cli(
+    args: &[String],
+    envs: &[(&str, &str)],
+) -> Result<std::process::Output, Box<dyn std::error::Error>> {
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_lightamer-cli"));
     let mut command = Command::new(binary);
     command.arg("bench");
     for arg in args {
         command.arg(arg);
+    }
+    for (key, value) in envs {
+        command.env(key, value);
     }
     Ok(command.output()?)
 }
@@ -180,15 +186,18 @@ fn cli_run_hold_and_template() -> Result<(), Box<dyn std::error::Error>> {
 fn cli_run_real_session_prints_watched_photos_per_line() -> Result<(), Box<dyn std::error::Error>> {
     let scratch = ScratchDir::new("run-watched")?;
     let parent = scratch.path().to_string_lossy().into_owned();
-    let setup = bench_cli(&[
-        "setup".to_owned(),
-        "--parent".to_owned(),
-        parent.clone(),
-        "--name".to_owned(),
-        "Shoot".to_owned(),
-        "--photos".to_owned(),
-        "2".to_owned(),
-    ])?;
+    let setup = bench_cli(
+        &[
+            "setup".to_owned(),
+            "--parent".to_owned(),
+            parent.clone(),
+            "--name".to_owned(),
+            "Shoot".to_owned(),
+            "--photos".to_owned(),
+            "2".to_owned(),
+        ],
+        &[],
+    )?;
     assert!(setup.status.success(), "setup failed: {setup:?}");
     let root = scratch.path().join("Shoot");
     let uuids = session_uuids(&root)?;
@@ -249,33 +258,83 @@ fn cli_run_real_session_prints_watched_photos_per_line() -> Result<(), Box<dyn s
 fn cli_bench_setup_and_paste_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
     let scratch = ScratchDir::new("bench-e2e")?;
     let parent = scratch.path().to_string_lossy().into_owned();
-    let setup = bench_cli(&[
-        "setup".to_owned(),
-        "--parent".to_owned(),
-        parent,
-        "--name".to_owned(),
-        "Shoot".to_owned(),
-        "--photos".to_owned(),
-        "4".to_owned(),
-    ])?;
+    let setup = bench_cli(
+        &[
+            "setup".to_owned(),
+            "--parent".to_owned(),
+            parent,
+            "--name".to_owned(),
+            "Shoot".to_owned(),
+            "--photos".to_owned(),
+            "4".to_owned(),
+        ],
+        &[],
+    )?;
     let setup_out = String::from_utf8_lossy(&setup.stdout);
     assert!(setup.status.success(), "setup failed: {setup_out}");
     assert!(setup_out.contains("registered 4 photos"), "{setup_out}");
     let root = scratch.path().join("Shoot").to_string_lossy().into_owned();
-    let paste = bench_cli(&[
-        "paste".to_owned(),
-        "--session".to_owned(),
-        root,
-        "--photos".to_owned(),
-        "2".to_owned(),
-        "--runs".to_owned(),
-        "2".to_owned(),
-    ])?;
+    // Forced measuring: this logic holds under any load.
+    let paste = bench_cli(
+        &[
+            "paste".to_owned(),
+            "--session".to_owned(),
+            root,
+            "--photos".to_owned(),
+            "2".to_owned(),
+            "--runs".to_owned(),
+            "2".to_owned(),
+        ],
+        &[(lightamer_cli::bench::BENCH_IGNORE_BUSY_ENV, "1")],
+    )?;
     let paste_out = String::from_utf8_lossy(&paste.stdout);
     assert!(paste.status.success(), "paste failed: {paste_out}");
     assert!(paste_out.contains("round 1:"), "{paste_out}");
     assert!(paste_out.contains("round 2:"), "{paste_out}");
     assert!(paste_out.contains("events=2"), "{paste_out}");
     assert!(paste_out.contains("PASS"), "{paste_out}");
+    Ok(())
+}
+
+#[test]
+fn cli_closed_pipe_exits_quietly() -> Result<(), Box<dyn std::error::Error>> {
+    let scratch = ScratchDir::new("broken-pipe")?;
+    let file = scratch.path().join("big.jsonl");
+    let mut text = String::with_capacity(20_000 * 46);
+    for _ in 0..20_000 {
+        text.push_str(&jsonl("develop.copy", &serde_json::json!({"id": "a"})));
+    }
+    std::fs::write(&file, text)?;
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_lightamer-cli"));
+    let run = |pipe: bool| -> Result<std::process::Output, Box<dyn std::error::Error>> {
+        let mut command = std::process::Command::new(&binary);
+        command
+            .arg("run")
+            .arg("--file")
+            .arg(&file)
+            .arg("--photos")
+            .arg("a");
+        if pipe {
+            command
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped());
+            let mut child = command.spawn()?;
+            drop(child.stdout.take());
+            Ok(child.wait_with_output()?)
+        } else {
+            Ok(command.output()?)
+        }
+    };
+    // The full output dwarfs the pipe buffer, so closing the read end
+    // faults every later write: the run below cannot pass vacuously.
+    let full = run(false)?;
+    assert!(full.status.success());
+    assert!(full.stdout.len() > 65536, "output too small to fault");
+    // Close the read end at once, read nothing: the writer must exit 0
+    // with no panic on stderr.
+    let cut = run(true)?;
+    assert!(cut.status.success(), "status: {}", cut.status);
+    let stderr = String::from_utf8_lossy(&cut.stderr);
+    assert!(!stderr.contains("panicked"), "{stderr}");
     Ok(())
 }

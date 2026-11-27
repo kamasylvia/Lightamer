@@ -2,7 +2,9 @@
 # rust-history-demo.sh — B13'-b2 wave demo: persisted history, kill -9, sync/merge, 10k gate.
 #
 # Everything runs in the script's own temp dir with empty placeholder files:
-# no user photo library reads, no real Application Support writes. Exits 0.
+# no user photo library reads, no real Application Support writes. Exits 0 on
+# success; 3 when the 10k gate stays UNRELIABLE after retries (machine busy:
+# neither pass nor fail).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -133,9 +135,24 @@ say "5. ten thousand pastes on the release build"
 (cd "$ROOT" && cargo build --release -p lightamer-cli --locked -j6)
 RCLI="$ROOT/target/release/lightamer-cli"
 "$RCLI" bench setup --parent "$TMP" --name Big --photos $((BIG_PHOTOS * BIG_RUNS))
-"$RCLI" bench paste --session "$TMP/Big" --photos "$BIG_PHOTOS" --runs "$BIG_RUNS" \
-  | tee "$TMP/bench.log"
-grep -q " PASS$" "$TMP/bench.log" || fail "10k paste did not pass (see bench.log)"
+attempt=1
+while :; do
+  "$RCLI" bench paste --session "$TMP/Big" --photos "$BIG_PHOTOS" --runs "$BIG_RUNS" \
+    | tee "$TMP/bench.log"
+  if grep -q " PASS$" "$TMP/bench.log"; then
+    break
+  elif grep -q "UNRELIABLE" "$TMP/bench.log"; then
+    if [ "$attempt" -ge 3 ]; then
+      echo "demo: UNRELIABLE (machine busy after 3 tries), gate skipped, neither pass nor fail"
+      exit 3
+    fi
+    echo "bench paste: UNRELIABLE, waiting 60s and retrying ($attempt/3)"
+    sleep 60
+    attempt=$((attempt + 1))
+  else
+    fail "10k paste did not pass (see bench.log)"
+  fi
+done
 
 say "6. clean up"
 rm -rf "$TMP"

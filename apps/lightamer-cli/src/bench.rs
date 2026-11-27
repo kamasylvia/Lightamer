@@ -19,6 +19,10 @@ use crate::util::Error;
 /// delivered) in under a second. Thumbnails are out of the picture.
 pub const PASTE_GATE: Duration = Duration::from_secs(1);
 
+/// Env var forcing `bench paste` to measure even on a busy machine (`=1`).
+/// Tests set it; demos and humans never do (they want the busy gate).
+pub const BENCH_IGNORE_BUSY_ENV: &str = "LIGHTAMER_BENCH_IGNORE_BUSY";
+
 /// What `bench setup` built.
 #[derive(Debug)]
 pub struct SetupReport {
@@ -113,20 +117,37 @@ pub enum PasteReport {
 /// Each round runs from the `develop.paste` call to its return, events
 /// delivered synchronously inside `execute`.
 ///
+/// The busy gate only judges whether timing means anything: the request is
+/// validated first (bad counts, an unopenable session, too few photos all
+/// fail the same on a busy machine), and only a valid request skips.
+///
 /// # Errors
 ///
 /// Returns [`Error`] when a count is zero, the session cannot open, it
 /// holds fewer than `runs * photos` photos, seeding fails, or a round
 /// fails or pastes a short count.
 pub fn bench_paste(session_path: &Path, photos: usize, runs: usize) -> Result<PasteReport, Error> {
+    bench_paste_with_probe(session_path, photos, runs, machine_busy)
+}
+
+/// [`bench_paste`] with an injectable busy probe: tests pass a probe that
+/// never reports busy, so logic holds under any load. The CLI passes the
+/// real probe unless [`BENCH_IGNORE_BUSY_ENV`]`=1`.
+///
+/// # Errors
+///
+/// Same as [`bench_paste`].
+pub fn bench_paste_with_probe(
+    session_path: &Path,
+    photos: usize,
+    runs: usize,
+    busy: impl Fn() -> Option<(f64, usize)>,
+) -> Result<PasteReport, Error> {
     if photos == 0 {
         return Err(Error::new("bench paste: --photos wants at least 1"));
     }
     if runs == 0 {
         return Err(Error::new("bench paste: --runs wants at least 1"));
-    }
-    if let Some((load_one, cpus)) = machine_busy() {
-        return Ok(PasteReport::Skipped { load_one, cpus });
     }
     let mut engine = Engine::new();
     engine.set_program("lightamer-cli-bench");
@@ -149,6 +170,13 @@ pub fn bench_paste(session_path: &Path, photos: usize, runs: usize) -> Result<Pa
         let _ = engine.execute("session.close", &json!({}));
         return Err(Error::new("bench paste: the session holds no photos"));
     };
+    // Validated: only now may the machine refuse to time it. The session saw
+    // no commands yet, so skipping mutates nothing (open, then close).
+    if let Some((load_one, cpus)) = busy() {
+        let _ = engine.execute("session.close", &json!({}));
+        remove_wal_sidecars(session_path);
+        return Ok(PasteReport::Skipped { load_one, cpus });
+    }
     // Untimed: one parameter onto the source, then onto the clipboard.
     // Any registered id works (the stubs accept every parameter); the shell
     // reads none, so the bench names the first A7a id outright.
@@ -298,7 +326,10 @@ fn machine_busy() -> Option<(f64, usize)> {
 mod tests {
     #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
 
-    use super::{PASTE_GATE, PasteReport, bench_paste, bench_setup, remove_wal_sidecars};
+    use super::{
+        PASTE_GATE, PasteReport, bench_paste, bench_paste_with_probe, bench_setup,
+        remove_wal_sidecars,
+    };
 
     /// A database file's `-wal`/`-shm` sidecar paths.
     fn sidecars_of(database: &std::path::Path) -> [std::path::PathBuf; 2] {
@@ -374,7 +405,8 @@ mod tests {
         let scratch = ScratchDir::new("bench-paste-100");
         let setup = bench_setup(scratch.path.as_path(), "Shoot", 100).expect("setup runs");
         let mut measured = false;
-        match bench_paste(&setup.root, 100, 1).expect("paste runs") {
+        // The probe never reports busy: this logic holds under any load.
+        match bench_paste_with_probe(&setup.root, 100, 1, || None).expect("paste runs") {
             PasteReport::Measured {
                 runs_ms,
                 median_ms,
@@ -411,16 +443,43 @@ mod tests {
             }
             PasteReport::Skipped { .. } => {}
         }
-        assert!(measured, "the test machine was busy; rerun when quiet");
+        assert!(measured, "the probe forced measuring but got Skipped");
         assert_eq!(PASTE_GATE.as_millis(), 1000);
     }
 
     #[test]
     fn paste_refuses_a_session_short_of_photos() {
+        // Validation runs before the busy gate: too few photos fails the
+        // same on a busy machine (the real probe stays in this call).
         let scratch = ScratchDir::new("bench-paste-short");
         let setup = bench_setup(scratch.path.as_path(), "Shoot", 5).expect("setup runs");
         let err = bench_paste(&setup.root, 5, 2).expect_err("short session fails");
         assert!(err.to_string().contains("need 10"), "{err}");
+    }
+
+    #[test]
+    fn skip_leaves_a_valid_session_unmutated() {
+        // A probe that always reports busy skips a valid request — and the
+        // session saw no commands (no pasted steps, no sidecars).
+        let scratch = ScratchDir::new("bench-paste-skip");
+        let setup = bench_setup(scratch.path.as_path(), "Shoot", 4).expect("setup runs");
+        let report =
+            bench_paste_with_probe(&setup.root, 2, 2, || Some((99.0, 10))).expect("skip runs");
+        assert!(matches!(report, PasteReport::Skipped { .. }), "{report:?}");
+        for sidecar in sidecars_of(&setup.root.join("Shoot.lmsessiondb")) {
+            assert!(!sidecar.exists(), "bench paste left {sidecar:?}");
+        }
+        let mut engine = lightamer_engine::Engine::new();
+        engine
+            .execute(
+                "session.open",
+                &serde_json::json!({"path": setup.root.to_string_lossy()}),
+            )
+            .expect("reopen runs");
+        assert_eq!(engine.photo_ids().len(), 4);
+        engine
+            .execute("session.close", &serde_json::json!({}))
+            .expect("close runs");
     }
 
     #[test]

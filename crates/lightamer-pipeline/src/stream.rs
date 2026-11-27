@@ -51,11 +51,15 @@ pub const BLOCK_MAX_SIDE: u64 = 8192;
 /// Nominal bytes per pixel the block formula sizes against.
 ///
 /// Lumen's `FRAME_BYTES` is 100 (measured 55-76 on a 61 MP frame,
-/// `lumen/large_image.py:134-136`). Ours starts at the same 100: a streaming
-/// piece holds two working planes plus the sink plane, about 48 bytes per
-/// pixel of grown input, so 100 stays conservative until the engine wave
-/// re-measures it on real modules.
-pub const STREAM_BYTES_PER_PIXEL: u64 = 100;
+/// `lumen/large_image.py:134-136`). Ours started at the same 100 and the
+/// B1d-b calibration moved it to 150: three block-mode probings on a
+/// synthetic blur-plus-gain chain (grown 1024/2048/4096, same 120 MP
+/// frame, dropping sink) measured marginal high-water 145/144/158 bytes
+/// per grown pixel, linear through the origin — the two working planes
+/// plus the sink plane plus the blur's separable scratch plus allocator
+/// retention. Real modules carry their own scratch, so their waves
+/// re-measure on arrival.
+pub const STREAM_BYTES_PER_PIXEL: u64 = 150;
 
 /// Which streaming shape a plan uses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1141,26 +1145,27 @@ mod tests {
         let nodes = vec![node("mod_a"), node("mod_blur")];
         let frame = geom(0, 0, 8000, 7000);
         let (chain, geos) = committed(&lookup, &nodes, &frame);
-        // sqrt(5_184_000_000 / 4 / 100) = 3600 exactly; minus 2*8 = 3584.
+        // sqrt(5_184_000_000 / 4 / 150) = sqrt(8640000) = 2939
+        // (2939^2 = 8637721); minus 2*8 = 2923, so 3x3 blocks.
         let plan =
             plan_stream(&chain, &geos, 5_184_000_000, &frame, STREAM_BYTES_PER_PIXEL).unwrap();
         assert_eq!(plan.mode, StreamMode::Block);
         assert_eq!(plan.margin, 8);
-        assert_eq!(plan.piece_count(), 6);
+        assert_eq!(plan.piece_count(), 9);
         let pieces: Vec<_> = plan.pieces().collect::<Result<_, _>>().unwrap();
-        assert_eq!(pieces.len(), 6);
+        assert_eq!(pieces.len(), 9);
         // Corner block: grown by 8, clamped to the frame origin.
-        assert_eq!(pieces[0].output, geom(0, 0, 3584, 3584));
-        assert_eq!(pieces[0].input, geom(0, 0, 3592, 3592));
+        assert_eq!(pieces[0].output, geom(0, 0, 2923, 2923));
+        assert_eq!(pieces[0].input, geom(0, 0, 2931, 2931));
         // Top-edge block: clamped vertically only.
-        assert_eq!(pieces[1].output, geom(3584, 0, 3584, 3584));
-        assert_eq!(pieces[1].input, geom(3576, 0, 3600, 3592));
-        // Bottom-middle block: partial output, input clamped to the frame end.
-        assert_eq!(pieces[4].output, geom(3584, 3584, 3584, 3416));
-        assert_eq!(pieces[4].input, geom(3576, 3576, 3600, 3424));
+        assert_eq!(pieces[1].output, geom(2923, 0, 2923, 2923));
+        assert_eq!(pieces[1].input, geom(2915, 0, 2939, 2931));
+        // Middle block: grown on all four sides.
+        assert_eq!(pieces[4].output, geom(2923, 2923, 2923, 2923));
+        assert_eq!(pieces[4].input, geom(2915, 2915, 2939, 2939));
         // Bottom-right block: partial on both axes.
-        assert_eq!(pieces[5].output, geom(7168, 3584, 832, 3416));
-        assert_eq!(pieces[5].input, geom(7160, 3576, 840, 3424));
+        assert_eq!(pieces[8].output, geom(5846, 5846, 2154, 1154));
+        assert_eq!(pieces[8].input, geom(5838, 5838, 2162, 1162));
     }
 
     #[test]
@@ -1272,7 +1277,7 @@ mod tests {
             final_out,
             cancel: &no_cancel,
         };
-        // sqrt(64MiB / 4 / 100) = 404; minus 2*8 clamps the side to 512, so
+        // sqrt(64MiB / 4 / 150) = 334; minus 2*8 clamps the side to 512, so
         // 640x640 renders as 2x2 blocks.
         let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, 64 * 1024 * 1024, 1024 * 1024);
         let whole = pipe.render(&req).unwrap();
@@ -1917,7 +1922,7 @@ mod tests {
             strip_peak / 1024 / 1024
         );
         // Blocks: the blur's overlap of 8 sums the margin; the side is
-        // isqrt(2748779069 / 4 / 100) - 2*8 = 2605, so 8 by 4 blocks. A box
+        // isqrt(2748779069 / 4 / 150) - 2*8 = 2124, so 10 by 5 blocks. A box
         // blur of a constant field is the constant, exactly.
         let lookup = table(vec![
             Arc::new(FakeSource::new(
@@ -1950,7 +1955,7 @@ mod tests {
         };
         let summary = stream_checked(&mut pipe, &req, 3.0, PIXELS);
         assert_eq!(summary.mode, StreamMode::Block);
-        assert_eq!(summary.pieces, 32);
+        assert_eq!(summary.pieces, 50);
         let peak = peak_rss_bytes();
         println!("stream-200mp block peak rss = {}MB", peak / 1024 / 1024);
         assert!(

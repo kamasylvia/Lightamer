@@ -67,7 +67,7 @@ impl InputSource for DemoInput {
 
 /// Private demo gain module behind id `demo_gain`: multiplies every pixel
 /// by `gain`, optionally sleeping `sleep_ms` first (the slow render step).
-struct DemoGain {
+pub(crate) struct DemoGain {
     desc: ModuleDesc,
 }
 
@@ -77,7 +77,7 @@ struct DemoGainCommit {
 }
 
 impl DemoGain {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let key = OrderKey {
             priority: 1.0,
             tie: 0,
@@ -158,7 +158,7 @@ impl IopModule for DemoGain {
 }
 
 /// One `develop.set` of a gain (plus an optional sleep) on one instance.
-fn develop_gain(
+pub(crate) fn develop_gain(
     engine: &mut Engine,
     id: &str,
     multi: u32,
@@ -177,7 +177,7 @@ fn develop_gain(
 }
 
 /// One `render.request`, returning (generation, job).
-fn ask(engine: &mut Engine, photo: &str, kind: &str) -> Result<(u64, u64), Error> {
+pub(crate) fn ask(engine: &mut Engine, photo: &str, kind: &str) -> Result<(u64, u64), Error> {
     let out = engine
         .execute("render.request", &json!({"photo": photo, "kind": kind}))
         .map_err(|err| Error::new(err.to_string()))?;
@@ -195,12 +195,13 @@ fn ask(engine: &mut Engine, photo: &str, kind: &str) -> Result<(u64, u64), Error
 /// Collects until `generation` of one pair reports ready or failed.
 /// Generations count per (photo, kind) pair, so the photo and kind join
 /// the match — another pair's event with the same number must not pass.
-fn drain_until_generation(
+pub(crate) fn drain_until_generation(
     engine: &mut Engine,
     seen: &RefCell<Vec<Event>>,
     photo: &str,
     kind: &str,
     generation: u64,
+    timeout: Duration,
 ) -> Result<(), Error> {
     let start = Instant::now();
     loop {
@@ -222,7 +223,7 @@ fn drain_until_generation(
         if done {
             return Ok(());
         }
-        if start.elapsed() > STEP_TIMEOUT {
+        if start.elapsed() > timeout {
             return Err(Error::new(format!(
                 "generation {generation} of {photo}/{kind} reported nothing in time"
             )));
@@ -232,7 +233,11 @@ fn drain_until_generation(
 }
 
 /// Collects until `job` is terminal.
-fn drain_until_job(engine: &mut Engine, job: u64) -> Result<(), Error> {
+pub(crate) fn drain_until_job(
+    engine: &mut Engine,
+    job: u64,
+    timeout: Duration,
+) -> Result<(), Error> {
     let start = Instant::now();
     loop {
         engine.collect();
@@ -242,7 +247,7 @@ fn drain_until_job(engine: &mut Engine, job: u64) -> Result<(), Error> {
         {
             return Ok(());
         }
-        if start.elapsed() > STEP_TIMEOUT {
+        if start.elapsed() > timeout {
             return Err(Error::new(format!("job {job} never finished")));
         }
         std::thread::sleep(Duration::from_millis(5));
@@ -264,13 +269,13 @@ fn render_only(events: &[Event]) -> Vec<Event> {
 }
 
 /// Render events dispatched since `mark` (a past `seen` length).
-fn fresh_render_events(seen: &RefCell<Vec<Event>>, mark: usize) -> Vec<Event> {
+pub(crate) fn fresh_render_events(seen: &RefCell<Vec<Event>>, mark: usize) -> Vec<Event> {
     let seen = seen.borrow();
     render_only(seen.get(mark..).unwrap_or(&[]))
 }
 
 /// Prints one per-node table.
-fn print_record(out: &mut dyn FnMut(&str), record: &RenderRecord) {
+pub(crate) fn print_record(out: &mut dyn FnMut(&str), record: &RenderRecord) {
     out(&format!(
         "  generation {} job {}: {} nodes, {} skipped",
         record.generation,
@@ -353,7 +358,7 @@ fn render_demo_inner(
 
     out("step 2: render once (preview)");
     let (gen1, _) = ask(&mut engine, &first, "preview")?;
-    drain_until_generation(&mut engine, &seen, &first, "preview", gen1)?;
+    drain_until_generation(&mut engine, &seen, &first, "preview", gen1, STEP_TIMEOUT)?;
     let record = engine
         .last_render_record(&first, RenderKind::Preview)
         .ok_or_else(|| Error::new("first render left no record"))?;
@@ -362,7 +367,7 @@ fn render_demo_inner(
     out("step 3: change the middle gain, render again");
     develop_gain(&mut engine, &first, 2, 2.75, 0.0)?;
     let (gen2, _) = ask(&mut engine, &first, "preview")?;
-    drain_until_generation(&mut engine, &seen, &first, "preview", gen2)?;
+    drain_until_generation(&mut engine, &seen, &first, "preview", gen2, STEP_TIMEOUT)?;
     let record = engine
         .last_render_record(&first, RenderKind::Preview)
         .ok_or_else(|| Error::new("second render left no record"))?;
@@ -394,7 +399,7 @@ fn render_demo_inner(
     let Some(last) = fired.last() else {
         return Err(Error::new("no generations fired"));
     };
-    drain_until_generation(&mut engine, &seen, &first, "preview", last.0)?;
+    drain_until_generation(&mut engine, &seen, &first, "preview", last.0, STEP_TIMEOUT)?;
     let fresh = fresh_render_events(&seen, mark);
     if fresh.len() != 1 {
         return Err(Error::new(format!(
@@ -430,7 +435,7 @@ fn render_demo_inner(
             "cancel reported no in-flight render: {cancelled}"
         )));
     }
-    drain_until_job(&mut engine, slow_job)?;
+    drain_until_job(&mut engine, slow_job, STEP_TIMEOUT)?;
     let fresh = fresh_render_events(&seen, mark);
     if !fresh.is_empty() {
         return Err(Error::new(format!(
@@ -449,7 +454,14 @@ fn render_demo_inner(
         develop_gain(&mut engine, &second, multi, gain, 0.0)?;
     }
     let (idle_gen, _) = ask(&mut engine, &second, "preview")?;
-    drain_until_generation(&mut engine, &seen, &second, "preview", idle_gen)?;
+    drain_until_generation(
+        &mut engine,
+        &seen,
+        &second,
+        "preview",
+        idle_gen,
+        STEP_TIMEOUT,
+    )?;
     let record = engine
         .last_render_record(&second, RenderKind::Preview)
         .ok_or_else(|| Error::new("idle render left no record"))?;

@@ -411,7 +411,28 @@ fn hold_session(engine: &mut Engine, hold_secs: u64, emitter: &mut Emitter) {
 mod tests {
     #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use super::{describe_all, describe_one, run_file, scan_photo_ids};
-    use crate::util::{make_temp_dir, remove_dir_quiet, write_file};
+    use crate::util::{make_temp_dir, remove_dir_quiet, sweep_stale_temp_dirs, write_file};
+
+    /// A temp dir that deletes itself even when the test panics.
+    struct GuardDir {
+        path: std::path::PathBuf,
+    }
+
+    impl GuardDir {
+        fn hold() -> Result<Self, crate::util::Error> {
+            // Killed predecessors can never clean after themselves.
+            let _ = sweep_stale_temp_dirs("lightamer-cli-hold");
+            Ok(Self {
+                path: make_temp_dir("lightamer-cli-hold")?,
+            })
+        }
+    }
+
+    impl Drop for GuardDir {
+        fn drop(&mut self) {
+            remove_dir_quiet(&self.path);
+        }
+    }
 
     #[test]
     fn listing_covers_every_registered_command() {
@@ -610,7 +631,8 @@ mod tests {
 
     #[test]
     fn run_file_hold_keeps_session_then_closes() {
-        let dir = make_temp_dir("lightamer-cli-hold").expect("temp dir");
+        let guard = GuardDir::hold().expect("temp dir");
+        let dir = &guard.path;
         let file = dir.join("hold.jsonl");
         let parent = dir.to_string_lossy().into_owned();
         write_file(
@@ -649,7 +671,8 @@ mod tests {
         engine
             .execute("session.close", &serde_json::json!({}))
             .expect("close");
-        remove_dir_quiet(&dir);
+        // No explicit cleanup: the guard deletes the dir on scope exit,
+        // even when an assert above panics.
     }
     #[test]
     fn run_file_streams_every_line_to_the_sink() {

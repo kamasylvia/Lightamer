@@ -34,17 +34,23 @@
 //! call plus the tile loop's checks.
 //!
 //! This module never touches the store: renders read committed settings and
-//! keep their pixels in memory until a newer generation replaces them or
-//! the session closes.
+//! keep their pixels under a byte cap (least-recently-used evicted;
+//! thumbnails never kept) until a newer generation replaces them or the
+//! session closes.
 
-use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
+use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{Arc, MutexGuard};
 
 use lightamer_history::{ModuleInstance, SettingValue};
 use lightamer_iop_traits::{ImageInfo, SharedModule};
-use lightamer_pipeline::{ModuleLookup, NodeReport, Pipe};
-use lightamer_raster::{Frame, FrameExtent};
+use lightamer_pipeline::{
+    BudgetedError, MappedFrame, ModuleLookup, NodeReport, Pipe, RenderError,
+    STREAM_BYTES_PER_PIXEL, StreamPiece, StreamSink, StreamedOutput, alloc_shared, build_chain,
+    forward, plan_stream,
+};
+use lightamer_raster::{Frame, FrameExtent, PixelFormat};
 use serde_json::{Map, Value, json};
 
 use crate::command::{self, CommandSpec, Outcome, ParamKind, ParamSpec, RunCtx, text_req};
@@ -117,6 +123,49 @@ impl RenderKind {
             RenderKind::Thumbnail => lightamer_pipeline::PipeKind::Thumbnail,
         }
     }
+
+    /// Whether over-limit frames of this kind switch to streaming on their
+    /// own: full and export only. Preview and thumbnail keep refusing, so a
+    /// frame that never fit their small quotas fails loudly at the caller's
+    /// door instead of quietly streaming.
+    pub(crate) const fn auto_streams(self) -> bool {
+        matches!(self, RenderKind::Full | RenderKind::Export)
+    }
+}
+
+/// Default cap for streaming spill output: 8 GiB (A-24).
+pub const DEFAULT_SPILL_BYTE_LIMIT: u64 = 8 * 1024 * 1024 * 1024;
+/// Default cap for retained render results: 1 GiB (about one 61 MP output).
+pub const DEFAULT_KEPT_BYTE_LIMIT: u64 = 1024 * 1024 * 1024;
+/// Streaming outputs at or below this assemble in RAM (Lumen `MAP_BYTES`).
+pub const DEFAULT_SPILL_MEMORY_THRESHOLD: u64 = 256 * 1024 * 1024;
+
+/// Render-side engine configuration: streaming spill limits and the
+/// retention cap. The settings panel owns the UI later (A-24); until then
+/// the embedder sets this directly.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EngineConfig {
+    /// Streaming outputs past this refuse typed before running anything.
+    pub spill_byte_limit: u64,
+    /// Where spill files land (`None` = the system temp directory). The
+    /// engine only passes this down; the pipeline makes and deletes files.
+    pub spill_dir: Option<PathBuf>,
+    /// Retained render results past this evict least-recently-used first.
+    pub kept_bytes_limit: u64,
+    /// Streaming outputs at or below this assemble in RAM; bigger ones
+    /// spill to a memory-mapped temp file.
+    pub spill_memory_threshold: u64,
+}
+
+impl Default for EngineConfig {
+    fn default() -> Self {
+        Self {
+            spill_byte_limit: DEFAULT_SPILL_BYTE_LIMIT,
+            spill_dir: None,
+            kept_bytes_limit: DEFAULT_KEPT_BYTE_LIMIT,
+            spill_memory_threshold: DEFAULT_SPILL_MEMORY_THRESHOLD,
+        }
+    }
 }
 
 /// What a render starts from: pixels, image facts, and the input identity
@@ -173,6 +222,53 @@ pub trait InputSource: Send + Sync {
     ///
     /// [`InputError`] when the photo has no fetchable input.
     fn fetch(&self, photo: &str) -> Result<RenderInput, InputError>;
+
+    /// Fetches one photo's input restricted to `region` (absolute frame
+    /// coordinates). The streaming fallback calls this once per planned
+    /// input region instead of holding the whole frame.
+    ///
+    /// The default fetches the whole frame and crops (bitwise what B1-c
+    /// always fed the pipe); sources serving frames that never fit RAM
+    /// override it with a region reader.
+    ///
+    /// # Errors
+    ///
+    /// [`InputError`] when the photo has no fetchable input or the region
+    /// leaves the frame.
+    fn fetch_region(&self, photo: &str, region: FrameExtent) -> Result<RenderInput, InputError> {
+        let whole = self.fetch(photo)?;
+        crop_region(&whole.frame, region).map(|frame| RenderInput {
+            frame,
+            image: whole.image,
+            input_id: whole.input_id,
+        })
+    }
+}
+
+/// Crops `region` (absolute frame coordinates) out of a whole input frame.
+fn crop_region(whole: &Frame, region: FrameExtent) -> Result<Frame, InputError> {
+    let view = whole
+        .view(region)
+        .map_err(|err| InputError::new(err.to_string()))?;
+    let mut frame = Frame::alloc(region, PixelFormat::RgbaF32Premul)
+        .map_err(|err| InputError::new(err.to_string()))?;
+    for row in 0..region.height {
+        let src = view
+            .row(row)
+            .map_err(|err| InputError::new(err.to_string()))?;
+        let dst = frame
+            .row_mut(row)
+            .map_err(|err| InputError::new(err.to_string()))?;
+        if src.len() != dst.len() {
+            return Err(InputError::new(format!(
+                "input region {region:?} rows disagree: {} vs {} floats",
+                src.len(),
+                dst.len()
+            )));
+        }
+        dst.copy_from_slice(src);
+    }
+    Ok(frame)
 }
 
 /// Any closure shaped like a fetch is one (tests and small embedders).
@@ -227,9 +323,9 @@ impl ModuleLookup for ModuleSourceAdapter {
         self.source.as_ref().and_then(|source| source.lookup(id))
     }
 }
-
 /// One photo's latest finished pixels for one kind, detached from the pipe
-/// budget (copied out at delivery, so holding it never pins a render).
+/// budget (copied or mapped out at delivery, so holding it never pins a
+/// render). Cloning shares a mapped file and copies RAM pixels.
 #[derive(Debug, Clone)]
 pub struct RenderedImage {
     /// The generation that produced these pixels.
@@ -238,8 +334,54 @@ pub struct RenderedImage {
     pub width: u32,
     /// Pixel height.
     pub height: u32,
+    /// Where the pixels live.
+    pub store: RenderedStore,
+}
+
+/// Where a [`RenderedImage`]'s pixels live.
+#[derive(Debug, Clone)]
+pub enum RenderedStore {
     /// Row-major working-format floats (`width * height * 4`).
-    pub pixels: Vec<f32>,
+    Memory(Vec<f32>),
+    /// A memory-mapped spill file, shared: evicting the retention drops
+    /// only its own handle, so a caller still holding the image keeps
+    /// reading it and the file dies with the last holder.
+    Mapped(Arc<MappedFrame>),
+}
+
+impl RenderedImage {
+    /// Working-format bytes this image counts in retention (`width *
+    /// height * 16`, saturating on absurd extents).
+    #[must_use]
+    pub fn byte_len(&self) -> u64 {
+        u64::from(self.width)
+            .saturating_mul(u64::from(self.height))
+            .saturating_mul(16)
+    }
+
+    /// Whether these pixels live in a mapped spill file.
+    #[must_use]
+    pub fn is_mapped(&self) -> bool {
+        matches!(self.store, RenderedStore::Mapped(_))
+    }
+
+    /// The pixels as working-format floats, row-major. Mapped pixels decode
+    /// from the file's native-endian bytes; RAM pixels clone.
+    #[must_use]
+    pub fn to_vec(&self) -> Vec<f32> {
+        match &self.store {
+            RenderedStore::Memory(pixels) => pixels.clone(),
+            RenderedStore::Mapped(mapped) => {
+                let bytes = mapped.as_bytes();
+                let (words, _) = bytes.as_chunks::<4>();
+                let mut out = Vec::with_capacity(words.len());
+                for word in words {
+                    out.push(f32::from_ne_bytes(*word));
+                }
+                out
+            }
+        }
+    }
 }
 
 /// One instance that never reached the pipe.
@@ -265,6 +407,47 @@ pub struct RenderRecord {
     pub nodes: Vec<NodeReport>,
     /// Instances skipped before the pipe, in chain order.
     pub skipped: Vec<SkippedModule>,
+    /// How the run streamed (`None` = a whole-frame render).
+    pub streamed: Option<StreamReport>,
+}
+
+/// How one streaming render ran, for demos and the resource table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StreamReport {
+    /// Strip or block mode.
+    pub mode: StreamMode,
+    /// Planned pieces the run executed.
+    pub pieces: u64,
+}
+
+/// Which streaming shape a run used: engine words for
+/// [`StreamMode`][lightamer_pipeline::StreamMode].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StreamMode {
+    /// Full-width strips (a point-only chain).
+    Strip,
+    /// Margin blocks (some module reaches past its pixel).
+    Block,
+}
+
+impl StreamMode {
+    /// The mode word demos print.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            StreamMode::Strip => "strip",
+            StreamMode::Block => "block",
+        }
+    }
+}
+
+impl From<lightamer_pipeline::StreamMode> for StreamMode {
+    fn from(mode: lightamer_pipeline::StreamMode) -> Self {
+        match mode {
+            lightamer_pipeline::StreamMode::Strip => StreamMode::Strip,
+            lightamer_pipeline::StreamMode::Block => StreamMode::Block,
+        }
+    }
 }
 
 /// One in-flight render of one (photo, kind) pair.
@@ -287,6 +470,27 @@ pub(crate) struct RenderSlot {
     pub(crate) latest: Option<RenderedImage>,
     /// Record of the latest generation's latest delivery, if any.
     pub(crate) last_record: Option<RenderRecord>,
+}
+
+/// Retention ledger: which (photo, kind) pairs hold pixels, oldest first,
+/// and their total bytes. Mirrors the slots: a key sits here exactly when
+/// its slot's `latest` is `Some` (thumbnails never land, so never sit here).
+#[derive(Debug, Default)]
+pub(crate) struct KeptImages {
+    /// Keys holding pixels, oldest first.
+    order: VecDeque<(String, RenderKind)>,
+    /// Their total [`RenderedImage::byte_len`].
+    bytes: u64,
+}
+
+impl KeptImages {
+    /// Marks `key` newest (a land or a read).
+    pub(crate) fn touch(&mut self, key: &(String, RenderKind)) {
+        if let Some(pos) = self.order.iter().position(|held| held == key) {
+            self.order.remove(pos);
+        }
+        self.order.push_back(key.clone());
+    }
 }
 
 /// One job's successful pixels plus its record.
@@ -423,6 +627,7 @@ fn run_request(
         cancel_job_flag(engine, job);
     }
     let pipe = engine.render_pipe(kind);
+    let config = engine.render_config();
     let generation = engine.render_slot_mut(&photo, kind).generation + 1;
     engine.render_slot_mut(&photo, kind).generation = generation;
     let label = format!("render {photo} {} generation {generation}", kind.name());
@@ -439,6 +644,7 @@ fn run_request(
             &input,
             modules.as_ref(),
             &pipe,
+            &config,
         );
     });
     engine.track_render(job, photo.clone(), kind, generation, rx);
@@ -604,6 +810,7 @@ fn cancelled_delivery(
                 job,
                 nodes: Vec::new(),
                 skipped,
+                streamed: None,
             },
         }),
     }
@@ -631,6 +838,7 @@ fn failed_delivery(
                 job,
                 nodes,
                 skipped,
+                streamed: None,
             },
         }),
     }
@@ -644,7 +852,11 @@ fn failed_delivery(
 /// a future decode may be slow) → hold the kind lock for one pipe run →
 /// copy the pixels out and send them. The pipe lock releases before the
 /// send; the channel is unbounded, so the send never blocks the lock.
+/// Full and export kinds whose frame refuses as too large stream instead
+/// (the whole input drops first; regions arrive per planned piece): every
+/// other error, and every preview/thumbnail refusal, fails typed as before.
 #[expect(clippy::too_many_arguments)] // one job launch with its context, input, and pipe; a params struct would just rename the args
+#[expect(clippy::too_many_lines)] // a linear job script (sort, fetch, whole attempt, stream handoff); splitting would scatter the delivery sends
 pub(crate) fn run_render_job(
     ctx: &JobCtx,
     tx: &Sender<RenderDelivery>,
@@ -655,6 +867,7 @@ pub(crate) fn run_render_job(
     input: &SharedInputSource,
     modules: Option<&SharedModuleSource>,
     pipe: &std::sync::Mutex<Pipe>,
+    config: &EngineConfig,
 ) {
     let job = ctx.id();
     let (nodes, skipped) = sort_chain(settings, modules);
@@ -720,6 +933,7 @@ pub(crate) fn run_render_job(
                 job,
                 nodes: guard.last_trace().to_vec(),
                 skipped,
+                streamed: None,
             };
             let frame = out.frame();
             let extent = frame.extent();
@@ -727,7 +941,7 @@ pub(crate) fn run_render_job(
                 generation,
                 width: extent.width,
                 height: extent.height,
-                pixels: frame.as_slice().to_vec(),
+                store: RenderedStore::Memory(frame.as_slice().to_vec()),
             };
             drop(guard);
             let _ = tx.send(RenderDelivery {
@@ -740,6 +954,32 @@ pub(crate) fn run_render_job(
         Err(lightamer_pipeline::RenderError::Cancelled) => {
             drop(guard);
             let _ = tx.send(cancelled_delivery(photo, kind, generation, job, skipped));
+        }
+        Err(RenderError::FrameTooLarge { .. }) if kind.auto_streams() => {
+            // The whole input drops here, before the per-region loop, so an
+            // over-limit frame never sits in RAM twice (fetched whole plus
+            // streamed regions).
+            // Copied out first so `request` dies here and its borrows of the
+            // fetched input and the node list end before the moves below.
+            let final_out = request.final_out;
+            let RenderInput { frame, image, .. } = fetched;
+            drop(frame);
+            run_stream_fallback(StreamFallback {
+                ctx,
+                tx,
+                photo,
+                kind,
+                generation,
+                settings,
+                input,
+                modules,
+                guard,
+                nodes,
+                skipped,
+                image,
+                final_out,
+                config,
+            });
         }
         Err(err) => {
             let nodes = guard.last_trace().to_vec();
@@ -757,24 +997,499 @@ pub(crate) fn run_render_job(
     }
 }
 
+/// Everything the streaming fallback needs beyond the whole-frame attempt:
+/// the job's context and delivery path, the snapshot, the kind lock it
+/// already holds, and the input facts (the whole input frame itself drops
+/// before the first piece).
+struct StreamFallback<'a> {
+    /// The running job (id plus its cancel flag).
+    ctx: &'a JobCtx,
+    /// Where the delivery goes.
+    tx: &'a Sender<RenderDelivery>,
+    /// The photo id.
+    photo: &'a str,
+    /// Full or export (the only kinds that reach the fallback).
+    kind: RenderKind,
+    /// This run's generation.
+    generation: u64,
+    /// The request-time settings snapshot.
+    settings: &'a lightamer_history::PhotoSettings,
+    /// Where regions come from.
+    input: &'a SharedInputSource,
+    /// Where modules resolve from, if any.
+    modules: Option<&'a SharedModuleSource>,
+    /// The held kind lock, moved in from the whole-frame attempt.
+    guard: MutexGuard<'a, Pipe>,
+    /// Sorted pipe nodes.
+    nodes: Vec<lightamer_pipeline::PipeNode>,
+    /// Instances skipped before the pipe.
+    skipped: Vec<SkippedModule>,
+    /// Decoded-image facts for `commit`.
+    image: ImageInfo,
+    /// Wanted final output region.
+    final_out: lightamer_geom::Roi,
+    /// Spill limits for this run.
+    config: &'a EngineConfig,
+}
+
+/// One planned region as a fetchable extent.
+fn extent_for_roi(roi: &lightamer_geom::Roi, what: &str) -> Result<FrameExtent, String> {
+    let width = u32::try_from(roi.width)
+        .map_err(|_| format!("streaming {what} width {} is not an extent", roi.width))?;
+    let height = u32::try_from(roi.height)
+        .map_err(|_| format!("streaming {what} height {} is not an extent", roi.height))?;
+    Ok(FrameExtent::new(roi.x, roi.y, width, height))
+}
+
+/// Adds one nested streaming call's trace into the run totals (same chain,
+/// so same rows in the same order; a missing row adds nothing).
+fn merge_trace(totals: &mut Option<Vec<NodeReport>>, trace: Vec<NodeReport>) {
+    let Some(total) = totals else {
+        *totals = Some(trace);
+        return;
+    };
+    for (slot, report) in total.iter_mut().zip(trace) {
+        slot.process_calls = slot.process_calls.saturating_add(report.process_calls);
+        slot.millis += report.millis;
+    }
+}
+
+/// Intersection of two extents (possibly empty).
+fn intersect_extents(a: FrameExtent, b: FrameExtent) -> FrameExtent {
+    let x0 = a.x.max(b.x);
+    let y0 = a.y.max(b.y);
+    let x1 =
+        a.x.saturating_add_unsigned(a.width)
+            .min(b.x.saturating_add_unsigned(b.width));
+    let y1 =
+        a.y.saturating_add_unsigned(a.height)
+            .min(b.y.saturating_add_unsigned(b.height));
+    let width = u32::try_from(x1.saturating_sub(x0)).unwrap_or(0);
+    let height = u32::try_from(y1.saturating_sub(y0)).unwrap_or(0);
+    FrameExtent::new(x0, y0, width, height)
+}
+
+/// Copies `inner` (within both `src_extent` and `dst`'s extent) out of `src`
+/// into `dst`, row by row.
+fn crop_piece_plane(
+    src: &Frame,
+    src_extent: FrameExtent,
+    inner: FrameExtent,
+    dst: &mut Frame,
+) -> Result<(), RenderError> {
+    let fail = |detail: String| RenderError::Frame { detail };
+    let ox = inner
+        .x
+        .checked_sub(src_extent.x)
+        .and_then(|off| u32::try_from(off).ok())
+        .ok_or_else(|| {
+            fail(format!(
+                "stream crop {inner:?} leaves its piece {src_extent:?}"
+            ))
+        })?;
+    let oy = inner
+        .y
+        .checked_sub(src_extent.y)
+        .and_then(|off| u32::try_from(off).ok())
+        .ok_or_else(|| {
+            fail(format!(
+                "stream crop {inner:?} leaves its piece {src_extent:?}"
+            ))
+        })?;
+    let start_col = usize::try_from(ox).unwrap_or(usize::MAX);
+    let row_floats = usize::try_from(inner.width).unwrap_or(usize::MAX / 4);
+    for row in 0..inner.height {
+        let src_row = src
+            .row(oy.saturating_add(row))
+            .map_err(|err| fail(format!("stream crop source row: {err}")))?;
+        let start = start_col.saturating_mul(4);
+        let end = start.saturating_add(row_floats.saturating_mul(4));
+        let seg = src_row
+            .get(start..end)
+            .ok_or_else(|| fail(format!("stream crop row {row} leaves its piece")))?;
+        let out = dst
+            .row_mut(row)
+            .map_err(|err| fail(format!("stream crop target row {row}: {err}")))?;
+        if out.len() != seg.len() {
+            return Err(fail(format!("stream crop row {row} lengths disagree")));
+        }
+        out.copy_from_slice(seg);
+    }
+    Ok(())
+}
+
+/// Runs one render piece by piece after the whole-frame attempt refused an
+/// over-limit frame. Never touches the engine: the outcome travels through
+/// `tx` like the whole-frame path, and the kind lock (moved in from the
+/// whole attempt) releases before the send.
+///
+/// Order: plan the whole frame ([`plan_stream`][lightamer_pipeline::plan_stream])
+/// → assemble the output ([`StreamSink`][lightamer_pipeline::StreamSink],
+/// RAM or a memory-mapped spill file) → per piece: cancel check,
+/// [`InputSource::fetch_region`] for the planned input region, one nested
+/// [`Pipe::render_stream`][lightamer_pipeline::Pipe::render_stream] call
+/// over that grown region whose emissions route back to this piece's output
+/// rect (margin pixels its neighbours also own never push twice) into the
+/// shared sink. A superseded run yields
+/// between pieces (the nested calls also probe the same flag); cancel or
+/// any error drops the sink, so the spill file (when mapped) dies with it.
+/// Refusals pass through typed: a module the plan refuses, a spill limit,
+/// or a region the source will not serve all fail the delivery with the
+/// pipeline's or source's own reason — never a quiet fallback.
+#[expect(clippy::too_many_lines)] // a linear job script (plan, sink, per-piece fetch and nested calls); splitting would scatter the delivery sends
+fn run_stream_fallback(job: StreamFallback<'_>) {
+    let StreamFallback {
+        ctx,
+        tx,
+        photo,
+        kind,
+        generation,
+        settings,
+        input,
+        modules,
+        mut guard,
+        nodes,
+        skipped,
+        image,
+        final_out,
+        config,
+    } = job;
+    let job_id = ctx.id();
+    let adapter = ModuleSourceAdapter {
+        source: modules.cloned(),
+    };
+    let chain = match build_chain(&adapter, &nodes, &image) {
+        Ok(chain) => chain,
+        Err(err) => {
+            let _ = tx.send(failed_delivery(
+                photo,
+                kind,
+                generation,
+                job_id,
+                RenderError::Chain(err).to_string(),
+                Vec::new(),
+                skipped,
+            ));
+            return;
+        }
+    };
+    let geos = match forward(&chain, &final_out) {
+        Ok(geos) => geos,
+        Err(err) => {
+            let _ = tx.send(failed_delivery(
+                photo,
+                kind,
+                generation,
+                job_id,
+                RenderError::Chain(err).to_string(),
+                Vec::new(),
+                skipped,
+            ));
+            return;
+        }
+    };
+    let plan = match plan_stream(
+        &chain,
+        &geos,
+        guard.budget().cap(),
+        &final_out,
+        STREAM_BYTES_PER_PIXEL,
+    ) {
+        Ok(plan) => plan,
+        Err(err) => {
+            let _ = tx.send(failed_delivery(
+                photo,
+                kind,
+                generation,
+                job_id,
+                err.to_string(),
+                Vec::new(),
+                skipped,
+            ));
+            return;
+        }
+    };
+    let full = match extent_for_roi(&final_out, "output") {
+        Ok(full) => full,
+        Err(reason) => {
+            let _ = tx.send(failed_delivery(
+                photo,
+                kind,
+                generation,
+                job_id,
+                reason,
+                Vec::new(),
+                skipped,
+            ));
+            return;
+        }
+    };
+    let mut sink = match StreamSink::new(
+        full,
+        config.spill_memory_threshold,
+        config.spill_byte_limit,
+        config.spill_dir.as_deref(),
+    ) {
+        Ok(sink) => sink,
+        Err(err) => {
+            let _ = tx.send(failed_delivery(
+                photo,
+                kind,
+                generation,
+                job_id,
+                err.to_string(),
+                Vec::new(),
+                skipped,
+            ));
+            return;
+        }
+    };
+    let cancel_probe = || ctx.is_cancelled();
+    let mut totals: Option<Vec<NodeReport>> = None;
+    for piece_result in plan.pieces() {
+        let piece = match piece_result {
+            Ok(piece) => piece,
+            Err(err) => {
+                let _ = tx.send(failed_delivery(
+                    photo,
+                    kind,
+                    generation,
+                    job_id,
+                    err.to_string(),
+                    totals.unwrap_or_default(),
+                    skipped,
+                ));
+                return;
+            }
+        };
+        if ctx.is_cancelled() {
+            drop(guard);
+            let _ = tx.send(cancelled_delivery(photo, kind, generation, job_id, skipped));
+            return;
+        }
+        let grown = match extent_for_roi(&piece.input, "piece input") {
+            Ok(grown) => grown,
+            Err(reason) => {
+                let _ = tx.send(failed_delivery(
+                    photo,
+                    kind,
+                    generation,
+                    job_id,
+                    reason,
+                    totals.unwrap_or_default(),
+                    skipped,
+                ));
+                return;
+            }
+        };
+        let region = match input.fetch_region(photo, grown) {
+            Ok(region) => region,
+            Err(err) => {
+                let _ = tx.send(failed_delivery(
+                    photo,
+                    kind,
+                    generation,
+                    job_id,
+                    err.to_string(),
+                    totals.unwrap_or_default(),
+                    skipped,
+                ));
+                return;
+            }
+        };
+        // The nested call plans over the whole grown region (its clamp box
+        // is the region, so margin pixels stage from real neighbours); the
+        // sink closure below routes each emission back to this piece's
+        // output rect, so margin pixels its neighbours also own never push
+        // twice.
+        let grown_roi = match lightamer_geom::Roi::new(
+            grown.x,
+            grown.y,
+            piece.input.width,
+            piece.input.height,
+            piece.input.scale,
+        ) {
+            Ok(roi) => roi,
+            Err(err) => {
+                let _ = tx.send(failed_delivery(
+                    photo,
+                    kind,
+                    generation,
+                    job_id,
+                    format!("stream piece input is not a region: {err}"),
+                    totals.unwrap_or_default(),
+                    skipped,
+                ));
+                return;
+            }
+        };
+        let output_extent = match extent_for_roi(&piece.output, "piece output") {
+            Ok(output) => output,
+            Err(reason) => {
+                let _ = tx.send(failed_delivery(
+                    photo,
+                    kind,
+                    generation,
+                    job_id,
+                    reason,
+                    totals.unwrap_or_default(),
+                    skipped,
+                ));
+                return;
+            }
+        };
+        let sub = lightamer_pipeline::RenderRequest {
+            nodes: &nodes,
+            lookup: &adapter,
+            image: &region.image,
+            input: &region.frame,
+            input_id: region.input_id,
+            process: settings.process.0,
+            final_out: grown_roi,
+            cancel: &cancel_probe,
+        };
+        // A shared handle, not a borrow: the closure below runs inside the
+        // mutable borrow of `guard` that `render_stream` holds.
+        let budget = Arc::clone(guard.budget());
+        let routed = guard.render_stream(&sub, |emitted| {
+            let hit = intersect_extents(emitted.extent, output_extent);
+            if hit.is_empty() {
+                return Ok(());
+            }
+            if hit == emitted.extent {
+                return sink.push(&emitted);
+            }
+            let mut plane = alloc_shared(&budget, hit, PixelFormat::RgbaF32Premul).map_err(
+                |err| match err {
+                    BudgetedError::Budget(source) => RenderError::OutOfBudget {
+                        detail: format!("stream crop needs a plane: {source}"),
+                    },
+                    BudgetedError::Raster(source) => RenderError::Frame {
+                        detail: format!("stream crop plane would not build: {source}"),
+                    },
+                },
+            )?;
+            crop_piece_plane(&emitted.plane.frame, emitted.extent, hit, &mut plane.frame)?;
+            sink.push(&StreamPiece { extent: hit, plane })
+        });
+        match routed {
+            Ok(_) => {
+                merge_trace(&mut totals, guard.last_trace().to_vec());
+            }
+            Err(RenderError::Cancelled) => {
+                drop(guard);
+                let _ = tx.send(cancelled_delivery(photo, kind, generation, job_id, skipped));
+                return;
+            }
+            Err(err) => {
+                let _ = tx.send(failed_delivery(
+                    photo,
+                    kind,
+                    generation,
+                    job_id,
+                    err.to_string(),
+                    totals.unwrap_or_default(),
+                    skipped,
+                ));
+                return;
+            }
+        }
+    }
+    let output = match sink.finish() {
+        Ok(output) => output,
+        Err(err) => {
+            let _ = tx.send(failed_delivery(
+                photo,
+                kind,
+                generation,
+                job_id,
+                err.to_string(),
+                totals.unwrap_or_default(),
+                skipped,
+            ));
+            return;
+        }
+    };
+    let extent = output.extent();
+    let image = RenderedImage {
+        generation,
+        width: extent.width,
+        height: extent.height,
+        store: match output {
+            StreamedOutput::Memory(frame) => RenderedStore::Memory(frame.as_slice().to_vec()),
+            StreamedOutput::Mapped(mapped) => RenderedStore::Mapped(Arc::new(mapped)),
+        },
+    };
+    let record = RenderRecord {
+        generation,
+        job: job_id,
+        nodes: totals.unwrap_or_default(),
+        skipped,
+        streamed: Some(StreamReport {
+            mode: StreamMode::from(plan.mode),
+            pieces: plan.piece_count(),
+        }),
+    };
+    drop(guard);
+    let _ = tx.send(RenderDelivery {
+        photo: photo.to_owned(),
+        kind,
+        generation,
+        outcome: Ok(RenderPayload { image, record }),
+    });
+}
+
 /// Applies one delivery to the render slots: only the latest generation
 /// lands — its pixels are kept, its record filed, and its event emitted.
 /// Anything older is dropped whole (no pixels, no record, no event), and a
 /// cancelled delivery of any generation emits nothing (the job events
 /// already told that story).
+///
+/// Kept pixels sit under `kept_cap` bytes, least-recently-used evicted
+/// first; a landed image bigger than the cap alone evicts everything else,
+/// then itself (delivered, its event fired, but not kept). Thumbnail
+/// pixels never land here at all (the thumbnail cache owns them later);
+/// their records still file and their events still fire.
 pub(crate) fn apply_delivery(
     slots: &mut BTreeMap<(String, RenderKind), RenderSlot>,
+    kept: &mut KeptImages,
+    kept_cap: u64,
     delivery: RenderDelivery,
 ) -> Option<Event> {
-    let slot = slots.get_mut(&(delivery.photo.clone(), delivery.kind))?;
-    if delivery.generation != slot.generation {
-        return None;
+    let key = (delivery.photo.clone(), delivery.kind);
+    {
+        let slot = slots.get_mut(&key)?;
+        if delivery.generation != slot.generation {
+            return None;
+        }
+        slot.in_flight = None;
     }
-    slot.in_flight = None;
     match delivery.outcome {
         Ok(payload) => {
-            slot.latest = Some(payload.image);
-            slot.last_record = Some(payload.record);
+            if delivery.kind != RenderKind::Thumbnail {
+                let landed_len = payload.image.byte_len();
+                if let Some(slot) = slots.get_mut(&key)
+                    && let Some(old) = slot.latest.replace(payload.image)
+                {
+                    kept.bytes = kept.bytes.saturating_sub(old.byte_len());
+                }
+                kept.touch(&key);
+                kept.bytes = kept.bytes.saturating_add(landed_len);
+                while kept.bytes > kept_cap {
+                    let Some(oldest) = kept.order.pop_front() else {
+                        break;
+                    };
+                    let Some(victim) = slots.get_mut(&oldest) else {
+                        continue;
+                    };
+                    if let Some(evicted) = victim.latest.take() {
+                        kept.bytes = kept.bytes.saturating_sub(evicted.byte_len());
+                    }
+                }
+            }
+            if let Some(slot) = slots.get_mut(&key) {
+                slot.last_record = Some(payload.record);
+            }
             Some(Event::RenderReady {
                 photo: delivery.photo,
                 kind: delivery.kind.name().to_owned(),
@@ -785,7 +1500,9 @@ pub(crate) fn apply_delivery(
             if failure.cancelled {
                 return None;
             }
-            slot.last_record = Some(failure.record);
+            if let Some(slot) = slots.get_mut(&key) {
+                slot.last_record = Some(failure.record);
+            }
             Some(Event::RenderFailed {
                 photo: delivery.photo,
                 kind: delivery.kind.name().to_owned(),
@@ -840,16 +1557,25 @@ pub(crate) fn delivery_channel() -> (Sender<RenderDelivery>, Receiver<RenderDeli
 #[cfg(test)]
 mod tests {
     #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashMap};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
 
-    use lightamer_history::{ModuleInstance, PhotoSettings};
-    use lightamer_raster::FrameExtent;
+    use lightamer_history::{ModuleInstance, PhotoSettings, SettingValue};
+    use lightamer_iop_traits::{
+        ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, Plane,
+        PlaneMut, Roi, SharedModule, StatsNeeds, get_float,
+    };
+    use lightamer_pipeline::{Pipe, PipeKind, PipeNode};
+    use lightamer_raster::{Frame, FrameExtent, PixelFormat};
 
     use super::{
-        SKIP_DISABLED, SKIP_UNKNOWN_MODULE, execution_order, final_roi_for, params_object,
+        EngineConfig, InputError, InputSource, KeptImages, RenderKind, RenderRecord, RenderSlot,
+        RenderedImage, RenderedStore, SKIP_DISABLED, SKIP_UNKNOWN_MODULE, StreamMode,
+        apply_delivery, execution_order, final_roi_for, params_object, run_render_job,
         setting_cell,
     };
-    use crate::render::RenderKind;
+    use crate::jobs::JobCtx;
 
     #[test]
     fn kind_words_round_trip() {
@@ -937,5 +1663,1150 @@ mod tests {
         assert!(err.contains("width"), "{err}");
         let err = final_roi_for(FrameExtent::new(0, 0, 8, u32::MAX)).unwrap_err();
         assert!(err.contains("height"), "{err}");
+    }
+    /// Synthetic pixels: r = x, g = y, b = 0.5, a = 1.0, absolute coords.
+    fn gradient_pixels(width: u32, height: u32) -> Vec<f32> {
+        let mut out = Vec::with_capacity(width as usize * height as usize * 4);
+        for y in 0..height {
+            for x in 0..width {
+                #[expect(clippy::cast_precision_loss)]
+                // test pixels are small; the conversion is exact
+                let (x, y) = (x as f32, y as f32);
+                out.extend_from_slice(&[x, y, 0.5, 1.0]);
+            }
+        }
+        out
+    }
+
+    /// Synthetic pixels for an absolute region of the same gradient.
+    fn region_pixels(region: FrameExtent) -> Vec<f32> {
+        let cells = u64::from(region.width)
+            .saturating_mul(u64::from(region.height))
+            .saturating_mul(4);
+        let mut out = Vec::with_capacity(usize::try_from(cells).unwrap_or(0));
+        for row in 0..region.height {
+            for col in 0..region.width {
+                let x = region.x.saturating_add_unsigned(col);
+                let y = region.y.saturating_add_unsigned(row);
+                #[expect(clippy::cast_precision_loss)]
+                // test pixels are small; the conversion is exact
+                let (x, y) = (x as f32, y as f32);
+                out.extend_from_slice(&[x, y, 0.5, 1.0]);
+            }
+        }
+        out
+    }
+
+    /// What a gain chain should produce, applied in order (same multiply
+    /// order as the module, so bitwise).
+    fn scaled(mut pixels: Vec<f32>, gains: &[f32]) -> Vec<f32> {
+        for gain in gains {
+            for value in &mut pixels {
+                *value *= *gain;
+            }
+        }
+        pixels
+    }
+
+    /// Test gain module: multiplies every pixel by its `gain` parameter.
+    struct TestGain {
+        desc: ModuleDesc,
+    }
+
+    struct TestGainCommit {
+        gain: f32,
+    }
+
+    impl TestGain {
+        fn named(id: &'static str) -> Self {
+            let key = OrderKey {
+                priority: 1.0,
+                tie: 0,
+            };
+            Self {
+                desc: ModuleDesc::stub(id, key, key),
+            }
+        }
+    }
+
+    impl IopModule for TestGain {
+        fn desc(&self) -> &ModuleDesc {
+            &self.desc
+        }
+
+        fn commit(
+            &self,
+            params: &serde_json::Map<String, serde_json::Value>,
+            _image: &ImageInfo,
+        ) -> Result<CommitData, PipeError> {
+            #[expect(clippy::cast_possible_truncation)]
+            // test gains are small; the downcast cannot lose them
+            let gain = get_float(params, "gain")? as f32;
+            Ok(Arc::new(TestGainCommit { gain }))
+        }
+
+        fn process(
+            &self,
+            data: &CommitData,
+            input: &Plane<'_>,
+            output: &mut PlaneMut<'_>,
+            rin: Roi,
+            rout: Roi,
+        ) -> Result<(), PipeError> {
+            let Some(commit) = data.downcast_ref::<TestGainCommit>() else {
+                return Err(PipeError::Backend(
+                    "test gain opened a foreign commit".to_owned(),
+                ));
+            };
+            if rin.width != rout.width || rin.height != rout.height {
+                return Err(PipeError::RoiMismatch(format!(
+                    "test gain needs equal shapes, got {}x{} in and {}x{} out",
+                    rin.width, rin.height, rout.width, rout.height
+                )));
+            }
+            for y in 0..rout.height.max(0).cast_unsigned() {
+                let src = input.row(y)?.to_vec();
+                let dst = output.row_mut(y)?;
+                dst.copy_from_slice(&src);
+                for value in dst.iter_mut() {
+                    *value *= commit.gain;
+                }
+            }
+            Ok(())
+        }
+    }
+
+    /// Test blur module: honest separable box blur, radius 8, clamped edges.
+    /// Same math on every path, so streaming must match whole-frame bitwise.
+    struct TestBlur {
+        desc: ModuleDesc,
+    }
+
+    struct TestBlurCommit;
+
+    impl TestBlur {
+        /// Blur radius in pixels, both passes.
+        const RADIUS: usize = 8;
+
+        fn named(id: &'static str) -> Self {
+            let key = OrderKey {
+                priority: 1.0,
+                tie: 0,
+            };
+            Self {
+                desc: ModuleDesc::stub(id, key, key),
+            }
+        }
+    }
+
+    impl IopModule for TestBlur {
+        fn desc(&self) -> &ModuleDesc {
+            &self.desc
+        }
+
+        fn commit(
+            &self,
+            _params: &serde_json::Map<String, serde_json::Value>,
+            _image: &ImageInfo,
+        ) -> Result<CommitData, PipeError> {
+            Ok(Arc::new(TestBlurCommit))
+        }
+
+        fn tiling(
+            &self,
+            _data: &CommitData,
+            _rin: &Roi,
+            _rout: &Roi,
+        ) -> lightamer_iop_traits::TilingReq {
+            lightamer_iop_traits::TilingReq {
+                factor: 2.0,
+                maxbuf: 1.0,
+                overhead: 0,
+                #[expect(clippy::cast_possible_truncation)]
+                // radius 8 fits u32
+                overlap: Self::RADIUS as u32,
+                align: 1,
+            }
+        }
+
+        fn process(
+            &self,
+            _data: &CommitData,
+            input: &Plane<'_>,
+            output: &mut PlaneMut<'_>,
+            _rin: Roi,
+            _rout: Roi,
+        ) -> Result<(), PipeError> {
+            if input.width() != output.width() || input.height() != output.height() {
+                return Err(PipeError::RoiMismatch(format!(
+                    "test blur planes differ: {}x{} vs {}x{}",
+                    input.width(),
+                    input.height(),
+                    output.width(),
+                    output.height()
+                )));
+            }
+            let width = input.width() as usize;
+            let height_u32 = input.height();
+            let height = height_u32 as usize;
+            let radius = Self::RADIUS;
+            let span = radius * 2 + 1;
+            #[expect(clippy::cast_precision_loss)]
+            // span 17 is exact
+            let count = span as f32;
+            // Horizontal pass into scratch, then vertical into output.
+            let mut tmp = vec![0.0f32; width * height * 4];
+            for y in 0..height_u32 {
+                let src = input.row(y)?;
+                let yu = y as usize;
+                for x in 0..width {
+                    for c in 0..4 {
+                        let mut sum = 0.0f32;
+                        for tap in 0..span {
+                            let sx = x
+                                .saturating_add(tap)
+                                .saturating_sub(radius)
+                                .min(width.saturating_sub(1));
+                            sum += src[sx * 4 + c];
+                        }
+                        tmp[(yu * width + x) * 4 + c] = sum / count;
+                    }
+                }
+            }
+            for y in 0..height_u32 {
+                let dst = output.row_mut(y)?;
+                let yu = y as usize;
+                for x in 0..width {
+                    for c in 0..4 {
+                        let mut sum = 0.0f32;
+                        for tap in 0..span {
+                            let sy = yu
+                                .saturating_add(tap)
+                                .saturating_sub(radius)
+                                .min(height.saturating_sub(1));
+                            sum += tmp[(sy * width + x) * 4 + c];
+                        }
+                        dst[x * 4 + c] = sum / count;
+                    }
+                }
+            }
+            Ok(())
+        }
+    }
+
+    /// Test module needing whole-image statistics: streaming must refuse it
+    /// before any `process` call.
+    struct TestStats {
+        desc: ModuleDesc,
+        calls: Arc<AtomicUsize>,
+    }
+
+    struct TestStatsCommit;
+
+    impl IopModule for TestStats {
+        fn desc(&self) -> &ModuleDesc {
+            &self.desc
+        }
+
+        fn stats(&self) -> StatsNeeds {
+            StatsNeeds::WholeImage
+        }
+
+        fn commit(
+            &self,
+            _params: &serde_json::Map<String, serde_json::Value>,
+            _image: &ImageInfo,
+        ) -> Result<CommitData, PipeError> {
+            Ok(Arc::new(TestStatsCommit))
+        }
+
+        fn process(
+            &self,
+            _data: &CommitData,
+            input: &Plane<'_>,
+            output: &mut PlaneMut<'_>,
+            _rin: Roi,
+            _rout: Roi,
+        ) -> Result<(), PipeError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            for y in 0..output.height() {
+                let src = input.row(y)?.to_vec();
+                let dst = output.row_mut(y)?;
+                dst.copy_from_slice(&src);
+            }
+            Ok(())
+        }
+    }
+
+    /// Test input source: a fixed gradient, or a fixed refusal.
+    struct TestInput {
+        width: u32,
+        height: u32,
+        fail: Option<String>,
+    }
+
+    impl InputSource for TestInput {
+        fn fetch(&self, _photo: &str) -> Result<super::RenderInput, InputError> {
+            if let Some(reason) = &self.fail {
+                return Err(InputError::new(reason.clone()));
+            }
+            let frame = Frame::from_parts(
+                gradient_pixels(self.width, self.height),
+                FrameExtent::new(0, 0, self.width, self.height),
+                PixelFormat::RgbaF32Premul,
+            )
+            .map_err(|err| InputError::new(err.to_string()))?;
+            Ok(super::RenderInput {
+                frame,
+                image: ImageInfo::new(self.width, self.height, ColorSpace::Rgb),
+                input_id: 11,
+            })
+        }
+    }
+
+    /// Test input source with a region reader: regions compute straight from
+    /// the gradient (no whole fetch), every call recorded. Optionally trips
+    /// the shared cancel flag on one call, for deterministic mid-stream
+    /// cancels.
+    struct CountingInput {
+        width: u32,
+        height: u32,
+        fetches: Arc<AtomicUsize>,
+        regions: Arc<Mutex<Vec<FrameExtent>>>,
+        cancel_on_call: Option<(Arc<std::sync::atomic::AtomicBool>, usize)>,
+    }
+
+    impl CountingInput {
+        fn new(width: u32, height: u32) -> Self {
+            Self {
+                width,
+                height,
+                fetches: Arc::new(AtomicUsize::new(0)),
+                regions: Arc::new(Mutex::new(Vec::new())),
+                cancel_on_call: None,
+            }
+        }
+    }
+
+    impl InputSource for CountingInput {
+        fn fetch(&self, _photo: &str) -> Result<super::RenderInput, InputError> {
+            self.fetches.fetch_add(1, Ordering::SeqCst);
+            let frame = Frame::from_parts(
+                gradient_pixels(self.width, self.height),
+                FrameExtent::new(0, 0, self.width, self.height),
+                PixelFormat::RgbaF32Premul,
+            )
+            .map_err(|err| InputError::new(err.to_string()))?;
+            Ok(super::RenderInput {
+                frame,
+                image: ImageInfo::new(self.width, self.height, ColorSpace::Rgb),
+                input_id: 11,
+            })
+        }
+
+        fn fetch_region(
+            &self,
+            _photo: &str,
+            region: FrameExtent,
+        ) -> Result<super::RenderInput, InputError> {
+            let calls = self.regions.lock().map_or(0, |mut held| {
+                held.push(region);
+                held.len()
+            });
+            if let Some((flag, at)) = &self.cancel_on_call
+                && calls == *at
+            {
+                flag.store(true, Ordering::SeqCst);
+            }
+            let frame =
+                Frame::from_parts(region_pixels(region), region, PixelFormat::RgbaF32Premul)
+                    .map_err(|err| InputError::new(err.to_string()))?;
+            Ok(super::RenderInput {
+                frame,
+                image: ImageInfo::new(self.width, self.height, ColorSpace::Rgb),
+                input_id: 11,
+            })
+        }
+    }
+    /// Settings holding one enabled instance per `(module, gain)`.
+    fn settings_with(mods: &[(&str, f64)]) -> PhotoSettings {
+        let mut settings = PhotoSettings::default();
+        for (module, gain) in mods {
+            let mut params = BTreeMap::new();
+            params.insert("gain".to_owned(), SettingValue::Float(*gain));
+            settings.instances.upsert(ModuleInstance {
+                module: (*module).to_owned(),
+                multi: 0,
+                name: None,
+                enabled: true,
+                params,
+            });
+        }
+        settings
+    }
+
+    /// A module source holding `modules` by id (a plain table is one).
+    fn table_source(modules: Vec<SharedModule>) -> super::SharedModuleSource {
+        let mut map = HashMap::new();
+        for module in modules {
+            map.insert(module.id().to_owned(), module);
+        }
+        Arc::new(map)
+    }
+
+    /// Runs one render job inline (no pool) and returns its delivery.
+    #[expect(clippy::too_many_arguments)]
+    // one test harness over the job's own arguments
+    fn run_once(
+        kind: RenderKind,
+        generation: u64,
+        settings: &PhotoSettings,
+        input: &super::SharedInputSource,
+        modules: Option<&super::SharedModuleSource>,
+        pipe: &Mutex<lightamer_pipeline::Pipe>,
+        config: &EngineConfig,
+        cancel: &Arc<std::sync::atomic::AtomicBool>,
+    ) -> super::RenderDelivery {
+        let (ctx, _drain) = JobCtx::for_test(7, Arc::clone(cancel));
+        let (tx, rx) = std::sync::mpsc::channel();
+        run_render_job(
+            &ctx, &tx, "a", kind, generation, settings, input, modules, pipe, config,
+        );
+        rx.recv().unwrap()
+    }
+
+    /// A fresh unused cancel flag.
+    fn live_flag() -> Arc<std::sync::atomic::AtomicBool> {
+        Arc::new(std::sync::atomic::AtomicBool::new(false))
+    }
+
+    /// A pipe too small for whole frames but roomy for pieces.
+    fn tiny_pipe(budget: u64) -> Mutex<lightamer_pipeline::Pipe> {
+        Mutex::new(Pipe::with_budget_and_floor(
+            PipeKind::Full,
+            budget,
+            64 * 1024,
+        ))
+    }
+
+    /// A config assembling everything in RAM with generous limits.
+    fn ram_config() -> EngineConfig {
+        EngineConfig {
+            spill_byte_limit: u64::MAX,
+            spill_dir: None,
+            kept_bytes_limit: u64::MAX,
+            spill_memory_threshold: u64::MAX,
+        }
+    }
+
+    /// Pixels from a direct `render_stream` run assembled through a sink.
+    #[expect(clippy::too_many_arguments)]
+    // one test harness over the request's own fields
+    fn direct_stream_pixels(
+        pipe: &mut lightamer_pipeline::Pipe,
+        nodes: &[PipeNode],
+        lookup: &super::ModuleSourceAdapter,
+        image: &ImageInfo,
+        input: &Frame,
+        input_id: u64,
+        process: u32,
+        final_out: lightamer_geom::Roi,
+    ) -> Vec<f32> {
+        let no_cancel = || false;
+        let req = lightamer_pipeline::RenderRequest {
+            nodes,
+            lookup,
+            image,
+            input,
+            input_id,
+            process,
+            final_out,
+            cancel: &no_cancel,
+        };
+        let full = super::extent_for_roi(&final_out, "output").unwrap();
+        let mut sink = lightamer_pipeline::StreamSink::new(full, u64::MAX, u64::MAX, None).unwrap();
+        pipe.render_stream(&req, |piece| sink.push(&piece)).unwrap();
+        match sink.finish().unwrap() {
+            lightamer_pipeline::StreamedOutput::Memory(frame) => frame.as_slice().to_vec(),
+            lightamer_pipeline::StreamedOutput::Mapped(mapped) => RenderedImage {
+                generation: 0,
+                width: mapped.extent().width,
+                height: mapped.extent().height,
+                store: RenderedStore::Mapped(Arc::new(mapped)),
+            }
+            .to_vec(),
+        }
+    }
+
+    /// Pixels from a direct whole-frame `render`.
+    #[expect(clippy::too_many_arguments)]
+    // one test harness over the request's own fields
+    fn whole_pixels(
+        pipe: &mut lightamer_pipeline::Pipe,
+        nodes: &[PipeNode],
+        lookup: &super::ModuleSourceAdapter,
+        image: &ImageInfo,
+        input: &Frame,
+        input_id: u64,
+        process: u32,
+        final_out: lightamer_geom::Roi,
+    ) -> Vec<f32> {
+        let no_cancel = || false;
+        let req = lightamer_pipeline::RenderRequest {
+            nodes,
+            lookup,
+            image,
+            input,
+            input_id,
+            process,
+            final_out,
+            cancel: &no_cancel,
+        };
+        pipe.render(&req).unwrap().frame().as_slice().to_vec()
+    }
+
+    /// One pipe node calling `module` with a gain parameter.
+    fn gain_node(module: &str, gain: f64) -> PipeNode {
+        let mut params = serde_json::Map::new();
+        params.insert(
+            "gain".to_owned(),
+            serde_json::json!({"type": "float", "value": gain}),
+        );
+        PipeNode {
+            id: module.to_owned(),
+            multi: 0,
+            params,
+        }
+    }
+
+    /// One finished memory image for retention tests.
+    fn kept_image(generation: u64, width: u32, height: u32) -> RenderedImage {
+        RenderedImage {
+            generation,
+            width,
+            height,
+            store: RenderedStore::Memory(vec![0.0; width as usize * height as usize * 4]),
+        }
+    }
+
+    /// One successful delivery for retention tests.
+    fn kept_delivery(
+        photo: &str,
+        kind: RenderKind,
+        generation: u64,
+        image: RenderedImage,
+    ) -> super::RenderDelivery {
+        super::RenderDelivery {
+            photo: photo.to_owned(),
+            kind,
+            generation,
+            outcome: Ok(super::RenderPayload {
+                image,
+                record: RenderRecord {
+                    generation,
+                    job: 1,
+                    nodes: Vec::new(),
+                    skipped: Vec::new(),
+                    streamed: None,
+                },
+            }),
+        }
+    }
+
+    /// Slots holding one current generation per key.
+    fn slotted(keys: &[(&str, RenderKind, u64)]) -> BTreeMap<(String, RenderKind), RenderSlot> {
+        let mut slots = BTreeMap::new();
+        for (photo, kind, generation) in keys {
+            slots.insert(
+                ((*photo).to_owned(), *kind),
+                RenderSlot {
+                    generation: *generation,
+                    ..RenderSlot::default()
+                },
+            );
+        }
+        slots
+    }
+    #[test]
+    fn fetch_region_default_crops_the_whole_frame() {
+        let source = TestInput {
+            width: 64,
+            height: 48,
+            fail: None,
+        };
+        let whole = source.fetch("a").unwrap().frame.as_slice().to_vec();
+        // A sub-region equals the same rows sliced out of the whole frame.
+        let region = FrameExtent::new(8, 8, 16, 16);
+        let got = source.fetch_region("a", region).unwrap();
+        assert_eq!(got.frame.extent(), region);
+        assert_eq!(got.frame.as_slice(), region_pixels(region));
+        let mut want = Vec::new();
+        for row in 8usize..24 {
+            let start = (row * 64 + 8) * 4;
+            want.extend_from_slice(&whole[start..start + 16 * 4]);
+        }
+        assert_eq!(got.frame.as_slice(), want);
+        // The whole frame back equals a plain fetch, bitwise.
+        let full = source
+            .fetch_region("a", FrameExtent::new(0, 0, 64, 48))
+            .unwrap();
+        assert_eq!(full.frame.as_slice(), whole);
+        assert_eq!(full.input_id, 11);
+        // A region leaving the frame refuses typed instead of clipping.
+        let err = source
+            .fetch_region("a", FrameExtent::new(60, 0, 16, 16))
+            .unwrap_err();
+        assert!(!err.reason().is_empty(), "{err}");
+    }
+
+    #[test]
+    fn full_streams_once_per_strip_and_matches_whole_and_direct() {
+        let input = CountingInput::new(256, 256);
+        let fetches = Arc::clone(&input.fetches);
+        let regions = Arc::clone(&input.regions);
+        let input: super::SharedInputSource = Arc::new(input);
+        let gain: SharedModule = Arc::new(TestGain::named("mod_gain"));
+        let modules = table_source(vec![gain]);
+        let settings = settings_with(&[("mod_gain", 2.0)]);
+        let pipe = tiny_pipe(1024 * 1024);
+        let delivery = run_once(
+            RenderKind::Full,
+            1,
+            &settings,
+            &input,
+            Some(&modules),
+            &pipe,
+            &ram_config(),
+            &live_flag(),
+        );
+        // One whole fetch for the facts, then one region call per strip.
+        assert_eq!(fetches.load(Ordering::SeqCst), 1);
+        assert_eq!(regions.lock().unwrap().len(), 4);
+        let outcome = delivery.outcome.unwrap();
+        assert_eq!(
+            outcome.record.streamed,
+            Some(crate::render::StreamReport {
+                mode: StreamMode::Strip,
+                pieces: 4,
+            })
+        );
+        assert_eq!(outcome.record.nodes.len(), 1);
+        assert_eq!(outcome.record.nodes[0].process_calls, 4);
+        assert!(!outcome.record.nodes[0].hit);
+        // Engine-streamed pixels equal a whole-frame render and a direct
+        // streaming run, bitwise.
+        let engine_pixels = outcome.image.to_vec();
+        let whole_input = TestInput {
+            width: 256,
+            height: 256,
+            fail: None,
+        }
+        .fetch("a")
+        .unwrap();
+        let adapter = super::ModuleSourceAdapter {
+            source: Some(modules),
+        };
+        let nodes = vec![gain_node("mod_gain", 2.0)];
+        let final_out = super::final_roi_for(whole_input.frame.extent()).unwrap();
+        let mut fat = Pipe::with_budget_and_floor(PipeKind::Full, 64 * 1024 * 1024, 64 * 1024);
+        let want_whole = whole_pixels(
+            &mut fat,
+            &nodes,
+            &adapter,
+            &whole_input.image,
+            &whole_input.frame,
+            whole_input.input_id,
+            1,
+            final_out,
+        );
+        let mut thin = Pipe::with_budget_and_floor(PipeKind::Full, 1024 * 1024, 64 * 1024);
+        let want_stream = direct_stream_pixels(
+            &mut thin,
+            &nodes,
+            &adapter,
+            &whole_input.image,
+            &whole_input.frame,
+            whole_input.input_id,
+            1,
+            final_out,
+        );
+        assert_eq!(engine_pixels, want_whole);
+        assert_eq!(engine_pixels, want_stream);
+        assert!(!outcome.image.is_mapped());
+    }
+    #[test]
+    fn preview_refuses_over_limit_while_export_streams() {
+        let gain: SharedModule = Arc::new(TestGain::named("mod_gain"));
+        let modules = table_source(vec![gain]);
+        let settings = settings_with(&[("mod_gain", 2.0)]);
+        // Preview: the same over-limit frame fails typed, no region call.
+        let preview_in = CountingInput::new(256, 256);
+        let preview_regions = Arc::clone(&preview_in.regions);
+        let preview_in: super::SharedInputSource = Arc::new(preview_in);
+        let pipe = tiny_pipe(1024 * 1024);
+        let failed = run_once(
+            RenderKind::Preview,
+            1,
+            &settings,
+            &preview_in,
+            Some(&modules),
+            &pipe,
+            &ram_config(),
+            &live_flag(),
+        );
+        let failure = failed.outcome.unwrap_err();
+        assert!(!failure.cancelled);
+        assert!(
+            failure.reason.contains("too large"),
+            "unexpected: {}",
+            failure.reason
+        );
+        assert_eq!(preview_regions.lock().unwrap().len(), 0);
+        // Export: the twin streaming kind streams like full.
+        let export_in = CountingInput::new(256, 256);
+        let export_regions = Arc::clone(&export_in.regions);
+        let export_in: super::SharedInputSource = Arc::new(export_in);
+        let done = run_once(
+            RenderKind::Export,
+            1,
+            &settings,
+            &export_in,
+            Some(&modules),
+            &pipe,
+            &ram_config(),
+            &live_flag(),
+        );
+        let outcome = done.outcome.unwrap();
+        assert_eq!(
+            outcome.record.streamed.map(|run| run.mode),
+            Some(StreamMode::Strip)
+        );
+        assert_eq!(export_regions.lock().unwrap().len(), 4);
+        assert_eq!(
+            outcome.image.to_vec(),
+            scaled(gradient_pixels(256, 256), &[2.0])
+        );
+    }
+
+    #[test]
+    fn three_streamed_deliveries_land_only_latest() {
+        let gain: SharedModule = Arc::new(TestGain::named("mod_gain"));
+        let modules = table_source(vec![gain]);
+        let pipe = tiny_pipe(1024 * 1024);
+        let input: super::SharedInputSource = Arc::new(CountingInput::new(64, 64));
+        let mut deliveries = Vec::new();
+        for (generation, gain) in [(1, 2.0), (2, 3.0), (3, 4.0)] {
+            let settings = settings_with(&[("mod_gain", gain)]);
+            deliveries.push(run_once(
+                RenderKind::Full,
+                generation,
+                &settings,
+                &input,
+                Some(&modules),
+                &pipe,
+                &ram_config(),
+                &live_flag(),
+            ));
+        }
+        let mut slots = slotted(&[("a", RenderKind::Full, 3)]);
+        let mut kept = KeptImages::default();
+        let mut events = Vec::new();
+        for delivery in deliveries {
+            events.push(apply_delivery(&mut slots, &mut kept, u64::MAX, delivery));
+        }
+        assert_eq!(events[0], None);
+        assert_eq!(events[1], None);
+        assert!(matches!(
+            events[2],
+            Some(crate::event::Event::RenderReady { generation: 3, .. })
+        ));
+        let kept_pixels = slots[&("a".to_owned(), RenderKind::Full)]
+            .latest
+            .as_ref()
+            .unwrap()
+            .to_vec();
+        assert_eq!(kept_pixels, scaled(gradient_pixels(64, 64), &[4.0]));
+    }
+
+    #[test]
+    fn cancelled_stream_returns_budget_and_leaves_no_spill() {
+        // Spill files are anonymous (unlinked at creation): no directory
+        // listing can observe them. Residue-freedom here means the mapped
+        // sink dropped (its file dies with it) and every budget byte came
+        // back; the stream demo asserts its dedicated spill dir stays empty.
+        let flag = live_flag();
+        let mut source = CountingInput::new(256, 256);
+        source.cancel_on_call = Some((Arc::clone(&flag), 2));
+        let regions = Arc::clone(&source.regions);
+        let source: super::SharedInputSource = Arc::new(source);
+        let gain: SharedModule = Arc::new(TestGain::named("mod_gain"));
+        let modules = table_source(vec![gain]);
+        let settings = settings_with(&[("mod_gain", 2.0)]);
+        let pipe = tiny_pipe(1024 * 1024);
+        let config = EngineConfig {
+            spill_byte_limit: u64::MAX,
+            spill_dir: None,
+            kept_bytes_limit: u64::MAX,
+            spill_memory_threshold: 1,
+        };
+        let delivery = run_once(
+            RenderKind::Full,
+            1,
+            &settings,
+            &source,
+            Some(&modules),
+            &pipe,
+            &config,
+            &flag,
+        );
+        let failure = delivery.outcome.unwrap_err();
+        assert!(failure.cancelled);
+        // Aborted right after the second region call; the mapped sink died
+        // with the run and every budget byte came back.
+        assert_eq!(regions.lock().unwrap().len(), 2);
+        assert_eq!(pipe.lock().unwrap().budget().used(), 0);
+    }
+
+    #[test]
+    fn spill_limit_refuses_before_any_piece() {
+        // Refused before the sink exists, so no spill dir is even needed.
+        let source = CountingInput::new(256, 256);
+        let regions = Arc::clone(&source.regions);
+        let source: super::SharedInputSource = Arc::new(source);
+        let gain: SharedModule = Arc::new(TestGain::named("mod_gain"));
+        let modules = table_source(vec![gain]);
+        let settings = settings_with(&[("mod_gain", 2.0)]);
+        let pipe = tiny_pipe(1024 * 1024);
+        let config = EngineConfig {
+            spill_byte_limit: 100,
+            spill_dir: None,
+            kept_bytes_limit: u64::MAX,
+            spill_memory_threshold: u64::MAX,
+        };
+        let delivery = run_once(
+            RenderKind::Full,
+            1,
+            &settings,
+            &source,
+            Some(&modules),
+            &pipe,
+            &config,
+            &live_flag(),
+        );
+        let failure = delivery.outcome.unwrap_err();
+        assert!(!failure.cancelled);
+        assert!(
+            failure.reason.contains("over the 100-byte limit"),
+            "unexpected: {}",
+            failure.reason
+        );
+        assert_eq!(regions.lock().unwrap().len(), 0);
+        assert_eq!(pipe.lock().unwrap().budget().used(), 0);
+    }
+
+    #[test]
+    fn thumbnail_pixels_skip_retention() {
+        let mut slots = slotted(&[("a", RenderKind::Thumbnail, 1)]);
+        let mut kept = KeptImages::default();
+        let event = apply_delivery(
+            &mut slots,
+            &mut kept,
+            u64::MAX,
+            kept_delivery("a", RenderKind::Thumbnail, 1, kept_image(1, 16, 16)),
+        );
+        assert!(matches!(
+            event,
+            Some(crate::event::Event::RenderReady { .. })
+        ));
+        let slot = &slots[&("a".to_owned(), RenderKind::Thumbnail)];
+        assert!(slot.latest.is_none());
+        assert!(slot.last_record.is_some());
+        assert_eq!(kept.bytes, 0);
+        assert!(kept.order.is_empty());
+    }
+
+    #[test]
+    fn retention_evicts_oldest_first_by_bytes() {
+        let mut slots = slotted(&[
+            ("a", RenderKind::Full, 1),
+            ("b", RenderKind::Full, 1),
+            ("c", RenderKind::Full, 1),
+            ("d", RenderKind::Full, 1),
+        ]);
+        let mut kept = KeptImages::default();
+        // Three 4 KiB images under an 8 KiB cap: the first one goes.
+        for photo in ["a", "b", "c"] {
+            let event = apply_delivery(
+                &mut slots,
+                &mut kept,
+                8 * 1024,
+                kept_delivery(photo, RenderKind::Full, 1, kept_image(1, 16, 16)),
+            );
+            assert!(event.is_some());
+        }
+        assert!(slots[&("a".to_owned(), RenderKind::Full)].latest.is_none());
+        assert!(slots[&("b".to_owned(), RenderKind::Full)].latest.is_some());
+        assert!(slots[&("c".to_owned(), RenderKind::Full)].latest.is_some());
+        assert_eq!(kept.bytes, 8 * 1024);
+        // One 16 KiB image over the same cap: delivered, then evicted with
+        // everything else — retention holds nothing.
+        let event = apply_delivery(
+            &mut slots,
+            &mut kept,
+            8 * 1024,
+            kept_delivery("d", RenderKind::Full, 1, kept_image(1, 32, 32)),
+        );
+        assert!(event.is_some());
+        assert!(slots[&("d".to_owned(), RenderKind::Full)].latest.is_none());
+        assert_eq!(kept.bytes, 0);
+    }
+
+    #[test]
+    fn caller_held_mapped_images_survive_eviction() {
+        // A 256x256 frame (four strips) spilling to disk: 1 MiB mapped.
+        // Anonymous spill files (system temp dir): the caller's clone keeps
+        // reading after retention evicts its own handle.
+        let run_mapped = || {
+            let source: super::SharedInputSource = Arc::new(CountingInput::new(256, 256));
+            let gain: SharedModule = Arc::new(TestGain::named("mod_gain"));
+            let modules = table_source(vec![gain]);
+            let settings = settings_with(&[("mod_gain", 2.0)]);
+            let pipe = tiny_pipe(1024 * 1024);
+            let config = EngineConfig {
+                spill_byte_limit: u64::MAX,
+                spill_dir: None,
+                kept_bytes_limit: u64::MAX,
+                spill_memory_threshold: 1,
+            };
+            run_once(
+                RenderKind::Full,
+                1,
+                &settings,
+                &source,
+                Some(&modules),
+                &pipe,
+                &config,
+                &live_flag(),
+            )
+        };
+        let first = run_mapped().outcome.unwrap();
+        assert!(first.image.is_mapped());
+        let mut slots = slotted(&[("a", RenderKind::Full, 1), ("b", RenderKind::Full, 1)]);
+        let mut kept = KeptImages::default();
+        let held = first.image.clone();
+        apply_delivery(
+            &mut slots,
+            &mut kept,
+            1536 * 1024,
+            kept_delivery("a", RenderKind::Full, 1, first.image),
+        );
+        // Landing a second mapped image evicts the first from retention —
+        // but the caller's clone still reads the live file.
+        let second = run_mapped().outcome.unwrap();
+        apply_delivery(
+            &mut slots,
+            &mut kept,
+            1536 * 1024,
+            kept_delivery("b", RenderKind::Full, 1, second.image),
+        );
+        assert!(slots[&("a".to_owned(), RenderKind::Full)].latest.is_none());
+        assert!(slots[&("b".to_owned(), RenderKind::Full)].latest.is_some());
+        assert_eq!(held.to_vec(), scaled(gradient_pixels(256, 256), &[2.0]));
+    }
+
+    #[test]
+    fn engine_config_defaults_match_a24() {
+        let config = EngineConfig::default();
+        assert_eq!(config.spill_byte_limit, 8 * 1024 * 1024 * 1024);
+        assert_eq!(config.spill_dir, None);
+        assert_eq!(config.kept_bytes_limit, 1024 * 1024 * 1024);
+        assert_eq!(config.spill_memory_threshold, 256 * 1024 * 1024);
+        assert_eq!(
+            (
+                super::DEFAULT_SPILL_BYTE_LIMIT,
+                super::DEFAULT_KEPT_BYTE_LIMIT,
+                super::DEFAULT_SPILL_MEMORY_THRESHOLD
+            ),
+            (
+                config.spill_byte_limit,
+                config.kept_bytes_limit,
+                config.spill_memory_threshold
+            )
+        );
+    }
+
+    #[test]
+    fn input_refusal_passes_through_typed() {
+        let source: super::SharedInputSource = Arc::new(TestInput {
+            width: 256,
+            height: 256,
+            fail: Some("mosaic does not fit memory".to_owned()),
+        });
+        let gain: SharedModule = Arc::new(TestGain::named("mod_gain"));
+        let modules = table_source(vec![gain]);
+        let settings = settings_with(&[("mod_gain", 2.0)]);
+        let pipe = tiny_pipe(1024 * 1024);
+        let delivery = run_once(
+            RenderKind::Full,
+            1,
+            &settings,
+            &source,
+            Some(&modules),
+            &pipe,
+            &ram_config(),
+            &live_flag(),
+        );
+        let failure = delivery.outcome.unwrap_err();
+        assert!(!failure.cancelled);
+        assert!(
+            failure.reason.contains("mosaic does not fit memory"),
+            "unexpected: {}",
+            failure.reason
+        );
+    }
+
+    #[test]
+    fn empty_chain_out_of_budget_passes_through_without_streaming() {
+        // No module source: every instance skips, the chain is empty, and an
+        // empty chain skips the footprint check — so a tiny budget fails the
+        // output plane as out-of-budget, never as too-large-to-stream.
+        let source = CountingInput::new(256, 256);
+        let regions = Arc::clone(&source.regions);
+        let source: super::SharedInputSource = Arc::new(source);
+        let settings = settings_with(&[("mod_gain", 2.0)]);
+        let pipe = tiny_pipe(1024);
+        let delivery = run_once(
+            RenderKind::Full,
+            1,
+            &settings,
+            &source,
+            None,
+            &pipe,
+            &ram_config(),
+            &live_flag(),
+        );
+        let failure = delivery.outcome.unwrap_err();
+        assert!(!failure.cancelled);
+        assert!(
+            failure.reason.contains("out of budget"),
+            "unexpected: {}",
+            failure.reason
+        );
+        assert_eq!(regions.lock().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn stream_refusal_passes_through_without_fallback() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let key = OrderKey {
+            priority: 1.0,
+            tie: 0,
+        };
+        let stats: SharedModule = Arc::new(TestStats {
+            desc: ModuleDesc::stub("mod_stats", key, key),
+            calls: Arc::clone(&calls),
+        });
+        let modules = table_source(vec![stats]);
+        let settings = settings_with(&[("mod_stats", 0.0)]);
+        let source = CountingInput::new(256, 256);
+        let regions = Arc::clone(&source.regions);
+        let source: super::SharedInputSource = Arc::new(source);
+        let pipe = tiny_pipe(1024 * 1024);
+        let delivery = run_once(
+            RenderKind::Full,
+            1,
+            &settings,
+            &source,
+            Some(&modules),
+            &pipe,
+            &ram_config(),
+            &live_flag(),
+        );
+        let failure = delivery.outcome.unwrap_err();
+        assert!(!failure.cancelled);
+        assert!(
+            failure
+                .reason
+                .contains("streaming refused module 'mod_stats'"),
+            "unexpected: {}",
+            failure.reason
+        );
+        // Refused before anything allocated: no region call, no process
+        // call, no budget held.
+        assert_eq!(regions.lock().unwrap().len(), 0);
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        assert_eq!(pipe.lock().unwrap().budget().used(), 0);
+    }
+
+    #[test]
+    fn block_stream_matches_direct_and_whole() {
+        // A 1024x1024 frame under a 24 MiB budget: the blur's overlap of 8
+        // plans 2x2 blocks of side 512; the frame footprint (two 16 MiB
+        // planes on the second node plus scratch) refuses whole-frame first,
+        // with room to spare for the routing crop planes.
+        let input = CountingInput::new(1024, 1024);
+        let regions = Arc::clone(&input.regions);
+        let input: super::SharedInputSource = Arc::new(input);
+        let blur: SharedModule = Arc::new(TestBlur::named("mod_blur"));
+        let gain: SharedModule = Arc::new(TestGain::named("mod_gain"));
+        let modules = table_source(vec![blur, gain]);
+        let settings = settings_with(&[("mod_blur", 0.0), ("mod_gain", 2.0)]);
+        let pipe = tiny_pipe(24 * 1024 * 1024);
+        let delivery = run_once(
+            RenderKind::Full,
+            1,
+            &settings,
+            &input,
+            Some(&modules),
+            &pipe,
+            &ram_config(),
+            &live_flag(),
+        );
+        assert_eq!(regions.lock().unwrap().len(), 4);
+        let outcome = delivery.outcome.unwrap();
+        assert_eq!(
+            outcome.record.streamed.map(|run| (run.mode, run.pieces)),
+            Some((StreamMode::Block, 4))
+        );
+        // Engine-streamed pixels equal a whole-frame render and a direct
+        // streaming run, bitwise.
+        let engine_pixels = outcome.image.to_vec();
+        let whole_input = TestInput {
+            width: 1024,
+            height: 1024,
+            fail: None,
+        }
+        .fetch("a")
+        .unwrap();
+        let adapter = super::ModuleSourceAdapter {
+            source: Some(modules),
+        };
+        // Unknown ids sort by (module, multi): blur runs before gain.
+        let nodes = vec![gain_node("mod_blur", 0.0), gain_node("mod_gain", 2.0)];
+        let final_out = super::final_roi_for(whole_input.frame.extent()).unwrap();
+        let mut fat = Pipe::with_budget_and_floor(PipeKind::Full, 256 * 1024 * 1024, 64 * 1024);
+        let want_whole = whole_pixels(
+            &mut fat,
+            &nodes,
+            &adapter,
+            &whole_input.image,
+            &whole_input.frame,
+            whole_input.input_id,
+            1,
+            final_out,
+        );
+        let mut thin = Pipe::with_budget_and_floor(PipeKind::Full, 24 * 1024 * 1024, 64 * 1024);
+        let want_stream = direct_stream_pixels(
+            &mut thin,
+            &nodes,
+            &adapter,
+            &whole_input.image,
+            &whole_input.frame,
+            whole_input.input_id,
+            1,
+            final_out,
+        );
+        assert_eq!(engine_pixels, want_whole);
+        assert_eq!(engine_pixels, want_stream);
     }
 }

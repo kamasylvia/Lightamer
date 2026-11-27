@@ -1,0 +1,95 @@
+Working...
+`PASS / 0 error + 1 minor`
+
+基线：HEAD `70eb0396`（`d8f22d24..HEAD` 5 提交）；`machine-guard.sh` → `GUARD PASS (heavy=0 free=74%)`。以下全为亲测。
+
+## A. 验收清单（命令与结果）
+
+- `cargo fmt --all --check` → exit 0。
+- 非增量 clippy 全工作区 + 六 lint → exit 0（12.9s）。
+- `cargo test -p lightamer-engine` → 80+26+6+1+25+18+17+13+11+3=**200 通过 +1 忽略**，0 失败（与报告一致）。
+- `cargo test -p lightamer-cli` → lib **50** + main 0 + decode_dump 9 + run_session 6，0 失败（lib 总数与报告 48 不符，见 minor-1）。
+- `cargo test -p lightamer-pipeline` → **111 通过 +3 忽略**，0 失败。
+- `cargo test --workspace` → **666 通过 +5 忽略 +0 失败**，exit 0（与报告一致；注：首次 awk 分隔符写错致计数空，重跑修正，非代码问题）。
+- `rg -n 'std::fs|create_dir|…|tempfile' crates/lightamer-engine/src` → 零输出（exit 1）。
+- `cargo xtask layers` → `OK: 29 crates`；`check-no-iop-names` → `OK (97 names, 4 roots clean)`；`rust-apple-boundary.sh` → exit 0（7/7）；`check-licenses.sh` → exit 0。
+- `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` → exit 0。
+- 五演示脚本：`rust-stream-demo.sh` exit 0（全输出见下，与报告同构：strip 157 块 / block 30 块 / 同字 spill 拒绝 / gen5 / 取消 ok / 预算全 0 / RSS **4310MB**≈报告 4309MB）；decode/session/render 均 exit 0 + ALL GREEN；history exit 0，首轮 `UNRELIABLE (load 10.11)` → `retrying (1/3)` 后 `median 210.2ms PASS`——新重试路径被实况命中验证。
+- `Scripts/rust-ci-lite.sh` → exit 0，`tests total passed=666`，`overall PASS`，ALL GREEN（212.9s）。
+- 收尾：`${TMPDIR}` 无 lightamer 残留；无自有残留进程（仅命中主 lane 他人 watcher 会话，未碰）；`crates/apps/Scripts/docs/Cargo.*` 零改动。
+
+`rust-stream-demo.sh` 全输出（亲跑）：
+```text
+GUARD PASS (heavy=0 free=73% swap=?M disk=?GB)
+    Finished `release` profile [optimized] target(s) in 6.00s
+
+==> stream-demo on synthetic pixels (release build)
+  five demo_gain instances sit on the photo's chain
+step 1: render 120MP over the whole-frame limit (full): strips
+  generation 1 job 1: 5 nodes, 0 skipped
+  node | id | hit | process calls | ms
+  0 | demo_gain multi=0 | miss | 157 | 158.263
+  1 | demo_gain multi=1 | miss | 157 | 158.213
+  2 | demo_gain multi=2 | miss | 161.395
+  3 | demo_gain multi=3 | miss | 157 | 151.290
+  4 | demo_gain multi=4 | miss | 157 | 171.585
+step 1: mode=strip pieces=157 in 2935ms
+step 2: add the blur module (radius 8): blocks
+  generation 2 job 2: 6 nodes, 0 skipped
+  node | id | hit | process calls | ms
+  0 | demo_blur multi=0 | miss | 99 | 8496.957
+  1 | demo_gain multi=0 | miss | 99 | 145.342
+  2 | demo_gain multi=1 | miss | 99 | 147.514
+  3 | demo_gain multi=2 | miss | 99 | 160.157
+  4 | demo_gain multi=3 | miss | 99 | 178.026
+  5 | demo_gain multi=4 | miss | 99 | 142.198
+step 2: mode=block pieces=30 in 11690ms
+step 3: spill limit refuses typed before any piece
+step 3: spill limit refused: streaming spill: streaming output needs 1920000000 bytes over the 1048576-byte limit
+step 4: fire three generations; only the latest reports
+step 4: only generation 5 reported ready
+step 5: cancel mid-stream; budget back, spill clean
+step 5: no render event: ok, budget back, spill clean
+step 6: resource table (this process measured)
+  strips: mode=strip pieces=157 in 2935ms
+  blocks: mode=block pieces=30 in 11690ms
+  frame 12000x10000 (120MP); spill limit 8589934592 bytes; threshold 268435456 bytes; kept cap 1073741824 bytes
+  budget used full: 0 bytes
+  budget used export: 0 bytes
+  budget used preview: 0 bytes
+  budget used thumbnail: 0 bytes
+step 7: clean up
+demo: ALL GREEN
+
+==> peak resident set (whole demo process)
+peak rss = 4310MB (4519395328 bytes)
+
+==> hygiene: no leftover temp dirs, no held processes
+demo: ALL GREEN
+```
+
+## B. 代码核对（行号均为 HEAD 实读）
+
+- 自动转唯一触发点：`crates/lightamer-engine/src/render.rs:958`（`Err(FrameTooLarge) if kind.auto_streams()`）；`rg auto_streams|FrameTooLarge` 全引擎+CLI 仅定义（:131）与该用点；Preview 反例测试 `preview_refuses_over_limit_while_export_streams` 在 14 新增内且通过。
+- 流式拒绝透出无回退：`plan_stream` 失败（:1199-1210）与嵌套 `render_stream` 失败（:1384-1395）均直送 `failed_delivery`，无第二路径；`stream_refusal_passes_through_without_fallback` 通过。
+- 取消/取代：块间查（:1265-1269）+ 嵌套探针（`cancel_probe` 进 sub request :1349）+ `Cancelled` 双臂（:1379-1383）；`run_render_job` 在转流式前 `drop(frame)`（:966）无双驻留；取消测试断言 `used()==0` 且通过；`sink` 靠作用域 drop，落盘匿名（unlinked）+ 演示断言 spill 目录空——引擎侧 drop 点已亲读，`StreamSink` 内部 Drop 属 B1d-a 冻结代码未重读（见未验项）。
+- 保留：`apply_delivery` :1469-1489 按 `byte_len` LRU 淘汰，超上限单张逐出全部再逐出自身（交付+事件保留）；读触碰经 `rendered_image(&mut)`（`engine.rs:644-652`）。
+- 缩略图：:1469 守卫跳过保留，但记录照记+事件照发（:1490-1497）；`thumbnail_renders_emit_events_but_keep_no_pixels` 通过。
+- `render_stream` 签名：管线 diff 零提及，未变。
+
+## C. diff 边界
+
+- `git diff --stat d8f22d24..HEAD` = 23 文件，全落在允许清单内；冻结面（history/registry/catalog/iop 模块桩/apple）diff 为空；管线仅常量注释 + 3 测试期望 hunk；B1d-a 无删（111+3 对上）；脚本 diff 均为任务书限定行；`Cargo.lock` 仅 +libc 边，许可证门过。
+- 允许但缺席（正常子集）：根 `Cargo.toml`、`docs/SESSION.md`、`docs/LICENSE-AUDIT.md`、`waves/B1db-review.log`。
+
+## D. 实测表
+
+- `--only` 抽查：`stream-demo --mp 200 --only strip`（release，load≈10）→ `pieces=202` 精确对上，RSS 4.85GB≈4.58GB，6.3s≈7.3s，可重跑。
+- 校准手算全对：预算=400×边长²（1024²/2048²/4096²）；边际 (1976-1831)/1M=145、576M/4M=144、2532M/16M≈158；`sqrt(5184M/4/150)=2939→2923` 3×3 四角坐标逐项对；64MiB→334；200MP `isqrt(2748779069/4/150)=2140-16=2124`，10×5=50。
+
+## E. 发现
+
+- minor-1（报告数字口径）：`waves/B1db-REPORT.md:6` 写“新增测试 24 个（引擎 17 + 命令行 7）”，与同文件 :132 “666（起点 644 + 新增 22）”自相矛盾；实测 CLI 新增 `#[test]` 为 **5**（`git diff d8f22d24..HEAD -- apps/lightamer-cli | rg -c '^\+.*#\[test\]'`，5 个 fns 全落 `22a00fa2`），17+5=22 与工作区增量吻合；另 :130 “lib 48（含新增 4）”实测为 **50**（`cargo test -p lightamer-cli --locked --lib`）。报告系初稿，定稿改 22/5/50 即消。非代码缺陷。
+
+未验：B1d-a 的 200MP ignored 管线测试与上限表其余 9 行（load≈10 不安静，任务 D 只要求一条 --only）；引擎 ignored 200MP 同理；`StreamSink` 管线侧 Drop 内部实现（冻结面，以引擎侧 drop 点+取消测试+演示断言为证）。风险：minor-1 待主 lane 定稿修正，无行为风险。
+

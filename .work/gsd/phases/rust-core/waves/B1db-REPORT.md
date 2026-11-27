@@ -1,0 +1,195 @@
+# B1d-b Report — Whole-Chain Row-Band Streaming, Engine Side
+
+## 结论头
+
+- 整链行带流式（引擎这一侧）已交付：区域输入、超限自动转（仅完整分辨率/导出）、落盘配置、按字节保留、拒绝透出，外加命令行管道崩溃、计时负载门、hold 残留、两脚本小修，全绿。
+- 新增测试 22 个（引擎 17 + 命令行 5），全工作区测试数见验收清单；另 1 个默认不跑的计时（200MP 经引擎作业）。
+- 每像素字节数 100 → 150（三点探针：145/144/158，见校准一节）；管线侧只动这一处。
+
+## 起点
+
+- 起始 HEAD `d8f22d24`（亲核：`git rev-parse HEAD`）。
+- 守卫：`Scripts/machine-guard.sh` → `GUARD PASS (heavy=0 free=56% swap=?M disk=?GB)`，构建前跑过。
+- 基线：`cargo test --workspace --locked -j6` 全绿（648 项枚举，见验收清单）；B1d-a 留下 644 通过 + 4 默认不跑。
+
+## 区域接口
+
+- `InputSource::fetch_region(photo, region)`，默认实现 = 整帧取出再裁（`crop_region`，逐行拷，全分类型错误）。
+- 默认与整帧加裁剪逐位相同（单元测试钉住，另含越界分类型拒绝）。
+- 流式作业按规划器给的输入区逐块取；自定义实现被按块调用（条带 256×256 计得 4 次，整帧取 1 次）。
+
+## 超限自动转的规则
+
+- 整帧入口报 `FrameTooLarge` 时：完整分辨率和导出两种实例自动改走流式（`RenderKind::auto_streams`，别处无第二判断点）；预览和缩略图照旧报错、不转。
+- 流式作业：整帧输入先丢掉（不双驻留）→ 规划（`plan_stream`，公开面）→ 拼装器（`StreamSink`）→ 逐块取输入区 → 每块一次嵌套 `render_stream`（规划区放大、交出输出部分，重叠区裁剪后推进，避免双覆盖）→ 落盘或内存帧。
+- 代号/取代/取消/事件规则不变：只有最新一代落地；被取代的在块与块之间让出（外层循环查 + 嵌套调用内探针）。
+- 流式自己的拒绝（几何变化、`WholeImage`/`Proxy`、重叠矛盾）原样透出，不退回。
+- 嵌套子调用的钳制域教训：初版以输出区为子规划帧，恒等 `roi_in` 链的钳制盒退化成输出本身，模糊在子块边界读错（块逐位测试抓获）；改成以放大区规划、交集裁剪后推进，三路逐字节相等。
+
+## 配置和保留的上限
+
+- `EngineConfig`：`spill_byte_limit`（默认 8 GiB）、`spill_dir`（默认系统临时目录）、`kept_bytes_limit`（默认 1 GiB）、`spill_memory_threshold`（默认 256 MiB，Lumen `MAP_BYTES` 同值）。`Engine::set_render_config` 安装；作业启动时克隆一份，在飞的不受影响。
+- 引擎源码零文件操作（`rg` 机检零命中，含测试代码在内——测试里原有一处脚手架目录，已移走）。
+- 保留：每对（照片，实例）按 `宽×高×16` 字节计，最久没用先淘汰；读一次算用一次；调用方克隆走的画面（映射文件共享持有）不回收；缩略图不进保留（记录照记、事件照发）；单张超上限：正常交付事件，只是不保留。
+- 拼装输出阈值上下分别走内存/映射；映射文件随最后一个持有者走。
+
+## 错误的透出
+
+- 输入放不进内存（来源拒收）、落盘超上限、预算不够、流式被拒——四个都在引擎层原样透出，分类型 + 一句人话，不包装。空链超预算走 `OutOfBudget`（不触发自动转，触发条件只认 `FrameTooLarge`，有测试钉住）。
+
+## 命令行和脚本
+
+- 管道关闭安静退出：`println!`/`print!` 在 lib/bin 两 crate 根各一处文本级影子宏，同格式化语法，写失败时管道关闭走 exit 0、其余走 stderr + exit 1。93 处调用点零改动。集成测试以 20k 行输出确定性触发（先证输出超 64KiB 管道缓冲，再关读端）。
+- 计时负载门：校验先行（计数/开会话/照片数不足一律先报错），忙闲只决定“计时作不作数”；探针可注入（单元测试注入常闲）；二进制服从 `LIGHTAMER_BENCH_IGNORE_BUSY=1`（集成测试用）。另加一例“跳过不碰会话”测试。
+- `run --hold`：被杀的持有进程本身在系统临时目录零残留（实测）；残留来自被杀的测试进程——hold 单测改 Drop 看守 + 启动时清扫死 pid 前任目录（`sweep_stale_temp_dirs`，活 pid/自家 pid/不可解析名永不动，有单测）。两演示脚本杀持有者后靠 trap 清理，原已齐备，未动。
+- `rust-test.sh`：clippy 加 `CARGO_INCREMENTAL=0` + 头注（HYG-1 观察）。
+- `rust-history-demo.sh`：`bench paste` 报 UNRELIABLE 时打印并等 60 秒重试，最多 3 次；仍测不准以 exit 3 退出（既非过亦非没过），头注同步。
+
+## 演示的输出
+
+（`Scripts/rust-stream-demo.sh` 全量输出，发行版；峰值来自 `/usr/bin/time -l`。）
+
+```text
+GUARD PASS (heavy=0 free=74% swap=?M disk=?GB)
+    Finished `release` profile [optimized] target(s) in 37.14s
+
+==> stream-demo on synthetic pixels (release build)
+  five demo_gain instances sit on the photo's chain
+step 1: render 120MP over the whole-frame limit (full): strips
+  generation 1 job 1: 5 nodes, 0 skipped
+  node | id | hit | process calls | ms
+  0 | demo_gain multi=0 | miss | 157 | 170.409
+  1 | demo_gain multi=1 | miss | 157 | 163.474
+  2 | demo_gain multi=2 | miss | 157 | 166.725
+  3 | demo_gain multi=3 | miss | 157 | 153.391
+  4 | demo_gain multi=4 | miss | 157 | 180.111
+step 1: mode=strip pieces=157 in 3030ms
+step 2: add the blur module (radius 8): blocks
+  generation 2 job 2: 6 nodes, 0 skipped
+  node | id | hit | process calls | ms
+  0 | demo_blur multi=0 | miss | 99 | 8503.921
+  1 | demo_gain multi=0 | miss | 99 | 152.073
+  2 | demo_gain multi=1 | miss | 99 | 159.176
+  3 | demo_gain multi=2 | miss | 99 | 162.508
+  4 | demo_gain multi=3 | miss | 99 | 154.421
+  5 | demo_gain multi=4 | miss | 99 | 148.902
+step 2: mode=block pieces=30 in 10760ms
+step 3: spill limit refuses typed before any piece
+step 3: spill limit refused: streaming spill: streaming output needs 1920000000 bytes over the 1048576-byte limit
+step 4: fire three generations; only the latest reports
+step 4: only generation 5 reported ready
+step 5: cancel mid-stream; budget back, spill clean
+step 5: no render event: ok, budget back, spill clean
+step 6: resource table (this process measured)
+  strips: mode=strip pieces=157 in 3030ms
+  blocks: mode=block pieces=30 in 10760ms
+  frame 12000x10000 (120MP); spill limit 8589934592 bytes; threshold 268435456 bytes; kept cap 1073741824 bytes
+  budget used full: 0 bytes
+  budget used export: 0 bytes
+  budget used preview: 0 bytes
+  budget used thumbnail: 0 bytes
+step 7: clean up
+demo: ALL GREEN
+
+==> peak resident set (whole demo process)
+peak rss = 4309MB (4519018496 bytes)
+
+==> hygiene: no leftover temp dirs, no held processes
+demo: ALL GREEN
+```
+
+## 每像素字节数的校准
+
+- 方法：管线集成探针（临时文件，测后删除），120MP 同一帧、丢弃式接收器，三档预算使放大边长恰为 1024/2048/4096（预算 419430400/1677721600/6710886400 = 400×边长²），各独立进程量峰值常驻。负载约 10（常驻数不受负载影响；耗时仅参考）。
+- 数据：放大 1048576 像素 → 1976MiB；4194304 → 2407MiB；16777216 → 4363MiB。输入恒占 1920000000 字节（1831MiB），扣除后边际为 145/144/158 字节每像素，过原点的直线。
+- 结论：初值 100 低了约 1.5 倍，改为 150（落在带内；上游按“实测往上取整”的先例）。两块工作画面 + 接收画面 + 模糊暂存 + 分配器滞留共同构成。真模块带着自己的暂存来，到时再量。管线侧只动这一处常量（含注释）及其三个测试的期望值（`block_plan` 边长 3584→2923、3×3=9 块及四角坐标；64MiB 注释 404→334；200MP 边长 2605→2124、32→50 块）。
+- 交叉验证：B1d-a 的 200MP 测试在新常量下重跑，条带峰值 66MB 不变（与模式无关），方块 1006MB → 751MB（块变小），门内通过。
+
+## 这台机器上的上限表（16GB，发行版，`stream-demo --mp N --only` + `/usr/bin/time -l`）
+
+| 模式 | 像素 | 块数 | 峰值常驻 | 耗时 | 结果 |
+|---|---|---|---|---|---|
+| 条带 | 200MP | 202 | 4.58GB | 7.3s | 过 |
+| 条带 | 300MP | 248 | 4.89GB | 8.5s | 过 |
+| 条带 | 400MP | 286 | 6.44GB | 22.3s | 过 |
+| 条带 | 500MP | 319 | 6.96GB | 26.4s | 过 |
+| 条带 | 550MP | — | 7.06GB | 3.5s | 分类型拒绝：落盘需 8800366400 字节，超 8589934592 上限（磁盘墙，设计即如此） |
+| 方块 | 200MP | 56 | 7.02GB | 19.6s | 过 |
+| 方块 | 300MP | 72 | 5.44GB | 54.1s | 过 |
+| 方块 | 400MP | 99 | 6.66GB | 56.7s | 过 |
+| 方块 | 500MP | 120 | 7.41GB | 76.6s | 过 |
+| 方块 | 550MP | — | 6.97GB | 3.5s | 同上，分类型拒绝（磁盘墙） |
+
+- 读法：两种模式在这台机器上完整跑到 500MP；再大先撞磁盘上限（约 536MP，输出超 8GiB，分类型错误），而非内存墙。输入帧（像素数×16 字节）须先整帧取出，内存墙在磁盘墙之后（约 800MP 起整帧分配开始冒险，未探——共用机器，不拿 OOM 赌邻居）。
+- 峰值说明：多租户负载下（load 8–11）各轮波动（如方块 300 反低于 200），属 VM 压缩/回收噪声；能过/过不了的结论不受影响。
+- 解码那道墙：61MP 的 A7R5 马赛克 122MB（2 字节每像素，调研 §5.3 的数）；按此推 500MP 马赛克约 1GB，远未到墙。解码交的是马赛克（2B/px），渲染吃的是 f32（16B/px）——先撞的一定是渲染侧，实测一致。
+
+## 验收清单（命令与输出）
+
+- `cargo test -p lightamer-engine --locked`：200 通过 + 1 默认不跑（80 lib 含 14 新增 + 3 流式集成 + 余量旧），零失败。
+- `cargo test -p lightamer-cli --locked`：lib 50 通过（含新增 4）+ `run_session` 6 通过（含管道测试）+ `decode_dump` 9 通过，零失败。
+- `cargo test -p lightamer-pipeline --locked`：111 通过 + 3 默认不跑，零失败（常量 150 下重绿；B1d-a 的 200MP 另跑：条带 66MB / 方块 751MB，门内）。
+- `cargo test --workspace --locked`：666 通过（起点 644 + 新增 22，逐项对上）、5 默认不跑（起点 4 + 引擎 200MP），零失败；负载 10.79 下旧 flaky 三项全绿。
+- B1d-a 测试零删：管线侧只改常量注释 + 三处期望值（逐处见校准一节），无删行。
+- 无文件操作机检：`rg -n 'std::fs|create_dir|read_dir|std::fs::copy|fs::copy|File::create|tempfile' crates/lightamer-engine/src` 零输出（含测试代码）。
+- `cargo xtask layers`：`OK: 29 crates, no layering violations.`；`cargo xtask check-no-iop-names`：`OK (97 names, 4 roots clean)`；`Scripts/rust-apple-boundary.sh` 退出 0（7/7）；`Scripts/check-licenses.sh` 退出 0（libc 只加边不加包）。
+- 六条 lint 全工作区非增量：退出 0；`RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked` 退出 0；`cargo fmt --all --check` 干净。
+- 冻结面：`git diff --stat d8f22d24..HEAD -- crates/lightamer-history crates/lightamer-registry crates/lightamer-catalog 'crates/lightamer-iop-*/src/modules' crates/lightamer-apple` 零输出。
+- 管线 diff：仅 `stream.rs` 5 个 hunk（常量+注释、`block_plan`、`64MiB` 注释、200MP 注释与断言），`render_stream` 零提及。
+- 演示：`rust-stream-demo.sh` 退出 0（输出见上）；解码/会话/渲染/历史四脚本各退出 0；历史脚本的测不准段见下。
+- 实测两表见上，命令可重跑。
+- `Scripts/rust-ci-lite.sh`：退出 0，ALL GREEN（213 秒；`tests total passed=666`，预算 `overall PASS`，内含守卫/许可证/分层/文档/clippy/全测试）。
+- 跑后无残留：`git status` 无临时文件；系统临时目录无本波残留；无残留进程（收尾时复核）。
+- 提交路径见纪律清单；含 `B1db-REPORT.md` 与 `B1db-review.log`。
+
+## 历史演示的测不准段
+
+（负载 12 下整跑：4 个 `yes` 毛刺约 3.5 分钟，跑后即杀，零残留。）
+
+```text
+bench paste: UNRELIABLE (load 11.75 on 10 cpus); skipping, neither pass nor fail
+bench paste: UNRELIABLE, waiting 60s and retrying (1/3)
+bench paste: UNRELIABLE (load 10.84 on 10 cpus); skipping, neither pass nor fail
+bench paste: UNRELIABLE, waiting 60s and retrying (2/3)
+bench paste: UNRELIABLE (load 12.15 on 10 cpus); skipping, neither pass nor fail
+demo: UNRELIABLE (machine busy after 3 tries), gate skipped, neither pass nor fail
+HISTORY-UNREL-EXIT=3
+```
+
+## 给用户看的汇报（整个 B1d）
+
+超过单帧上限的图，现在能在完整分辨率下渲染了，而且用户无感：
+
+- 放得下走整帧，放不下自动转流式——内存里一次只留一条带（64 行）或一个方块，结果和整帧逐字节相同。链上全是逐点运算走条带，有空间范围走方块（块大小按预算自动算，512 到 8192）。
+- 输出放不下内存可落磁盘文件（内存映射，用完即删），上限默认 8GB 可设；超了在跑之前就明确拒绝，不会渲一半再炸。
+- 会改几何、要看整图的模块现在会明确拒绝（等各自的波）；上限仍由资源定，没有写死的像素数。
+- 这台 16GB 机器上，条带和方块都完整跑到 500MP；再大先撞 8GB 磁盘上限（分类型错误），输入帧本身（像素数×16 字节）是内存侧的第一道墙。
+
+现场看一条命令（发行版，约 30 秒）：
+
+```sh
+Scripts/rust-stream-demo.sh
+```
+
+它渲一张 120MP 合成图：条带（157 带）→ 方块（30 块）→ 小落盘上限的类型错误 → 连发三代只交最新 → 中途取消预算归还 → 资源表 → 清理，全绿退出 0。
+
+还没做的：预览/缩略图实例不跟进（按裁决）；代理统计随第一个要它的模块；改几何模块的流式随各自的波；导出作业按带直送编码器归 B16（本波只交了入口形状）；设置面板的落盘上限界面归设面板那一波；真模块到来后重测每像素字节数。
+
+## 未做 / 未验
+
+- 未做：无。任务书八条、测试一节、文档署名全做完。预览/缩略图实例、代理统计、几何模块流式、按区域解码、导出按带消费，按裁决本就不做。
+- 未验：无。验收清单逐条全绿（含历史演示在负载 12 下的 exit 3 路径实测）；复审 `PASS / 0 error + 1 minor`，见下。
+- 已知上游缺口（本波只读发现，不在路径内，不改）：无。550MP 整帧尝试走通一事经查是演示断言把“分类型失败”误报成“没进流式”，管线足迹核对为 u64 无溢出，非缺口（见修订记录 R-1）。
+
+## 复审的结论头
+
+`PASS / 0 error + 1 minor`（`waves/B1db-review.log`，独立复审，验收清单全重跑 + 源码核 + diff 边界 + 实测抽查）。
+
+## Commit
+
+最终提交哈希：`7827b276374dc5ec547b3d0aba1d14f76190a78d`（amend 并入本行后为准，见完工消息）。
+
+## 修订记录（复审回注）
+
+- R-1（演示断言把分类型失败误报成没进流式）：执行中自查发现。`run_streamed_step` 先查 `record.streamed`，失败交付的该字段恒为 None，于是 550MP 的落盘类型墙被报成“没进流式”。改为先看事件：失败报 reason，成功才查 record。
+- minor-1（报告数字口径）：复审成立。结论头“新增 24（17+7）”与“666（644+22）”自相矛盾；实测 CLI 新增 `#[test]` 5 个、lib 总数 50。已改成 22/5/50。非代码缺陷，零代码改动。

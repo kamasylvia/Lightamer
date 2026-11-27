@@ -83,6 +83,31 @@ pub fn stderr_tail(output: &CmdOutput, max: usize) -> String {
     String::from_utf8_lossy(bytes.get(start..).unwrap_or_default()).into_owned()
 }
 
+/// Writes `text` to stdout. A closed pipe (the reader went away, as in
+/// `lightamer-cli ... | head -1`) exits quietly with status 0 instead of
+/// panicking; any other write failure reports to stderr and exits 1. Never
+/// returns on a write failure.
+pub fn print_stdout(text: &str) {
+    use std::io::Write;
+    let mut out = std::io::stdout().lock();
+    match out.write_all(text.as_bytes()) {
+        Ok(()) => {}
+        Err(err) if err.kind() == io::ErrorKind::BrokenPipe => std::process::exit(0),
+        Err(err) => {
+            eprintln!("lightamer-cli: stdout: {err}");
+            std::process::exit(1);
+        }
+    }
+}
+
+/// Writes one `text` line to stdout; see [`print_stdout`] for failures.
+pub fn print_stdout_line(text: &str) {
+    let mut line = String::with_capacity(text.len() + 1);
+    line.push_str(text);
+    line.push('\n');
+    print_stdout(&line);
+}
+
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Create a unique directory under the system temp dir.
@@ -115,6 +140,52 @@ pub fn make_temp_dir(prefix: &str) -> Result<PathBuf, Error> {
 /// Remove a dir tree, ignoring any failure (best-effort cleanup).
 pub fn remove_dir_quiet(path: &Path) {
     let _ = fs::remove_dir_all(path);
+}
+
+/// Deletes stale temp dirs of one [`make_temp_dir`] prefix: entries whose
+/// embedded pid is dead (a previous run killed mid-test can never clean
+/// after itself, so the next run sweeps its predecessors). Live pids —
+/// this process, a parallel lane's — and unparsable names are never
+/// touched. Best-effort: unreadable directories and removal failures are
+/// ignored. Returns how many were removed.
+#[must_use]
+pub fn sweep_stale_temp_dirs(prefix: &str) -> usize {
+    let mut removed = 0;
+    let entries = std::fs::read_dir(std::env::temp_dir()).map_or(Vec::new(), |entries| {
+        entries.filter_map(Result::ok).collect()
+    });
+    for entry in entries {
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        let Some(rest) = name.strip_prefix(prefix) else {
+            continue;
+        };
+        let Some(pid_text) = rest
+            .strip_prefix('-')
+            .and_then(|tail| tail.split('-').next())
+        else {
+            continue;
+        };
+        let Ok(pid) = pid_text.parse::<u32>() else {
+            continue;
+        };
+        if pid == std::process::id() || process_alive(pid) {
+            continue;
+        }
+        if std::fs::remove_dir_all(entry.path()).is_ok() {
+            removed += 1;
+        }
+    }
+    removed
+}
+
+/// Whether `pid` names a live process (`kill -0`, no signal sent).
+fn process_alive(pid: u32) -> bool {
+    std::process::Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .output()
+        .is_ok_and(|out| out.status.success())
 }
 
 /// User home from `$HOME`.
@@ -176,5 +247,23 @@ mod tests {
     #[test]
     fn error_display() {
         assert_eq!(Error::new("boom").to_string(), "boom");
+    }
+
+    #[test]
+    fn sweep_removes_dead_pid_dirs_and_keeps_live_ones() {
+        // A pid past the platform maximum is dead by definition.
+        let dead = std::env::temp_dir().join("lightamer-cli-sweep-999999999-0-0");
+        let _ = std::fs::remove_dir_all(&dead);
+        std::fs::create_dir(&dead).unwrap();
+        let live = make_temp_dir("lightamer-cli-sweep").unwrap();
+        let foreign = std::env::temp_dir().join("lightamer-cli-sweep-no-pid-here");
+        let _ = std::fs::remove_dir_all(&foreign);
+        std::fs::create_dir(&foreign).unwrap();
+        assert_eq!(sweep_stale_temp_dirs("lightamer-cli-sweep"), 1);
+        assert!(!dead.exists());
+        assert!(live.is_dir());
+        assert!(foreign.is_dir());
+        remove_dir_quiet(&live);
+        remove_dir_quiet(&foreign);
     }
 }

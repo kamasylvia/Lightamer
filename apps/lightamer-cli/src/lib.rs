@@ -12,6 +12,16 @@
     clippy::unimplemented
 )]
 
+// EPIPE-safe `println!`: the standard macro panics when stdout is a closed
+// pipe (`lightamer-cli ... | head -1`); this one exits quietly instead (see
+// `util::print_stdout`). Textually scoped: shadows `std::println!` for this
+// crate only, with identical formatting syntax.
+macro_rules! println {
+    ($($arg:tt)*) => {
+        $crate::util::print_stdout_line(&format!($($arg)*))
+    };
+}
+
 pub mod bench;
 pub mod capabilities;
 pub mod cmp;
@@ -21,5 +31,6 @@ pub mod fetch;
 pub mod render;
 pub mod render_demo;
 pub mod selftest;
+pub mod stream_demo;
 pub mod util;
 pub mod xmp;
