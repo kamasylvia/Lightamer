@@ -123,7 +123,8 @@ CREATE TABLE favorites (
 );
 "##;
 
-/// Applies the storage pragmas: WAL journal, `NORMAL` synchronous,
+/// Applies the storage pragmas: WAL journal, `FULL` synchronous (every
+/// commit is synced: committed commands survive a crash and a power cut),
 /// foreign keys on.
 ///
 /// This is the only function that writes these three settings.
@@ -134,7 +135,7 @@ CREATE TABLE favorites (
 /// [`CatalogError::Setup`] when the journal mode does not stick to WAL.
 pub fn apply_pragmas(conn: &Connection) -> Result<(), CatalogError> {
     conn.pragma_update(None, "journal_mode", "WAL")?;
-    conn.pragma_update(None, "synchronous", "NORMAL")?;
+    conn.pragma_update(None, "synchronous", "FULL")?;
     conn.pragma_update(None, "foreign_keys", 1)?;
     let mode: String = conn.pragma_query_value(None, "journal_mode", |row| row.get(0))?;
     if !mode.eq_ignore_ascii_case("wal") {

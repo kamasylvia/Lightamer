@@ -8,9 +8,9 @@ mod common;
 use std::sync::Arc;
 
 use lightamer_catalog::{
-    CatalogError, HistoryWriter, INITIAL_LABEL, PhotoRecord, Session, close_session,
+    CatalogError, HistoryWriter, INITIAL_LABEL, PhotoRecord, PushRequest, Session, close_session,
     create_session, move_cursor, open_session, orphan_snapshot_hashes, push_step, read_history,
-    register_photo, verify_session,
+    read_photo_currents, register_photo, verify_session,
 };
 use lightamer_history::{HistoryStack, PhotoSettings};
 
@@ -715,6 +715,437 @@ fn writer_push_and_move_land_in_one_transaction() -> Result<(), Box<dyn std::err
     drop(writer);
     let read = read_history(session.connection(), record.id)?;
     assert_eq!((read.cursor, read.steps.len()), (1, 3));
+    close_session(session)?;
+    Ok(())
+}
+
+/// `(table, rows)` dumps, in fixed table order.
+type TableDump = Vec<(String, Vec<String>)>;
+
+/// Dumps every table's rows with `created_at` masked out (two runs stamp
+/// different seconds): `history_steps` without its timestamp column, every
+/// other table whole, all in rowid order.
+fn dump_all_tables(conn: &rusqlite::Connection) -> Result<TableDump, Box<dyn std::error::Error>> {
+    let mut dump = Vec::new();
+    for table in [
+        "_meta",
+        "photos",
+        "snapshots",
+        "history_steps",
+        "keywords",
+        "photo_keywords",
+        "albums",
+        "album_photos",
+        "favorites",
+    ] {
+        let sql = if table == "history_steps" {
+            format!("SELECT photo_id, idx, label, snapshot_hash FROM {table} ORDER BY rowid")
+        } else {
+            format!("SELECT * FROM {table} ORDER BY rowid")
+        };
+        let mut select = conn.prepare(&sql)?;
+        let columns = select.column_count();
+        let rows = select.query_map([], |row| {
+            let mut cells = Vec::new();
+            for index in 0..columns {
+                let value: rusqlite::types::Value = row.get(index)?;
+                cells.push(format!("{value:?}"));
+            }
+            Ok(cells.join("|"))
+        })?;
+        dump.push((table.to_owned(), rows.collect::<Result<_, _>>()?));
+    }
+    Ok(dump)
+}
+
+/// The same paste step addressed to every id in `order` (repeats allowed).
+fn paste_items<'a>(order: &[i64], label: &'a str, json: &'a str) -> Vec<PushRequest<'a>> {
+    order
+        .iter()
+        .map(|id| PushRequest {
+            photo_id: *id,
+            label,
+            canonical_json: json,
+        })
+        .collect()
+}
+
+#[test]
+fn push_many_matches_sequential_pushes_table_for_table() -> Result<(), Box<dyn std::error::Error>> {
+    let scratch = ScratchDir::new("batch-equiv")?;
+    let mut session = create_session(scratch.path(), "Shoot", "history-test")?;
+    let root = session.root().to_path_buf();
+    let mut ids = Vec::new();
+    for name in ["a.arw", "b.arw", "c.arw", "d.arw"] {
+        let record = register_photo(
+            session.connection_mut(),
+            &root,
+            &root.join("Capture").join(name),
+            name,
+            None,
+        )?;
+        ids.push(record.id);
+    }
+    let [a, b, c, d]: [i64; 4] = ids.try_into().map_err(|_| "need four photos")?;
+    // B carries a redo tail; C sits at the 200-step cap; D has three steps.
+    let b1 = settings_json("exposure", "ev", 1)?;
+    let b2 = settings_json("exposure", "ev", 2)?;
+    push_step(session.connection_mut(), b, "develop.set", &b1)?;
+    push_step(session.connection_mut(), b, "develop.set", &b2)?;
+    move_cursor(session.connection(), b, 0)?;
+    for value in 1..=199_i64 {
+        let json = settings_json("mod_c", "p", value)?;
+        push_step(session.connection_mut(), c, "develop.set", &json)?;
+    }
+    let d1 = settings_json("contrast", "amount", 1)?;
+    let d2 = settings_json("contrast", "amount", 2)?;
+    push_step(session.connection_mut(), d, "develop.set", &d1)?;
+    push_step(session.connection_mut(), d, "develop.set", &d2)?;
+    let db_path = session.db_path().to_path_buf();
+    close_session(session)?;
+    let copy_path = scratch.path().join("Copy.lmsessiondb");
+    std::fs::copy(&db_path, &copy_path)?;
+
+    let paste = settings_json("rawprepare", "p_gain", 3)?;
+    let order = [a, b, c, d, a];
+
+    let mut seq = rusqlite::Connection::open(&db_path)?;
+    let mut writer = HistoryWriter::begin(&mut seq)?;
+    let mut seq_outcomes = Vec::new();
+    for item in paste_items(&order, "develop.paste", paste.as_str()) {
+        seq_outcomes.push(writer.push(item.photo_id, item.label, item.canonical_json)?);
+    }
+    writer.commit()?;
+
+    let mut batched = rusqlite::Connection::open(&copy_path)?;
+    let mut writer = HistoryWriter::begin(&mut batched)?;
+    let batch_outcomes = writer.push_many(&paste_items(&order, "develop.paste", paste.as_str()))?;
+    assert_eq!(writer.snapshot_cache_hits(), 4);
+    assert_eq!(writer.redo_delete_skips(), 4);
+    assert_eq!(writer.stats().pushes, 5);
+    writer.commit()?;
+
+    assert_eq!(batch_outcomes, seq_outcomes);
+    assert_eq!(dump_all_tables(&seq)?, dump_all_tables(&batched)?);
+    Ok(())
+}
+
+#[test]
+fn snapshot_cache_serves_repeats_without_second_lookup() -> Result<(), Box<dyn std::error::Error>> {
+    let scratch = ScratchDir::new("snap-cache")?;
+    let mut session = create_session(scratch.path(), "Shoot", "history-test")?;
+    let root = session.root().to_path_buf();
+    let mut ids = Vec::new();
+    for name in ["a.arw", "b.arw", "c.arw"] {
+        let record = register_photo(
+            session.connection_mut(),
+            &root,
+            &root.join("Capture").join(name),
+            name,
+            None,
+        )?;
+        ids.push(record.id);
+    }
+    let json = settings_json("exposure", "ev", 1)?;
+    let other = settings_json("exposure", "ev", 2)?;
+    let mut writer = HistoryWriter::begin(session.connection_mut())?;
+    let items = ids
+        .iter()
+        .map(|id| PushRequest {
+            photo_id: *id,
+            label: "develop.paste",
+            canonical_json: json.as_str(),
+        })
+        .collect::<Vec<_>>();
+    let outcomes = writer.push_many(&items)?;
+    assert_eq!(writer.snapshot_cache_hits(), 2);
+    let hashes: Vec<&str> = outcomes
+        .iter()
+        .map(|outcome| outcome.snapshot_hash.as_str())
+        .collect();
+    let Some(first) = hashes.first() else {
+        return Err("no pushes ran".into());
+    };
+    assert!(hashes.iter().all(|hash| hash == first));
+    // A different text misses the cache and stores its own row.
+    let Some(target) = ids.first() else {
+        return Err("no photos registered".into());
+    };
+    let again = writer.push(*target, "develop.set", &other)?;
+    assert_eq!(writer.snapshot_cache_hits(), 2);
+    assert_ne!(again.snapshot_hash, *first);
+    writer.commit()?;
+    assert_eq!(db_counts(session.connection())?, (3, 7, 3));
+    close_session(session)?;
+    Ok(())
+}
+
+#[test]
+fn redo_delete_skipped_at_end_taken_with_redo() -> Result<(), Box<dyn std::error::Error>> {
+    let (_scratch, mut session, record) = setup_one("redo-skip")?;
+    let first = settings_json("exposure", "ev", 1)?;
+    let second = settings_json("exposure", "ev", 2)?;
+    let mut writer = HistoryWriter::begin(session.connection_mut())?;
+    writer.push(record.id, "develop.set", &first)?;
+    writer.push(record.id, "develop.set", &second)?;
+    assert_eq!(writer.redo_delete_skips(), 2);
+    writer.commit()?;
+    move_cursor(session.connection(), record.id, 0)?;
+    let third = settings_json("exposure", "ev", 3)?;
+    let mut writer = HistoryWriter::begin(session.connection_mut())?;
+    let outcome = writer.push(record.id, "develop.reset", &third)?;
+    assert_eq!(writer.redo_delete_skips(), 0);
+    assert_eq!((outcome.cursor, outcome.steps), (1, 2));
+    writer.commit()?;
+    let read = read_history(session.connection(), record.id)?;
+    let labels: Vec<&str> = read.steps.iter().map(|step| step.label.as_str()).collect();
+    assert_eq!(labels, vec![INITIAL_LABEL, "develop.reset"]);
+    close_session(session)?;
+    Ok(())
+}
+
+#[test]
+fn batch_collision_through_one_writer_keeps_rows_apart() -> Result<(), Box<dyn std::error::Error>> {
+    let (_scratch, mut session, record) = setup_one("batch-collision")?;
+    let first = settings_json("exposure", "ev", 1)?;
+    let second = settings_json("exposure", "ev", 2)?;
+    let mut writer = HistoryWriter::begin(session.connection_mut())?;
+    writer.inject_snapshot_key_for_test("7");
+    let items = [first.as_str(), second.as_str()]
+        .iter()
+        .map(|json| PushRequest {
+            photo_id: record.id,
+            label: "develop.paste",
+            canonical_json: json,
+        })
+        .collect::<Vec<_>>();
+    let outcomes = writer.push_many(&items)?;
+    let [one, two] = outcomes.as_slice() else {
+        return Err("batch pushed no outcomes".into());
+    };
+    assert_eq!(one.snapshot_hash, "7");
+    assert!(!one.collided);
+    assert_eq!(two.snapshot_hash, "7#2");
+    assert!(two.collided);
+    // The first text again reuses its row through the cache: no new row, no
+    // new collision, one cache hit.
+    let again = writer.push(record.id, "develop.paste", &first)?;
+    assert_eq!(again.snapshot_hash, "7");
+    assert!(!again.collided);
+    assert_eq!(writer.snapshot_cache_hits(), 1);
+    writer.commit()?;
+    let conn = session.connection();
+    let stored_one: String =
+        conn.query_row("SELECT json FROM snapshots WHERE hash = '7'", [], |row| {
+            row.get(0)
+        })?;
+    let stored_two: String =
+        conn.query_row("SELECT json FROM snapshots WHERE hash = '7#2'", [], |row| {
+            row.get(0)
+        })?;
+    assert_eq!(stored_one, first);
+    assert_eq!(stored_two, second);
+    assert_eq!(
+        step_rows(conn, record.id)?,
+        vec![
+            (
+                0,
+                INITIAL_LABEL.to_owned(),
+                PhotoSettings::default().hash64_decimal()
+            ),
+            (1, "develop.paste".to_owned(), "7".to_owned()),
+            (2, "develop.paste".to_owned(), "7#2".to_owned()),
+            (3, "develop.paste".to_owned(), "7".to_owned()),
+        ]
+    );
+    close_session(session)?;
+    Ok(())
+}
+
+#[test]
+fn read_photo_currents_returns_current_facts() -> Result<(), Box<dyn std::error::Error>> {
+    let scratch = ScratchDir::new("currents")?;
+    let mut session = create_session(scratch.path(), "Shoot", "history-test")?;
+    let root = session.root().to_path_buf();
+    let a = register_photo(
+        session.connection_mut(),
+        &root,
+        &root.join("Capture").join("a.arw"),
+        "a.arw",
+        None,
+    )?;
+    let b = register_photo(
+        session.connection_mut(),
+        &root,
+        &root.join("Capture").join("b.arw"),
+        "b.arw",
+        None,
+    )?;
+    let first = settings_json("exposure", "ev", 1)?;
+    let second = settings_json("exposure", "ev", 2)?;
+    push_step(session.connection_mut(), b.id, "develop.set", &first)?;
+    push_step(session.connection_mut(), b.id, "develop.set", &second)?;
+    let currents = read_photo_currents(
+        session.connection(),
+        &[a.uuid.clone(), "no-such-photo".to_owned(), b.uuid.clone()],
+    )?;
+    assert_eq!(currents.len(), 2);
+    let Some(current_a) = currents.iter().find(|one| one.uuid == a.uuid) else {
+        return Err("photo A missing from currents".into());
+    };
+    assert_eq!(
+        (
+            current_a.id,
+            current_a.cursor,
+            current_a.steps,
+            current_a.max_idx
+        ),
+        (a.id, 0, 1, 0)
+    );
+    assert_eq!(
+        current_a.settings_json,
+        PhotoSettings::default().canonical_json()?
+    );
+    let Some(current_b) = currents.iter().find(|one| one.uuid == b.uuid) else {
+        return Err("photo B missing from currents".into());
+    };
+    assert_eq!(
+        (
+            current_b.id,
+            current_b.cursor,
+            current_b.steps,
+            current_b.max_idx
+        ),
+        (b.id, 2, 3, 2)
+    );
+    assert_eq!(current_b.settings_json, second);
+    assert_eq!(read_photo_currents(session.connection(), &[])?, []);
+    close_session(session)?;
+    Ok(())
+}
+
+#[test]
+fn push_many_validates_in_item_order() -> Result<(), Box<dyn std::error::Error>> {
+    let (_scratch, mut session, record) = setup_one("batch-order")?;
+    let good = settings_json("exposure", "ev", 1)?;
+    let before = db_counts(session.connection())?;
+    let photo_before = photo_row(session.connection(), record.id)?;
+    let check = |session: &mut Session,
+                 items: &[PushRequest<'_>]|
+     -> Result<CatalogError, Box<dyn std::error::Error>> {
+        let mut writer = HistoryWriter::begin(session.connection_mut())?;
+        let Err(err) = writer.push_many(items) else {
+            return Err("invalid batch was accepted".into());
+        };
+        drop(writer);
+        assert_eq!(db_counts(session.connection())?, before);
+        assert_eq!(photo_row(session.connection(), record.id)?, photo_before);
+        Ok(err)
+    };
+    // A later item's bad text wins over nothing earlier: item order rules.
+    let err = check(
+        &mut session,
+        &[
+            PushRequest {
+                photo_id: record.id,
+                label: "develop.set",
+                canonical_json: good.as_str(),
+            },
+            PushRequest {
+                photo_id: record.id,
+                label: "develop.set",
+                canonical_json: "{nope",
+            },
+        ],
+    )?;
+    assert!(matches!(err, CatalogError::BadSettings { .. }), "{err}");
+    // An earlier item's unknown photo wins over a later item's bad text.
+    let err = check(
+        &mut session,
+        &[
+            PushRequest {
+                photo_id: 9999,
+                label: "develop.set",
+                canonical_json: good.as_str(),
+            },
+            PushRequest {
+                photo_id: record.id,
+                label: "develop.set",
+                canonical_json: "{nope",
+            },
+        ],
+    )?;
+    assert!(matches!(err, CatalogError::UnknownPhoto(9999)), "{err}");
+    // An earlier item's bad text wins over a later item's unknown photo.
+    let err = check(
+        &mut session,
+        &[
+            PushRequest {
+                photo_id: record.id,
+                label: "develop.set",
+                canonical_json: "{nope",
+            },
+            PushRequest {
+                photo_id: 9999,
+                label: "develop.set",
+                canonical_json: good.as_str(),
+            },
+        ],
+    )?;
+    assert!(matches!(err, CatalogError::BadSettings { .. }), "{err}");
+    close_session(session)?;
+    Ok(())
+}
+
+#[test]
+fn push_many_ten_thousand_in_a_single_transaction() -> Result<(), Box<dyn std::error::Error>> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    let (_scratch, mut session, _first) = setup_one("batch-10k-many")?;
+    let root = session.root().to_path_buf();
+    for number in 2..=10_000_i64 {
+        let name = format!("img-{number:05}.arw");
+        register_photo(
+            session.connection_mut(),
+            &root,
+            &root.join("Capture").join(&name),
+            &name,
+            None,
+        )?;
+    }
+    let json = settings_json("exposure", "ev", 1)?;
+    let key = PhotoSettings::from_json(&json)?.hash64_decimal();
+    let commits = Arc::new(AtomicU64::new(0));
+    let counter = Arc::clone(&commits);
+    session.connection_mut().commit_hook(Some(move || {
+        counter.fetch_add(1, Ordering::SeqCst);
+        false
+    }))?;
+
+    let items = (1..=10_000_i64)
+        .map(|id| PushRequest {
+            photo_id: id,
+            label: "develop.paste",
+            canonical_json: json.as_str(),
+        })
+        .collect::<Vec<_>>();
+    let mut writer = HistoryWriter::begin(session.connection_mut())?;
+    let outcomes = writer.push_many(&items)?;
+    assert_eq!(outcomes.len(), 10_000);
+    assert_eq!(writer.stats().pushes, 10_000);
+    assert_eq!(writer.snapshot_cache_hits(), 9_999);
+    assert_eq!(writer.redo_delete_skips(), 10_000);
+    writer.commit()?;
+    assert_eq!(commits.load(Ordering::SeqCst), 1);
+
+    let conn = session.connection();
+    assert_eq!(db_counts(conn)?, (10_000, 20_000, 2));
+    let landed: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM photos WHERE cursor = 1 AND current_hash = ?1",
+        [&key],
+        |row| row.get(0),
+    )?;
+    assert_eq!(landed, 10_000);
     close_session(session)?;
     Ok(())
 }

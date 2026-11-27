@@ -42,6 +42,10 @@ fn adopt_leaves_existing_files_untouched() -> Result<(), Box<dyn std::error::Err
     // Opening by the database path reaches the same session.
     let session = open_session(&root.join("Old.lmsessiondb"), "b12p-a-test")?;
     assert_eq!(session.root(), root.as_path());
+    let synchronous: i64 = session
+        .connection()
+        .query_row("PRAGMA synchronous", [], |row| row.get(0))?;
+    assert_eq!(synchronous, 2);
     close_session(session)?;
     Ok(())
 }

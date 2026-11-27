@@ -64,6 +64,7 @@ pub fn bench_setup(parent: &Path, name: &str, photos: usize) -> Result<SetupRepo
     let database = session.db_path().to_path_buf();
     lightamer_catalog::close_session(session)
         .map_err(|err| Error::new(format!("bench setup: cannot close: {err}")))?;
+    remove_wal_sidecars(&database);
     let registered = plant?;
     Ok(SetupReport {
         root,
@@ -81,6 +82,12 @@ pub enum PasteReport {
         runs_ms: Vec<f64>,
         /// Median of `runs_ms`.
         median_ms: f64,
+        /// Per-round read/compute/write thirds in milliseconds, in run order
+        /// (the engine's [`CommandPhases`][lightamer_engine::CommandPhases]
+        /// for the round's `develop.paste` call).
+        phases_ms: Vec<[f64; 3]>,
+        /// Per-third medians of `phases_ms`, same order.
+        phase_medians_ms: [f64; 3],
         /// `PhotoChanged` events delivered per round (each should equal the
         /// photo count).
         events: Vec<usize>,
@@ -163,6 +170,7 @@ pub fn bench_paste(session_path: &Path, photos: usize, runs: usize) -> Result<Pa
     }));
     let want = u64::try_from(photos).unwrap_or(u64::MAX);
     let mut runs_ms = Vec::with_capacity(runs);
+    let mut phases_ms: Vec<[f64; 3]> = Vec::with_capacity(runs);
     let mut events = Vec::with_capacity(runs);
     for round in 0..runs {
         let start = round.saturating_mul(photos);
@@ -184,23 +192,69 @@ pub fn bench_paste(session_path: &Path, photos: usize, runs: usize) -> Result<Pa
             )));
         }
         runs_ms.push(elapsed.as_secs_f64() * 1000.0);
+        let thirds = engine.last_command_phases();
+        phases_ms.push([
+            thirds.read.as_secs_f64() * 1000.0,
+            thirds.compute.as_secs_f64() * 1000.0,
+            thirds.write.as_secs_f64() * 1000.0,
+        ]);
         events.push(*delivered.borrow());
     }
     engine
         .execute("session.close", &json!({}))
         .map_err(|err| Error::new(format!("bench paste: cannot close: {err}")))?;
+    remove_wal_sidecars(session_path);
     let mut sorted = runs_ms.clone();
     sorted.sort_by(f64::total_cmp);
     let median_ms = sorted.get(sorted.len() / 2).copied().unwrap_or(0.0);
+    let phase_medians_ms = median_thirds(&phases_ms);
     let passed =
         median_ms < PASTE_GATE.as_secs_f64() * 1000.0 && events.iter().all(|&got| got == photos);
     Ok(PasteReport::Measured {
         runs_ms,
         median_ms,
+        phases_ms,
+        phase_medians_ms,
         events,
         photos,
         passed,
     })
+}
+
+/// Removes a closed session's `-wal`/`-shm` sidecars so the bench leaves the
+/// session directory clean (a checkpointed close leaves a zero-length `-wal`;
+/// the bench owns its sessions exclusively, so nothing else can be writing).
+/// Missing files are fine; any other failure is ignored: the bench never
+/// fails on cleanup.
+fn remove_wal_sidecars(session_path: &Path) {
+    let db = if session_path.is_file() {
+        session_path.to_path_buf()
+    } else {
+        let Some(name) = session_path.file_name().and_then(|name| name.to_str()) else {
+            return;
+        };
+        session_path.join(format!("{name}.lmsessiondb"))
+    };
+    for suffix in ["-wal", "-shm"] {
+        let mut sidecar = db.clone().into_os_string();
+        sidecar.push(suffix);
+        let _ = std::fs::remove_file(Path::new(&sidecar));
+    }
+}
+/// Per-third medians of per-round `[read, compute, write]` thirds (the
+/// middle run of each third independently, like [`bench_paste`]'s total
+/// median; empty input medians to zeros).
+fn median_thirds(rounds: &[[f64; 3]]) -> [f64; 3] {
+    let mut medians = [0.0; 3];
+    for (third, median) in medians.iter_mut().enumerate() {
+        let mut sorted: Vec<f64> = rounds
+            .iter()
+            .filter_map(|round| round.get(third).copied())
+            .collect();
+        sorted.sort_by(f64::total_cmp);
+        *median = sorted.get(sorted.len() / 2).copied().unwrap_or(0.0);
+    }
+    medians
 }
 
 /// One `sysctl -n` value, or [`None`] when macOS will not answer.
@@ -244,7 +298,16 @@ fn machine_busy() -> Option<(f64, usize)> {
 mod tests {
     #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
 
-    use super::{PASTE_GATE, PasteReport, bench_paste, bench_setup};
+    use super::{PASTE_GATE, PasteReport, bench_paste, bench_setup, remove_wal_sidecars};
+
+    /// A database file's `-wal`/`-shm` sidecar paths.
+    fn sidecars_of(database: &std::path::Path) -> [std::path::PathBuf; 2] {
+        ["-wal", "-shm"].map(|suffix| {
+            let mut owned = database.as_os_str().to_os_string();
+            owned.push(suffix);
+            std::path::PathBuf::from(owned)
+        })
+    }
 
     /// A fresh empty directory for one test, removed when dropped.
     struct ScratchDir {
@@ -289,6 +352,9 @@ mod tests {
                 .count(),
             7
         );
+        for sidecar in sidecars_of(&report.database) {
+            assert!(!sidecar.exists(), "bench setup left {sidecar:?}");
+        }
         // The session opens again: setup closed it cleanly.
         let mut engine = lightamer_engine::Engine::new();
         engine
@@ -312,6 +378,8 @@ mod tests {
             PasteReport::Measured {
                 runs_ms,
                 median_ms,
+                phases_ms,
+                phase_medians_ms,
                 events,
                 photos,
                 ..
@@ -322,6 +390,24 @@ mod tests {
                 assert_eq!(events, vec![100]);
                 assert!(median_ms > 0.0, "a round takes some time");
                 assert!(runs_ms[0] > 0.0, "a round takes some time");
+                assert_eq!(phases_ms.len(), 1);
+                assert_eq!(phase_medians_ms, phases_ms[0]);
+                let thirds = phases_ms[0];
+                assert!(
+                    thirds
+                        .iter()
+                        .all(|third| third.is_finite() && *third >= 0.0),
+                    "thirds are timed: {thirds:?}"
+                );
+                let thirds_total: f64 = thirds.iter().sum();
+                assert!(
+                    thirds_total <= runs_ms[0] * 1.5 + 1.0,
+                    "thirds {thirds_total} cover the round {}",
+                    runs_ms[0]
+                );
+                for sidecar in sidecars_of(&setup.root.join("Shoot.lmsessiondb")) {
+                    assert!(!sidecar.exists(), "bench paste left {sidecar:?}");
+                }
             }
             PasteReport::Skipped { .. } => {}
         }
@@ -335,5 +421,38 @@ mod tests {
         let setup = bench_setup(scratch.path.as_path(), "Shoot", 5).expect("setup runs");
         let err = bench_paste(&setup.root, 5, 2).expect_err("short session fails");
         assert!(err.to_string().contains("need 10"), "{err}");
+    }
+
+    #[test]
+    fn close_cleanup_removes_wal_sidecars_by_database_or_directory() {
+        let scratch = ScratchDir::new("bench-sidecars");
+        // By database file.
+        let db = scratch.path.join("Shoot.lmsessiondb");
+        std::fs::write(&db, b"db").expect("db");
+        let pair = sidecars_of(&db);
+        for sidecar in &pair {
+            std::fs::write(sidecar, b"wal").expect("sidecar");
+        }
+        remove_wal_sidecars(&db);
+        assert!(db.is_file());
+        for sidecar in &pair {
+            assert!(!sidecar.exists());
+        }
+        // By session directory (derives the database name).
+        let shoot = scratch.path.join("Shoot");
+        std::fs::create_dir_all(&shoot).expect("dir");
+        let db_in = shoot.join("Shoot.lmsessiondb");
+        std::fs::write(&db_in, b"db").expect("db");
+        let pair_in = sidecars_of(&db_in);
+        for sidecar in &pair_in {
+            std::fs::write(sidecar, b"wal").expect("sidecar");
+        }
+        remove_wal_sidecars(&shoot);
+        assert!(db_in.is_file());
+        for sidecar in &pair_in {
+            assert!(!sidecar.exists());
+        }
+        // Missing everything is fine.
+        remove_wal_sidecars(&scratch.path.join("Nope"));
     }
 }

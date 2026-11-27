@@ -10,7 +10,9 @@ mod common;
 
 use std::time::{Duration, Instant};
 
-use lightamer_catalog::{HistoryWriter, close_session, create_session, register_photo};
+use lightamer_catalog::{
+    HistoryWriter, PushRequest, close_session, create_session, register_photo,
+};
 use lightamer_history::PhotoSettings;
 
 use common::{ScratchDir, settings_json};
@@ -82,15 +84,25 @@ fn paste_10k_once(tag: &str, synchronous: &str) -> Result<Run, Box<dyn std::erro
 
     let json = settings_json("exposure", "ev", 1)?;
     let key = PhotoSettings::from_json(&json)?.hash64_decimal();
+    let items = (1..=PHOTOS)
+        .map(|id| PushRequest {
+            photo_id: id,
+            label: "develop.paste",
+            canonical_json: json.as_str(),
+        })
+        .collect::<Vec<_>>();
     let mut writer = HistoryWriter::begin(session.connection_mut())?;
     let start = Instant::now();
-    for id in 1..=PHOTOS {
-        writer.push(id, "develop.paste", &json)?;
-    }
+    let outcomes = writer.push_many(&items)?;
+    assert_eq!(outcomes.len(), 10_000);
     let stats = *writer.stats();
+    let hits = writer.snapshot_cache_hits();
+    let skips = writer.redo_delete_skips();
     writer.commit()?;
     let total = start.elapsed();
     assert_eq!(stats.pushes, 10_000);
+    assert_eq!(hits, 9_999);
+    assert_eq!(skips, 10_000);
 
     let landed: i64 = session.connection().query_row(
         "SELECT COUNT(*) FROM photos WHERE cursor = 1 AND current_hash = ?1",

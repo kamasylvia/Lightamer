@@ -16,10 +16,11 @@
 //! mismatch is stored as a new row under a `#2`-style suffix, reported to
 //! the caller through [`PushOutcome::collided`].
 
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use lightamer_history::{HISTORY_LIMIT, PhotoSettings};
-use rusqlite::{Connection, OptionalExtension, Transaction, params};
+use rusqlite::{Connection, OptionalExtension, Statement, Transaction, params, params_from_iter};
 
 use crate::error::CatalogError;
 
@@ -117,6 +118,57 @@ pub(crate) struct SnapshotStored {
     pub collided: bool,
 }
 
+/// One step to push inside [`HistoryWriter::push_many`]: the photo, the
+/// command label, and the already-computed canonical settings JSON.
+#[derive(Clone, Copy, Debug)]
+pub struct PushRequest<'a> {
+    /// The photo's internal id (`photos.id`).
+    pub photo_id: i64,
+    /// The label the new step carries.
+    pub label: &'a str,
+    /// The already-computed canonical settings JSON.
+    pub canonical_json: &'a str,
+}
+
+/// One photo's current state for the engine's batch fast path: enough to
+/// compute and place a push without reading the whole history (see
+/// [`read_photo_currents`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PhotoCurrent {
+    /// The photo's outside identity.
+    pub uuid: String,
+    /// The photo's internal id.
+    pub id: i64,
+    /// The cursor (`photos.cursor`).
+    pub cursor: i64,
+    /// The step count.
+    pub steps: i64,
+    /// The highest step index (`-1` when the photo holds no step).
+    pub max_idx: i64,
+    /// The current settings' canonical JSON.
+    pub settings_json: String,
+}
+
+/// One photo's push facts for [`HistoryWriter::push_many`]: the cursor, the
+/// step count, and the highest step index, from the single batch query.
+struct PushFacts {
+    cursor: i64,
+    steps: i64,
+    max_idx: i64,
+}
+
+impl PushFacts {
+    /// Whether the redo delete provably removes nothing: the cursor sits on
+    /// the last step of contiguous steps from 0, so no row has `idx` past
+    /// the cursor. Anything damaged (a gap, a cursor off the steps) answers
+    /// false and the delete runs, exactly as before.
+    fn redo_is_empty(&self) -> bool {
+        self.cursor >= 0
+            && self.cursor.saturating_add(1) == self.steps
+            && self.max_idx.saturating_add(1) == self.steps
+    }
+}
+
 /// An open history transaction: push any number of steps, then commit.
 ///
 /// Dropping the writer without [`HistoryWriter::commit`] rolls every pushed
@@ -126,6 +178,9 @@ pub struct HistoryWriter<'c> {
     tx: Transaction<'c>,
     key_override: Option<String>,
     stats: PushStats,
+    snapshot_cache: HashMap<String, SnapshotStored>,
+    snapshot_cache_hits: u64,
+    redo_skips: u64,
 }
 
 impl<'c> HistoryWriter<'c> {
@@ -139,6 +194,9 @@ impl<'c> HistoryWriter<'c> {
             tx: conn.transaction()?,
             key_override: None,
             stats: PushStats::default(),
+            snapshot_cache: HashMap::new(),
+            snapshot_cache_hits: 0,
+            redo_skips: 0,
         })
     }
 
@@ -147,6 +205,10 @@ impl<'c> HistoryWriter<'c> {
     /// cursor, inserts the new step at cursor + 1, trims past
     /// [`HISTORY_LIMIT`], and updates the photo row's cursor, current
     /// snapshot, and process mirror in one `UPDATE`.
+    ///
+    /// This is [`push_many`][Self::push_many] for a single step; the batch
+    /// entry shares the one implementation, so single pushes and batch
+    /// pushes cannot drift apart.
     ///
     /// # Errors
     ///
@@ -160,56 +222,145 @@ impl<'c> HistoryWriter<'c> {
         label: &str,
         canonical_json: &str,
     ) -> Result<PushOutcome, CatalogError> {
-        let process = settings_process(canonical_json)?;
-        let cursor: Option<i64> = self
-            .tx
-            .query_row(
-                "SELECT cursor FROM photos WHERE id = ?1",
-                [photo_id],
-                |row| row.get(0),
-            )
-            .optional()?;
-        let Some(cursor) = cursor else {
-            return Err(CatalogError::UnknownPhoto(photo_id));
+        let request = PushRequest {
+            photo_id,
+            label,
+            canonical_json,
         };
+        let mut outcomes = self.push_many(std::slice::from_ref(&request))?;
+        outcomes
+            .pop()
+            .ok_or_else(|| CatalogError::Setup("push_many returned no outcome".to_owned()))
+    }
 
-        let start = Instant::now();
-        let stored = store_snapshot(&self.tx, canonical_json, self.key_override.as_deref())?;
-        self.stats.snapshot = self.stats.snapshot.saturating_add(start.elapsed());
-
-        let start = Instant::now();
-        self.tx.execute(
-            "DELETE FROM history_steps WHERE photo_id = ?1 AND idx > ?2",
-            params![photo_id, cursor],
-        )?;
-        let next = cursor.saturating_add(1);
-        let now = now_unix();
-        self.tx.execute(
+    /// Pushes any number of steps inside the transaction: [`push`][Self::push]
+    /// for a whole batch, with the per-push statements prepared once and
+    /// held for every item.
+    ///
+    /// The batch runs in two phases. Validation first, in item order (each
+    /// item's settings parse before its photo lookup, exactly the error
+    /// precedence of pushing one by one): the photo facts for every item
+    /// come from a single query. Execution second, in item order, through
+    /// five held statements: the snapshot lookup/insert, the redo delete
+    /// (skipped when the cursor provably sits on the last step of
+    /// contiguous steps), the step insert, and the photo-row update. The
+    /// same settings text pushed again inside this writer reuses its first
+    /// resolution (one lookup, one byte comparison); snapshot rows only
+    /// accumulate inside one transaction, so the reuse decides exactly what
+    /// a second lookup would.
+    ///
+    /// Errors leave the writer exactly as [`push`][Self::push] does: a failed
+    /// item writes nothing and the writer stays usable; dropping it without
+    /// [`commit`][Self::commit] rolls every pushed step back.
+    ///
+    /// # Errors
+    ///
+    /// [`CatalogError::BadSettings`] when an item's text does not parse as
+    /// settings; [`CatalogError::UnknownPhoto`] when an item names a photo
+    /// that is not in the library; [`CatalogError::Sql`] when SQLite refuses
+    /// a step.
+    pub fn push_many(
+        &mut self,
+        items: &[PushRequest<'_>],
+    ) -> Result<Vec<PushOutcome>, CatalogError> {
+        let facts = batch_push_facts(&self.tx, items)?;
+        let mut validated = Vec::with_capacity(items.len());
+        for item in items {
+            let process = settings_process(item.canonical_json)?;
+            let Some(fact) = facts.get(&item.photo_id) else {
+                return Err(CatalogError::UnknownPhoto(item.photo_id));
+            };
+            validated.push((item, process, fact));
+        }
+        // Borrowed fields, not `self`: the held statements borrow `tx`
+        // while the loop also advances the cache, the counters, and `stats`.
+        let Self {
+            tx,
+            key_override,
+            stats,
+            snapshot_cache,
+            snapshot_cache_hits,
+            redo_skips,
+        } = self;
+        let mut select_snapshot = tx.prepare("SELECT json FROM snapshots WHERE hash = ?1")?;
+        let mut insert_snapshot =
+            tx.prepare("INSERT INTO snapshots (hash, json) VALUES (?1, ?2)")?;
+        let mut delete_redo =
+            tx.prepare("DELETE FROM history_steps WHERE photo_id = ?1 AND idx > ?2")?;
+        let mut insert_step = tx.prepare(
             "INSERT INTO history_steps (photo_id, idx, label, snapshot_hash, created_at) \
              VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![photo_id, next, label, stored.key, now],
         )?;
-        let (cursor, steps) = self.enforce_limit(photo_id, next)?;
-        self.stats.steps = self.stats.steps.saturating_add(start.elapsed());
-
-        let start = Instant::now();
-        let changed = self.tx.execute(
+        let mut update_photo = tx.prepare(
             "UPDATE photos SET cursor = ?1, current_hash = ?2, process = ?3 WHERE id = ?4",
-            params![cursor, stored.key, process, photo_id],
         )?;
-        self.stats.photos = self.stats.photos.saturating_add(start.elapsed());
-        if changed != 1 {
-            return Err(CatalogError::UnknownPhoto(photo_id));
+        let limit = step_limit()?;
+        // Running (cursor, steps) per photo: a photo named twice in one
+        // batch pushes onto its own first push, exactly as sequential pushes
+        // would (every push lands the cursor on the new step, so a second
+        // push always finds the cursor at the end).
+        let mut progress: HashMap<i64, (i64, i64)> = HashMap::new();
+        let mut outcomes = Vec::with_capacity(items.len());
+        for (item, process, initial) in validated {
+            let (cursor, steps, at_end) = match progress.get(&item.photo_id) {
+                Some((cursor, steps)) => (*cursor, *steps, true),
+                None => (initial.cursor, initial.steps, initial.redo_is_empty()),
+            };
+
+            let start = Instant::now();
+            let stored = if let Some(hit) = snapshot_cache.get(item.canonical_json) {
+                *snapshot_cache_hits = snapshot_cache_hits.saturating_add(1);
+                hit.clone()
+            } else {
+                let stored = resolve_snapshot(
+                    &mut select_snapshot,
+                    &mut insert_snapshot,
+                    item.canonical_json,
+                    key_override.as_deref(),
+                )?;
+                snapshot_cache.insert(item.canonical_json.to_owned(), stored.clone());
+                stored
+            };
+            stats.snapshot = stats.snapshot.saturating_add(start.elapsed());
+
+            let start = Instant::now();
+            let removed = if at_end {
+                *redo_skips = redo_skips.saturating_add(1);
+                0
+            } else {
+                delete_redo.execute(params![item.photo_id, cursor])?
+            };
+            let next = cursor.saturating_add(1);
+            let now = now_unix();
+            insert_step.execute(params![item.photo_id, next, item.label, stored.key, now])?;
+            let removed = i64::try_from(removed).unwrap_or(i64::MAX);
+            let after_insert = steps.saturating_sub(removed).saturating_add(1);
+            let (cursor, steps) = if after_insert <= limit {
+                (next, after_insert)
+            } else {
+                trim_to_limit(tx, item.photo_id, next, after_insert)?
+            };
+            stats.steps = stats.steps.saturating_add(start.elapsed());
+
+            let start = Instant::now();
+            let changed =
+                update_photo.execute(params![cursor, stored.key, process, item.photo_id])?;
+            stats.photos = stats.photos.saturating_add(start.elapsed());
+            if changed != 1 {
+                return Err(CatalogError::UnknownPhoto(item.photo_id));
+            }
+            stats.pushes = stats.pushes.saturating_add(1);
+            progress.insert(item.photo_id, (cursor, steps));
+            outcomes.push(PushOutcome {
+                photo_id: item.photo_id,
+                idx: cursor,
+                snapshot_hash: stored.key,
+                collided: stored.collided,
+                cursor,
+                steps,
+            });
         }
-        self.stats.pushes = self.stats.pushes.saturating_add(1);
-        Ok(PushOutcome {
-            photo_id,
-            idx: cursor,
-            snapshot_hash: stored.key,
-            collided: stored.collided,
-            cursor,
-            steps,
-        })
+        Ok(outcomes)
     }
 
     /// Commits every pushed step.
@@ -240,6 +391,21 @@ impl<'c> HistoryWriter<'c> {
         &self.stats
     }
 
+    /// How many snapshot resolutions this writer served from its
+    /// within-writer cache: the same settings text pushed again costs no
+    /// second lookup and no second byte comparison.
+    #[must_use]
+    pub fn snapshot_cache_hits(&self) -> u64 {
+        self.snapshot_cache_hits
+    }
+
+    /// How many pushes skipped the redo delete because the cursor provably
+    /// sat on the last step of contiguous steps (no row could match it).
+    #[must_use]
+    pub fn redo_delete_skips(&self) -> u64 {
+        self.redo_skips
+    }
+
     /// Forces the snapshot base key for every later push (test only).
     ///
     /// Production pushes always hash the settings text; this override lets
@@ -247,58 +413,9 @@ impl<'c> HistoryWriter<'c> {
     /// collision path stores two rows and reports the collision.
     pub fn inject_snapshot_key_for_test(&mut self, key: &str) {
         self.key_override = Some(key.to_owned());
-    }
-
-    /// Trims a photo's steps to [`HISTORY_LIMIT`], renumbering the rest from
-    /// 0 and shifting the cursor with them. Returns the new cursor and the
-    /// new step count.
-    fn enforce_limit(&self, photo_id: i64, inserted: i64) -> Result<(i64, i64), CatalogError> {
-        let count: i64 = self.tx.query_row(
-            "SELECT COUNT(*) FROM history_steps WHERE photo_id = ?1",
-            [photo_id],
-            |row| row.get(0),
-        )?;
-        let limit = step_limit()?;
-        if count <= limit {
-            return Ok((inserted, count));
-        }
-        let drop = count - limit;
-        let min: Option<i64> = self.tx.query_row(
-            "SELECT MIN(idx) FROM history_steps WHERE photo_id = ?1",
-            [photo_id],
-            |row| row.get(0),
-        )?;
-        let Some(min) = min else {
-            return Err(CatalogError::Setup(format!(
-                "photo {photo_id} counted {count} steps but holds none"
-            )));
-        };
-        let cutoff = min.saturating_add(drop);
-        self.tx.execute(
-            "DELETE FROM history_steps WHERE photo_id = ?1 AND idx < ?2",
-            params![photo_id, cutoff],
-        )?;
-        let remaining: Vec<i64> = {
-            let mut select = self
-                .tx
-                .prepare("SELECT idx FROM history_steps WHERE photo_id = ?1 ORDER BY idx")?;
-            select
-                .query_map([photo_id], |row| row.get(0))?
-                .collect::<Result<_, _>>()?
-        };
-        // Ascending: each target sits below every not-yet-moved row, so the
-        // primary key never collides mid-loop.
-        for (position, old) in remaining.iter().enumerate() {
-            let renumbered = i64::try_from(position)
-                .map_err(|_| CatalogError::Setup("step index overflowed".to_owned()))?;
-            if *old != renumbered {
-                self.tx.execute(
-                    "UPDATE history_steps SET idx = ?1 WHERE photo_id = ?2 AND idx = ?3",
-                    params![renumbered, photo_id, old],
-                )?;
-            }
-        }
-        Ok((inserted.saturating_sub(drop), limit))
+        // A new forced base re-resolves every text: cached resolutions
+        // belong to the previous base.
+        self.snapshot_cache.clear();
     }
 }
 
@@ -440,6 +557,70 @@ pub fn read_history(conn: &Connection, photo_id: i64) -> Result<HistoryRead, Cat
     })
 }
 
+/// The current state of every photo in `uuids`, in one query: each photo's
+/// store id, cursor, step count, highest step index, and current settings
+/// text. Photos that are not in the library have no entry; the caller
+/// reports the first missing one in batch order. A photo whose current
+/// snapshot row is gone is damaged ([`CatalogError::Setup`]).
+///
+/// # Errors
+///
+/// [`CatalogError::Setup`] when a matched photo's current snapshot is
+/// missing; [`CatalogError::Sql`] when SQLite refuses the read.
+pub fn read_photo_currents(
+    conn: &Connection,
+    uuids: &[String],
+) -> Result<Vec<PhotoCurrent>, CatalogError> {
+    if uuids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut sql = String::from(
+        "SELECT p.uuid, p.id, p.cursor, \
+         (SELECT COUNT(*) FROM history_steps WHERE photo_id = p.id), \
+         (SELECT COALESCE(MAX(idx), -1) FROM history_steps WHERE photo_id = p.id), \
+         p.current_hash, s.json \
+         FROM photos AS p LEFT JOIN snapshots AS s ON s.hash = p.current_hash \
+         WHERE p.uuid IN (",
+    );
+    for position in 0..uuids.len() {
+        if position > 0 {
+            sql.push_str(", ");
+        }
+        sql.push('?');
+    }
+    sql.push(')');
+    let mut select = conn.prepare(&sql)?;
+    let rows = select.query_map(params_from_iter(uuids.iter()), |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, i64>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, i64>(3)?,
+            row.get::<_, i64>(4)?,
+            row.get::<_, String>(5)?,
+            row.get::<_, Option<String>>(6)?,
+        ))
+    })?;
+    let mut currents = Vec::with_capacity(uuids.len());
+    for row in rows {
+        let (uuid, id, cursor, steps, max_idx, current_hash, json) = row?;
+        let Some(settings_json) = json else {
+            return Err(CatalogError::Setup(format!(
+                "photo {id} current snapshot {current_hash} is missing"
+            )));
+        };
+        currents.push(PhotoCurrent {
+            uuid,
+            id,
+            cursor,
+            steps,
+            max_idx,
+            settings_json,
+        });
+    }
+    Ok(currents)
+}
+
 /// Every orphan snapshot key: no step points at it and no photo holds it as
 /// current. One query, ordered by key.
 ///
@@ -475,6 +656,138 @@ pub fn delete_orphan_snapshots(conn: &Connection) -> Result<u64, CatalogError> {
         [],
     )?;
     Ok(conn.changes())
+}
+
+/// Every batch item's push facts in one query: the cursor, the step count,
+/// and the highest step index per photo. Photos that are not in the library
+/// simply have no entry; the caller reports the first missing one in item
+/// order.
+fn batch_push_facts(
+    tx: &Transaction,
+    items: &[PushRequest<'_>],
+) -> Result<HashMap<i64, PushFacts>, CatalogError> {
+    let mut found = HashMap::with_capacity(items.len());
+    if items.is_empty() {
+        return Ok(found);
+    }
+    let mut sql = String::from(
+        "SELECT p.id, p.cursor, COUNT(s.idx), COALESCE(MAX(s.idx), -1) \
+         FROM photos AS p LEFT JOIN history_steps AS s ON s.photo_id = p.id \
+         WHERE p.id IN (",
+    );
+    for position in 0..items.len() {
+        if position > 0 {
+            sql.push_str(", ");
+        }
+        sql.push('?');
+    }
+    sql.push_str(") GROUP BY p.id");
+    let mut select = tx.prepare(&sql)?;
+    let ids = items.iter().map(|item| item.photo_id);
+    let rows = select.query_map(params_from_iter(ids), |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            PushFacts {
+                cursor: row.get(1)?,
+                steps: row.get(2)?,
+                max_idx: row.get(3)?,
+            },
+        ))
+    })?;
+    for row in rows {
+        let (id, facts) = row?;
+        found.insert(id, facts);
+    }
+    Ok(found)
+}
+
+/// Resolves the snapshot row for `json` through the batch's held statements:
+/// the base key is the forced key when a test injected one, else the decimal
+/// FNV-1a of the bytes. A hit reuses the row only when the stored bytes
+/// match byte for byte; a mismatch stores a new row under the next
+/// `#2`-style suffix. The same rule as [`store_snapshot`], which keeps
+/// serving single-statement callers (photo registration).
+fn resolve_snapshot(
+    select: &mut Statement,
+    insert: &mut Statement,
+    json: &str,
+    key_override: Option<&str>,
+) -> Result<SnapshotStored, CatalogError> {
+    let base = key_override.map_or_else(|| snapshot_key_for(json), str::to_owned);
+    let mut key = base.clone();
+    let mut suffix = 1_i64;
+    loop {
+        let found: Option<String> = select.query_row([&key], |row| row.get(0)).optional()?;
+        match found {
+            None => {
+                insert.execute(params![key, json])?;
+                return Ok(SnapshotStored {
+                    collided: key != base,
+                    key,
+                });
+            }
+            Some(text) if text == json => {
+                return Ok(SnapshotStored {
+                    key,
+                    collided: false,
+                });
+            }
+            Some(_) => {
+                suffix = suffix.saturating_add(1);
+                key = format!("{base}#{suffix}");
+            }
+        }
+    }
+}
+
+/// Trims a photo's steps to [`HISTORY_LIMIT`] after an insert left
+/// `count_after` rows: deletes the oldest rows, renumbers the rest from 0,
+/// and shifts the cursor with them. Returns the new cursor and the new step
+/// count. Only the over-limit path calls this; within-limit pushes place the
+/// step from the already-known counts without another query.
+fn trim_to_limit(
+    tx: &Transaction,
+    photo_id: i64,
+    inserted: i64,
+    count_after: i64,
+) -> Result<(i64, i64), CatalogError> {
+    let limit = step_limit()?;
+    let drop = count_after.saturating_sub(limit);
+    let min: Option<i64> = tx.query_row(
+        "SELECT MIN(idx) FROM history_steps WHERE photo_id = ?1",
+        [photo_id],
+        |row| row.get(0),
+    )?;
+    let Some(min) = min else {
+        return Err(CatalogError::Setup(format!(
+            "photo {photo_id} counted {count_after} steps but holds none"
+        )));
+    };
+    let cutoff = min.saturating_add(drop);
+    tx.execute(
+        "DELETE FROM history_steps WHERE photo_id = ?1 AND idx < ?2",
+        params![photo_id, cutoff],
+    )?;
+    let remaining: Vec<i64> = {
+        let mut select =
+            tx.prepare("SELECT idx FROM history_steps WHERE photo_id = ?1 ORDER BY idx")?;
+        select
+            .query_map([photo_id], |row| row.get(0))?
+            .collect::<Result<_, _>>()?
+    };
+    // Ascending: each target sits below every not-yet-moved row, so the
+    // primary key never collides mid-loop.
+    for (position, old) in remaining.iter().enumerate() {
+        let renumbered = i64::try_from(position)
+            .map_err(|_| CatalogError::Setup("step index overflowed".to_owned()))?;
+        if *old != renumbered {
+            tx.execute(
+                "UPDATE history_steps SET idx = ?1 WHERE photo_id = ?2 AND idx = ?3",
+                params![renumbered, photo_id, old],
+            )?;
+        }
+    }
+    Ok((inserted.saturating_sub(drop), limit))
 }
 
 /// Stores the snapshot row for `json` inside `tx`: the base key is the

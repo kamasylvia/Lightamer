@@ -18,7 +18,9 @@
 //! `paste`, `undo`, `redo`, `goto`, `process.update`, `begin`) settle it on
 //! the probe first, so the store learns the drag's step inside the same
 //! single transaction.
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value, json};
 
@@ -27,6 +29,48 @@ use crate::develop::{SetArgs, full_selection, merged_settings, parse_selection, 
 use crate::engine::Engine;
 use crate::error::CommandError;
 use crate::event::Event;
+
+/// Stopwatch splitting one batch command into the three thirds the bench
+/// reports: explicit store-fetch spans accumulate into `read`, the commit
+/// span into `write`, and `compute` is the rest (settings, serialization,
+/// the infallible swap-in, events), derived by subtraction so the three add
+/// up to the whole command.
+struct PhaseClock {
+    start: Instant,
+    read: Duration,
+    write: Duration,
+}
+
+impl PhaseClock {
+    fn start() -> Self {
+        Self {
+            start: Instant::now(),
+            read: Duration::ZERO,
+            write: Duration::ZERO,
+        }
+    }
+
+    fn add_read(&mut self, span: Duration) {
+        self.read = self.read.saturating_add(span);
+    }
+
+    fn add_write(&mut self, span: Duration) {
+        self.write = self.write.saturating_add(span);
+    }
+
+    fn finish(self, engine: &mut Engine) {
+        let compute = self
+            .start
+            .elapsed()
+            .saturating_sub(self.read)
+            .saturating_sub(self.write);
+        engine.set_last_phases(crate::engine::CommandPhases {
+            read: self.read,
+            compute,
+            write: self.write,
+        });
+    }
+}
 
 /// Whether `id` is one of the fourteen persisted commands: on a real session
 /// these run the §1.8 path instead of the draft clone/restore (see
@@ -65,10 +109,14 @@ enum StoreOp {
 }
 
 /// One photo's computed half: the store ops plus the stack to swap in and
-/// the event facts. Everything in here was built before the commit.
+/// the event facts. Everything in here was built before the commit. `stack`
+/// is `None` for batch targets that were never loaded: their new state lives
+/// in the store alone (snapshot accessors read it back through), so a batch
+/// neither pays for rebuilding stacks it never held nor evicts the
+/// interactive working set from the cache.
 struct Computed {
     id: String,
-    stack: lightamer_history::HistoryStack,
+    stack: Option<lightamer_history::HistoryStack>,
     steps: usize,
     cursor: usize,
     emit: bool,
@@ -119,9 +167,10 @@ fn settle_interaction(
 }
 
 /// Commits every op in one store transaction: nothing when there is nothing
-/// to do, the single-step helpers for one op, one writer otherwise. The
-/// caller computed everything beforehand; dropping the writer on error rolls
-/// the whole batch back.
+/// to do, the single-step helpers for one op, one writer otherwise (an
+/// all-push batch through the writer's single prepared-statements pass).
+/// The caller computed everything beforehand; dropping the writer on error
+/// rolls the whole batch back.
 fn commit_ops(engine: &mut Engine, cmd: &str, ops: &[StoreOp]) -> Result<(), CommandError> {
     let Some(first) = ops.first() else {
         return Ok(());
@@ -145,6 +194,23 @@ fn commit_ops(engine: &mut Engine, cmd: &str, ops: &[StoreOp]) -> Result<(), Com
             }
         };
     }
+    let mut requests = Vec::with_capacity(ops.len());
+    let mut all_push = true;
+    for op in ops {
+        match op {
+            StoreOp::Push { db, label, json } => {
+                requests.push(lightamer_catalog::PushRequest {
+                    photo_id: *db,
+                    label: label.as_str(),
+                    canonical_json: json.as_str(),
+                });
+            }
+            StoreOp::Move { .. } => {
+                all_push = false;
+                break;
+            }
+        }
+    }
     let Some(session) = engine.real_session_mut() else {
         return Err(CommandError::NoSession {
             cmd: cmd.to_owned(),
@@ -152,6 +218,13 @@ fn commit_ops(engine: &mut Engine, cmd: &str, ops: &[StoreOp]) -> Result<(), Com
     };
     let mut writer = lightamer_catalog::HistoryWriter::begin(session.connection_mut())
         .map_err(|err| store_err(cmd, err))?;
+    if all_push {
+        writer
+            .push_many(&requests)
+            .map(|_| ())
+            .map_err(|err| store_err(cmd, err))?;
+        return writer.commit().map_err(|err| store_err(cmd, err));
+    }
     for op in ops {
         match op {
             StoreOp::Push { db, label, json } => {
@@ -180,10 +253,117 @@ fn swap_in(engine: &mut Engine, computed: Vec<Computed>, ctx: &mut RunCtx) {
             steps: one.steps,
             cursor: one.cursor,
         };
-        engine.insert_photo_stack(&one.id, one.stack);
+        if let Some(stack) = one.stack {
+            engine.insert_photo_stack(&one.id, stack);
+        }
         if one.emit {
             ctx.emit(event);
         }
+    }
+}
+
+/// Fetches the unloaded targets of a multi-target command in one query: each
+/// photo's store id, cursor, step count, highest step index, and current
+/// settings text. Loaded photos keep the in-memory path (their cached stack
+/// mirrors the store and may hold an open interaction); single-target
+/// commands never call this, so interactive edits keep populating the cache
+/// while batches stream past it without evicting the working set.
+fn fetch_unloaded_batch(
+    engine: &Engine,
+    cmd: &str,
+    ids: &[String],
+) -> Result<HashMap<String, lightamer_catalog::PhotoCurrent>, CommandError> {
+    let unloaded: Vec<String> = ids
+        .iter()
+        .filter(|id| !engine.is_photo_loaded(id))
+        .cloned()
+        .collect();
+    let Some(session) = engine.real_session() else {
+        return Err(CommandError::NoSession {
+            cmd: cmd.to_owned(),
+        });
+    };
+    lightamer_catalog::read_photo_currents(session.connection(), &unloaded)
+        .map(|currents| {
+            currents
+                .into_iter()
+                .map(|one| (one.uuid.clone(), one))
+                .collect()
+        })
+        .map_err(|err| store_err(cmd, err))
+}
+
+/// The fast-path facts for one batch target: `Some` when the photo is
+/// unloaded (its facts came from the batch fetch), `None` when it is loaded
+/// (the caller runs the in-memory path). Unknown ids fail here, in batch
+/// order, before the store is touched.
+fn fast_facts<'b>(
+    batch: Option<&'b HashMap<String, lightamer_catalog::PhotoCurrent>>,
+    engine: &Engine,
+    cmd: &str,
+    id: &str,
+) -> Result<Option<&'b lightamer_catalog::PhotoCurrent>, CommandError> {
+    let Some(currents) = batch else {
+        return Ok(None);
+    };
+    if let Some(facts) = currents.get(id) {
+        return Ok(Some(facts));
+    }
+    if engine.is_photo_loaded(id) {
+        return Ok(None);
+    }
+    Err(CommandError::NoPhoto {
+        cmd: cmd.to_owned(),
+        photo: id.to_owned(),
+    })
+}
+
+/// Validates one batch target's stored facts and parses its current
+/// settings: contiguous steps from 0 with the cursor on a step are exactly
+/// the states [`HistoryStack::from_steps`][lightamer_history::HistoryStack::from_steps]
+/// accepts, and the push arithmetic below mirrors its `commit`. Anything
+/// damaged fails before the store is touched.
+fn parse_stored_current(
+    cmd: &str,
+    facts: &lightamer_catalog::PhotoCurrent,
+) -> Result<lightamer_history::PhotoSettings, CommandError> {
+    if facts.cursor < 0
+        || facts.cursor >= facts.steps
+        || facts.max_idx.saturating_add(1) != facts.steps
+    {
+        return Err(CommandError::Store {
+            cmd: cmd.to_owned(),
+            reason: format!(
+                "stored cursor {} of photo {} names no step ({} steps)",
+                facts.cursor, facts.id, facts.steps
+            ),
+        });
+    }
+    lightamer_history::PhotoSettings::from_json(&facts.settings_json).map_err(|err| {
+        CommandError::Store {
+            cmd: cmd.to_owned(),
+            reason: format!(
+                "stored current settings of photo {} do not parse: {err}",
+                facts.id
+            ),
+        }
+    })
+}
+
+/// Where a push lands without the stack: the redo tail drops, the new step
+/// appends at cursor + 1, past [`HISTORY_LIMIT`][lightamer_history::HISTORY_LIMIT]
+/// the oldest steps drop, and the cursor parks on the new step. `cursor` is
+/// the validated stored pre-push cursor.
+fn post_push_position(cursor: i64) -> (usize, usize) {
+    let limit = lightamer_history::HISTORY_LIMIT;
+    let after_insert = cursor.saturating_add(2);
+    let capped = i64::try_from(limit).unwrap_or(i64::MAX);
+    if after_insert > capped {
+        (limit, limit.saturating_sub(1))
+    } else {
+        let steps = usize::try_from(after_insert).unwrap_or(limit);
+        let at = usize::try_from(cursor.saturating_add(1)).unwrap_or(0);
+        (steps, at)
     }
 }
 
@@ -196,10 +376,48 @@ pub(crate) fn develop_set(
     const CMD: &str = "develop.set";
     let ids = ids_req(CMD, params)?;
     let args: SetArgs = set_args(engine, CMD, params)?;
+    let mut clock = PhaseClock::start();
+    let unloaded = if ids.len() > 1 {
+        let tick = Instant::now();
+        let fetched = fetch_unloaded_batch(engine, CMD, &ids)?;
+        clock.add_read(tick.elapsed());
+        Some(fetched)
+    } else {
+        None
+    };
     let mut computed = Vec::with_capacity(ids.len());
     let mut ops = Vec::new();
     for id in &ids {
+        if let Some(facts) = fast_facts(unloaded.as_ref(), engine, CMD, id)? {
+            let current = parse_stored_current(CMD, facts)?;
+            let next = merged_settings(
+                &current,
+                &args.module,
+                args.multi,
+                args.enabled,
+                &args.patch,
+            );
+            let json = next
+                .canonical_json()
+                .map_err(|err| unserializable(CMD, err))?;
+            let (new_steps, new_cursor) = post_push_position(facts.cursor);
+            ops.push(StoreOp::Push {
+                db: facts.id,
+                label: CMD.to_owned(),
+                json,
+            });
+            computed.push(Computed {
+                id: id.clone(),
+                steps: new_steps,
+                cursor: new_cursor,
+                stack: None,
+                emit: true,
+            });
+            continue;
+        }
+        let tick = Instant::now();
         let db = engine.ensure_photo_loaded(CMD, id)?;
+        clock.add_read(tick.elapsed());
         let Some(stack) = engine.stack_mut(id) else {
             continue;
         };
@@ -230,12 +448,15 @@ pub(crate) fn develop_set(
             id: id.clone(),
             steps: probe.len(),
             cursor: probe.cursor_index(),
-            stack: probe,
+            stack: Some(probe),
             emit: true,
         });
     }
+    let tick = Instant::now();
     commit_ops(engine, CMD, &ops)?;
+    clock.add_write(tick.elapsed());
     swap_in(engine, computed, ctx);
+    clock.finish(engine);
     Ok(json!({"updated": ids.len()}))
 }
 
@@ -247,10 +468,42 @@ pub(crate) fn develop_reset(
 ) -> Result<Outcome, CommandError> {
     const CMD: &str = "develop.reset";
     let ids = ids_req(CMD, params)?;
+    let mut clock = PhaseClock::start();
+    let unloaded = if ids.len() > 1 {
+        let tick = Instant::now();
+        let fetched = fetch_unloaded_batch(engine, CMD, &ids)?;
+        clock.add_read(tick.elapsed());
+        Some(fetched)
+    } else {
+        None
+    };
     let mut computed = Vec::with_capacity(ids.len());
     let mut ops = Vec::new();
     for id in &ids {
+        if let Some(facts) = fast_facts(unloaded.as_ref(), engine, CMD, id)? {
+            parse_stored_current(CMD, facts)?;
+            let next = lightamer_history::PhotoSettings::default();
+            let json = next
+                .canonical_json()
+                .map_err(|err| unserializable(CMD, err))?;
+            let (new_steps, new_cursor) = post_push_position(facts.cursor);
+            ops.push(StoreOp::Push {
+                db: facts.id,
+                label: CMD.to_owned(),
+                json,
+            });
+            computed.push(Computed {
+                id: id.clone(),
+                steps: new_steps,
+                cursor: new_cursor,
+                stack: None,
+                emit: true,
+            });
+            continue;
+        }
+        let tick = Instant::now();
         let db = engine.ensure_photo_loaded(CMD, id)?;
+        clock.add_read(tick.elapsed());
         let Some(stack) = engine.stack_mut(id) else {
             continue;
         };
@@ -272,12 +525,15 @@ pub(crate) fn develop_reset(
             id: id.clone(),
             steps: probe.len(),
             cursor: probe.cursor_index(),
-            stack: probe,
+            stack: Some(probe),
             emit: true,
         });
     }
+    let tick = Instant::now();
     commit_ops(engine, CMD, &ops)?;
+    clock.add_write(tick.elapsed());
     swap_in(engine, computed, ctx);
+    clock.finish(engine);
     Ok(json!({"reset": ids.len()}))
 }
 
@@ -318,10 +574,46 @@ pub(crate) fn develop_paste(
             cmd: CMD.to_owned(),
         });
     };
+    let mut clock = PhaseClock::start();
+    let unloaded = if ids.len() > 1 {
+        let tick = Instant::now();
+        let fetched = fetch_unloaded_batch(engine, CMD, &ids)?;
+        clock.add_read(tick.elapsed());
+        Some(fetched)
+    } else {
+        None
+    };
     let mut computed = Vec::with_capacity(ids.len());
     let mut ops = Vec::new();
     for id in &ids {
+        if let Some(facts) = fast_facts(unloaded.as_ref(), engine, CMD, id)? {
+            let current = parse_stored_current(CMD, facts)?;
+            let next = lightamer_history::PhotoSettings {
+                format_version: current.format_version,
+                process: current.process,
+                instances: batch.instances.clone(),
+            };
+            let json = next
+                .canonical_json()
+                .map_err(|err| unserializable(CMD, err))?;
+            let (new_steps, new_cursor) = post_push_position(facts.cursor);
+            ops.push(StoreOp::Push {
+                db: facts.id,
+                label: CMD.to_owned(),
+                json,
+            });
+            computed.push(Computed {
+                id: id.clone(),
+                steps: new_steps,
+                cursor: new_cursor,
+                stack: None,
+                emit: true,
+            });
+            continue;
+        }
+        let tick = Instant::now();
         let db = engine.ensure_photo_loaded(CMD, id)?;
+        clock.add_read(tick.elapsed());
         let Some(stack) = engine.stack_mut(id) else {
             continue;
         };
@@ -350,12 +642,15 @@ pub(crate) fn develop_paste(
             id: id.clone(),
             steps: probe.len(),
             cursor: probe.cursor_index(),
-            stack: probe,
+            stack: Some(probe),
             emit: true,
         });
     }
+    let tick = Instant::now();
     commit_ops(engine, CMD, &ops)?;
+    clock.add_write(tick.elapsed());
     swap_in(engine, computed, ctx);
+    clock.finish(engine);
     Ok(json!({"pasted": ids.len()}))
 }
 
@@ -378,10 +673,42 @@ pub(crate) fn develop_sync(
         });
     };
     let selection = parsed.unwrap_or_else(|| full_selection(&source));
+    let mut clock = PhaseClock::start();
+    let unloaded = if ids.len() > 1 {
+        let tick = Instant::now();
+        let fetched = fetch_unloaded_batch(engine, CMD, &ids)?;
+        clock.add_read(tick.elapsed());
+        Some(fetched)
+    } else {
+        None
+    };
     let mut computed = Vec::with_capacity(ids.len());
     let mut ops = Vec::new();
     for id in &ids {
+        if let Some(facts) = fast_facts(unloaded.as_ref(), engine, CMD, id)? {
+            let current = parse_stored_current(CMD, facts)?;
+            let next = lightamer_history::merge_adjustments(&current, &source, &selection);
+            let json = next
+                .canonical_json()
+                .map_err(|err| unserializable(CMD, err))?;
+            let (new_steps, new_cursor) = post_push_position(facts.cursor);
+            ops.push(StoreOp::Push {
+                db: facts.id,
+                label: CMD.to_owned(),
+                json,
+            });
+            computed.push(Computed {
+                id: id.clone(),
+                steps: new_steps,
+                cursor: new_cursor,
+                stack: None,
+                emit: true,
+            });
+            continue;
+        }
+        let tick = Instant::now();
         let db = engine.ensure_photo_loaded(CMD, id)?;
+        clock.add_read(tick.elapsed());
         let Some(stack) = engine.stack_mut(id) else {
             continue;
         };
@@ -406,12 +733,15 @@ pub(crate) fn develop_sync(
             id: id.clone(),
             steps: probe.len(),
             cursor: probe.cursor_index(),
-            stack: probe,
+            stack: Some(probe),
             emit: true,
         });
     }
+    let tick = Instant::now();
     commit_ops(engine, CMD, &ops)?;
+    clock.add_write(tick.elapsed());
     swap_in(engine, computed, ctx);
+    clock.finish(engine);
     Ok(json!({"synced": ids.len()}))
 }
 
@@ -438,10 +768,42 @@ pub(crate) fn develop_merge(
         ..lightamer_history::PhotoSettings::default()
     };
     let selection = parsed.unwrap_or_else(|| full_selection(&source));
+    let mut clock = PhaseClock::start();
+    let unloaded = if ids.len() > 1 {
+        let tick = Instant::now();
+        let fetched = fetch_unloaded_batch(engine, CMD, &ids)?;
+        clock.add_read(tick.elapsed());
+        Some(fetched)
+    } else {
+        None
+    };
     let mut computed = Vec::with_capacity(ids.len());
     let mut ops = Vec::new();
     for id in &ids {
+        if let Some(facts) = fast_facts(unloaded.as_ref(), engine, CMD, id)? {
+            let current = parse_stored_current(CMD, facts)?;
+            let next = lightamer_history::merge_adjustments(&current, &source, &selection);
+            let json = next
+                .canonical_json()
+                .map_err(|err| unserializable(CMD, err))?;
+            let (new_steps, new_cursor) = post_push_position(facts.cursor);
+            ops.push(StoreOp::Push {
+                db: facts.id,
+                label: CMD.to_owned(),
+                json,
+            });
+            computed.push(Computed {
+                id: id.clone(),
+                steps: new_steps,
+                cursor: new_cursor,
+                stack: None,
+                emit: true,
+            });
+            continue;
+        }
+        let tick = Instant::now();
         let db = engine.ensure_photo_loaded(CMD, id)?;
+        clock.add_read(tick.elapsed());
         let Some(stack) = engine.stack_mut(id) else {
             continue;
         };
@@ -466,12 +828,15 @@ pub(crate) fn develop_merge(
             id: id.clone(),
             steps: probe.len(),
             cursor: probe.cursor_index(),
-            stack: probe,
+            stack: Some(probe),
             emit: true,
         });
     }
+    let tick = Instant::now();
     commit_ops(engine, CMD, &ops)?;
+    clock.add_write(tick.elapsed());
     swap_in(engine, computed, ctx);
+    clock.finish(engine);
     Ok(json!({"merged": ids.len()}))
 }
 
@@ -501,11 +866,13 @@ pub(crate) fn develop_begin(
         id: id.clone(),
         steps: probe.len(),
         cursor: probe.cursor_index(),
-        stack: probe,
+        stack: Some(probe),
         emit: false,
     };
     commit_ops(engine, CMD, &ops)?;
-    engine.insert_photo_stack(&computed.id, computed.stack);
+    if let Some(stack) = computed.stack {
+        engine.insert_photo_stack(&computed.id, stack);
+    }
     Ok(Value::Null)
 }
 
@@ -571,7 +938,7 @@ pub(crate) fn develop_end(
         id: id.clone(),
         steps: probe.len(),
         cursor: probe.cursor_index(),
-        stack: probe,
+        stack: Some(probe),
         emit: committed,
     };
     commit_ops(engine, CMD, &ops)?;
@@ -669,7 +1036,7 @@ pub(crate) fn history_goto(
         id: id.clone(),
         steps: probe.len(),
         cursor: probe.cursor_index(),
-        stack: probe,
+        stack: Some(probe),
         emit: true,
     };
     commit_ops(engine, CMD, &ops)?;
@@ -730,7 +1097,7 @@ fn move_cursor(
         id: id.clone(),
         steps: probe.len(),
         cursor,
-        stack: probe,
+        stack: Some(probe),
         emit: true,
     };
     commit_ops(engine, cmd, &ops)?;
@@ -749,11 +1116,48 @@ pub(crate) fn process_update(
 ) -> Result<Outcome, CommandError> {
     const CMD: &str = "process.update";
     let ids = ids_req(CMD, params)?;
+    let mut clock = PhaseClock::start();
+    let unloaded = if ids.len() > 1 {
+        let tick = Instant::now();
+        let fetched = fetch_unloaded_batch(engine, CMD, &ids)?;
+        clock.add_read(tick.elapsed());
+        Some(fetched)
+    } else {
+        None
+    };
     let mut computed = Vec::new();
     let mut ops = Vec::new();
     let mut updated = 0;
     for id in &ids {
+        if let Some(facts) = fast_facts(unloaded.as_ref(), engine, CMD, id)? {
+            let current = parse_stored_current(CMD, facts)?;
+            if !current.process.is_outdated() {
+                continue;
+            }
+            let mut next = current;
+            next.process.update_to_latest();
+            let json = next
+                .canonical_json()
+                .map_err(|err| unserializable(CMD, err))?;
+            let (new_steps, new_cursor) = post_push_position(facts.cursor);
+            ops.push(StoreOp::Push {
+                db: facts.id,
+                label: CMD.to_owned(),
+                json,
+            });
+            updated += 1;
+            computed.push(Computed {
+                id: id.clone(),
+                steps: new_steps,
+                cursor: new_cursor,
+                stack: None,
+                emit: true,
+            });
+            continue;
+        }
+        let tick = Instant::now();
         let db = engine.ensure_photo_loaded(CMD, id)?;
+        clock.add_read(tick.elapsed());
         let Some(stack) = engine.stack_mut(id) else {
             continue;
         };
@@ -783,11 +1187,14 @@ pub(crate) fn process_update(
             id: id.clone(),
             steps: probe.len(),
             cursor: probe.cursor_index(),
-            stack: probe,
+            stack: Some(probe),
             emit: true,
         });
     }
+    let tick = Instant::now();
     commit_ops(engine, CMD, &ops)?;
+    clock.add_write(tick.elapsed());
     swap_in(engine, computed, ctx);
+    clock.finish(engine);
     Ok(json!({"updated": updated}))
 }

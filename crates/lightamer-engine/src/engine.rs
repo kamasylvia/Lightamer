@@ -18,6 +18,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{Receiver, channel};
+use std::time::Duration;
 
 use lightamer_catalog::{HistoryRead, Session};
 use lightamer_history::{BatchAdjustments, HistoryStack, HistoryStep, PhotoSettings};
@@ -90,6 +91,25 @@ pub struct Engine {
     pool: JobPool,
     lookup: Option<ParamLookup>,
     lru: VecDeque<String>,
+    last_phases: CommandPhases,
+}
+
+/// Wall time the latest persisted batch command on a real session spent in
+/// each third: reading committed rows (`read`), computing the new settings
+/// and serializing them (`compute`, including the infallible swap-in and the
+/// synchronous event emission), and the single store transaction through
+/// commit (`write`). Zero until such a command runs; [`Engine::execute`]
+/// zeroes it before every persisted command, so a read always describes the
+/// latest one. The bench reports these three thirds per round.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CommandPhases {
+    /// Fetching committed rows from the store.
+    pub read: Duration,
+    /// New settings, serialization, swap-in, events: everything but the
+    /// other two thirds.
+    pub compute: Duration,
+    /// The single store transaction, through commit.
+    pub write: Duration,
 }
 
 impl Engine {
@@ -110,6 +130,7 @@ impl Engine {
             pool: JobPool::new(&results_tx),
             lookup: None,
             lru: VecDeque::new(),
+            last_phases: CommandPhases::default(),
         }
     }
 
@@ -194,6 +215,7 @@ impl Engine {
         // to restore; loading a photo only adds a mirror of committed store
         // rows. Drafts and session/job commands keep the snapshot below.
         if self.has_real_session() && crate::real::is_persisted(id) {
+            self.last_phases = CommandPhases::default();
             let mut ctx = RunCtx::default();
             let outcome = (spec.run)(self, &checked, &mut ctx);
             self.executing = false;
@@ -487,6 +509,19 @@ impl Engine {
     #[must_use]
     pub fn loaded_photo_count(&self) -> usize {
         self.state.photos.len()
+    }
+
+    /// The read/compute/write thirds of the latest persisted batch command
+    /// on a real session (zero until one runs; see [`CommandPhases`]).
+    #[must_use]
+    pub fn last_command_phases(&self) -> CommandPhases {
+        self.last_phases
+    }
+
+    /// Records the thirds of the just-finished persisted command (called by
+    /// `real` once per batch command, after the infallible swap-in).
+    pub(crate) fn set_last_phases(&mut self, phases: CommandPhases) {
+        self.last_phases = phases;
     }
 
     /// One photo's stored history without caching it: `None` when the photo

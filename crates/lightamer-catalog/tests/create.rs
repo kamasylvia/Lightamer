@@ -79,7 +79,7 @@ fn create_builds_full_layout() -> Result<(), Box<dyn std::error::Error>> {
     );
     assert_eq!(pragma_text(session.connection(), "journal_mode")?, "wal");
     assert_eq!(pragma_int(session.connection(), "foreign_keys")?, 1);
-    assert_eq!(pragma_int(session.connection(), "synchronous")?, 1);
+    assert_eq!(pragma_int(session.connection(), "synchronous")?, 2);
 
     let uuid = session.session_uuid()?;
     assert!(is_uuid_v4(&uuid), "not a v4 UUID: {uuid}");

@@ -367,19 +367,31 @@ fn cmd_bench(args: &Args) -> Result<(), Failure> {
                 bench::PasteReport::Measured {
                     runs_ms,
                     median_ms,
+                    phases_ms,
+                    phase_medians_ms,
                     events,
                     photos,
                     passed,
                 } => {
-                    for (round, (ms, got)) in runs_ms.iter().zip(events.iter()).enumerate() {
-                        println!("bench paste: round {}: {ms:.1}ms events={got}", round + 1);
+                    for (round, ((ms, got), thirds)) in runs_ms
+                        .iter()
+                        .zip(events.iter())
+                        .zip(phases_ms.iter())
+                        .enumerate()
+                    {
+                        let &[read_ms, compute_ms, write_ms] = thirds;
+                        println!(
+                            "bench paste: round {}: {ms:.1}ms read={read_ms:.1} compute={compute_ms:.1} write={write_ms:.1} events={got}",
+                            round + 1
+                        );
                     }
                     let rounds: Vec<String> = events
                         .iter()
                         .map(std::string::ToString::to_string)
                         .collect();
+                    let [median_read_ms, median_compute_ms, median_write_ms] = phase_medians_ms;
                     println!(
-                        "bench paste: {photos} photos x {} runs: median {median_ms:.1}ms events=[{}] gate=1000ms {}",
+                        "bench paste: {photos} photos x {} runs: median {median_ms:.1}ms (read {median_read_ms:.1} compute {median_compute_ms:.1} write {median_write_ms:.1}) events=[{}] gate=1000ms {}",
                         runs_ms.len(),
                         rounds.join(","),
                         if passed { "PASS" } else { "FAIL" }
