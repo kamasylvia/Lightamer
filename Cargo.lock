@@ -3940,6 +3940,9 @@ dependencies = [
 [[package]]
 name = "lightamer-iop-traits"
 version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
 
 [[package]]
 name = "lightamer-mcp"
@@ -3956,6 +3959,14 @@ version = "0.1.0"
 [[package]]
 name = "lightamer-pipeline"
 version = "0.1.0"
+dependencies = [
+ "lightamer-geom",
+ "lightamer-iop-traits",
+ "lightamer-raster",
+ "lightamer-sysmem",
+ "lightamer-testkit",
+ "serde_json",
+]
 
 [[package]]
 name = "lightamer-preview"
@@ -3988,6 +3999,10 @@ version = "0.1.0"
 [[package]]
 name = "lightamer-testkit"
 version = "0.1.0"
+dependencies = [
+ "lightamer-iop-traits",
+ "serde_json",
+]
 
 [[package]]
 name = "linebender_resource_handle"

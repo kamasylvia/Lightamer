@@ -8,3 +8,13 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+lightamer-geom = { path = "../lightamer-geom" }
+lightamer-iop-traits = { path = "../lightamer-iop-traits" }
+lightamer-raster = { path = "../lightamer-raster" }
+lightamer-sysmem = { path = "../lightamer-sysmem" }
+serde_json = { version = "1" }
+
+[dev-dependencies]
+lightamer-testkit = { path = "../lightamer-testkit" }

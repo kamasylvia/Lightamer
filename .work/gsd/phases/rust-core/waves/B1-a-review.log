@@ -1,0 +1,84 @@
+Working...
+# B1-a 独立复审报告（提交 `c258dfc7`，起始 `26950d71`）
+
+复审方式：只读 + 跑构建测试，未改代码、未提交。凡下文数字皆本实例亲跑（`machine-guard` 先行，并行度 `-j6`，`--offline` 处为避免锁外联网；离线不影响结果，`Cargo.lock` 未动）。
+
+## 1. §9 验收重跑
+
+构建前守卫：`Scripts/machine-guard.sh` → `GUARD PASS (heavy=0 free=72% swap=?M disk=?GB)`。
+
+六个 `cargo test -p <name> --locked --offline -j6`（grep `^test result`）：
+
+| crate | 实测 | 报告 | 对上 |
+|---|---|---|---|
+| lightamer-geom | 11 passed, 0 failed | 11 | ✓ |
+| lightamer-raster | 9 passed, 0 failed | 9 | ✓ |
+| lightamer-sysmem | 5 passed, 0 failed | 5 | ✓ |
+| lightamer-iop-traits | 15 passed, 0 failed | 15 | ✓ |
+| lightamer-pipeline | 25 passed, 0 failed | 25 | ✓ |
+| lightamer-testkit | 6 passed + 1 doctest passed, 0 failed | 6 + 1 文档测试 | ✓ |
+
+`cargo test --workspace --locked -j6`（全量 awk 加总 `^test result:` 行）：`passed=459 failed=0 ignored=1`；`test result: ok` 二进制 83 个；非 `0 failed` 行 0 条。报告「459 + 1 ignored」✓。ignored 亲核：`crates/lightamer-catalog/tests/perf_10k.rs:34-35`，`#[ignore = "timing bench..."] fn bench_paste_10k_reports_phases_for_both_sync_modes`，与报告点名一致 ✓。增量内算自洽：10+8+4+13+24+2=61，398+61=459（基线 398 未重跑 checkout，未在必查项内）。
+
+xtask（逐条退出 0）：
+- `cargo xtask layers` → `OK: 29 crates, no layering violations` ✓
+- `cargo xtask check-no-iop-names` → `OK (97 names, 4 roots clean)` ✓
+- `cargo xtask check-order-sync` → `OK (97 modules, fixture .../dt-order-679d594f5d.json)` ✓
+- `cargo xtask check-i18n` → `no key-table dir 'i18n' ... nothing to compare` ✓（与报告「无事可比」一致）
+- `cargo xtask check-apple-boundary` → `OK: 29 crates, 214 rust files, no Apple-boundary violations` ✓
+
+Lint（「六条」= 该命令的六个 `-D`）：`cargo clippy --workspace --all-targets --locked --offline -j6 -- -D warnings -D clippy::indexing_slicing -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic -D clippy::todo -D clippy::unimplemented` → 退出 0 ✓。`cargo fmt --all --check` → 退出 0 ✓。`RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked --offline -j6` → 退出 0 ✓（零警告，`-D warnings` 下通过即证）。
+
+`Scripts/check-licenses.sh`（不带参数）→ `allow=852 exception=1 fail=0 total=853`，退出 0 ✓，与报告数字一字不差。
+
+`Scripts/rust-session-demo.sh` → `demo: ALL GREEN`，退出 0（4.41s，热缓存所以比报告 22.6s 快）✓。`rust-history-demo.sh` 按任务书允许只跑其一，跳过并注明；`rust-ci-lite.sh` 太慢跳过并注明（其子项守卫/许可证/分层/文档/边界/构建/测试本报告已逐项单独重跑）。
+
+## 2. 上游逐行对（`refs/dt-master @ 679d594f5d`，亲核 `git log` = `679d594f5d`）
+
+抽查八条（超任务书四条下限），`grep -n`/`sed -n` 实读行号：
+
+- R1 `finalscale.c:103-104`：103 行 `roi_in->x /= roi_out->scale;` ✓（104 为 y 对称行）。
+- R2 `finalscale.c:124-127`：124/126 行两 `MAX(16, MIN(ceilf(...)))` ✓。
+- R3 `pixelpipe_hb.c:2480-2481`：2480/2481 两截断行 ✓。
+- R4 `crop.c:587-594`：590 `roi_in->x += iw * d->cx;`，593/594 两 `CLAMP(..., 0, (int)floorf(...))` ✓。
+- R6 `finalscale.c:133-141`：134/135 `x_end/y_end = ceilf(...)` 落在引用区间内 ✓。
+- 默认 tiling 回调 `tiling.c:1903-1921`：逐行数过，1903 `void default_tiling_callback(` 起、1921 `}` 止 ✓；`factor = 1.0f + ioratio`、`maxbuf = 1.0f`、overhead/overlap/align = 0/0/1、FULL_ROI overlap-4 全对上，我方两处偏离声明属实 ✓。
+- 吻合检查 `tiling.c:1923-1933`：1923 函数首行、`return total <= available;` 在 1933 ✓；`<=` 方向与我方 `factor * frame + overhead <= budget` 一致 ✓。
+- 分块公式链：无增益门 599（`factor < 2.2f`）✓、可用 613-615 ✓、收缩 if 629 ✓（636/640/644-645 三分支 `floorf` ✓，但阈值字面量见 M1）、方形 652-658（652 注释、653 if、655 公式）✓、对齐 670（宽高下贴）/674-675（重叠上贴）✓、步长 678-679 ✓、块数 682-683（`ceilf`）✓、放弃档 81-84（`? 0x40000000 : 10000`）✓、按位分发 1176（`memcmp(roi_in, roi_out, ...)`）✓、跳窄末块 733 ✓、好块裁前侧 780-790（逐行数过，780 `{` 起、790 `}` 止，两 `if(tx/ty > 0)` 块精确落界）✓、末块钳帧见 M2。
+- 前推/反推调用点：`pixelpipe_hb.c:2575`（`module->modify_roi_in(...)`）✓、`4026`（`modify_roi_out`）✓，逐行数过一字不差。
+- 附带核：`imageop.c:108-125` 含两恒等函数 ✓、`tiling.h:25-41`（25 `typedef` 起、41 `};` 止）✓、`iop_api.h` commit `:199` ✓、roi 对 `:213-243` 含两 OPTIONAL ✓、colorspace `:97-110`/tiling `:119-124` 含全部入口（尾行差一行，引用惯例内）✓、`format.c:81-93` 含三回落 ✓、`pixelpipe.h:36-39` ✓、ptp 函数 571 起 ✓、roi 变体 496-525（`_nm_fit_output_to_input_roI`）/527-567（`_fit_output_to_input_roi`）✓、五管线 `pixelpipe.h:42-63` ✓。
+
+报告 §3 表其余行号经上核验全部命中。三处一致（代码注释/Ү`docs/PIPELINE.md`/报告）✓，唯代码注释一处见 M2。
+
+## 3. 几何链八例（`chain.rs:269-507` + `fakes.rs`）
+
+逐例验算 FakeScale（out 腿 `(v*n + d/2)/d` 半数上入、in 腿 `(v*d)/n` 截断）：恒等链逐值 `== final_out` ✓；放大 100→50 ✓；缩小 100→200（反推 `(200+1)/2=100` 精确）✓；裁剪链 `(10,6,120,112)` 反推全合 ✓；3/2 出腿 150/进腿 66/反推 99 报 `Roundtrip` 且点名 `mod_mid` ✓（诚实失败）；空区域恒等回显 + sink 反推失败预期 ✓；64 节点偶数尺寸零累积、首输入按位等终点 ✓；混合链 `(4,2,100,100)→(2,1,50,50)→(8,9,50,50)` 反推全合 ✓。八例具体数值断言全部真实有效。但 `assert_chained` 的「包含」半句无信号，见 M3。
+
+## 4. 分块手算（`tiling.rs:371-514`）
+
+四例逐算式复核全合：1000x100/factor5/7.2M（可用 4M→单块 800k→scale 0.5→500+500 两块）✓；1000x1000/52M（scale 0.25 <1/3→sqrt 双缩 500x500，块序 tx 外/ty 内与断言一致）✓；对齐 16（500→496，3 块 496/496/8，原点 0/496/992 全 ≡0 mod 16）✓；重叠 8（步长 484，3 块，好块裁前侧 500/492/24）✓；另窄末块（scale 0.0625→25x25，步长 9，12x12 位置计，10/11 行列 10/1 宽跳过，余 100 块，9 行列钳 19）✓；极小预算（可用 0→0 尺寸→1000x100 位置超 10000 放弃）✓。f64/float 一致性：所用 scale（0.5/0.25/0.0625）与 sqrt（0.5/0.25）皆二进制精确值，两边逐位一致；`>= 1/3` 比较点远离边界 ✓（边界字面量本身见 M1）。
+
+## 5. 对象安全（`module.rs:40-117,239-290`）
+
+`IopModule: Send + Sync`，方法全 `&self`、零泛型方法、零关联类型 ✓。测试 `two_different_modules_share_one_dyn_table` 真把 `Doubler` + `Zeroer` 两个不同类型装入 `Vec<Arc<dyn IopModule>>`，逐个调 commit/roi_out/roi_in/tiling（factor 2.0）/process，输出逐位 3.0/全 0 ✓。与报告描述一致。
+
+## 6. 提交面（`git show --stat c258dfc7`）
+
+30 文件，全部落在允许路径（六 crate 目录 + `Cargo.lock` + `docs/PIPELINE.md` + `crates/README.md` + `B1-a-REPORT.md`；反向 grep 零命中）✓。封存面 `git diff --stat 26950d71 c258dfc7 -- crates/lightamer-history crates/lightamer-registry crates/lightamer-engine apps crates/lightamer-apple 'crates/lightamer-iop-*/src/modules'` → 无输出 ✓。
+
+## 7. 分层
+
+`cargo xtask layers`：L0 四件（geom/raster/sysmem/iop-traits）零工作区依赖 ✓（Cargo.toml 亲核：前三零依赖，iop-traits 仅外部 `serde_json`）；pipeline → 四 L0 + testkit(dev) ✓；testkit → iop-traits ✓。`ImageInfo`/`Roi` 住 iop-traits 理由成立：trait 签名要用，L0 同层无链只能同住；wire `Roi` 经 grep 确认零 `lightamer_geom` 导入、注释写明有意不复用 geom 富类型，管线在 `to_wire`/`from_wire`（`chain.rs:259-267`）逐字段转换校验 ✓。iop-traits 无 dev-dependency（E0277 教训已落实）✓。
+
+## 8. 文档
+
+`docs/PIPELINE.md` 九节（区域/取整/画面预算/接口/几何链/协商/分块/四实例/测试模块）齐，引用行号与 §2 核验一致；配额表 4GiB/256MiB/8、4GiB/256MiB/4、1GiB/64MiB/4、512MiB/16MiB/2 与 `kinds.rs:36-60` 逐值对上 ✓。`crates/README.md` 六行改（geom/raster/iop-traits/sysmem/pipeline/testkit）✓。pipeline 测试数 3+10+1+3+8=25 与 §9 对上 ✓。
+
+## Findings
+
+- M1（minor，上游字面量偏离）：`crates/lightamer-pipeline/src/tiling.rs:195,197` 收缩分支用 `scale >= 1.0 / 3.0`，上游 `tiling.c:634,638` 字面量是 `0.333f`（0.3330000043 vs 0.3333333333）。复现：`grep -n "0.333f" refs/dt-master/src/develop/tiling.c` 对 `grep -n "1.0 / 3.0" crates/lightamer-pipeline/src/tiling.rs`。`scale ∈ [0.3330000, 0.3333333)` 时走不同分支（单边缩 vs sqrt 双缩）。不修后果：该窄带内分块尺寸与 dt 不一致，parity 微差；报告「同公式」表述严格说不成立。修法：改用 `0.333f` 等价值或在注释/PIPELINE 声明偏离（现有测试值远离边界，无需改测试）。
+- M2（minor，注释行号错）：`crates/lightamer-pipeline/src/tiling.rs:284` 注释 `tiling.c:729`，实测 729 是内层循环 `{`，wd 钳在 727、ht 钳在 730（`sed -n '725,730p'`）。复现命令即该 sed。报告与 PIPELINE.md 未引 729，不受牵连。不修后果：误导后续审计对行；修法：改注释为 727/730。
+- M3（minor，测试信号弱于宣称）：`crates/lightamer-pipeline/src/chain.rs:300-310`，`assert_chained` 里 `contains` 断言被上一行 `assert_eq!` 蕴含（相等+同 scale 位⇒包含恒真），第二循环 `geo.input.contains(geo.input)` 系自包含恒真（空区域皆 0x0 形，`contains` 走 `other.is_empty()` 分支返 true，`roi.rs:202-216`）。报告 §6「相等 + 包含，即装得下」夸大其词——实际验链的是相等断言与逐例数值（那些是实的，见 §3）。不修后果：无功能风险，但「包含」覆盖是纸面上的。修法：删 contains 行或改验真包含关系并修正报告措辞。
+
+`PASS / 0 error + 3 minor`
+

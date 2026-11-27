@@ -39,6 +39,10 @@ use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::Path;
 
+mod identity;
+
+pub use identity::{IdentityCommit, IdentityModule};
+
 /// The environment variable naming the file skips are appended to (JSON lines).
 pub const SKIP_LOG_ENV: &str = "LIGHTAMER_SKIP_LOG";
 

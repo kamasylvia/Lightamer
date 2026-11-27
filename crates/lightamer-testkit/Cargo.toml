@@ -9,3 +9,7 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+lightamer-iop-traits = { path = "../lightamer-iop-traits" }
+serde_json = { version = "1" }

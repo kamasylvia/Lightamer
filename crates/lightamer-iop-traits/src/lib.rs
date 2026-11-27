@@ -1,10 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Module descriptors and the shared vocabulary they use.
+//! Module descriptors, the module trait, and the shared vocabulary they use.
 //!
 //! A [`ModuleDesc`] is pure data owned by the module itself: the darktable
 //! operation name, the two order keys, and — once later waves fill them in —
 //! the parameter layout, flags, colorspace requirements, panel controls, and
 //! history keys. The core only reads descriptors; it never names a module.
+//!
+//! [`IopModule`] is the object-safe trait every module implements so the
+//! pipeline can hold mixed modules in one table (`Vec<Arc<dyn IopModule>>`).
+//! Its signatures only use types from this crate: L0 crates take no
+//! workspace dependencies, so the roi wire shape ([`Roi`]), the commit input
+//! ([`ImageInfo`]), the tiling request ([`TilingReq`]), and the pixel views
+//! ([`Plane`]/[`PlaneMut`]) all live here next to the trait. The op-rich
+//! geometry type (`lightamer_geom::Roi`) and the owned buffers
+//! (`lightamer_raster::Frame`) stay in their own L0 crates; the pipeline
+//! converts at the boundary.
 //!
 //! Fields that later waves have not filled yet are [`None`]. A fresh stub
 //! built with [`ModuleDesc::stub`] sets only `id` and `order`.
@@ -16,6 +26,22 @@
     clippy::todo,
     clippy::unimplemented
 )]
+
+mod error;
+mod image;
+mod module;
+mod params;
+mod plane;
+mod roi;
+mod tiling;
+
+pub use error::PipeError;
+pub use image::ImageInfo;
+pub use module::{CommitData, IopModule, SharedModule};
+pub use params::{get_bool, get_float, get_floats, get_int, get_text};
+pub use plane::{Plane, PlaneMut};
+pub use roi::Roi;
+pub use tiling::TilingReq;
 
 /// Sort key placing a module in one default chain.
 #[derive(Debug, Clone, Copy, PartialEq)]
