@@ -1,0 +1,4 @@
+[submodule "external/rawspeed"]
+	path = external/rawspeed
+	url = git@github.com:darktable-org/rawspeed.git
+	branch = develop

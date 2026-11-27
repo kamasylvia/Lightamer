@@ -20,6 +20,8 @@ lightamer-raster = { path = "../../crates/lightamer-raster" }
 # B13'-b2: `bench` plants and times sessions directly (the CLI is exempt
 # from the layer check; this is a developer tool, not an import command).
 lightamer-catalog = { path = "../../crates/lightamer-catalog" }
+# B2-a: `decode --dump` developer probe over the rawspeed wrapper.
+lightamer-decode = { path = "../../crates/lightamer-decode" }
 serde_json = "1"
 
 [features]

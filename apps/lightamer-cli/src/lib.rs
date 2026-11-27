@@ -16,6 +16,7 @@ pub mod bench;
 pub mod capabilities;
 pub mod cmp;
 pub mod commands;
+pub mod decode;
 pub mod fetch;
 pub mod render;
 pub mod render_demo;

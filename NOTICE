@@ -413,6 +413,8 @@ rawspeed entry:
 
   Pinned commit: 0c16fee7772594e98897bded01fc31bc3409b4cb
     (darktable 679d594f5d gitlink src/external/rawspeed)
+  Submodule: external/rawspeed @ 0c16fee7772594e98897bded01fc31bc3409b4cb
+    (B2-a, 2026-11-27; data/cameras.xml copied into the build output)
   License: LGPL-2.1-or-later (LICENSE file = LGPL-2.1 text; 244 source
     headers "version 2 ... or any later", 8 headers "version 2.1 ... or
     any later"). Statically linked; distributed as part of the whole

@@ -14,7 +14,7 @@
 )]
 
 use lightamer_cli::{
-    bench, capabilities, cmp, commands, fetch, render, render_demo, selftest, util, xmp,
+    bench, capabilities, cmp, commands, decode, fetch, render, render_demo, selftest, util, xmp,
 };
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -44,6 +44,7 @@ const HELP: &str = "lightamer-cli: darktable oracle tool\n\
      bench setup --parent D --name N --photos K          plant K empty photos (dev tool, not import)
      bench paste --session S --photos K [--runs R]       time one paste over K photos, R rounds (dev tool)
      render-demo [--size N]                              B1 render pipeline demo on synthetic pixels
+     decode --dump F [--thumb] [--repeat N]              B2-a decode probe: fields + timings (dev tool)
      run on a real session prints the file's photo ids shortened to 8 chars
      \n\
      exit: 0 ok; 1 check failed; 2 usage/IO error";
@@ -476,6 +477,30 @@ fn cmd_render_demo(args: &Args) -> Result<(), Failure> {
     Ok(())
 }
 
+fn cmd_decode(args: &Args) -> Result<(), Failure> {
+    args.check_only(&["--dump", "--thumb", "--repeat"])?;
+    if !args.positionals.is_empty() {
+        return Err(Failure::Usage("decode takes no positionals".to_owned()));
+    }
+    let dump = args
+        .value("--dump")?
+        .ok_or_else(|| Failure::Usage("--dump <file> is required".to_owned()))?;
+    let repeat = match args.value("--repeat")? {
+        None => 1,
+        Some(text) => text
+            .parse::<usize>()
+            .map_err(|_| Failure::Usage("--repeat wants 1..=16".to_owned()))?,
+    };
+    if !(1..=16).contains(&repeat) {
+        return Err(Failure::Usage("--repeat wants 1..=16".to_owned()));
+    }
+    decode::dump(&decode::DumpRequest {
+        file: PathBuf::from(dump),
+        thumb: args.present("--thumb"),
+        repeat,
+    })?;
+    Ok(())
+}
 fn run(raw: &[String]) -> Result<(), Failure> {
     if raw.is_empty() {
         return Err(Failure::Usage("want a subcommand (try help)".to_owned()));
@@ -492,6 +517,7 @@ fn run(raw: &[String]) -> Result<(), Failure> {
         "run" => cmd_run(&split_args(rest)),
         "bench" => cmd_bench(&split_args(rest)),
         "render-demo" => cmd_render_demo(&split_args(rest)),
+        "decode" => cmd_decode(&split_args(rest)),
         "help" | "--help" | "-h" => {
             println!("{HELP}");
             Ok(())

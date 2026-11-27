@@ -6,5 +6,13 @@ rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
+# B2-a: rawspeed is built from the pinned submodule by build.rs (cmake) and
+# the C shim is compiled by cc. Both crates are MIT OR Apache-2.0 (allowed
+# list); cc 1.11.3 was already in Cargo.lock (B12 rusqlite), cmake is new
+# (see docs/LICENSE-AUDIT.md §B2-a).
+[build-dependencies]
+cmake = "0.1"
+cc = "1"
+
 [lints]
 workspace = true

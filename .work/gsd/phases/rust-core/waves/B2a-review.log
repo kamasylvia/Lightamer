@@ -1,0 +1,31 @@
+Working...
+PASS / 0 error + 5 minor
+
+复审对象：`fc21f863 feat(rust-core): B2-a rawspeed decode — build, thin C ABI, singleton meta, dump probe`（与任务书预期一致）。报告 `.work/gsd/phases/rust-core/waves/B2a-REPORT.md` §0–§8/§11/§12 已填，§9/§10 待收尾（按计划退出次序正常）。以下全部亲跑亲读。
+
+## findings
+
+| # | 级别 | 位置 | 现象 | 证据命令 | 建议改法 |
+|---|---|---|---|---|---|
+| M1 | minor | `B2a-REPORT.md §2`、`docs/DECODE.md §2` | “每个/ every entry catches `bad_alloc`/`std::exception`/`...`” 与实际不符：仅 `rs_open`/`rs_decode` 有三臂；`rs_fill_info`/`rs_mosaic_hash`/`rs_ensure_meta` 只有两臂且全映射 INTERNAL（无 classify、无 NOMEM 臂）；`rs_mosaic_u16/f32`/`rs_thumb`/`rs_free`/`rs_free_bytes`/`rs_meta_parse_count`/`rs_info_size`/`rs_classify_for_test` 无 try（经核被调链 noexcept+assert，无法 throw，行为成立，只是措辞越界） | 通读 `csrc/rawspeed_shim.cpp:154-480`；`grep -n "define invariant" external/rawspeed/src/` → `assert`/`__builtin_assume`；`RawImage.h:129,132` 两 accessor 标 `noexcept` | 报告与 DECODE.md 改为三类说明：三臂口/两臂口（INTERNAL 兜底）/无 try 口（noexcept 论证） |
+| M2 | minor | `csrc/rawspeed_shim.cpp:64`、`src/image.rs:741` | 注释引用 `B2a-REPORT §error-mapping`，报告实际无此节（错误码表在 §5） | `grep -n "error-mapping" crates/lightamer-decode -r`；报告全文无该节 | 注释改引 `§5` |
+| M3 | minor | `src/ffi.rs:14-21` | `RsError` 布局无 C 侧尺寸钉（仅 `RsImageInfo` 有 `rs_info_size` 配对测试） | `grep -n "rs_error_size\|rs_info_size" csrc/* src/*`：仅 info 有 | B2-b 加 `rs_error_size` 缝或 C 侧 `static_assert`；现结构平凡（c_int+512 字节），风险低 |
+| M4 | minor | `csrc/rawspeed_shim.cpp:362-380` | `rs_mosaic_u16`/`rs_mosaic_f32` 无防御性 try/catch，与任务书“一切异常在接口里接住”字面要求差一层（实质无 throw 路径，见 M1 证据） | 同 M1 | 加 try/catch 返回 nullptr，字面对齐 |
+| M5 | minor | `B2a-REPORT.md §9/§10`、HEAD 文件清单 | §9/§10 仍为“待收尾填”；HEAD 无 `B2a-review.log`（任务书验收第 10 条要求有） | `git show --name-only HEAD` 25 文件无 review.log；报告 150–156 行占位 | 执行 lane 按退出次序收尾：写结论头+修订记录 → amend 并入 → 清临时文件；本条非产品问题 |
+
+观察项（不计数）：计时复测 4 轮 cold=63.3/63.9/63.1/81.3ms（`--repeat` 首轮 81.3 一次越门 80），与报告披露的“典型 64–73 + 偶发突发 92.4”同分布，不推翻“过”裁决；门文件余量 ~18% 成立。
+
+## 亲跑记录
+
+1. **干净构建**：`cargo clean -p lightamer-decode`（删 1074 文件/333.7MiB）后 `cargo build -p lightamer-decode -j6` 一次通过，`Finished in 58.46s`（wall 69.8s）；子模块在仓内未重下。
+2. **验收重跑**：`cargo test -p lightamer-decode --locked` → 14+3+3+1=21 绿；`cargo test -p lightamer-cli --locked` → 46+5+5=56 绿；`cargo test --workspace --locked` → `passed=577 failed=0 ignored=3`。与报告 §8（550→577，新增 27=decode 20+CLI 7）逐数一致。
+3. **机检重跑**：`cargo fmt --all --check` → OK；clippy（`rust-test.sh:17` 原样，`-D warnings`+六 `-D`）→ exit 0（1m41s）；`cargo xtask layers` → `OK: 29 crates, no layering violations.`；`Scripts/check-licenses.sh` → `allow=853 exception=1 fail=0 total=854` exit 0；`RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked` → exit 0。
+4. **异常边界**：通读全部 13 个 `extern "C"` 口（`rs_open`/`rs_decode` 三臂全捕获，`unique_ptr` 暂存成功才释放；`fill_info`/`mosaic_hash`/`ensure_meta` 两臂兜底 INTERNAL；其余口被调链 noexcept/assert-only，无 throw 路径）；`tests/robustness` 绿（五坏件各得其码：空→4/随机→2/截半→4/仅头→4/JPG 改名→2，同进程随后 RAF 正常解出 7728×5152，进程存活）。
+5. **unsafe 审计**：`grep unsafe` 命中 `image.rs` 14 处（含 `unsafe impl Send`）+ `ffi.rs` 的 `extern` 声明与 1 测试块，逐处紧邻 SAFETY（借用有效性/空指针检查/`check_dims` 上界 2^20+cpp≤4/checked 运算防 wraparound）；`Send` 非 `Sync` 理由成立（句柄独立 + 相机库只读共享，`PhantomData<Cell<()>>` 扣住 `Sync`）；`unsafe_code` 的 `allow` 只在 `lib.rs:24,26` 的 `ffi`/`image` 两模块。
+6. **对照真实性**：`grep -n "rs_" tools/rs-oracle.cpp` 零命中（注释亦无）；oracle 直调 `RawParser/getDecoder/checkSupport/decodeRaw/decodeMetaData`；`build.rs:62-94 compile_oracle` 以 `.arg(rs_lib)` 链接同一份 `librawspeed.a`；亲跑 `target/debug/build/lightamer-decode/5ba78568b8f5c907/out/rs-oracle <cameras.xml> 7RM5…ARW` 得 `mosaic_hash=bd81df79e1a15f93`，与包装侧 parity 输出 `hash=bd81df79e1a15f93` 逐字符一致（另宽/高/黑/白/WB 全等，decoder 名 `ArwDecoder` 被 mangled 名包含）。
+7. **计时抽查**（发行版，页缓存预热，`nproc=10`，load 1.79→0.18/核安静）：`cargo build --release -p lightamer-cli` 7s；门文件三轮 cold=100.6（首进程 dylib 冷，门定义外，报告已声明）/63.3/63.9，追加 `--repeat 2` cold=81.3/hot=57.0、再一轮 63.1。典型 ~63（门 80 内），一次突发越门与报告披露一致。
+8. **路径纪律**：`git show --stat/--name-only HEAD` 25 文件全在任务书允许集内（`crates/lightamer-decode/`、`external/rawspeed`、`.gitmodules`、`Cargo.lock`、`apps/lightamer-cli/`、`docs/LICENSE-AUDIT.md`、`NOTICE`、`docs/DECODE.md`、`crates/README.md`、`B2a-REPORT.md`；`licenses-allow.txt` 未动；缺的 `B2a-review.log` 即本复审输出，待 amend，见 M5）；`git ls-tree HEAD external/rawspeed` = `0c16fee7772594e98897bded01fc31bc3409b4cb`；`.gitmodules` 为 SSH（`git@github.com:darktable-org/rawspeed.git`，branch develop）；全部新增 `.rs/.cpp/.h` 含 SPDX 头；复审后 tracked 树零脏（构建物全在 gitignored 的 `target/`）。
+9. **错误码表**：9 码在 `shim.h`/`error.rs`/`DECODE.md §4`/报告 §5 四处一致；`error_mapping_covers_observed_messages` 以 13 组实测文案钉住 `classify` 双阶段映射（含 stage 默认回落与 NUL 拒绝）。
+10. **G4 核实**：`Scripts/machine-guard.sh` 仍红（`G4 Data 卷可用=25300→25543MB<25GB`），故不跑 `rust-ci-lite.sh`；抽跑 `Scripts/rust-budget.sh` 得计时两项 `UNRELIABLE (guard refused) SKIP-GATE` + `overall PASS`，与报告 §7/§8b 口径逐字一致，“实质复跑”说法成立。
+
+结论：验收成立，数字无编造，错行为零。5 条 minor 全是措辞/注释/防御纵深，无一阻塞收尾；M5 由执行 lane 按退出次序 amend 闭环。

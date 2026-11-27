@@ -24,7 +24,7 @@
 | L1 | `lightamer-meta` | 内嵌元数据解码与 sidecar helper | B2 |
 | L1 | `lightamer-color` | lcms2 腿 + 矩阵数学 | B3（temperature 首用） |
 | L1 | `lightamer-blend` | 蒙版栅格化 + 混合 | B14 |
-| L1 | `lightamer-decode` | rawspeed C ABI shim + 栅格解码 | B2 |
+| L1 | `lightamer-decode` | rawspeed C ABI shim + 安全包装（B2-a 已填：子模块钉 `0c16fee77`、薄 C 接口、单例相机库、9 码错误表；栅格解码与缩略图归 B2-b） | B2-a 已填 |
 | L1 | `lightamer-scenes` | 成像测试共用的确定性测试场景 | A5 |
 | L2 | `lightamer-registry` | 描述聚合 + 按标识查找 + raw/jpg 默认顺序链（`(prio,tie)` 排序）；夹具 `lightamer-registry/fixtures/dt-order-*.json` | A3 已填 |
 | L2 | `lightamer-history` | 照片设置（宽容 serde + 规范 JSON + FNV 缓存键）+ 快照历史栈 + 处理版本号（`HISTORY_LIMIT` 200）+ B13′-b1 栈重建（`from_steps`）/ 调整合并（`merge_adjustments`，模块/参数两档）/ `INITIAL_LABEL` 公开 | A4b 已填 / B13′-b1 落库接口 |
@@ -39,7 +39,7 @@
 | L5 | `lightamer-mcp` | 基于引擎命令的 MCP 服务器，C 期占位 | C 期 |
 | L5 | `lightamer-gpui` | 界面（gpui-kit 0.11.0 + gpui-fast 特性）：原生视口画布 + 右侧滑杆面板；双输入路径（框架回调/原生子类）→ 自有 `ViewportInput` 纯数据；只走 `execute` 与快照（A7b 已填） | A7b 已填 |
 | testkit | `lightamer-testkit` | 测试套件：skip 宏 + JSONL 记录 + `IdentityModule`（恒等测试模块，B1-b 起并行拷贝）+ 只许开发依赖 | A3R 已填 / B1-a 恒等模块 / B1-b 并行 |
-| exempt | `lightamer-cli` | 命令行 + oracle 对照工具（A5 已填：`fetch`/`render`/`cmp`/`emit-xmp`/`selftest`；A6 加 `capabilities` + `apple` 默认 feature 关断 Apple 链接；A7a 加 `commands`/`run`（JSONL 喂引擎草稿会话）；B12′-b 加 `run` 会话文件（每行作业排空 + `--hold` 留会话）；B13′-b2 加 `run` 真实会话打印（文件内照片 `short:steps:cursor`）+ `bench` 计时工具（`setup`/`paste`，开发用非导入）；B1-c 加 `render-demo`（合成画面 + 私有增益模块七步演示）；入口 `Scripts/oracle.sh`，钉点 `Scripts/oracle.lock`）+ perf 探针（A3R 挪到 `apps/lightamer-cli`） | A4b（`history dump`）/ A5 已填 / A6 已填 / A7a 已填 / B12′-b 已填 / B13′-b2 已填 / B1-c 已填 |
+| exempt | `lightamer-cli` | 命令行 + oracle 对照工具（A5 已填：`fetch`/`render`/`cmp`/`emit-xmp`/`selftest`；A6 加 `capabilities` + `apple` 默认 feature 关断 Apple 链接；A7a 加 `commands`/`run`（JSONL 喂引擎草稿会话）；B12′-b 加 `run` 会话文件（每行作业排空 + `--hold` 留会话）；B13′-b2 加 `run` 真实会话打印（文件内照片 `short:steps:cursor`）+ `bench` 计时工具（`setup`/`paste`，开发用非导入）；B1-c 加 `render-demo`（合成画面 + 私有增益模块七步演示）；B2-a 加 `decode --dump`（解码探针：字段 + 冷热计时 + `--thumb` 占位）；入口 `Scripts/oracle.sh`，钉点 `Scripts/oracle.lock`）+ perf 探针（A3R 挪到 `apps/lightamer-cli`） | A4b（`history dump`）/ A5 已填 / A6 已填 / A7a 已填 / B12′-b 已填 / B13′-b2 已填 / B1-c 已填 / B2-a 已填 |
 | exempt | `xtask` | 仓库维护任务：`check-i18n`（骨架，B17 启用）；`gen-iop-stubs`（解析上游 `iop_order.c` 生成夹具+桩）/`check-order-sync`（上游×夹具×桩三方比对）/`check-no-iop-names`（核心零 op 名机检）/`layers`（分层检查，A3R 加） | A2 骨架 / A3 三子命令 / A3R layers / B17 |
 
 退役（A3R 删空壳，职责并进 `lightamer-engine`）：`dt-api`、`dt-app`、`dt-export`。

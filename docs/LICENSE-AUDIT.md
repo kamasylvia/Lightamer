@@ -176,6 +176,7 @@
 | clap_builder | 4.6.10 | A | MIT OR Apache-2.0 | A:165 | https://github.com/clap-rs/clap | 纯 Rust 静态链接 | P |
 | clap_derive | 4.6.9 | A | MIT OR Apache-2.0 | A:176 | https://github.com/clap-rs/clap | 纯 Rust 静态链接 | P |
 | clap_lex | 1.1.2 | A | MIT OR Apache-2.0 | A:188 | https://github.com/clap-rs/clap | 纯 Rust 静态链接 | P |
+| cmake | 0.1.58 | L | MIT OR Apache-2.0 | L:834 | https://github.com/rust-lang/cmake-rs | 构建期依赖（调 cmake 编 rawspeed，不进产物） | P |
 | cocoa | 0.25.0 | V | MIT OR Apache-2.0 | V:834 | https://github.com/servo/core-foundation-rs | 纯 Rust 静态链接 | P |
 | cocoa-foundation | 0.1.2 | V | MIT OR Apache-2.0 | V:850 | https://github.com/servo/core-foundation-rs | 纯 Rust 静态链接 | P |
 | codespan-reporting | 0.13.1 | V | Apache-2.0 | V:864 | https://github.com/brendanzab/codespan | 纯 Rust 静态链接 | P |
@@ -1129,3 +1130,25 @@
   全部已在 `Scripts/licenses-allow.txt`；`Scripts/check-licenses.sh` 实测
   `allow=852 exception=1 fail=0`（exception 是沿用的 E1 `self_cell`），退出 0。
 - 会话 UUID 不引入 `uuid` crate：从 `/dev/urandom` 读 16 字节拼 v4（macOS/Linux 通用），零新增依赖。
+
+## §14 B2-a 新增依赖采用记录（2026-11-27，lane B2-a，append-only）
+
+- `lightamer-decode` 新增 2 个构建期依赖（`cargo tree -p lightamer-decode
+  --edges build --depth 1` 实测）：`cmake 0.1.58`（新）、`cc 1.11.3`（复用，
+  B12 已锁，版本逐字相同）。两者许可证都是 `MIT OR Apache-2.0`（`cargo
+  metadata` 实测），已在 `Scripts/licenses-allow.txt`，无需例外。
+- 锁文件新增 1 个包（`git diff Cargo.lock` 实测）：`cmake 0.1.58`（零传递依赖）。
+  已按表列格式追加表行（锁列 `L`，证据列 `L:834` 指本仓 `Cargo.lock` 的
+  `[[package]]` 起始行）。构建期依赖不进产物。
+- rawspeed（C++，非 cargo 包，按 §1.4 登记，不进例外清单）：子模块
+  `external/rawspeed` 钉 `0c16fee7772594e98897bded01fc31bc3409b4cb`
+  （SSH 地址；`git ls-tree HEAD external/rawspeed` 亲核），许可证
+  `LGPL-2.1-or-later`（论证见 §3），静态链接、整体按 `GPL-3.0-or-later`
+  分发（与 darktable 同构）。`data/cameras.xml` 随构建拷进产物目录（见
+  `docs/DECODE.md` §1）。`NOTICE` 的 rawspeed 条目已补子模块落点行。
+- 系统动态库（非 cargo 包，随 Homebrew/Xcode，不进锁表；绝对安装路径，
+  无需 rpath）：`pugixml 1.15`（MIT，`LICENSE.md` 亲核）、`libjpeg-turbo
+  3.2.0`（BSD-style 双许可，`LICENSE.md` 首节亲核）、`libomp 22.1.7`
+  （LLVM OpenMP 运行时，Apache-2.0 w/ LLVM exception）、SDK `zlib`。
+  动态链接，不改变整体 GPL-3.0 分发的合规结论（§3 Q2）。
+- `Scripts/check-licenses.sh` 实测退出 0（计数见 B2a-REPORT 验收节）。
