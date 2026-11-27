@@ -1,0 +1,25 @@
+Working...
+1. `git log -1`：`7ff986621500583b6a143fd2602be5eae7246c2e feat(rust-core): B1-a pipeline foundation (roi/frame/budget/module trait/chain/tiling)`（两次 amend，零 push）
+
+2. 完整交付（一次性）：
+
+结论头：B1-a 收完——复审 `PASS / 0 error + 3 minor`，三处全修并进提交 `7ff98662`（31 文件）。
+全工作区 460 通过（398+62，1 ignored），`rust-ci-lite.sh` 全绿，无「待填」「运行中」。
+M1 收缩阈值取上游 `0.333f` 字面量逐位（`SHRINK_BRANCH`，两处比较+钉住测试）。M2 注释行号 `tiling.c:729` 改 727/730（`sed` 亲核）。M3 `assert_chained` 改签收手算期望：逐节点相等+双向包含，空期望只用相等+`is_empty`，几何链八例全改、测试名不变。
+
+全工作区测试数：`passed=460 failed=0`，83 二进制全 ok，1 ignored（万张计时，默认不跑）。
+
+§9 每条验收（本 lane 亲跑，守卫 `GUARD PASS (heavy=0 free=70%)` 先行，`-j6`）：
+- 六 crate：geom 11 / raster 9 / sysmem 5 / iop-traits 15 / pipeline 26（+1 钉住测试）/ testkit 6+1 doctest，0 failed。
+- 全工作区：`cargo test --workspace --locked -j6` → 460/0/1。
+- `cargo xtask layers` → OK 29 crates；`check-no-iop-names` → OK 97名4根；`check-order-sync` → OK；`check-i18n` → 无事可比；`check-apple-boundary` → OK 214 文件。
+- 六条 lint clippy 全工作区退出 0；`cargo fmt --all --check` 退出 0；`RUSTDOCFLAGS="-D warnings" cargo doc` 退出 0。
+- `Scripts/check-licenses.sh` → allow=852 exception=1 fail=0 total=853，退出 0。
+- 封存面 `git diff --stat 26950d71 HEAD -- …` 零输出；`git show --stat` 反向零命中。
+- 取整/分块出处：R1–R10 三处一致；M1/M2 行号 `sed -n` 亲核（634/638 字面量，727/730 钳位）。
+- 对象安全：`two_different_modules_share_one_dyn_table` 绿（复审亲验真 `dyn` 表）。
+- `docs/PIPELINE.md` 九节齐（含新增字面量一句）；`crates/README.md` 六行已改（c258dfc7 未动）。
+- 两 demo 全 `ALL GREEN` 退出 0；`rust-ci-lite.sh` → ALL GREEN（测试460/界面32s/发行版17.8MB/单crate 7s/target 12.8GB，冷构建 SKIP）。
+- `git show --name-only HEAD` → 31 文件全允许路径；`git status` 已跟踪零改动、暂存空；`/tmp` 无本波文件；无残留进程。
+
+未做：B1-b/B1-c、roi 变体分块、色彩变换执行、`TILING_FULL_ROI`、`singlebuffer` 全局下限（同原报告 §13）。未验：非 macOS 编译（纪律禁装）、性能（本波无计时）。复审跳过的 history-demo 与 ci-lite 本 lane 已全补跑，无遗留跳过。
