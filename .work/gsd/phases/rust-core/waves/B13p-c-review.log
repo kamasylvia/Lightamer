@@ -1,0 +1,80 @@
+# B13′-c PASS / 0 error + 2 minor
+
+HEAD `bcace6f44b8920b19774220ce640f985ef3c5169` 亲核是 HEAD；主报告已读；`Scripts/machine-guard.sh` → `GUARD PASS (heavy=0 free=68% swap=?M disk=?GB)` exit 0。复审日志已落 `.work/gsd/phases/rust-core/waves/B13p-c-review.log`（唯一写）。
+
+1. 三包绿（`-j6`，退出皆 0）：`cargo test -p lightamer-engine --locked` = 61+26+6+1+25+18+13+11 = **161/0**；`-p lightamer-catalog` = **67/0/1忽略**（perf_10k）；`-p lightamer-cli` = 43+5 = **48/0**。
+2. `cargo test --workspace --locked -j6` 各 `test result` 求和 **398/0/1**，无 FAILED 行；`-- --list | grep -c ': test$'` = **399**。
+3. 读 `real_session_batch_fast.rs:129-203`：A 面仅 t5 预载、B 面全预载，同序列后事件流等长 15 且逐个同，`dump_all_tables`（:40-72，九表，history_steps 掩时间戳）逐字节同；覆盖 t1 一步 / t2 重做段 / t3 200 步 / t5 已载混入 merge。库 `push_many_matches_sequential_pushes_table_for_table`（history_store.rs:774）：逐推 vs 批推（含 a 推两次）outcomes 同 + 九表同。两文件重跑全绿。
+4. `push_many_ten_thousand_in_a_single_transaction` 重跑 ok：commit_hook 计 **1**，命中 9999/跳过 10000。读 `fast_batch_is_one_transaction_and_atomic`（:206-247）：触发器中断后 `state_digest` 不变、loaded 数 1、四目标内存长 1、库标签仍 `["import"]`，内存与库全不动；重跑 ok。
+5. `batch_collision_through_one_writer_keeps_rows_apart` 重跑 ok（`7`/`7#2` 各存各文本，重推复用 + 命中 1）。读 `push_many`（history_store.rs:311-323 + `resolve_snapshot` :710-741）：缓存键 = 整段 `canonical_json`，命中即字节已证同故复用无害；不同文本 miss 后仍走查行→逐字节比→失配存 `base#N` 后缀行，「只查一次」未绕碰撞规矩；事务内行只增，`inject_snapshot_key_for_test` 改键清缓存。
+6. `cargo test -p lightamer-catalog --test create --test adopt`：4+2 全绿，内含 `synchronous==2` 断言（create.rs:82、adopt.rs:45-48）。单写点 `apply_pragmas`（schema.rs:138 FULL）；调用链 bench→open_session→open_locked→open_database→migrate→apply_pragmas 无旁路。手 `sqlite3 <bench库> 'PRAGMA synchronous;'` 得 **1**——但对照 `sqlite3 :memory:` 得 2、新库显式 FULL 关库重开仍得 **1**：本机 SQLite 3.54 对 WAL 库 fresh open 恒报 1，平台行为非产品缺陷（minor m1）。
+7. 机械盘（自建 30k `ReviewMech30k`，发行版；load1/ncpu≈0.5 安静，disk6 他人 IO 108–252tps）：组 1 `1950.4*/324.2/290.4` median **324.2**（read 16.9/compute 4.5/write 239.2，*首轮写 1848 被扰动如实记）；组 2 `292.7/381.0/313.0` median **313.0**（18.4/8.0/223.4）；events 全 10000；皆 <600ms 过。工具印 `gate=1000ms`，600 需人工比（minor m2）。
+8. 内置盘（自建 `/tmp/review-b13c/ReviewInt30k`）：组 1 median **151.5**（16.8/4.7/64.8），组 2 **163.4**；相对 300ms 量级快约五成，过。
+9. 两会话各补跑 `--runs 1` 后直接 `ls -la`：仅 `.lmsessiondb` + 目录 + 0 字节 `session.lock`，无 `-wal`/`-shm`。（中途出现系我 `sqlite3` 自造，重跑确认无。）
+10. `Scripts/rust-history-demo.sh` 与 `Scripts/rust-session-demo.sh` 皆 `demo: ALL GREEN`，exit 0（前者内独立 bench median 147.2ms）。
+11. 六条口径 clippy（同 rust-test.sh 六 `-D`）exit 0；`clippy --workspace --all-targets -- -D warnings` exit 0；`fmt --all --check` 无输出 exit 0；`RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` exit 0。
+12. `xtask layers` → `OK: 29 crates`；`check-no-iop-names` → 97/4；`check-apple-boundary` → 29/197；`check-order-sync` → 97；`Scripts/rust-apple-boundary.sh` → ALL GREEN；退出皆 0。
+13. `rg -n 'std::fs|create_dir|read_dir|std::fs::copy|fs::copy' crates/lightamer-engine/src` 无输出（exit 1）。
+14. `git diff --stat 703c07be HEAD -- crates/lightamer-history crates/lightamer-registry 'crates/lightamer-iop-*/src/modules' crates/lightamer-apple` 无输出。
+15. `git show --name-only HEAD` 15 文件：REPORT + cli 2 + catalog 6 + engine 4 + SESSION.md，全在允许集；无 Cargo.lock/README 改动（符合预期）；无多余路径。
+16. 已删 `ReviewMech30k` 与 `/tmp/review-b13c`；`pgrep -x lightamer-cli` 空；`pgrep -f` 误命中系他方 watchdog 壳，未碰。
+
+minor：m1 手读同步档口径本机不可行（对照实验证据如上，建议后波改 in-app 断言口径）；m2 bench `gate=1000ms` 与验收 600ms 字面不一，建议统一或注明。未验项：无（16 条全验）。
+（≤1 安静）；但 disk6（UNITEK 14T）后台 108–252 tps / 0.7–4MB/s，
+  他人 IO 常在（与主 lane AfterMech2 同态）。
+- 组 1：`bench paste --photos 10000 --runs 3` →
+  round1 **1950.4** read=16.9 compute=4.5 write=1848.2（写被扰动，如实记）/
+  round2 324.2 read=16.9 compute=4.5 write=239.2 / round3 290.4 read=16.9 compute=3.9 write=205.9；
+  median **324.2** (16.9/4.5/239.2)，events 全 10000，< 600ms 过。
+- 组 2：292.7 / 381.0 / 313.0，median **313.0** (read 18.4 compute 8.0 write 223.4)，< 600ms 过。
+- 与主 lane 271.3/305.0 同量级；读/算稳定、唯写被顶 = 扰动签名一致。
+- 工具打印 `gate=1000ms`，验收 600ms 系人工比（记 minor m2：两处口径字面不一致）。
+
+## 8. 内置盘万张（自建 `/tmp/review-b13c/ReviewInt30k`，发行版）
+
+- 组 1：157.3 / 149.6 / 151.5，median **151.5** (16.8/4.7/64.8)；组 2：162.0/163.4/166.8，median **163.4**。
+  相对 300ms 量级快约五成，不慢反快，过（主 lane 139.7；history-demo 内独立复核 147.2，见 §10）。
+
+## 9. 无 -wal/-shm（ls 亲看）
+
+- 两会话各补跑 `--runs 1` 后直接 `ls -la`：仅 `.lmsessiondb` + 目录 + `session.lock`（0 字节），无 `-wal`/`-shm`。
+  （中途曾出现系复审自造：`sqlite3` 打开 WAL 库即重建空 wal/shm；重跑 bench 关会话后已确认无。）
+
+## 10. 演示脚本
+
+- `Scripts/rust-history-demo.sh` → `demo: ALL GREEN`，exit 0（含内置盘独立 bench median 147.2ms (17.0/4.1/62.7)）
+- `Scripts/rust-session-demo.sh` → `demo: ALL GREEN`，exit 0
+
+## 11. lint/clippy/fmt/doc（退出皆 0）
+
+- `cargo clippy --workspace --all-targets --locked -j6 -- -D warnings -D clippy::indexing_slicing -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic -D clippy::todo -D clippy::unimplemented` → exit 0（同 rust-test.sh 六条口径）
+- `cargo clippy --workspace --all-targets --locked -j6 -- -D warnings` → exit 0
+- `cargo fmt --all --check` → exit 0（无输出）
+- `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked -j6` → exit 0（29 页生成）
+
+## 12. xtask 四项 + 边界
+
+- `cargo xtask layers` → `OK: 29 crates, no layering violations.` exit 0
+- `cargo xtask check-no-iop-names` → `OK (97 names, 4 roots clean)` exit 0
+- `cargo xtask check-apple-boundary` → `OK: 29 crates, 197 rust files, no Apple-boundary violations.` exit 0
+- `cargo xtask check-order-sync` → `OK (97 modules, fixture …/dt-order-679d594f5d.json)` exit 0
+- `Scripts/rust-apple-boundary.sh` → `ALL GREEN`（7/7）exit 0
+
+## 13/14/15. rg / 封存面 / 提交范围
+
+- `rg -n 'std::fs|create_dir|read_dir|std::fs::copy|fs::copy' crates/lightamer-engine/src` → 无输出，exit 1
+- `git diff --stat 703c07be HEAD -- crates/lightamer-history crates/lightamer-registry 'crates/lightamer-iop-*/src/modules' crates/lightamer-apple` → 无输出
+- `git show --name-only HEAD` → 15 文件：REPORT + cli 2 + catalog 6 + engine 4 + docs/SESSION.md；
+  全在允许集，无 Cargo.lock / crates/README.md 改动（与「本次应无改动」一致），无多余路径
+
+## 16. 收尾
+
+- 已删：`…/scratch-tmp/ReviewMech30k`、`/tmp/review-b13c`（scratch-tmp 剩主 lane 4 目录；/tmp 下他方 review 文件未碰）
+- `pgrep -x lightamer-cli` 空（exit 1）；`pgrep -f lightamer-cli` 曾命中一他方 watchdog 壳（含该串作查询，非本实例，未碰）
+- 未读凭据，未碰 Cloud Drive，未跑 Swift 构建/图形程序
+
+## minor
+
+- m1：验收第 6 节「手 sqlite3 读 bench 库得 2」在本机不可行（对照实验证 WAL fresh open 恒 1）；
+  产品 FULL 面已证，建议后波改口径为 in-app 断言（create/adopt 测试即此）。
+- m2：`bench paste` 打印 `gate=1000ms`，验收门 600ms 需人工比；建议工具 gate 与验收门统一或报告注明。
