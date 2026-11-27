@@ -229,7 +229,7 @@ fn cmd_cmp(args: &Args) -> Result<(), Failure> {
     }
 }
 
-#[allow(clippy::cast_possible_truncation)] // CLI EV is f32 by format design
+#[expect(clippy::cast_possible_truncation)] // CLI EV is f32 by format design
 fn cmd_emit_xmp(args: &Args) -> Result<(), Failure> {
     args.check_only(&["--image", "--exposure-ev", "--flip-x", "--output"])?;
     if !args.positionals.is_empty() {

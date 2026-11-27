@@ -88,7 +88,7 @@ pub fn default_settings_json() -> Result<String, Box<dyn std::error::Error>> {
     Ok(PhotoSettings::default().canonical_json()?)
 }
 
-#[allow(dead_code)]
+#[allow(dead_code)] // only the history tests call this helper
 /// Canonical JSON of default settings plus one integer parameter, so each
 /// (`module`, `param`, `value`) triple is a distinct snapshot.
 pub fn settings_json(
@@ -113,7 +113,7 @@ pub fn settings_json(
     Ok(settings.canonical_json()?)
 }
 
-#[allow(dead_code)]
+#[allow(dead_code)] // only the history tests call this helper
 /// Canonical JSON of default settings under another process number.
 pub fn settings_json_with_process(process: u32) -> Result<String, Box<dyn std::error::Error>> {
     use lightamer_history::{PhotoSettings, ProcessVersion};

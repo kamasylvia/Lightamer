@@ -263,63 +263,6 @@ impl Roi {
             scale: self.scale,
         })
     }
-
-    /// Same coverage expressed at `dst_scale`, with darktable's rounding:
-    ///
-    /// - origin: C float-to-int truncation toward zero
-    ///   (`src/iop/finalscale.c:103-104`, `src/develop/pixelpipe_hb.c:2480-2481`);
-    /// - extent: `ceil`, so the converted roi never drops a covered pixel
-    ///   (`src/iop/finalscale.c:124-127`).
-    ///
-    /// This is the non-tiling rule: the extra far-edge guard tiling applies
-    /// (`finalscale.c:133-141`, extending the width to `ceil((x + w) / s)`)
-    /// lives in the tiling decision, not here.
-    ///
-    /// # Errors
-    ///
-    /// [`RoiError::BadScale`] for a bad `dst_scale`;
-    /// [`RoiError::Overflow`] when a converted value leaves `i32`.
-    pub fn to_scale(self, dst_scale: f32) -> Result<Self, RoiError> {
-        if !dst_scale.is_finite() || dst_scale <= 0.0 {
-            return Err(RoiError::BadScale);
-        }
-        let ratio = f64::from(self.scale) / f64::from(dst_scale);
-        let x = trunc_to_i32(f64::from(self.x) * ratio)?;
-        let y = trunc_to_i32(f64::from(self.y) * ratio)?;
-        let width = ceil_to_i32(f64::from(self.width) * ratio)?;
-        let height = ceil_to_i32(f64::from(self.height) * ratio)?;
-        Ok(Self {
-            x,
-            y,
-            width,
-            height,
-            scale: dst_scale,
-        })
-    }
-}
-
-/// C float-to-int conversion (truncation toward zero), range-checked.
-///
-/// The bounds check runs before rounding so the rounded value is always an
-/// exactly representable `i32` (the `as` cannot saturate). `trunc` of a
-/// value in `[-2^31, 2^31)` lands in `[MIN, MAX]`.
-fn trunc_to_i32(value: f64) -> Result<i32, RoiError> {
-    if !value.is_finite() || value < -2_147_483_648.0 || value >= 2_147_483_648.0 {
-        return Err(RoiError::Overflow);
-    }
-    #[allow(clippy::cast_possible_truncation)]
-    Ok(value.trunc() as i32)
-}
-
-/// `ceil`, range-checked: the check runs after rounding so a value like
-/// `MAX + 0.5` (whose ceiling leaves `i32`) is an honest overflow.
-fn ceil_to_i32(value: f64) -> Result<i32, RoiError> {
-    let ceil = value.ceil();
-    if !ceil.is_finite() || ceil < -2_147_483_648.0 || ceil > 2_147_483_647.0 {
-        return Err(RoiError::Overflow);
-    }
-    #[allow(clippy::cast_possible_truncation)]
-    Ok(ceil as i32)
 }
 
 #[cfg(test)]
@@ -352,7 +295,6 @@ mod tests {
         assert_eq!(Roi::new(0, 0, 4, 4, -1.0), Err(RoiError::BadScale));
         assert_eq!(Roi::new(0, 0, 4, 4, f32::NAN), Err(RoiError::BadScale));
         assert_eq!(Roi::new(0, 0, 4, 4, f32::INFINITY), Err(RoiError::BadScale));
-        assert_eq!(roi(0, 0, 4, 4).to_scale(0.0), Err(RoiError::BadScale));
     }
 
     #[test]
@@ -417,31 +359,6 @@ mod tests {
         assert_eq!(parent.sub(-1, 0, 10, 10), Err(RoiError::OutOfBounds));
         assert_eq!(parent.sub(95, 0, 10, 10), Err(RoiError::OutOfBounds));
         assert_eq!(parent.sub(0, 0, 10, -2), Err(RoiError::NegativeSize));
-    }
-
-    #[test]
-    fn to_scale_truncates_origin_and_ceils_extent() {
-        // 100x60 @1.0 viewed at half scale: origin truncates (C conversion),
-        // extent ceils so no covered pixel is dropped (finalscale.c:103-127).
-        let full = roi(0, 0, 100, 60);
-        let half = full.to_scale(0.5).unwrap();
-        assert_eq!((half.x, half.y, half.width, half.height), (0, 0, 200, 120));
-        // Odd origin truncates toward zero: -3 / 0.5 = -6.0 exact, but
-        // 7 @0.5 -> 3.5 truncates to 3 while width ceils: 5 -> 2.5 -> 3.
-        let odd = Roi::new(7, 0, 5, 5, 0.5).unwrap();
-        let back = odd.to_scale(1.0).unwrap();
-        assert_eq!((back.x, back.width), (3, 3));
-        let neg = Roi::new(-7, 0, 5, 5, 0.5).unwrap();
-        let neg_back = neg.to_scale(1.0).unwrap();
-        assert_eq!((neg_back.x, neg_back.width), (-3, 3));
-    }
-
-    #[test]
-    fn to_scale_identity_and_overflow() {
-        let r = Roi::new(3, -2, 100, 60, 0.5).unwrap();
-        assert_eq!(r.to_scale(0.5).unwrap(), r);
-        let big = Roi::new(0, 0, i32::MAX, 1, 1.0).unwrap();
-        assert_eq!(big.to_scale(0.25), Err(RoiError::Overflow));
     }
 
     #[test]

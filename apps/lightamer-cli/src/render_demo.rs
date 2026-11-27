@@ -45,7 +45,8 @@ impl InputSource for DemoInput {
         let mut buf = Vec::with_capacity(width as usize * width as usize * 4);
         for y in 0..width {
             for x in 0..width {
-                #[allow(clippy::cast_precision_loss)]
+                #[expect(clippy::cast_precision_loss)]
+                // demo pixels are small; the conversion is exact
                 let (x, y) = (x as f32, y as f32);
                 buf.extend_from_slice(&[x, y, 0.5, 1.0]);
             }
@@ -106,9 +107,11 @@ impl IopModule for DemoGain {
         params: &Map<String, Value>,
         _image: &ImageInfo,
     ) -> Result<CommitData, PipeError> {
-        #[allow(clippy::cast_possible_truncation)]
+        #[expect(clippy::cast_possible_truncation)]
+        // demo gains are small; the downcast cannot lose them
         let gain = get_float(params, "gain")? as f32;
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        // clamped at zero above; saturation on absurd values is fine for a demo sleep
         let sleep_ms = Self::opt_float(params, "sleep_ms").max(0.0) as u64;
         Ok(Arc::new(DemoGainCommit { gain, sleep_ms }))
     }
@@ -307,7 +310,7 @@ pub fn render_demo(size: u32, out: &mut dyn FnMut(&str)) -> Result<(), Error> {
     result
 }
 
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)] // a linear demo script; splitting would scatter the step order
 fn render_demo_inner(
     size: u32,
     tmp: &std::path::Path,
@@ -342,7 +345,7 @@ fn render_demo_inner(
         sink.borrow_mut().push(event.clone());
     }));
     for (multi, gain) in [1.0, 1.5, 2.0, 2.5, 3.0].into_iter().enumerate() {
-        #[allow(clippy::cast_possible_truncation)]
+        #[expect(clippy::cast_possible_truncation)] // five demo steps; the index always fits u32
         let multi = multi as u32;
         develop_gain(&mut engine, &first, multi, gain, 0.0)?;
     }
@@ -441,7 +444,7 @@ fn render_demo_inner(
 
     out("step 6: idle timing on the second photo (preview, all miss)");
     for (multi, gain) in [1.1, 1.2, 1.3, 1.4, 1.5].into_iter().enumerate() {
-        #[allow(clippy::cast_possible_truncation)]
+        #[expect(clippy::cast_possible_truncation)] // five demo steps; the index always fits u32
         let multi = multi as u32;
         develop_gain(&mut engine, &second, multi, gain, 0.0)?;
     }

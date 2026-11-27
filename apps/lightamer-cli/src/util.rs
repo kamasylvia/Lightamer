@@ -31,7 +31,7 @@ impl Error {
 
 /// Attach path context to an I/O error.
 #[must_use]
-#[allow(clippy::needless_pass_by_value)] // `io::Error` is small; owned keeps `map_err` closures terse
+#[expect(clippy::needless_pass_by_value)] // `io::Error` is small; owned keeps `map_err` closures terse
 pub fn io_error(path: &Path, err: io::Error) -> Error {
     Error(format!("{}: {err}", path.display()))
 }

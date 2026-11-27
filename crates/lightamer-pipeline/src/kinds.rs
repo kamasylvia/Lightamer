@@ -103,7 +103,7 @@ pub fn quota_for(kind: PipeKind, total_phys_bytes: u64) -> PipeQuota {
         let cap = u128::from(quota(*candidate).memory_budget);
         let clamped = want.clamp(floor, cap).min(u128::from(u64::MAX));
         // `clamp` bounds by `cap <= u64::MAX`, so this truncation keeps all bits.
-        #[allow(clippy::cast_possible_truncation)]
+        #[expect(clippy::cast_possible_truncation)]
         let clamped = clamped as u64;
         *slot = clamped;
         sum += u128::from(clamped);
@@ -111,7 +111,8 @@ pub fn quota_for(kind: PipeKind, total_phys_bytes: u64) -> PipeQuota {
     let budgets = if sum > pool && sum > 0 {
         let mut scaled = [0u64; 4];
         for (slot, value) in scaled.iter_mut().zip(raw.iter()) {
-            #[allow(clippy::cast_possible_truncation)]
+            #[expect(clippy::cast_possible_truncation)]
+            // bounded by u64::MAX just above, so no bits are lost
             let fit = (u128::from(*value) * pool / sum).min(u128::from(u64::MAX)) as u64;
             *slot = fit;
         }
@@ -178,7 +179,7 @@ fn floor_for(kind: PipeKind) -> u64 {
 /// Only `unsafe` in this crate: two `sysconf` reads. `sysconf` with
 /// `_SC_PHYS_PAGES`/`_SC_PAGESIZE` takes no pointers and keeps no state; the
 /// only failure mode is the `-1` return, handled above.
-#[allow(unsafe_code)]
+#[expect(unsafe_code)]
 pub fn system_physical_memory() -> Result<u64, std::io::Error> {
     // SAFETY: no pointers cross the boundary; `-1` is handled below.
     let pages = unsafe { libc::sysconf(libc::_SC_PHYS_PAGES) };

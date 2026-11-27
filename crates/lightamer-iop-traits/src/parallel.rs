@@ -142,7 +142,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)] // test sizes are small; the conversion is exact
     fn parallel_copy_matches_serial_bitwise() {
         let rows = 137usize;
         let width = 61usize;
@@ -161,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)] // test sizes are small; the conversion is exact
     fn strided_rows_only_touch_row_len() {
         // Gaps between rows must survive: the tool writes row_len floats per
         // row and never the padding a sub-buffer stride leaves behind.

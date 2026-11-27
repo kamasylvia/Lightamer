@@ -17,7 +17,6 @@ fn insert_snapshot(conn: &rusqlite::Connection, hash: &str, json: &str) -> rusql
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 fn insert_photo(
     conn: &rusqlite::Connection,
     uuid: &str,

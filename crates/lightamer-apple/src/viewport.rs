@@ -113,7 +113,7 @@ pub enum NativePointerKind {
 
 /// Modifier key state at the time of a pointer event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[allow(clippy::struct_excessive_bools)] // Four independent key facts; a bitflag would hide names.
+#[expect(clippy::struct_excessive_bools)] // Four independent key facts; a bitflag would hide names.
 pub struct ModifierState {
     /// Shift held.
     pub shift: bool,
@@ -231,7 +231,7 @@ impl fmt::Debug for ViewportHandle {
 /// round to nearest, clamp at zero; a zero-area rectangle yields `(0, 0)`.
 #[must_use]
 pub fn drawable_size(rect: &ViewportRect, scale: f64) -> (u64, u64) {
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let convert = |points: f64| {
         let pixels = (points * scale).round().clamp(0.0, f64::from(u32::MAX));
         pixels as u64

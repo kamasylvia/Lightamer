@@ -610,7 +610,6 @@ fn cancelled_delivery(
 }
 
 /// One failed delivery with the pipe's partial trace, if any.
-#[allow(clippy::too_many_arguments)]
 fn failed_delivery(
     photo: &str,
     kind: RenderKind,
@@ -645,7 +644,7 @@ fn failed_delivery(
 /// a future decode may be slow) → hold the kind lock for one pipe run →
 /// copy the pixels out and send them. The pipe lock releases before the
 /// send; the channel is unbounded, so the send never blocks the lock.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)] // one job launch with its context, input, and pipe; a params struct would just rename the args
 pub(crate) fn run_render_job(
     ctx: &JobCtx,
     tx: &Sender<RenderDelivery>,

@@ -365,13 +365,13 @@ fn f16_to_f32(bits: u16) -> f32 {
 /// Device pixels as `f32` uniforms. Drawables never exceed 2^32 pixels per
 /// side ([`drawable_size`] clamps there), so the conversion is exact for all
 /// real sizes; the clamp keeps absurd inputs finite.
-#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+#[expect(clippy::cast_precision_loss)]
 fn pixels_to_f32(pixels: u64) -> f32 {
     u32::try_from(pixels).unwrap_or(u32::MAX) as f32
 }
 
 /// Points as whole device pixels, matching [`drawable_size`].
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // clamped to [0, u32::MAX] above, so the cast keeps every pixel
 fn points_to_pixels(points: f64) -> u64 {
     points.round().clamp(0.0, f64::from(u32::MAX)) as u64
 }

@@ -205,7 +205,7 @@ pub fn restore_and_open(
 /// Moves one package: destination shape first, then the database, then the
 /// photo directories. `checkpoint_src` merges the source WAL (backup only);
 // restoring never writes to the backup.
-#[allow(clippy::too_many_arguments)] // one package move with one progress/cancel pair; splitting would scatter the cleanup
+#[expect(clippy::too_many_arguments)] // one package move with one progress/cancel pair; splitting would scatter the cleanup
 fn copy_package(
     src_db: &Path,
     dest_db: &Path,

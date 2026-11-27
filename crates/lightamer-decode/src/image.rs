@@ -313,7 +313,7 @@ fn to_usize(value: i32, what: &str) -> Result<usize, DecodeError> {
 
 /// Invert a row-major 3x3 matrix in `f64`; `None` when near-singular.
 #[must_use]
-#[allow(clippy::many_single_char_names)] // Matrix entries read best as a..i.
+#[expect(clippy::many_single_char_names)] // Matrix entries read best as a..i.
 pub fn invert_3x3(m: [f32; 9]) -> Option<[f32; 9]> {
     let a = f64::from(m[0]);
     let b = f64::from(m[1]);
@@ -346,7 +346,7 @@ pub fn invert_3x3(m: [f32; 9]) -> Option<[f32; 9]> {
     for (slot, value) in out.iter_mut().zip(inv.iter()) {
         // f64 -> f32: values are finite (checked above); precision loss is
         // inherent to the f32 matrix format, not a truncation bug.
-        #[allow(clippy::cast_possible_truncation)]
+        #[expect(clippy::cast_possible_truncation)]
         let narrowed = *value as f32;
         *slot = narrowed;
     }

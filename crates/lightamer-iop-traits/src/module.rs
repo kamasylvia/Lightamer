@@ -146,7 +146,7 @@ mod tests {
             _image: &ImageInfo,
         ) -> Result<CommitData, PipeError> {
             // Test gains are small; the downcast cannot lose them.
-            #[allow(clippy::cast_possible_truncation)]
+            #[expect(clippy::cast_possible_truncation)]
             let gain = crate::get_float(params, "gain").unwrap_or(2.0) as f32;
             Ok(Arc::new(DoublerCommit { gain }))
         }

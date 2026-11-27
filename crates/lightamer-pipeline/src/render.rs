@@ -683,7 +683,7 @@ fn run_untiled(
 /// one reusable input/output scratch pair sized to the largest tile; per-tile
 /// absolute-coordinate rois (`iroi`/`oroi`, `:740-741`); only the good part
 /// (leading overlap trimmed) copied back (`:780-790`).
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)] // one tiled run with its budget, cache, geometry, and input; splitting would scatter the tiling loop
 fn run_tiled(
     budget: &Arc<Budget>,
     cache: &mut PlaneCache,
@@ -1008,7 +1008,7 @@ mod tests {
         .unwrap()
     }
 
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)] // test frames are small; the conversion is exact
     fn pattern_frame(w: u32, h: u32) -> Frame {
         let len = w as usize * h as usize * 4;
         let buf: Vec<f32> = (0..len).map(|i| i as f32 * 0.125 - 3.0).collect();
@@ -2071,7 +2071,7 @@ mod tests {
     }
 
     /// Peak resident set of this process in bytes (macOS `ru_maxrss`).
-    #[allow(unsafe_code)]
+    #[expect(unsafe_code)] // one getrusage call; the contract is in the SAFETY comment below
     fn peak_rss_bytes() -> u64 {
         // SAFETY: `getrusage` writes a plain struct through a live pointer;
         // a failure (never observed) reports zero instead of a number.

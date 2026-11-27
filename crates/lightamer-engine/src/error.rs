@@ -11,7 +11,7 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 /// The variants pin down *why* the call failed; the engine state is unchanged
 /// on every one of them (see the atomicity rule in the crate docs).
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[allow(clippy::module_name_repetitions)]
+#[expect(clippy::module_name_repetitions)]
 // Public error names repeat the module by project convention (`CommandError`
 // reads better at use sites than `Error`); the lint's rename would obscure it.
 pub enum CommandError {

@@ -94,7 +94,7 @@ fn first_ascii(parsed: &exif::Exif, tag: exif::Tag) -> Option<String> {
 
 /// Rational to `f32` (via `f64`: `u32` is exact in `f64`, and optical values
 /// are small enough that the final narrowing is lossless in practice).
-#[allow(clippy::cast_possible_truncation)] // See above; f/1.2-class values.
+#[expect(clippy::cast_possible_truncation)] // See above; f/1.2-class values.
 fn ratio_f32(num: u32, denom: u32) -> f32 {
     (f64::from(num) / f64::from(denom)) as f32
 }

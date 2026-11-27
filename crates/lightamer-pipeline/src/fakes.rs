@@ -536,7 +536,8 @@ impl IopModule for FakeGain {
         params: &Map<String, Value>,
         _image: &ImageInfo,
     ) -> Result<CommitData, PipeError> {
-        #[allow(clippy::cast_possible_truncation)]
+        #[expect(clippy::cast_possible_truncation)]
+        // test gains are small; the downcast cannot lose them
         let gain = get_float(params, "gain")? as f32;
         Ok(Arc::new(GainCommit { gain }))
     }
@@ -602,9 +603,7 @@ impl IopModule for FakeMem {
     fn tiling(&self, _data: &CommitData, _rin: &Roi, _rout: &Roi) -> TilingReq {
         TilingReq {
             factor: self.factor,
-            factor_cl: self.factor,
             maxbuf: 1.0,
-            maxbuf_cl: 1.0,
             overhead: 0,
             overlap: self.overlap,
             align: 1,
@@ -658,9 +657,7 @@ impl IopModule for FakePosition {
     fn tiling(&self, _data: &CommitData, _rin: &Roi, _rout: &Roi) -> TilingReq {
         TilingReq {
             factor: 8.0,
-            factor_cl: 8.0,
             maxbuf: 1.0,
-            maxbuf_cl: 1.0,
             overhead: 0,
             overlap: 4,
             align: 1,
@@ -692,7 +689,8 @@ impl IopModule for FakePosition {
             for lx in 0..pixels {
                 let local = i64::try_from(lx).unwrap_or(0);
                 let gx = i64::from(rout.x) + local;
-                #[allow(clippy::cast_precision_loss)]
+                #[expect(clippy::cast_precision_loss)]
+                // test coordinates are small; the conversion is exact
                 let value = (gx * 131 + gy) as f32;
                 let base = lx * 4;
                 dst[base] = value;

@@ -170,7 +170,7 @@ struct Accum {
     sum_ch_b: Vec<u64>,
 }
 
-#[allow(clippy::cast_precision_loss)] // counts here are far below 2^53
+#[expect(clippy::cast_precision_loss)] // counts here are far below 2^53
 fn finalize(width: u32, height: u32, bit_depth: u8, channels: u8, tol: f64, acc: &Accum) -> Stats {
     let pixels = u64::from(width) * u64::from(height);
     let samples = pixels * u64::from(channels);

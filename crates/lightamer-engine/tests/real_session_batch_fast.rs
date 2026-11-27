@@ -5,9 +5,9 @@
 //! keep populating the cache.
 #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
 
-#[allow(dead_code)]
+#[allow(dead_code)] // this target leaves some helpers of this module unused
 mod common;
-#[allow(dead_code)]
+#[allow(dead_code)] // this target leaves some helpers of this module unused
 mod real_common;
 
 use std::cell::RefCell;

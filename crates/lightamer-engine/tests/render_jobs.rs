@@ -3,9 +3,9 @@
 //! snapshots, and the per-node record — on draft and real sessions alike.
 #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
 
-#[allow(dead_code)]
+#[allow(dead_code)] // this target leaves some helpers of this module unused
 mod common;
-#[allow(dead_code)]
+#[allow(dead_code)] // this target leaves some helpers of this module unused
 mod real_common;
 
 use std::cell::RefCell;
@@ -59,7 +59,7 @@ fn gradient_pixels(width: u32, height: u32) -> Vec<f32> {
     let mut out = Vec::with_capacity(width as usize * height as usize * 4);
     for y in 0..height {
         for x in 0..width {
-            #[allow(clippy::cast_precision_loss)]
+            #[expect(clippy::cast_precision_loss)] // test pixels are small; the conversion is exact
             let (x, y) = (x as f32, y as f32);
             out.extend_from_slice(&[x, y, 0.5, 1.0]);
         }
@@ -160,7 +160,8 @@ impl IopModule for GainModule {
         params: &serde_json::Map<String, Value>,
         _image: &ImageInfo,
     ) -> Result<CommitData, PipeError> {
-        #[allow(clippy::cast_possible_truncation)]
+        #[expect(clippy::cast_possible_truncation)]
+        // test gains are small; the downcast cannot lose them
         let gain = get_float(params, "gain")? as f32;
         Ok(Arc::new(GainCommit { gain }))
     }

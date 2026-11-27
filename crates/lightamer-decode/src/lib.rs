@@ -23,9 +23,9 @@ pub mod exif;
 // B2-a: this crate owns the rawspeed FFI boundary. `unsafe` is confined to
 // `ffi` (declarations) plus one documented block per extern call in `image`;
 // every block carries a `SAFETY` comment naming the contract it upholds.
-#[allow(unsafe_code)]
+#[expect(unsafe_code)]
 pub mod ffi;
-#[allow(unsafe_code)]
+#[expect(unsafe_code)]
 pub mod image;
 pub mod raster;
 pub mod thumbnail;

@@ -162,7 +162,7 @@ pub fn verify_file(path: &Path, lock: &Lock) -> Result<(), Error> {
 /// # Errors
 ///
 /// Returns [`Error`] when the cache dir cannot be listed or a file cannot be removed.
-#[allow(clippy::case_sensitive_file_extension_comparisons)] // we only manage our own lowercase names
+#[expect(clippy::case_sensitive_file_extension_comparisons)] // we only manage our own lowercase names
 pub fn prune_cache(cache: &Path, keep: &str) -> Result<Vec<String>, Error> {
     let mut removed = Vec::new();
     let entries = fs::read_dir(cache).map_err(|e| util::io_error(cache, e))?;

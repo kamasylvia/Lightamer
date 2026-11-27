@@ -29,7 +29,7 @@ pub const HISTORY_LIMIT: usize = 200;
 pub const INITIAL_LABEL: &str = "import";
 
 /// One undo step: the command label plus a full settings snapshot.
-#[allow(clippy::module_name_repetitions)]
+#[expect(clippy::module_name_repetitions)]
 // Public names mirror LightCraft (`HistoryStep`); renaming would obscure
 // the shared vocabulary between the two models.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -56,7 +56,7 @@ struct Interaction {
 /// [`HistoryStack::undo`], [`HistoryStack::redo`], and [`HistoryStack::goto`]
 /// first end an open interaction (committing its step when it changed), so an
 /// unended interaction can never silently lose — or strand — live edits.
-#[allow(clippy::module_name_repetitions)]
+#[expect(clippy::module_name_repetitions)]
 // Same shared-vocabulary reason as [`HistoryStep`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct HistoryStack {
@@ -283,9 +283,6 @@ impl HistoryStack {
 }
 
 /// What is wrong with stored steps handed to [`HistoryStack::from_steps`].
-#[allow(clippy::module_name_repetitions)]
-// Public error names repeat the module by project convention (`RebuildError`
-// reads better at use sites than `Error`); the lint's rename would obscure it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RebuildError {
     /// No step was given; a stack always holds at least one step.

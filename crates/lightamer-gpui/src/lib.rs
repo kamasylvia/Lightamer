@@ -53,7 +53,7 @@ impl InputKind {
 
 /// Modifier key state at the time of a pointer event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[allow(clippy::struct_excessive_bools)] // Four independent key facts; a bitflag would hide names.
+#[expect(clippy::struct_excessive_bools)] // Four independent key facts; a bitflag would hide names.
 pub struct InputModifiers {
     /// Shift held.
     pub shift: bool,

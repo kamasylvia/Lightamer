@@ -1,0 +1,62 @@
+Working...
+PASS / 0 error + 2 minor
+
+技能：`ponytail/SKILL.md` 全文、`rust-best-practices/SKILL.md` 全文 + `references/chapter_01/02/03/04/08.md` 已读；用户优先级（`pub` 写 `///`、手写错误类型、不跟单断言/类型状态、项目门优先）全程遵守。机器守卫（构建前唯一一次）：`Scripts/machine-guard.sh` → `GUARD PASS (heavy=0 free=56% ...)`，exit=0。全程 `-j6`、一次一个重活、无 caffeinate、无 Swift 构建、无图形程序、无下载。HEAD 亲核 `300b6aa1`，收尾 `tracked-dirty=0`，`/tmp` 探针/日志全删。
+
+## 事项 1：验收清单重跑
+
+- allow/expect 计数：`grep -rn '#\[allow(' --include='*.rs' crates apps | wc -l` → `18`；`#\[expect(` → `49`。与报告 §5.1 一致；加总 49+18+6=73 ✓。
+- `missing_docs`：`grep -n missing_docs Cargo.toml` → `16:missing_docs = "deny"` ✓。
+- rustdoc：`RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked -j6` → exit=0（59s，29 crate 零警告）✓。
+- 非增量 clippy：`CARGO_INCREMENTAL=0 cargo clippy --workspace --all-targets --locked -j6 -- -D warnings -D clippy::perf -D clippy::indexing_slicing -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic -D clippy::todo -D clippy::unimplemented` → exit=0（47s）✓。49 处 expect 全兑现、perf 零命中。
+- `sed -n '17p' Scripts/rust-test.sh` → clippy 行含 `-D clippy::perf`，且 `git show` 证该文件只动这一行 ✓。
+- 测试：`cargo test --workspace --locked -j6 --no-fail-fast` → 91 个 `test result: ok`，0 个 FAILED，`total passed=616`，`total failed=0`（169s）。616=618−2 ✓；报告中的 3 个负载门本轮全过（`paste_refuses_a_session_short_of_photos ok`、`paste_times_one_hundred_photos... ok`、`cli_bench_setup_and_paste_end_to_end ok`，机器已安静）✓。另 `cargo fmt --all --check` → exit=0 ✓。
+- A7a 五行：按 `A7a-REPORT.md` §5 重建 `/tmp/A7a-five.jsonl`（5 行原文），`cargo build -p lightamer-cli` 后运行 → digest `9734988588720734966/6191755046607852097` 交替与报告逐位同，exit=1 ✓。
+- 四演示：`rust-session/history/render/decode-demo.sh` → 4/4 exit=0 且 `ALL GREEN`（48s）✓。
+- `cargo xtask layers` → `OK: 29 crates, no layering violations` exit=0 ✓；`Scripts/rust-apple-boundary.sh` → `7/7 ALL GREEN` exit=0 ✓；`Scripts/check-licenses.sh` → exit=0 ✓。
+- `Scripts/rust-ci-lite.sh` 全程 → exit=0（579s）：`tests total passed=616`，`rust-budget: overall PASS`，`rust-ci-lite: ALL GREEN`。其中两项 budget 计时步 `UNRELIABLE (load1 10.78) SKIP-GATE`（ci-lite 自身负载所致，按脚本设计跳门不计，overall 仍 PASS），如实记录，未重跑 ✓。
+
+## 事项 2：`#[expect]` 兑现探针（5 处，四类全覆盖）
+
+方法：文件拷 `/tmp` 备份 → 在位改触发条件 → `cargo clippy -p <crate> --all-targets --locked -j6 -- -F unfulfilled-lint-expectations` → 还原 → `git diff` 验净。基线（未改文件 + `-F`）exit=0 先行确认。教训：plain `cargo rustc` 不跑 clippy  lint，探针必须走 clippy（P1 首轮误用 rustc 得假绿，已纠正重跑）。
+
+- P1 cast 系（`macos.rs:368` precision_loss）：`u32::try_from→u16::try_from`（u16→f32 精确）→ `error: this lint expectation is unfulfilled`，编译败 ✓，还原后 diff 净。
+- P2 cast 系（`pipeline/kinds.rs:106` truncation）：`clamped as u64` → `u64::try_from(...).unwrap_or(...)` → unfulfilled，编译败 ✓。
+- P3 多 lint（`history/settings.rs:51` truncation+sign_loss）：`ProcessVersion(x as u32)` → `ProcessVersion(u32::MAX)` → **2 条** unfulfilled error，证双 lint 皆命中 ✓。
+- P4 unsafe（`pipeline/kinds.rs:182`）：去两处 `unsafe` → E0133 编译败（硬错误抢占，lint-expectation 诊断被抑制，未见 unfulfilled 字样）。补只读论证：`unsafe_code` 是句法 lint，fn 内两处 `unsafe { sysconf }` 恒触发；且工作区 `unsafe_code="deny"` 下无该 expect 即无法编译；`decode/lib.rs:26/28` 同理（ffi 含 extern 声明 + unsafe 块，image 含 extern 调用块）✓。
+- P5 too_many_arguments（`catalog/backup.rs:208` copy_package 8 参）：首轮只删参得 E0061/E0425 无 unfulfilled（同 P4 抢占）；第二轮同步删 body 用途 + 两调用点实参（7 参全树可编译）→ 干净 `unfulfilled` 单错，编译败 ✓。附带反证门限 8/7 与 3 处 7 参死豁免删除正确。
+- 另 49 处 expect 逐个亲看：25 处 trailing 理由 + 24 处裸 attr（上 doc/上注/下注皆有理由，如 macos.rs:365-367 doc、image.rs:347-348 两行注、error.rs:15-16 下两行）✓。
+
+## 事项 3：删除项零调用
+
+- `grep factor_cl/maxbuf_cl --include='*.rs' crates apps` → 0 行 ✓；`to_scale/trunc_to_i32/ceil_to_i32` 同 → 0 行 ✓。
+- 全仓（+docs）唯一 `factor_cl` 命中是 `docs/ORACLE-BASELINE.md:85` 的 `tiling->factor_cl`——darktable C 上游史实记录，非 Rust 残留，不应动 ✓。
+- 报告 §4.1 清除点逐个对 diff：`fakes.rs` FakeMem/FakePosition 各摘 2 字面量行、`pipeline/tiling.rs` 测试 `req()` 摘 2 行、`iop-traits/tiling.rs` `default_for` 摘 2 构造行 + 断言 `factor_cl/maxbuf_cl` 摘行（函数保留）、`roi.rs` 删 `to_scale` + 2 helper（含 2 处 allow）+ 2 测试 + `new_rejects` 内 1 断言行 ✓。
+- `docs/PIPELINE.md`：Roi 段摘 `to_scale` + 整节“取整规则”，分块段留“图形处理器那一侧的分块请求等图形处理器那一波再加” ✓；`crates/README.md` 无相关行 ✓。
+
+## 事项 4：接缝抽查（8 组 > 要求的 6 项）
+
+- `presented`（viewport.rs:63）：macos.rs 生产填 4 次 + viewport 测试 stub 填 1 次，`.presented` 读 0 次——与报告“被填 4 次零读”一致；同协议报告字段 + 视口 UI 在排，保成立 ✓。
+- Roi 四词汇：`intersect/union/translate/contains_point` 在 roi.rs 外零调用（仅自测）；5–15 行无推测语义，保成立 ✓。
+- `validate_all`（settings.rs:514）：声明 + 1 自测调用；校验入口永不砍 ✓。
+- `raw_chain`（registry/lib.rs:65）：声明 + doc 链 + 自测；raw 波输入 ✓。
+- 引擎读数 `rendered_image/render_generation/render_budget_used`：声明 + render_jobs.rs 集成测试调用，无生产调用 ✓。
+- 管线读数 `cache_len/clear_cache/max_frame_bytes`：声明 + render.rs 自测调用 ✓。
+- `unsubscribe`：`subscribe` 对偶，仅自测用 ✓。
+- FFI `rs_error_size/rs_info_size`：extern 声明 + 尺寸测试钉着 ✓。另抽 `modversion` 在 xmp.rs:179 有生产调用（trait 方法非零用例）✓，`is_known` 声明 + 自测 ✓。
+
+## 事项 5：diff 无行为改动
+
+- 39 文件逐 hunk 看完（`+/-` 行全量 grep + 关键 hunk 全文）：只有属性行 allow→expect、旁注增删、死豁免删（verify.rs/render.rs:613/tiling.rs:186 各 1 行、history.rs:286-288 3 行、roi 随葬）、`_cl` 字段+字面量+断言行删、`to_scale` 族删、Cargo.toml lint 门 + 注、脚本门、PIPELINE.md 句 ✓。
+- 无签名改（唯一“签名级”删的是 `to_scale`/`_cl` 字段本身=任务书行为）；`TilingReq` 派生 `Debug/Clone/Copy/PartialEq` 无 serde，删字段不碰字节 ✓；`Cargo.lock` 不在提交内、无新依赖 ✓；history 模型零动（history.rs 只动 attr 行）✓。
+
+## 事项 6：提交路径纪律
+
+- `git diff-tree --name-only` 39 文件 vs 允许集：39/39 in-scope，0 out-of-scope；无 `external/`、无 `Cargo.lock` ✓。根 `Cargo.toml` 非注改动仅 `missing_docs warn→deny` 一行 ✓。`HYG1-REPORT.md` 现为 untracked（由主 lane 落盘 `HYG1-review.log` 后 amend 进同一提交，符合任务书）✓。注：任务书“38 个代码文件”= 36 rs + Cargo.toml + rust-test.sh，+PIPELINE.md=39，对账一致。
+
+## minor（2，可接受，记下）
+
+1. 报告 §1.1 #19 表述不准：render_jobs.rs:163 的理由注在 attr **下一行**（164 行），非 “trailing”；代码本身无问题。
+2. 49 处中理由链最弱的是 viewport.rs:234：上 doc 描述的是函数舍入规则而非闭包内 `as` 本身（钳制在代码下行可互证，可接受）。
+
+跳过/未验：Swift 构建与测试（纪律禁跑）；`external/rawspeed`、照片库、凭据（纪律禁碰）；探针覆盖 5/49 expect，其余 44 处由 `-D warnings` 全局门（exit=0）覆盖。风险：`target/` 18G+ rawspeed 产物致 20GB 预算门余量 ~1.7G（报告 §5.9 已登记，口径外）；ci-lite 计时类门在高负载下 SKIP-GATE 属设计行为，非代码问题。

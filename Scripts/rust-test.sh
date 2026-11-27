@@ -14,7 +14,7 @@ esac
 
 (cd "$ROOT" && cargo fmt --all --check)
 echo "rust-test: fmt OK"
-(cd "$ROOT" && cargo clippy --workspace --all-targets --locked -j6 -- -D warnings -D clippy::indexing_slicing -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic -D clippy::todo -D clippy::unimplemented)
+(cd "$ROOT" && cargo clippy --workspace --all-targets --locked -j6 -- -D warnings -D clippy::perf -D clippy::indexing_slicing -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic -D clippy::todo -D clippy::unimplemented)
 echo "rust-test: clippy OK"
 
 OUT="$(mktemp -t rust-test.XXXXXX)"

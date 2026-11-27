@@ -160,7 +160,7 @@ pub fn require_real_session(engine: &Engine) -> Result<(), String> {
 }
 
 /// Wraps a store refusal in the command that met it.
-#[allow(clippy::needless_pass_by_value)] // owned error keeps `map_err` closures terse; cold path
+#[expect(clippy::needless_pass_by_value)] // owned error keeps `map_err` closures terse; cold path
 fn store_err(cmd: &str, err: lightamer_catalog::CatalogError) -> CommandError {
     CommandError::Store {
         cmd: cmd.to_owned(),

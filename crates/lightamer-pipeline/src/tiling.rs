@@ -183,7 +183,6 @@ pub fn decide(
 
 /// Shrinks the full frame to one tile: single-buffer shrink, overlap
 /// squaring, then alignment rounding (`tiling.c:629-675`).
-#[allow(clippy::too_many_arguments)]
 fn settle_tile_size(
     full_w: i64,
     full_h: i64,
@@ -253,13 +252,13 @@ fn nonneg_u64(px: i64) -> u64 {
 
 /// Bytes to ratio math. Counts below 2^53 convert exactly; anything larger
 /// (petabytes) loses low bits, harmless for a shrink ratio.
-#[allow(clippy::cast_precision_loss)]
+#[expect(clippy::cast_precision_loss)]
 fn bytes_f64(bytes: u64) -> f64 {
     bytes as f64
 }
 
 /// Pixel dims and areas (bounded by 2^62) to ratio math; see [`bytes_f64`].
-#[allow(clippy::cast_precision_loss)]
+#[expect(clippy::cast_precision_loss)]
 fn px_f64(px: i64) -> f64 {
     px as f64
 }
@@ -272,7 +271,7 @@ fn floor_i64(value: f64) -> i64 {
     if !value.is_finite() || value < 0.0 || value >= LIMIT {
         return 0;
     }
-    #[allow(clippy::cast_possible_truncation)]
+    #[expect(clippy::cast_possible_truncation)]
     {
         value.floor() as i64
     }
@@ -357,9 +356,7 @@ mod tests {
     fn req(factor: f32, overlap: u32, align: u32) -> TilingReq {
         TilingReq {
             factor,
-            factor_cl: factor,
             maxbuf: 1.0,
-            maxbuf_cl: 1.0,
             overhead: 0,
             overlap,
             align,

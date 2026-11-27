@@ -1134,7 +1134,7 @@ mod tests {
 
     /// Three failing param sets per registered command. Each triple covers
     /// the shape checks plus that command's own validation.
-    #[allow(clippy::too_many_lines)] // a data table: one row per command
+    #[expect(clippy::too_many_lines)] // a data table: one row per command
     fn bad_params_cases() -> Vec<(&'static str, Vec<Value>)> {
         let set_patch = || json!({"p": {"type": "bool", "value": true}});
         vec![

@@ -123,7 +123,7 @@ struct Computed {
 }
 
 /// Wraps a store refusal in the command that met it.
-#[allow(clippy::needless_pass_by_value)] // owned error keeps `map_err` closures terse; cold path
+#[expect(clippy::needless_pass_by_value)] // owned error keeps `map_err` closures terse; cold path
 fn store_err(cmd: &str, err: lightamer_catalog::CatalogError) -> CommandError {
     CommandError::Store {
         cmd: cmd.to_owned(),
@@ -135,7 +135,7 @@ fn store_err(cmd: &str, err: lightamer_catalog::CatalogError) -> CommandError {
 /// command that computed them. Unreachable from wire input (JSON floats are
 /// finite) and from stored rows (the store only holds canonical bytes), but
 /// the compute half must still answer it without touching the store.
-#[allow(clippy::needless_pass_by_value)] // owned error keeps `map_err` closures terse; cold path
+#[expect(clippy::needless_pass_by_value)] // owned error keeps `map_err` closures terse; cold path
 fn unserializable(cmd: &str, err: lightamer_history::SettingsError) -> CommandError {
     CommandError::Store {
         cmd: cmd.to_owned(),

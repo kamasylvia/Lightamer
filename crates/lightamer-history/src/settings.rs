@@ -48,11 +48,7 @@ fn default_format_version() -> u32 {
 pub struct ProcessVersion(pub u32);
 
 impl<'de> Deserialize<'de> for ProcessVersion {
-    #[allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::float_cmp
-    )]
+    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     // The float arm only casts after proving the value whole and inside the
     // `u32` range, so the cast is exact; the equality is the intended
     // whole-number check, not an approximation.
@@ -197,7 +193,7 @@ impl SettingValue {
 
 /// What is wrong with a settings document: a declared parameter holding a
 /// value of the wrong kind or outside its domain, or broken JSON.
-#[allow(clippy::module_name_repetitions)]
+#[expect(clippy::module_name_repetitions)]
 // Public error names repeat the module by project convention (`SettingsError`
 // reads better at use sites than `Error`); the lint's rename would obscure it.
 #[derive(Debug)]

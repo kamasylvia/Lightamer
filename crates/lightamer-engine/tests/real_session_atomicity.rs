@@ -5,9 +5,9 @@
 //! past write-blocking triggers, proving they never write.
 #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
 
-#[allow(dead_code)]
+#[allow(dead_code)] // this target never uses the shared helpers
 mod common;
-#[allow(dead_code)]
+#[allow(dead_code)] // this target leaves some helpers of this module unused
 mod real_common;
 
 use lightamer_engine::CommandError;

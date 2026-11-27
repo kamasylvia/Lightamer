@@ -18,24 +18,10 @@ darktable 源码引用皆指 `refs/dt-master @ 679d594f5d`（只读上游）。
 「我不需要输入」就长这样）；负的宽高是错误；零、负数、非有限的缩放
 是错误（定在构造器里，见 `Roi::new`）。
 
-运算：相交、合并（最小包围）、平移、换缩放（`to_scale`）、判空、
+运算：相交、合并（最小包围）、平移、判空、
 判包含（含点）、取子区域（相对坐标，越界是错误）。
 两个运算量缩放必须按位相等，否则相交/合并报 `ScaleMismatch`，
 包含直接报 `false`。整数运算全部 checked，溢出是 `RoiError::Overflow`。
-
-## 取整规则（单列）
-
-换缩放的取整照 darktable 的模块写法移植：
-
-| 规则 | 取整 | 出处 |
-|---|---|---|
-| 原点（x/y） | 向零截断（C 浮点转整数） | `src/iop/finalscale.c:103-104`（`roi_in->x /= roi_out->scale`）、`src/develop/pixelpipe_hb.c:2480-2481` |
-| 范围（w/h） | `ceil`（不丢被盖住的像素） | `src/iop/finalscale.c:124-127` |
-| 裁剪偏移 | 浮点加法后截断，再 `floor` 钳 | `src/iop/crop.c:587-594` |
-
-`to_scale` 用的是非分块规则。分块时 darktable 另有一道远边保护
-（把宽扩到 `ceil((x + w) / s)`，`finalscale.c:133-141`），那一道归分块
-决策，不在这里。
 
 默认 roi 对（恒等）照 `src/develop/imageop.c:108-125`；
 前推的形状照 `_dev_pixelpipe_process_rec` 从链尾调 `modify_roi_in`
@@ -131,9 +117,9 @@ L0 不许跨 crate 依赖，trait 要用的类型只能和 trait 住一起。
 ## 分块
 
 请求（`lightamer-iop-traits::TilingReq`）镜像 `dt_develop_tiling_t`
-（`src/develop/tiling.h:25-41`）：`factor`/`maxbuf`/`overhead`/
-`overlap`/`align` 是处理器侧，`factor_cl`/`maxbuf_cl` 是图形处理器侧
-（填了不用）。默认值照 `default_tiling_callback`
+（`src/develop/tiling.h:25-41`）的处理器侧：`factor`/`maxbuf`/
+`overhead`/`overlap`/`align`。图形处理器那一侧的分块请求等图形处理器
+那一波再加。默认值照 `default_tiling_callback`
 （`src/develop/tiling.c:1903-1921`）：`factor = 1 + 输出面积/输入面积`，
 `maxbuf = 1`，零开销、零重叠、对齐 1。
 两处写明的偏离：空输入给 `factor = 2`（上游是除零得 `inf`）；

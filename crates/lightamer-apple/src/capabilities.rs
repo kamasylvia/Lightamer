@@ -40,7 +40,7 @@ pub enum ImageFormat {
 
 /// Presence of the Vision request classes the app may use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-#[allow(clippy::struct_excessive_bools)] // Five independent probe facts; a bitflag would hide names.
+#[expect(clippy::struct_excessive_bools)] // Five independent probe facts; a bitflag would hide names.
 pub struct VisionRequests {
     /// `VNDetectFaceRectanglesRequest`.
     pub face_rectangles: bool,
