@@ -15,7 +15,7 @@
 //! no history dependency for one hash function. Test vectors below pin the
 //! standard outputs.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
 use serde_json::{Map, Value};
@@ -205,10 +205,11 @@ impl PlaneCache {
         self.bytes
     }
 
-    /// Looks up `key` without touching recency; the renderer peeks mid-run
-    /// and applies recency only when the run commits, so a cancelled or
-    /// failed run leaves the cache exactly as it found it.
-    #[must_use]
+    /// Looks up `key` without touching recency. The renderer peeks mid-run
+    /// and touches hits at once, so a hit stays most-recently-used even when
+    /// a later node cancels or fails; completed planes keep their entries
+    /// under content-determined keys, and only half-written work (a node that
+    /// never finished) stays out.
     pub fn peek(&self, key: u64) -> Option<Arc<SharedFrame>> {
         self.entries.get(&key).map(Arc::clone)
     }
@@ -219,6 +220,26 @@ impl PlaneCache {
             self.order.retain(|held| *held != key);
             self.order.push_back(key);
         }
+    }
+
+    /// Evicts the least-recently-used entry outside `protected`, returning its
+    /// key. `None` when every entry is protected or the cache is empty.
+    ///
+    /// The renderer calls this before an allocation the budget refused:
+    /// entries hit by the running render stay (their planes are its live
+    /// inputs), everything else yields oldest-first until the plane fits.
+    /// Evicting an entry whose plane nobody else holds returns its budget
+    /// bytes; an entry held elsewhere just loses its cache seat. Mirrors
+    /// upstream's oldest-line reuse (`_get_oldest_cacheline` /
+    /// `_get_cacheline`, `pixelpipe_cache.c:208-255`).
+    pub fn evict_oldest_except(&mut self, protected: &HashSet<u64>) -> Option<u64> {
+        let victim = self
+            .order
+            .iter()
+            .find(|key| !protected.contains(*key))
+            .copied()?;
+        self.remove(victim);
+        Some(victim)
     }
 
     /// Stores `plane` under `key`, evicting least-recently-used entries until
@@ -273,6 +294,7 @@ mod tests {
     use lightamer_raster::{FrameExtent, PixelFormat};
     use lightamer_sysmem::Budget;
     use serde_json::{Value, json};
+    use std::collections::HashSet;
     use std::sync::Arc;
 
     use super::{DOMAIN, PlaneCache, chain_keys, fnv1a};
@@ -490,6 +512,32 @@ mod tests {
         // Key 1's plane had no other holder: its bytes are back.
         assert_eq!(budget.used(), 1_024);
         cache.clear();
+        assert_eq!(budget.used(), 0);
+    }
+    #[test]
+    fn evict_oldest_except_skips_protected_oldest_first() {
+        let budget = Arc::new(Budget::new(10_000_000));
+        let mut cache = PlaneCache::new(8, 10_000_000);
+        // Empty cache: nothing to evict.
+        assert_eq!(cache.evict_oldest_except(&HashSet::new()), None);
+        assert!(cache.insert(1, cached_plane(&budget, 8)));
+        assert!(cache.insert(2, cached_plane(&budget, 8)));
+        assert!(cache.insert(3, cached_plane(&budget, 8)));
+        assert_eq!(budget.used(), 3_072);
+        // Oldest-first order is 1, 2, 3; protecting 1 yields 2, then 3, and
+        // then nothing: the protected entry never yields.
+        let one = HashSet::from([1]);
+        assert_eq!(cache.evict_oldest_except(&one), Some(2));
+        assert_eq!(cache.bytes(), 2_048);
+        assert_eq!(budget.used(), 2_048);
+        assert_eq!(cache.evict_oldest_except(&one), Some(3));
+        assert_eq!(cache.evict_oldest_except(&one), None);
+        assert_eq!(cache.len(), 1);
+        assert!(cache.peek(1).is_some());
+        // Unprotected, the last entry yields too and every byte is back.
+        assert_eq!(cache.evict_oldest_except(&HashSet::new()), Some(1));
+        assert!(cache.is_empty());
+        assert_eq!(cache.bytes(), 0);
         assert_eq!(budget.used(), 0);
     }
 }

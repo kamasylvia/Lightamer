@@ -12,11 +12,13 @@
 //! error; no `OpenCL`, blending, masks, or histograms):
 //!
 //! build the chain and commit → push geometry forward (check it backward) →
-//! negotiate formats (plan only) → per node: peek the cache (hit: reuse the
-//! plane, no `process` call, no realloc); miss: decide whole-frame vs tiled,
-//! allocate the output plane, run `process` once (or once per tile), stage the
-//! plane for the cache → commit cache writes only when the whole run
-//! succeeds.
+//! refuse oversized frames before allocating anything → negotiate formats
+//! (plan only) → per node: peek the cache (hit: reuse the plane, no `process`
+//! call, no realloc); miss: decide whole-frame vs tiled, make room by
+//! evicting unhit entries oldest-first, allocate the output plane, run
+//! `process` once (or once per tile), insert the finished plane at once. A
+//! cancelled or failed run keeps every completed plane (content-determined
+//! keys stay valid); only a node that never finished leaves nothing behind.
 //!
 //! Tiles run serially in B1-b (tile-level parallelism is future work); rows
 //! inside one `process` call parallelize through
@@ -26,6 +28,7 @@
 //! full upstream plane (overlap included, frame-clamped), `process` per tile,
 //! then only the good part (leading overlap trimmed) copied back.
 
+use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 
@@ -117,7 +120,9 @@ impl OutputFrame {
 }
 
 /// Why a render failed. Every path is typed and human-readable; no path
-/// panics, and a failure returns all budget bytes and writes no cache entry.
+/// panics. A failure returns every transient byte and caches no partial
+/// plane; planes of nodes that already finished stay cached under their
+/// content-determined keys.
 #[derive(Debug)]
 pub enum RenderError {
     /// Chain building or geometry failed (unknown module, refused commit,
@@ -145,6 +150,17 @@ pub enum RenderError {
     OutOfBudget {
         /// Which plane, and the budget numbers.
         detail: String,
+    },
+    /// One node's footprint (its charged planes plus the tiling scratch
+    /// reserve) exceeds this pipe's budget. The run refuses before
+    /// allocating anything, so the budget and the cache sit exactly as found.
+    FrameTooLarge {
+        /// Index of the first node that does not fit.
+        node: usize,
+        /// That node's footprint in bytes.
+        need_bytes: u64,
+        /// This pipe's budget in bytes.
+        budget_bytes: u64,
     },
     /// A frame or plane would not build (shapes the geometry made
     /// unbuildable, or bytes that overflow `u64`).
@@ -174,6 +190,14 @@ impl fmt::Display for RenderError {
                 None => write!(f, "render node '{id}': {source}"),
             },
             RenderError::OutOfBudget { detail } => write!(f, "render out of budget: {detail}"),
+            RenderError::FrameTooLarge {
+                node,
+                need_bytes,
+                budget_bytes,
+            } => write!(
+                f,
+                "render frame too large: node {node} needs {need_bytes} bytes (its planes plus the tiling scratch reserve) over the {budget_bytes}-byte budget; shrink the frame or grow the budget"
+            ),
             RenderError::Frame { detail } => write!(f, "render frame: {detail}"),
             RenderError::InputMismatch { detail } => write!(f, "render input: {detail}"),
             RenderError::Cancelled => write!(f, "render cancelled"),
@@ -249,14 +273,36 @@ impl Pipe {
         self.cache.clear();
     }
 
+    /// Largest uniform frame this pipe renders: `(budget − 2 × floor) / 2`,
+    /// saturating at zero.
+    ///
+    /// One node holds its input and output together (two frames); the
+    /// `2 × floor` reserve margins a tiled node's scratch pair at the
+    /// smallest tile this pipe cuts. [`Pipe::render`] enforces the sharper
+    /// per-node form (node 0 needs its output, later nodes input + output,
+    /// each plus the reserve) and refuses the run as
+    /// [`RenderError::FrameTooLarge`] before allocating anything. A tiled
+    /// node whose tiles exceed the reserve can still refuse mid-run
+    /// ([`RenderError::OutOfBudget`]); both errors return every transient
+    /// byte and cache no partial plane.
+    #[must_use]
+    pub fn max_frame_bytes(&self) -> u64 {
+        self.budget
+            .cap()
+            .saturating_sub(self.floor.saturating_mul(2))
+            / 2
+    }
+
     /// Runs `req` into an output plane.
     ///
-    /// Order: commit → forward geometry → backward check → format plan (any
-    /// conversion step is [`RenderError::ColorGap`]) → per node: cache peek
-    /// (hit: reuse, no `process`, no realloc), else tiling decision and one
-    /// `process` run whole-frame or per tile → commit cache writes. Cancel is
-    /// consulted before every node and every tile; cancel or any error drops
-    /// the run's planes (budget back) and leaves the cache untouched.
+    /// Order: commit → forward geometry → backward check → footprint check
+    /// ([`RenderError::FrameTooLarge`] before anything allocates) → format
+    /// plan (any conversion step is [`RenderError::ColorGap`]) → per node:
+    /// cache peek (hit: reuse, no `process`, no realloc), else tiling
+    /// decision, make room, and one `process` run whole-frame or per tile,
+    /// inserted at once. Cancel is consulted before every node and every
+    /// tile; cancel or any error drops the run's transients (budget back)
+    /// and keeps every completed plane cached — never a partial one.
     ///
     /// # Errors
     ///
@@ -289,9 +335,12 @@ impl Pipe {
         }
         let keys = chain_keys(self.kind, req.input_id, req.process, req.nodes, &geos);
 
+        // Footprints before work: a frame no budget this size can host
+        // refuses here, typed, with nothing allocated and nothing cached.
+        check_footprints(self.budget.cap(), self.floor, &geos)?;
+
         let mut prev: Option<Arc<SharedFrame>> = None;
-        let mut pending: Vec<(u64, Arc<SharedFrame>)> = Vec::with_capacity(chain.len());
-        let mut hits: Vec<u64> = Vec::new();
+        let mut protected: HashSet<u64> = HashSet::new();
         for ((node, geo), key) in chain.iter().zip(geos.iter()).zip(keys.iter()) {
             if (req.cancel)() {
                 return Err(RenderError::Cancelled);
@@ -302,7 +351,8 @@ impl Pipe {
                 // wrong plane): upstream invalidates size-mismatched cachelines
                 // the same way (`pixelpipe_cache.c`, `_get_by_hash`).
                 if hit.frame.extent() == want {
-                    hits.push(*key);
+                    self.cache.touch(*key);
+                    protected.insert(*key);
                     prev = Some(hit);
                     continue;
                 }
@@ -324,25 +374,33 @@ impl Pipe {
                 self.floor,
             );
             let plane = match decision {
-                TilingDecision::NoTiling => run_untiled(&self.budget, node, geo, input)?,
-                TilingDecision::Tiled(grid) => {
-                    run_tiled(&self.budget, node, geo, &grid, input, req.cancel)?
+                TilingDecision::NoTiling => {
+                    run_untiled(&self.budget, &mut self.cache, &protected, node, geo, input)?
                 }
+                TilingDecision::Tiled(grid) => run_tiled(
+                    &self.budget,
+                    &mut self.cache,
+                    &protected,
+                    node,
+                    geo,
+                    &grid,
+                    input,
+                    req.cancel,
+                )?,
             };
             let plane = Arc::new(plane);
-            pending.push((*key, Arc::clone(&plane)));
+            // The plane is complete, so it lands in the cache at once: the
+            // next node (or the next render) reuses it, and a later cancel or
+            // failure keeps it. `false` = no room: the render still succeeds,
+            // uncached.
+            let _ = self.cache.insert(*key, Arc::clone(&plane));
             prev = Some(plane);
         }
-        for key in hits {
-            self.cache.touch(key);
-        }
-        // Commit staged planes downstream-first so upstream entries land
-        // most-recently-used: a downstream edit reuses them while the reverse
-        // never holds. Admission is the cache's LRU rule (slots plus the
-        // half-budget byte cap); refused planes simply stay uncached.
-        for (key, plane) in pending.into_iter().rev() {
-            // `false` = no room: the render still succeeds, uncached.
-            let _ = self.cache.insert(key, plane);
+        // Upstream entries land most-recently-used (B1-b rule): a downstream
+        // edit reuses them while the reverse never holds. Keys refused or
+        // evicted mid-run are simply unknown here and ignored.
+        for key in keys.iter().rev() {
+            self.cache.touch(*key);
         }
         let Some(last) = prev else {
             return Err(RenderError::Frame {
@@ -355,7 +413,7 @@ impl Pipe {
     /// An empty chain copies the input plane (which must already sit at the
     /// wanted region: no module can reshape it). Uncached by design.
     fn render_empty<L: ModuleLookup>(
-        &self,
+        &mut self,
         req: &RenderRequest<'_, L>,
     ) -> Result<OutputFrame, RenderError> {
         let want = geo_extent(&req.final_out)?;
@@ -367,8 +425,14 @@ impl Pipe {
                 ),
             });
         }
-        let mut out = alloc_shared(&self.budget, want, PixelFormat::RgbaF32Premul)
-            .map_err(|err| map_budgeted("empty chain", err))?;
+        let protected = HashSet::new();
+        let mut out = alloc_room(
+            &self.budget,
+            &mut self.cache,
+            &protected,
+            want,
+            "empty chain",
+        )?;
         out.frame
             .copy_from(req.input)
             .map_err(|err| RenderError::Frame {
@@ -420,6 +484,69 @@ fn map_budgeted(id: &str, err: BudgetedError) -> RenderError {
     }
 }
 
+/// Refuses runs whose frames no budget this size can host: node 0 charges
+/// its output (its input is the caller's uncharged plane), later nodes
+/// charge input + output, and every node margins `2 × floor` for a tiled
+/// scratch pair. Runs before any allocation, so a refusal leaves the budget
+/// and the cache exactly as found.
+fn check_footprints(cap: u64, floor: u64, geos: &[NodeGeometry]) -> Result<(), RenderError> {
+    let reserve = floor.saturating_mul(2);
+    for (index, geo) in geos.iter().enumerate() {
+        let out = plane_bytes(&geo.output)?;
+        let input = if index == 0 {
+            0
+        } else {
+            plane_bytes(&geo.input)?
+        };
+        let need = input.saturating_add(out).saturating_add(reserve);
+        if need > cap {
+            return Err(RenderError::FrameTooLarge {
+                node: index,
+                need_bytes: need,
+                budget_bytes: cap,
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Allocates one plane, evicting cache entries this run has not hit (oldest
+/// first) until it fits. Hit entries are the run's live inputs and never
+/// yield; when nothing evictable remains and the plane still does not fit,
+/// the budget refusal surfaces typed.
+fn alloc_room(
+    budget: &Arc<Budget>,
+    cache: &mut PlaneCache,
+    protected: &HashSet<u64>,
+    extent: FrameExtent,
+    node_id: &str,
+) -> Result<SharedFrame, RenderError> {
+    match alloc_shared(budget, extent, PixelFormat::RgbaF32Premul) {
+        Ok(frame) => Ok(frame),
+        Err(BudgetedError::Budget(_)) => {
+            let need = extent_bytes(&extent)?;
+            while budget.remaining() < need {
+                if cache.evict_oldest_except(protected).is_none() {
+                    break;
+                }
+            }
+            alloc_shared(budget, extent, PixelFormat::RgbaF32Premul)
+                .map_err(|err| map_budgeted(node_id, err))
+        }
+        Err(err) => Err(map_budgeted(node_id, err)),
+    }
+}
+
+/// Bytes of one working-format plane at `extent` (16 bytes per pixel).
+fn extent_bytes(extent: &FrameExtent) -> Result<u64, RenderError> {
+    extent
+        .area_u64()
+        .checked_mul(PixelFormat::RgbaF32Premul.bytes_per_pixel())
+        .ok_or_else(|| RenderError::Frame {
+            detail: format!("extent {extent:?} overflows its byte count"),
+        })
+}
+
 /// Checks the upstream plane covers exactly the node's input region.
 fn check_input(id: &str, input: &Frame, geo: &NodeGeometry) -> Result<(), RenderError> {
     let want = geo_extent(&geo.input)?;
@@ -434,19 +561,21 @@ fn check_input(id: &str, input: &Frame, geo: &NodeGeometry) -> Result<(), Render
     Ok(())
 }
 
-/// Runs one node whole-frame: allocate the output plane, call `process` once.
+/// Runs one node whole-frame: make room, allocate the output plane, call
+/// `process` once.
 ///
 /// An empty input region still calls `process` (with empty planes): the
 /// module reports it needs no input, not that it does nothing.
 fn run_untiled(
     budget: &Arc<Budget>,
+    cache: &mut PlaneCache,
+    protected: &HashSet<u64>,
     node: &CommittedNode,
     geo: &NodeGeometry,
     input: &Frame,
 ) -> Result<SharedFrame, RenderError> {
     check_input(&node.id, input, geo)?;
-    let mut out = alloc_shared(budget, geo_extent(&geo.output)?, PixelFormat::RgbaF32Premul)
-        .map_err(|err| map_budgeted(&node.id, err))?;
+    let mut out = alloc_room(budget, cache, protected, geo_extent(&geo.output)?, &node.id)?;
     let in_extent = input.extent();
     let in_plane = if geo.input.is_empty() {
         Plane::from_slice(&[], 0, 0, 0).map_err(|err| RenderError::Frame {
@@ -500,8 +629,11 @@ fn run_untiled(
 /// one reusable input/output scratch pair sized to the largest tile; per-tile
 /// absolute-coordinate rois (`iroi`/`oroi`, `:740-741`); only the good part
 /// (leading overlap trimmed) copied back (`:780-790`).
+#[allow(clippy::too_many_arguments)]
 fn run_tiled(
     budget: &Arc<Budget>,
+    cache: &mut PlaneCache,
+    protected: &HashSet<u64>,
     node: &CommittedNode,
     geo: &NodeGeometry,
     grid: &TileGrid,
@@ -509,8 +641,7 @@ fn run_tiled(
     cancel: &dyn Fn() -> bool,
 ) -> Result<SharedFrame, RenderError> {
     check_input(&node.id, input, geo)?;
-    let mut out = alloc_shared(budget, geo_extent(&geo.output)?, PixelFormat::RgbaF32Premul)
-        .map_err(|err| map_budgeted(&node.id, err))?;
+    let mut out = alloc_room(budget, cache, protected, geo_extent(&geo.output)?, &node.id)?;
     if grid.tiles.is_empty() {
         return Ok(out);
     }
@@ -523,14 +654,13 @@ fn run_tiled(
         tallest = tallest.max(height);
     }
     // Scratch planes charge the budget while the node runs (transient, like
-    // upstream's `input`/`output` tile buffers at `tiling.c:694-711`); a
-    // refusal here is a typed out-of-budget, where upstream falls back to
-    // untiled processing with a log line.
+    // upstream's `input`/`output` tile buffers at `tiling.c:694-711`); each
+    // yields unhit cache entries first, and a refusal past that is a typed
+    // out-of-budget, where upstream falls back to untiled processing with a
+    // log line.
     let scratch_extent = FrameExtent::new(0, 0, widest, tallest);
-    let mut scratch_in = alloc_shared(budget, scratch_extent, PixelFormat::RgbaF32Premul)
-        .map_err(|err| map_budgeted(&node.id, err))?;
-    let mut scratch_out = alloc_shared(budget, scratch_extent, PixelFormat::RgbaF32Premul)
-        .map_err(|err| map_budgeted(&node.id, err))?;
+    let mut scratch_in = alloc_room(budget, cache, protected, scratch_extent, &node.id)?;
+    let mut scratch_out = alloc_room(budget, cache, protected, scratch_extent, &node.id)?;
     let mut run = TileRun {
         node,
         geo,
@@ -1211,7 +1341,8 @@ mod tests {
     #[test]
     fn tight_budget_skips_cache_renders_ok_and_returns_bytes() {
         // One 8x8 plane is 1024 bytes; a 1024-byte budget renders one node
-        // but keeps nothing (remaining 0 at commit).
+        // but keeps nothing (the plane tops the 512-byte half-budget cap, so
+        // the immediate insert refuses it).
         let probe = Arc::new(Probe::new());
         let lookup = table(vec![Arc::new(FakeCopy::new("mod_a", Arc::clone(&probe)))]);
         let image = image();
@@ -1395,7 +1526,10 @@ mod tests {
     }
 
     #[test]
-    fn cancel_after_first_node_aborts_cleanly() {
+    fn cancel_after_first_node_keeps_completed_planes() {
+        // B1-b2 meaning: node 0's plane is complete under its
+        // content-determined key, so the cancelled run keeps it; nodes 1-2
+        // never ran and leave nothing behind.
         let probes = [
             Arc::new(Probe::new()),
             Arc::new(Probe::new()),
@@ -1434,8 +1568,26 @@ mod tests {
             (probes[0].calls(), probes[1].calls(), probes[2].calls()),
             (1, 0, 0)
         );
-        assert_eq!(pipe.budget().used(), 0);
-        assert_eq!(pipe.cache_len(), 0);
+        // Node 0's plane is cached, complete: its key resolves and its bytes
+        // equal the copied input. Nodes 1-2 have no entries.
+        let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
+        let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
+        let keys = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes, &geos);
+        assert_eq!(pipe.cache_len(), 1);
+        assert_eq!(
+            pipe.cache.peek(keys[0]).unwrap().frame.as_slice(),
+            input.as_slice()
+        );
+        assert!(pipe.cache.peek(keys[1]).is_none());
+        assert!(pipe.cache.peek(keys[2]).is_none());
+        assert_eq!(pipe.budget().used(), 1_024);
+        // A clean re-render hits node 0 and runs nodes 1-2 once each.
+        let out = render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
+        assert_eq!(
+            (probes[0].calls(), probes[1].calls(), probes[2].calls()),
+            (1, 1, 1)
+        );
+        assert_eq!(out.frame().as_slice(), input.as_slice());
     }
 
     #[test]
@@ -1452,7 +1604,9 @@ mod tests {
         let nodes = vec![node("mod_m")];
         let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, 200_000, 0);
         // Checks: entry, node, tile 0, tile 1...: firing on the fourth check
-        // cancels after the first tile ran (9 tiles without cancel).
+        // cancels after the first tile ran (9 tiles without cancel). The node
+        // never finished, so its half-written plane stays out of the cache:
+        // cancel keeps completed planes, never partial ones.
         let checks = std::cell::Cell::new(0);
         let cancel = || {
             checks.set(checks.get() + 1);
@@ -1662,20 +1816,43 @@ mod tests {
     }
 
     #[test]
-    fn error_out_of_budget_is_typed_and_restores_budget() {
+    fn error_out_of_budget_returns_transient_bytes_after_full_eviction() {
+        // B1-b2 meaning: the footprint pre-check now refuses frames no
+        // budget this size can host, so a mid-run out-of-budget only happens
+        // past evictable bytes — here two caller-held outputs pin the whole
+        // 2048-byte budget while the cache holds one of their planes.
         let probe = Arc::new(Probe::new());
         let lookup = table(vec![Arc::new(FakeCopy::new("mod_a", Arc::clone(&probe)))]);
         let image = image();
         let input = pattern_frame(8, 8);
-        // One 8x8 plane is 1024 bytes; 100 bytes cannot render it.
-        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, 100, 0);
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, 2_048, 0);
         let no_cancel = || false;
+        // Two photos, one 8x8 node each; the caller holds both outputs.
+        let mut held = Vec::new();
+        for input_id in [7u64, 8] {
+            let req = RenderRequest {
+                nodes: &[node("mod_a")],
+                lookup: &lookup,
+                image: &image,
+                input: &input,
+                input_id,
+                process: 1,
+                final_out: geom(0, 0, 8, 8),
+                cancel: &no_cancel,
+            };
+            held.push(pipe.render(&req).unwrap());
+        }
+        assert_eq!(pipe.cache_len(), 1);
+        assert_eq!(pipe.budget().used(), 2_048);
+        // A third photo: its footprint fits, but make-room evicts the last
+        // cache entry (freeing nothing — the caller holds that plane) and the
+        // allocation still refuses, typed.
         let req = RenderRequest {
             nodes: &[node("mod_a")],
             lookup: &lookup,
             image: &image,
             input: &input,
-            input_id: 7,
+            input_id: 9,
             process: 1,
             final_out: geom(0, 0, 8, 8),
             cancel: &no_cancel,
@@ -1683,9 +1860,13 @@ mod tests {
         let err = pipe.render(&req).unwrap_err();
         assert!(matches!(err, RenderError::OutOfBudget { .. }));
         assert!(err.to_string().contains("out of budget"));
-        assert_eq!(probe.calls(), 0);
-        assert_eq!(pipe.budget().used(), 0);
+        assert_eq!(probe.calls(), 2);
         assert_eq!(pipe.cache_len(), 0);
+        // The failed render leaves nothing: only the caller's two planes are
+        // charged, and dropping them returns every byte.
+        assert_eq!(pipe.budget().used(), 2_048);
+        drop(held);
+        assert_eq!(pipe.budget().used(), 0);
     }
 
     #[test]
@@ -1853,6 +2034,18 @@ mod tests {
         samples[mid].as_secs_f64() * 1_000.0
     }
 
+    /// The 61 MP caller-built input shared by the idle timing tests (9504x6336
+    /// float32 RGBA, ≈0.9 GiB; building it stays out of the clock).
+    fn mp61_input() -> Frame {
+        const WIDTH: u32 = 9504;
+        const HEIGHT: u32 = 6336;
+        let len = WIDTH as usize * HEIGHT as usize * 4;
+        let mut buf = vec![0.25f32; len];
+        buf[0] = 1.0;
+        buf[len - 1] = -3.0;
+        Frame::from_parts(buf, extent(0, 0, WIDTH, HEIGHT), PixelFormat::RgbaF32Premul).unwrap()
+    }
+
     /// Idle timing: one 61 MP identity render (9504x6336 float32 RGBA), miss
     /// and hit medians over five rounds each, plus peak RSS. Ignored by
     /// default; run it on a quiet machine in release mode:
@@ -1929,6 +2122,67 @@ mod tests {
             "miss median {miss_ms:.1}ms tops the 200ms gate"
         );
     }
+    /// Idle timing, five nodes: 61 MP through five identity nodes on the Full
+    /// quota a 16 GiB machine derives (`2_748_779_069` B budget, 128 MiB floor).
+    /// B1-b stages every node's plane to the end of the run, so this peaks at
+    /// five frames (≈4.5 GiB) and fails out of budget; B1-b2 inserts each
+    /// plane as its node completes and must render it. Ignored by default; run
+    /// it on a quiet machine in release mode:
+    /// `cargo test --release -p lightamer-pipeline --locked -- --ignored idle_61mp_five_nodes`.
+    #[test]
+    #[ignore = "timing bench: needs a quiet machine and a release build"]
+    fn idle_61mp_five_nodes_reports_miss_median() {
+        const BUDGET_16GIB_FULL: u64 = 2_748_779_069;
+        const FLOOR_16GIB_FULL: u64 = 128 * 1024 * 1024;
+        const GATE_MISS_MS: f64 = 1_000.0;
+        const STOP_RSS_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+        let Some(line) = quiet_line("idle 61mp five nodes") else {
+            println!("idle-61mp-five = UNRELIABLE (machine busy; see load line) SKIP-GATE");
+            return;
+        };
+        println!("idle-61mp-five {line}");
+        let input = mp61_input();
+        let lookup = table(vec![Arc::new(IdentityModule::new())]);
+        let image = image();
+        let nodes = vec![node("test_identity"); 5];
+        let final_out = GeomRoi::new(0, 0, 9504, 6336, 1.0).unwrap();
+        let no_cancel = || false;
+        let req = RenderRequest {
+            nodes: &nodes,
+            lookup: &lookup,
+            image: &image,
+            input: &input,
+            input_id: 7,
+            process: 1,
+            final_out,
+            cancel: &no_cancel,
+        };
+        // Misses: a fresh pipe every round (cold cache).
+        let mut misses = Vec::with_capacity(5);
+        for _ in 0..5 {
+            let mut pipe =
+                Pipe::with_budget_and_floor(PipeKind::Full, BUDGET_16GIB_FULL, FLOOR_16GIB_FULL);
+            let start = std::time::Instant::now();
+            let out = pipe.render(&req).unwrap();
+            misses.push(start.elapsed());
+            assert_eq!(out.frame().as_slice(), input.as_slice());
+        }
+        let miss_ms = median_ms(misses);
+        let peak = peak_rss_bytes();
+        println!(
+            "idle-61mp-five miss median = {miss_ms:.1}ms over 5 rounds (gate <={GATE_MISS_MS:.0}ms)"
+        );
+        println!("idle-61mp-five peak rss = {}MB", peak / 1024 / 1024);
+        assert!(
+            peak < STOP_RSS_BYTES,
+            "peak rss {peak} tops the 4 GiB stop line"
+        );
+        assert!(
+            miss_ms <= GATE_MISS_MS,
+            "miss median {miss_ms:.1}ms tops the 1000ms gate"
+        );
+    }
+
     #[test]
     fn error_frame_overflow_is_typed_and_restores_budget() {
         // i32::MAX squared fits u64 but not times 16 bytes: the byte count
@@ -1956,7 +2210,10 @@ mod tests {
     }
 
     #[test]
-    fn warm_cache_cancel_keeps_cache_untouched() {
+    fn warm_cache_cancel_keeps_completed_planes() {
+        // B1-b2 meaning: same assertions as B1-b, new reason — node 0 hits
+        // (no process call, recency touched at once) and node 1 never runs,
+        // so both completed planes stay cached, complete.
         let probes = [Arc::new(Probe::new()), Arc::new(Probe::new())];
         let lookup = table(vec![
             Arc::new(FakeCopy::new("mod_a", Arc::clone(&probes[0]))),
@@ -1968,8 +2225,8 @@ mod tests {
         let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
         render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
         assert_eq!(pipe.cache_len(), 2);
-        // Same request, cancelled at the second node: node 0 hits (no
-        // process call), node 1 never runs, and the commit never happens.
+        // Same request, cancelled at the second node: node 0 hits, node 1
+        // never runs and adds nothing.
         let checks = std::cell::Cell::new(0);
         let cancel = || {
             checks.set(checks.get() + 1);
@@ -1990,5 +2247,638 @@ mod tests {
         assert_eq!((probes[0].calls(), probes[1].calls()), (1, 1));
         assert_eq!(pipe.cache_len(), 2);
         assert_eq!(pipe.budget().used(), 2 * 1_024);
+        // Both entries resolve under their keys with the copied bytes.
+        let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
+        let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
+        let keys = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes, &geos);
+        assert_eq!(
+            pipe.cache.peek(keys[0]).unwrap().frame.as_slice(),
+            input.as_slice()
+        );
+        assert_eq!(
+            pipe.cache.peek(keys[1]).unwrap().frame.as_slice(),
+            input.as_slice()
+        );
+    }
+    /// Renders `nodes` on `pipe` under `input_id` with no cancellation.
+    fn render_with_id(
+        pipe: &mut Pipe,
+        nodes: &[PipeNode],
+        lookup: &impl crate::chain::ModuleLookup,
+        image: &ImageInfo,
+        input: &Frame,
+        input_id: u64,
+        final_out: GeomRoi,
+    ) -> super::OutputFrame {
+        let no_cancel = || false;
+        let req = RenderRequest {
+            nodes,
+            lookup,
+            image,
+            input,
+            input_id,
+            process: 1,
+            final_out,
+            cancel: &no_cancel,
+        };
+        pipe.render(&req).unwrap()
+    }
+
+    /// Six chained copy fakes (`mod_a`..`mod_f`) with one probe each.
+    fn six_copies() -> (
+        [Arc<Probe>; 6],
+        std::collections::HashMap<String, crate::chain::SharedModule>,
+        Vec<PipeNode>,
+    ) {
+        let probes = [
+            Arc::new(Probe::new()),
+            Arc::new(Probe::new()),
+            Arc::new(Probe::new()),
+            Arc::new(Probe::new()),
+            Arc::new(Probe::new()),
+            Arc::new(Probe::new()),
+        ];
+        let lookup = table(vec![
+            Arc::new(FakeCopy::new("mod_a", Arc::clone(&probes[0]))),
+            Arc::new(FakeCopy::new("mod_b", Arc::clone(&probes[1]))),
+            Arc::new(FakeCopy::new("mod_c", Arc::clone(&probes[2]))),
+            Arc::new(FakeCopy::new("mod_d", Arc::clone(&probes[3]))),
+            Arc::new(FakeCopy::new("mod_e", Arc::clone(&probes[4]))),
+            Arc::new(FakeCopy::new("mod_f", Arc::clone(&probes[5]))),
+        ]);
+        let nodes = vec![
+            node("mod_a"),
+            node("mod_b"),
+            node("mod_c"),
+            node("mod_d"),
+            node("mod_e"),
+            node("mod_f"),
+        ];
+        (probes, lookup, nodes)
+    }
+
+    /// Six chained gain fakes with per-node gains and one probe each.
+    fn six_gains(
+        gains: [f64; 6],
+    ) -> (
+        [Arc<Probe>; 6],
+        std::collections::HashMap<String, crate::chain::SharedModule>,
+        Vec<PipeNode>,
+    ) {
+        let ids = ["mod_a", "mod_b", "mod_c", "mod_d", "mod_e", "mod_f"];
+        let probes = [
+            Arc::new(Probe::new()),
+            Arc::new(Probe::new()),
+            Arc::new(Probe::new()),
+            Arc::new(Probe::new()),
+            Arc::new(Probe::new()),
+            Arc::new(Probe::new()),
+        ];
+        let lookup = table(vec![
+            Arc::new(FakeGain::new(ids[0], Arc::clone(&probes[0]))),
+            Arc::new(FakeGain::new(ids[1], Arc::clone(&probes[1]))),
+            Arc::new(FakeGain::new(ids[2], Arc::clone(&probes[2]))),
+            Arc::new(FakeGain::new(ids[3], Arc::clone(&probes[3]))),
+            Arc::new(FakeGain::new(ids[4], Arc::clone(&probes[4]))),
+            Arc::new(FakeGain::new(ids[5], Arc::clone(&probes[5]))),
+        ]);
+        let nodes = vec![
+            gain_node(ids[0], gains[0]),
+            gain_node(ids[1], gains[1]),
+            gain_node(ids[2], gains[2]),
+            gain_node(ids[3], gains[3]),
+            gain_node(ids[4], gains[4]),
+            gain_node(ids[5], gains[5]),
+        ];
+        (probes, lookup, nodes)
+    }
+
+    #[test]
+    fn six_node_chain_renders_within_three_frame_budget() {
+        // Six 8x8 planes (1024 bytes each) on a 3072-byte budget: B1-b staged
+        // all six to the end of the run and refused; B1-b2 inserts each
+        // finished plane at once, so the peak is two frames plus the
+        // half-budget cache and the render succeeds.
+        let (probes, lookup, nodes) = six_copies();
+        let image = image();
+        let input = pattern_frame(8, 8);
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, 3_072, 0);
+        let out = render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
+        assert_eq!(out.frame().as_slice(), input.as_slice());
+        for probe in &probes {
+            assert_eq!(probe.calls(), 1);
+        }
+        // The 1536-byte half-budget cap keeps one plane: the last insert
+        // evicted the rest, and the output shares it.
+        assert_eq!(pipe.cache_len(), 1);
+        assert_eq!(pipe.budget().used(), 1_024);
+    }
+
+    #[test]
+    fn cancel_after_third_node_keeps_completed_planes() {
+        // Cancelling at the fourth node keeps the first three planes — each
+        // complete under its key — and nothing else.
+        let (probes, lookup, nodes) = six_copies();
+        let image = image();
+        let input = pattern_frame(8, 8);
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
+        // Checks: entry, nodes 0-2, node 3...: firing on the fifth check
+        // cancels before the fourth node runs.
+        let checks = std::cell::Cell::new(0);
+        let cancel = || {
+            checks.set(checks.get() + 1);
+            checks.get() >= 5
+        };
+        let req = RenderRequest {
+            nodes: &nodes,
+            lookup: &lookup,
+            image: &image,
+            input: &input,
+            input_id: 7,
+            process: 1,
+            final_out: geom(0, 0, 8, 8),
+            cancel: &cancel,
+        };
+        let err = pipe.render(&req).unwrap_err();
+        assert!(matches!(err, RenderError::Cancelled));
+        assert_eq!(
+            (
+                probes[0].calls(),
+                probes[1].calls(),
+                probes[2].calls(),
+                probes[3].calls(),
+                probes[4].calls(),
+                probes[5].calls()
+            ),
+            (1, 1, 1, 0, 0, 0)
+        );
+        let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
+        let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
+        let keys = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes, &geos);
+        assert_eq!(pipe.cache_len(), 3);
+        for key in keys.iter().take(3) {
+            assert_eq!(
+                pipe.cache.peek(*key).unwrap().frame.as_slice(),
+                input.as_slice()
+            );
+        }
+        for key in keys.iter().skip(3) {
+            assert!(pipe.cache.peek(*key).is_none());
+        }
+        assert_eq!(pipe.budget().used(), 3_072);
+        // A clean re-render hits the first three and runs the last three.
+        let out = render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
+        for probe in &probes {
+            assert_eq!(probe.calls(), 1);
+        }
+        assert_eq!(out.frame().as_slice(), input.as_slice());
+    }
+
+    #[test]
+    fn error_after_completed_nodes_keeps_completed_planes() {
+        // Nodes 0-1 finish, node 2 fails its process: the error is typed and
+        // the two finished planes stay cached, complete; swapping in a
+        // working node 2 reuses them (their keys never changed).
+        let probes = [
+            Arc::new(Probe::new()),
+            Arc::new(Probe::new()),
+            Arc::new(Probe::new()),
+        ];
+        let failing = table(vec![
+            Arc::new(FakeCopy::new("mod_a", Arc::clone(&probes[0]))),
+            Arc::new(FakeCopy::new("mod_b", Arc::clone(&probes[1]))),
+            Arc::new(FakeBackendFail::new("mod_boom", Arc::clone(&probes[2]))),
+        ]);
+        let fixed = table(vec![
+            Arc::new(FakeCopy::new("mod_a", Arc::clone(&probes[0]))),
+            Arc::new(FakeCopy::new("mod_b", Arc::clone(&probes[1]))),
+            Arc::new(FakeCopy::new("mod_c", Arc::clone(&probes[2]))),
+        ]);
+        let image = image();
+        let input = pattern_frame(8, 8);
+        let nodes_failing = vec![node("mod_a"), node("mod_b"), node("mod_boom")];
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
+        let no_cancel = || false;
+        let req = RenderRequest {
+            nodes: &nodes_failing,
+            lookup: &failing,
+            image: &image,
+            input: &input,
+            input_id: 7,
+            process: 1,
+            final_out: geom(0, 0, 8, 8),
+            cancel: &no_cancel,
+        };
+        let err = pipe.render(&req).unwrap_err();
+        assert!(matches!(err, RenderError::Node { .. }));
+        assert_eq!(
+            (probes[0].calls(), probes[1].calls(), probes[2].calls()),
+            (1, 1, 1)
+        );
+        let chain = crate::chain::build_chain(&failing, &nodes_failing, &image).unwrap();
+        let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
+        let keys = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes_failing, &geos);
+        assert_eq!(pipe.cache_len(), 2);
+        assert_eq!(
+            pipe.cache.peek(keys[0]).unwrap().frame.as_slice(),
+            input.as_slice()
+        );
+        assert_eq!(
+            pipe.cache.peek(keys[1]).unwrap().frame.as_slice(),
+            input.as_slice()
+        );
+        assert!(pipe.cache.peek(keys[2]).is_none());
+        assert_eq!(pipe.budget().used(), 2_048);
+        // The fixed chain reuses nodes 0-1 (same keys) and runs only node 2.
+        let nodes_fixed = vec![node("mod_a"), node("mod_b"), node("mod_c")];
+        let chain = crate::chain::build_chain(&fixed, &nodes_fixed, &image).unwrap();
+        let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
+        let fixed_keys = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes_fixed, &geos);
+        assert_eq!(fixed_keys[0], keys[0]);
+        assert_eq!(fixed_keys[1], keys[1]);
+        let out = render_ok(
+            &mut pipe,
+            &nodes_fixed,
+            &fixed,
+            &image,
+            &input,
+            geom(0, 0, 8, 8),
+        );
+        assert_eq!(
+            (probes[0].calls(), probes[1].calls(), probes[2].calls()),
+            (1, 1, 2)
+        );
+        assert_eq!(out.frame().as_slice(), input.as_slice());
+    }
+
+    #[test]
+    fn render_level_eviction_takes_oldest_first() {
+        // 4096-byte budget: the cache keeps two 8x8 planes. Photo A fills it
+        // with two nodes; photo B's single node then evicts A's oldest entry
+        // while its newer one survives.
+        let probe = Arc::new(Probe::new());
+        let lookup = table(vec![Arc::new(FakeCopy::new("mod_a", Arc::clone(&probe)))]);
+        let image = image();
+        let input = pattern_frame(8, 8);
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, 4_096, 0);
+        let nodes_a = vec![node("mod_a"), node("mod_a")];
+        render_with_id(
+            &mut pipe,
+            &nodes_a,
+            &lookup,
+            &image,
+            &input,
+            7,
+            geom(0, 0, 8, 8),
+        );
+        let chain = crate::chain::build_chain(&lookup, &nodes_a, &image).unwrap();
+        let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
+        let keys_a = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes_a, &geos);
+        assert_eq!(pipe.cache_len(), 2);
+        let nodes_b = vec![node("mod_a")];
+        let out = render_with_id(
+            &mut pipe,
+            &nodes_b,
+            &lookup,
+            &image,
+            &input,
+            9,
+            geom(0, 0, 8, 8),
+        );
+        assert_eq!(out.frame().as_slice(), input.as_slice());
+        let chain = crate::chain::build_chain(&lookup, &nodes_b, &image).unwrap();
+        let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
+        let keys_b = crate::cache::chain_keys(PipeKind::Full, 9, 1, &nodes_b, &geos);
+        // Oldest first: A's node 1 entry (oldest after the success-touch
+        // reversal) yields, node 0 survives beside B.
+        assert!(pipe.cache.peek(keys_a[1]).is_none());
+        assert_eq!(
+            pipe.cache.peek(keys_a[0]).unwrap().frame.as_slice(),
+            input.as_slice()
+        );
+        assert!(pipe.cache.peek(keys_b[0]).is_some());
+        assert_eq!(pipe.cache_len(), 2);
+        assert_eq!(pipe.budget().used(), 2_048);
+    }
+
+    #[test]
+    fn allocation_evicts_cache_until_plane_fits() {
+        // 2560-byte budget: photo A caches one 8x8 plane (1024 bytes); photo
+        // B's 8x16 plane (2048 bytes) does not fit beside it, so make-room
+        // evicts A's entry and the render succeeds uncached (2048 tops the
+        // 1280-byte half-budget cap).
+        let probe = Arc::new(Probe::new());
+        let lookup = table(vec![Arc::new(FakeCopy::new("mod_a", Arc::clone(&probe)))]);
+        let image = image();
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, 2_560, 0);
+        let input_a = pattern_frame(8, 8);
+        let nodes = vec![node("mod_a")];
+        render_with_id(
+            &mut pipe,
+            &nodes,
+            &lookup,
+            &image,
+            &input_a,
+            7,
+            geom(0, 0, 8, 8),
+        );
+        let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
+        let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
+        let keys_a = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes, &geos);
+        assert_eq!(pipe.cache_len(), 1);
+        assert_eq!(pipe.budget().used(), 1_024);
+        let input_b = pattern_frame(8, 16);
+        let out = render_with_id(
+            &mut pipe,
+            &nodes,
+            &lookup,
+            &image,
+            &input_b,
+            9,
+            geom(0, 0, 8, 16),
+        );
+        assert_eq!(out.frame().as_slice(), input_b.as_slice());
+        assert_eq!(probe.calls(), 2);
+        assert!(pipe.cache.peek(keys_a[0]).is_none());
+        assert_eq!(pipe.cache_len(), 0);
+        assert_eq!(pipe.budget().used(), 2_048);
+        drop(out);
+        assert_eq!(pipe.budget().used(), 0);
+    }
+
+    #[test]
+    fn make_room_evicts_around_planes_hit_this_run() {
+        // 10240-byte budget, half-budget cache of 5120: photo A caches two
+        // 8x8 planes; the same photo scaled 3x then hits node 0 (protected)
+        // and make-room evicts only the stale node 1 entry for the 24x24
+        // plane (9216 bytes), which stays uncached past the cap.
+        let copy_probe = Arc::new(Probe::new());
+        let scale_probe = Arc::new(Probe::new());
+        let lookup = table(vec![
+            Arc::new(FakeCopy::new("mod_a", Arc::clone(&copy_probe))),
+            Arc::new(FakeScaleCopy::new("mod_s", Arc::clone(&scale_probe), 3, 1)),
+        ]);
+        let image = image();
+        let input = pattern_frame(8, 8);
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, 10_240, 0);
+        let nodes_a = vec![node("mod_a"), node("mod_a")];
+        render_with_id(
+            &mut pipe,
+            &nodes_a,
+            &lookup,
+            &image,
+            &input,
+            7,
+            geom(0, 0, 8, 8),
+        );
+        let chain = crate::chain::build_chain(&lookup, &nodes_a, &image).unwrap();
+        let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
+        let keys_a = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes_a, &geos);
+        let held_a0 = pipe.cache.peek(keys_a[0]).unwrap();
+        let nodes_b = vec![node("mod_a"), node("mod_s")];
+        let chain = crate::chain::build_chain(&lookup, &nodes_b, &image).unwrap();
+        let geos = forward(&chain, &GeomRoi::new(0, 0, 24, 24, 1.0).unwrap()).unwrap();
+        let keys_b = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes_b, &geos);
+        // Same photo, same node 0 prefix: the hit key never moved.
+        assert_eq!(keys_b[0], keys_a[0]);
+        let out = render_with_id(
+            &mut pipe,
+            &nodes_b,
+            &lookup,
+            &image,
+            &input,
+            7,
+            GeomRoi::new(0, 0, 24, 24, 1.0).unwrap(),
+        );
+        assert_eq!(out.frame().as_slice().len(), 24 * 24 * 4);
+        assert!(
+            out.frame()
+                .as_slice()
+                .iter()
+                .all(|v| v.to_bits() == 1.0f32.to_bits())
+        );
+        // Node 0 hit (no third copy call); the scaler ran once.
+        assert_eq!(copy_probe.calls(), 2);
+        assert_eq!(scale_probe.calls(), 1);
+        // Make-room took the stale entry; the hit entry survived with the
+        // same allocation.
+        assert!(pipe.cache.peek(keys_a[1]).is_none());
+        let kept = pipe.cache.peek(keys_a[0]).unwrap();
+        assert!(Arc::ptr_eq(&held_a0, &kept));
+        assert_eq!(pipe.cache_len(), 1);
+        assert_eq!(pipe.budget().used(), 10_240);
+        drop(out);
+        drop(held_a0);
+        drop(kept);
+        assert_eq!(pipe.budget().used(), 1_024);
+    }
+
+    #[test]
+    fn pipe_reports_max_frame_bytes_per_kind() {
+        // (budget − 2 × floor) / 2 at the 16 GiB derivations, pinned exactly.
+        const MIB: u64 = 1024 * 1024;
+        let total = 16 * 1024 * MIB;
+        for (kind, budget, floor, max) in [
+            (PipeKind::Full, 2_748_779_069, 128 * MIB, 1_240_171_806),
+            (PipeKind::Export, 2_748_779_069, 128 * MIB, 1_240_171_806),
+            (PipeKind::Preview, 858_993_459, 64 * MIB, 362_387_865),
+            (PipeKind::Thumbnail, 515_396_075, 32 * MIB, 224_143_605),
+        ] {
+            let quota = crate::kinds::quota_for(kind, total);
+            assert_eq!(quota.memory_budget, budget, "{kind:?}");
+            let floor_got = crate::kinds::singlebuffer_floor(kind, total);
+            assert_eq!(floor_got, floor, "{kind:?}");
+            let pipe = Pipe::with_budget_and_floor(kind, budget, floor);
+            assert_eq!(pipe.max_frame_bytes(), max, "{kind:?}");
+        }
+        // Floor zero: exactly half the budget. A floor past half the budget
+        // saturates the maximum at zero instead of underflowing.
+        let pipe = Pipe::with_budget_and_floor(PipeKind::Full, 2_048, 0);
+        assert_eq!(pipe.max_frame_bytes(), 1_024);
+        let pipe = Pipe::with_budget_and_floor(PipeKind::Full, 2_048, 2_048);
+        assert_eq!(pipe.max_frame_bytes(), 0);
+    }
+
+    #[test]
+    fn renders_at_max_frame_boundary_succeed_per_kind() {
+        // Budget 2048, floor 0: the maximum is 1024, and a two-node 8x8 chain
+        // (node 1 needs exactly input + output = 2048) renders on every kind.
+        for kind in [
+            PipeKind::Full,
+            PipeKind::Export,
+            PipeKind::Preview,
+            PipeKind::Thumbnail,
+        ] {
+            let probes = [Arc::new(Probe::new()), Arc::new(Probe::new())];
+            let lookup = table(vec![
+                Arc::new(FakeCopy::new("mod_a", Arc::clone(&probes[0]))),
+                Arc::new(FakeCopy::new("mod_b", Arc::clone(&probes[1]))),
+            ]);
+            let image = image();
+            let input = pattern_frame(8, 8);
+            let nodes = vec![node("mod_a"), node("mod_b")];
+            let mut pipe = Pipe::with_budget_and_floor(kind, 2_048, 0);
+            assert_eq!(pipe.max_frame_bytes(), 1_024, "{kind:?}");
+            let out = render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
+            assert_eq!(out.frame().as_slice(), input.as_slice(), "{kind:?}");
+            assert_eq!((probes[0].calls(), probes[1].calls()), (1, 1), "{kind:?}");
+            assert!(pipe.budget().used() <= 2_048, "{kind:?}");
+        }
+    }
+
+    #[test]
+    fn oversized_frame_is_typed_and_leaves_no_trace() {
+        // Node 1 needs input + output = 2048 bytes; a 2047-byte budget
+        // refuses before anything runs: no process call, no bytes charged,
+        // nothing cached.
+        let probes = [Arc::new(Probe::new()), Arc::new(Probe::new())];
+        let lookup = table(vec![
+            Arc::new(FakeCopy::new("mod_a", Arc::clone(&probes[0]))),
+            Arc::new(FakeCopy::new("mod_b", Arc::clone(&probes[1]))),
+        ]);
+        let image = image();
+        let input = pattern_frame(8, 8);
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, 2_047, 0);
+        let no_cancel = || false;
+        let nodes = vec![node("mod_a"), node("mod_b")];
+        let req = RenderRequest {
+            nodes: &nodes,
+            lookup: &lookup,
+            image: &image,
+            input: &input,
+            input_id: 7,
+            process: 1,
+            final_out: geom(0, 0, 8, 8),
+            cancel: &no_cancel,
+        };
+        let err = pipe.render(&req).unwrap_err();
+        assert!(matches!(
+            err,
+            RenderError::FrameTooLarge {
+                node: 1,
+                need_bytes: 2_048,
+                budget_bytes: 2_047
+            }
+        ));
+        assert!(err.to_string().contains("too large"));
+        assert_eq!((probes[0].calls(), probes[1].calls()), (0, 0));
+        assert_eq!(pipe.budget().used(), 0);
+        assert_eq!(pipe.cache_len(), 0);
+        // A single node that alone tops the budget names node 0.
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, 1_023, 0);
+        let nodes = vec![node("mod_a")];
+        let req = RenderRequest {
+            nodes: &nodes,
+            lookup: &lookup,
+            image: &image,
+            input: &input,
+            input_id: 7,
+            process: 1,
+            final_out: geom(0, 0, 8, 8),
+            cancel: &no_cancel,
+        };
+        let err = pipe.render(&req).unwrap_err();
+        assert!(matches!(
+            err,
+            RenderError::FrameTooLarge {
+                node: 0,
+                need_bytes: 1_024,
+                budget_bytes: 1_023
+            }
+        ));
+        assert_eq!(pipe.budget().used(), 0);
+        assert_eq!(pipe.cache_len(), 0);
+    }
+
+    #[test]
+    fn cross_photo_eviction_then_selective_recompute() {
+        // Fix 1 + fix 2 strung together on a budget that fits three 8x8
+        // frames (3072 bytes): photo A fills the cache, photo B's six-node
+        // chain renders through it (A's entries yield), and — on a roomy pipe
+        // holding the same six-node shape — editing node 2 recomputes only
+        // nodes 2-5. One pipe cannot show both: the tight pipe's half-budget
+        // cache keeps a single plane, so no six-node prefix survives it; the
+        // roomy leg pins the recompute shape the tight leg's keys already
+        // determine.
+        let (probes, lookup, nodes) = six_gains([2.0, 3.0, 4.0, 5.0, 6.0, 7.0]);
+        let image = image();
+        let input = filled_frame(0, 0, 8, 8, 1.0);
+        let mut tight = Pipe::with_budget_and_floor(PipeKind::Full, 3_072, 0);
+        // Photo A fills the cache (one plane: the half-budget cap binds).
+        let out_a = render_with_id(
+            &mut tight,
+            &nodes,
+            &lookup,
+            &image,
+            &input,
+            7,
+            geom(0, 0, 8, 8),
+        );
+        assert_eq!(tight.cache_len(), 1);
+        // Photo B's six-node chain renders through A's entries.
+        let out_b = render_with_id(
+            &mut tight,
+            &nodes,
+            &lookup,
+            &image,
+            &input,
+            9,
+            geom(0, 0, 8, 8),
+        );
+        let product = 2.0f32 * 3.0 * 4.0 * 5.0 * 6.0 * 7.0;
+        assert!(
+            out_b
+                .frame()
+                .as_slice()
+                .iter()
+                .all(|v| v.to_bits() == product.to_bits())
+        );
+        // A's entries are all gone; the budget never topped.
+        let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
+        let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
+        let keys_a = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes, &geos);
+        for key in &keys_a {
+            assert!(tight.cache.peek(*key).is_none());
+        }
+        assert_eq!(tight.cache_len(), 1);
+        assert!(tight.budget().used() <= 3_072);
+        for probe in &probes {
+            assert_eq!(probe.calls(), 2);
+        }
+        drop(out_a);
+        drop(out_b);
+        // Roomy leg: the same six-node shape, editing node 2 hits nodes 0-1
+        // and recomputes nodes 2-5.
+        let (probes, lookup, nodes) = six_gains([2.0, 3.0, 4.0, 5.0, 6.0, 7.0]);
+        let mut roomy = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
+        render_with_id(
+            &mut roomy,
+            &nodes,
+            &lookup,
+            &image,
+            &input,
+            9,
+            geom(0, 0, 8, 8),
+        );
+        let mut edited = nodes.clone();
+        edited[2] = gain_node("mod_c", 8.0);
+        let out = render_with_id(
+            &mut roomy,
+            &edited,
+            &lookup,
+            &image,
+            &input,
+            9,
+            geom(0, 0, 8, 8),
+        );
+        let calls: Vec<usize> = probes.iter().map(|probe| probe.calls()).collect();
+        assert_eq!(calls, vec![1, 1, 2, 2, 2, 2]);
+        let product = 2.0f32 * 3.0 * 8.0 * 5.0 * 6.0 * 7.0;
+        assert!(
+            out.frame()
+                .as_slice()
+                .iter()
+                .all(|v| v.to_bits() == product.to_bits())
+        );
     }
 }

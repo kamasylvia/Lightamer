@@ -25,13 +25,19 @@ pub enum PipeKind {
     Thumbnail,
 }
 
-/// Per-kind quotas.
+/// Per-kind quotas: a memory budget plus how many planes the cache keeps.
+///
+/// B1-b2 removed the `max_tile_bytes` field this struct carried through B1-b:
+/// tile sizes already derive from the live budget (`available / factor` with
+/// the kind's floor in [`tiling::decide`](crate::tiling::decide)), a static
+/// per-kind ceiling has no upstream counterpart (`tiling.c` sizes purely from
+/// available memory), and keeping it would force invented precedence rules
+/// for ceiling-vs-floor conflicts. One budget-driven sizing rule, no second
+/// constraint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PipeQuota {
     /// Memory budget in bytes.
     pub memory_budget: u64,
-    /// Largest single tile in bytes.
-    pub max_tile_bytes: u64,
     /// Cached planes retained.
     pub cache_slots: u32,
 }
@@ -54,22 +60,18 @@ pub const fn quota(kind: PipeKind) -> PipeQuota {
     match kind {
         PipeKind::Full => PipeQuota {
             memory_budget: 4 * GIB,
-            max_tile_bytes: 256 * MIB,
             cache_slots: 8,
         },
         PipeKind::Export => PipeQuota {
             memory_budget: 4 * GIB,
-            max_tile_bytes: 256 * MIB,
             cache_slots: 4,
         },
         PipeKind::Preview => PipeQuota {
             memory_budget: GIB,
-            max_tile_bytes: 64 * MIB,
             cache_slots: 4,
         },
         PipeKind::Thumbnail => PipeQuota {
             memory_budget: 512 * MIB,
-            max_tile_bytes: 16 * MIB,
             cache_slots: 2,
         },
     }
@@ -81,8 +83,7 @@ pub const fn quota(kind: PipeKind) -> PipeQuota {
 /// above, caps from [`quota`]). When the clamped values overflow the 40% pool
 /// — only on machines too small for the floors — all four scale down
 /// proportionally so their sum fits the pool exactly (floors yield; the pool
-/// never does). `max_tile_bytes` and `cache_slots` come from [`quota`]
-/// unchanged.
+/// never does). `cache_slots` comes from [`quota`] unchanged.
 ///
 /// Shares mirror darktable's `default` resource level
 /// (`src/common/darktable.c:2334-2339`: 512/1024 of RAM for the pipe pool,
@@ -132,7 +133,6 @@ pub fn quota_for(kind: PipeKind, total_phys_bytes: u64) -> PipeQuota {
     }
     PipeQuota {
         memory_budget,
-        max_tile_bytes: quota(kind).max_tile_bytes,
         cache_slots: quota(kind).cache_slots,
     }
 }
@@ -212,8 +212,6 @@ mod tests {
         assert_eq!(full.memory_budget, export.memory_budget);
         assert!(full.memory_budget > preview.memory_budget);
         assert!(preview.memory_budget > thumb.memory_budget);
-        assert!(full.max_tile_bytes <= full.memory_budget);
-        assert!(thumb.max_tile_bytes <= thumb.memory_budget);
         assert!(full.cache_slots >= export.cache_slots);
         assert!(preview.cache_slots >= thumb.cache_slots);
     }
@@ -236,10 +234,7 @@ mod tests {
         assert!(full + export + preview + thumb < 9 * GIB);
         // Non-budget quotas still come from the B1-a table.
         assert_eq!(quota_for(PipeKind::Full, total).cache_slots, 8);
-        assert_eq!(
-            quota_for(PipeKind::Thumbnail, total).max_tile_bytes,
-            16 * 1024 * 1024
-        );
+        assert_eq!(quota_for(PipeKind::Thumbnail, total).cache_slots, 2);
     }
 
     #[test]
