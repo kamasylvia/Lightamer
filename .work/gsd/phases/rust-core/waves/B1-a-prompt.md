@@ -37,6 +37,7 @@ B1 分三段，串行：
 - `lightamer-geom`、`lightamer-raster`、`lightamer-sysmem`、`lightamer-pipeline` 四个 crate 都是空壳。`lightamer-iop-traits` 里只有模块的描述，没有模块的接口。
 - 修改历史的模型（`lightamer-history`，第 2 层）里，一个模块实例带着它的参数：参数名到带类型的值的映射，序列化成 JSON 是 `{"type": "float", "value": 0.5}` 这种带标签的形态。**这一波只读它，不许改。**
 - 区域的结构在地基这一层（第 0 层），历史模型在第 2 层。所以模块接口里不能出现历史模型的类型。
+- 起点的数：上一波收口时（2026-11-27 上午）全工作区 398 个测试通过，另有一个默认不跑的计时测试（总检查 `Scripts/rust-ci-lite.sh` 全绿）。
 
 ## 要做的
 
@@ -112,11 +113,12 @@ B1 分三段，串行：
 - `crates/README.md` 里这几个 crate 的行改成现在的内容。
 - `Scripts/rust-session-demo.sh` 和 `Scripts/rust-history-demo.sh` 仍然退出 0。
 - `Scripts/rust-ci-lite.sh` 从头到尾退出 0。
-- `git show --name-only HEAD` 里只有下面「纪律」一节允许的路径。
+- `git show --name-only HEAD` 里只有下面「纪律」一节允许的路径；其中有 `B1-a-REPORT.md` 和 `B1-a-review.log`，报告里「复审的结论头」一节已经填了，没有「待填」。
+- 测试跑完之后 `git status --porcelain` 里没有测试留下的临时文件；系统的临时目录里没有这一波留下的目录；没有残留的进程。
 
 ## omp 域内自审（项目只信重跑过的数字）
 
-产物落盘并提交后，另起一个独立的 `omp -p --auto-approve --thinking max "<复审任务书>"` 实例复审。复审实例只读，但可以运行构建和测试：重跑第 9 节的全部验收；打开 darktable 的源码核取整规则和分块公式是不是照它移植的（至少抽四条，逐行对）；核几何链那八例里每一例的断言是不是真的在验「装得下」；核模块接口确实是对象安全的；核 `git show --stat` 只含允许的路径。结论头 `PASS / N error + N minor`。发现的问题回注修订，修订记录附在报告末尾。复审输出落 `.work/gsd/phases/rust-core/waves/B1-a-review.log`。**复审实例写完结论头之后你的主进程才退出。**
+产物落盘并提交后，另起一个独立的 `omp -p --auto-approve --thinking max "<复审任务书>"` 实例复审。复审实例只读，但可以运行构建和测试：重跑第 9 节的全部验收；打开 darktable 的源码核取整规则和分块公式是不是照它移植的（至少抽四条，逐行对）；核几何链那八例里每一例的断言是不是真的在验「装得下」；核模块接口确实是对象安全的；核 `git show --stat` 只含允许的路径。结论头 `PASS / N error + N minor`。发现的问题回注修订，修订记录附在报告末尾。复审输出落 `.work/gsd/phases/rust-core/waves/B1-a-review.log`。**退出的次序（上一波在这里出了错）**：复审实例写完结论头之后，你才依次做四件事——把复审的结论头和修订记录写进报告；`git commit --amend` 把最终的报告和 `B1-a-review.log` 并进那一个提交（不 push，所以 amend 是安全的）；删掉你建的临时文件和目录；最后主进程才退出。报告里不许留「待填」。
 
 ## 纪律
 
