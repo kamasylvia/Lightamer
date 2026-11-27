@@ -15,8 +15,8 @@
 | L0 | `lightamer-geom` | 区域：`Roi`（x/y/w/h/scale，dt 取整移植）+ 相交/合并/平移/换缩放/包含/子区域，checked 整数 | B1-a 已填 |
 | L0 | `lightamer-raster` | 画面：`Frame`（缓冲+区域+格式，工作格式 float32 RGBA 预乘）+ 行区间/子视图/整体拷贝，u64 尺寸核算 | B1-a 已填 |
 | L0 | `lightamer-color-math` | 颜色矩阵数学与曲线 helper，无 profile 状态 | B3 |
-| L0 | `lightamer-iop-traits` | ModuleDesc/OrderKeys/ModuleGroup/ParamsDesc（自有设置模型）/ModuleFlags/ColorSpace/Control/HistoryKeys（A3）+ 对象安全 `IopModule`（commit/roi 对/tiling/process，JSON 参数 + 不透明提交）+ `PipeError` + 参数取值五 helper + `TilingReq`/`ImageInfo`/像素视图 | A3 已填 / B1-a 接口已填 |
-| L0 | `lightamer-sysmem` | 硬上限字节预算：`Budget`（超限是错）+ RAII `Grant`（drop 归还）+ 余量可问，线程共享 | B1-a 已填 |
+| L0 | `lightamer-iop-traits` | ModuleDesc/OrderKeys/ModuleGroup/ParamsDesc（自有设置模型）/ModuleFlags/ColorSpace/Control/HistoryKeys（A3）+ 对象安全 `IopModule`（commit/roi 对/tiling/process，JSON 参数 + 不透明提交）+ `PipeError` + 参数取值五 helper + `TilingReq`/`ImageInfo`/像素视图（含整片访问器）+ 按行并行 `par_map_rows`（rayon，与串行逐位相同） | A3 已填 / B1-a 接口已填 / B1-b 并行工具 |
+| L0 | `lightamer-sysmem` | 硬上限字节预算：`Budget`（超限是错）+ RAII `Grant`（drop 归还）+ 共享 `SharedGrant`（`Arc` 授权，随画面走）+ 余量可问，线程共享 | B1-a 已填 / B1-b 共享授权 |
 | L1 | `lightamer-iop-raw` | raw 段模块桩 8 个（rawprepare/demosaic/…；`build.rs` 扫 `src/modules/*/mod.rs` 自动发现） | A3 桩 / B3 起填像素 |
 | L1 | `lightamer-iop-geom` | 几何模块桩 21 个（lens/crop/…） | A3 桩 / B7 起填像素 |
 | L1 | `lightamer-iop-color` | 颜色模块桩 22 个（temperature/colorin/colorout/…） | A3 桩 / B3 起填像素 |
@@ -28,7 +28,7 @@
 | L1 | `lightamer-scenes` | 成像测试共用的确定性测试场景 | A5 |
 | L2 | `lightamer-registry` | 描述聚合 + 按标识查找 + raw/jpg 默认顺序链（`(prio,tie)` 排序）；夹具 `lightamer-registry/fixtures/dt-order-*.json` | A3 已填 |
 | L2 | `lightamer-history` | 照片设置（宽容 serde + 规范 JSON + FNV 缓存键）+ 快照历史栈 + 处理版本号（`HISTORY_LIMIT` 200）+ B13′-b1 栈重建（`from_steps`）/ 调整合并（`merge_adjustments`，模块/参数两档）/ `INITIAL_LABEL` 公开 | A4b 已填 / B13′-b1 落库接口 |
-| L2 | `lightamer-pipeline` | 管线地基（A3R 由 `dt-core` 改名）：有序链提交 + 前推/反推几何 + 格式协商（只出计划）+ ptp 分块决策 + 四实例配额 + 预算配对画面（缓存/调度/执行是 B1-b） | B1-a 已填 |
+| L2 | `lightamer-pipeline` | 管线内核（A3R 由 `dt-core` 改名）：有序链提交 + 前推/反推几何 + 格式协商（只出计划）+ ptp 分块决策（含单块下限）+ 四实例配额（物理内存公式）+ 预算配对画面 + B1-b 执行（`Pipe` 渲染入口 + 链式缓存键/LRU + 分块执行 + 取消 + 分类型错误） | B1-a 已填 / B1-b 执行已填 |
 | L3 | `lightamer-catalog` | 会话包：四目录布局 + SQLite schema v1（T-B1）+ 只追加迁移架 + 在线备份 + 单写者锁（LightCraft lock.rs 改造）+ 路径换算 + `_meta`（含 display_aux 槽位）+ B12′-b 整包备份/恢复（在线备份 + 文件拷 + 进度/取消）+ 只读校验 + 失联扫描 + 模板 + 主机名 + B13′-a 照片最小登记（照片行/默认快照/第 0 步单事务）+ 历史写路径（快照去重写 + 游标移动 + 读回 + 孤儿回收，`HistoryWriter` 单事务多推）+ B13′-b1 第 0 步标签对齐 `INITIAL_LABEL` / `HistoryWriter::move_cursor` | B12′ 已填 / B13′-a 历史落库 / B13′-b1 对齐 |
 | L3 | `lightamer-preview` | 预览缓存：内存 LRU + 磁盘缩略图 + 预取 | B15 |
 | L3 | `lightamer-apple` | Apple 边界：macOS 探针/空后端双实现 + 能力表（A6 已填；唯一可碰 Apple 绑定的 crate）+ 原生视口缝（A7b：一整数句柄 + 矩形/几何/输入纯数据类型，macOS 在 `macos.rs` 内实现，空后端报不支持） | A6 已填 / A7b 视口 |
@@ -38,7 +38,7 @@
 | L4 | `lightamer-engine` | 命令分发口（`execute` 唯一入口 + 22 条命令：A7a 13 条编辑/历史/作业 + B12′-b 7 条会话/模板（真实会话 + 备份/恢复/扫描作业 + 只读校验 + 模板）+ B13′-b2 `develop.sync`/`develop.merge`（源/剪贴板选中合并，模块/参数两颗粒）+ 草稿会话 + 作业池 + 事件；导出/导入命令后续逐条加）+ B13′-b1 真实会话落库（T5 三步 + 按需加载/LRU 64 + 盖库摘要） | A7a 已填 / B12′-b 会话命令 / B13′-b1 落库接线 / B13′-b2 两命令 |
 | L5 | `lightamer-mcp` | 基于引擎命令的 MCP 服务器，C 期占位 | C 期 |
 | L5 | `lightamer-gpui` | 界面（gpui-kit 0.11.0 + gpui-fast 特性）：原生视口画布 + 右侧滑杆面板；双输入路径（框架回调/原生子类）→ 自有 `ViewportInput` 纯数据；只走 `execute` 与快照（A7b 已填） | A7b 已填 |
-| testkit | `lightamer-testkit` | 测试套件：skip 宏 + JSONL 记录 + `IdentityModule`（恒等测试模块）+ 只许开发依赖 | A3R 已填 / B1-a 恒等模块 |
+| testkit | `lightamer-testkit` | 测试套件：skip 宏 + JSONL 记录 + `IdentityModule`（恒等测试模块，B1-b 起并行拷贝）+ 只许开发依赖 | A3R 已填 / B1-a 恒等模块 / B1-b 并行 |
 | exempt | `lightamer-cli` | 命令行 + oracle 对照工具（A5 已填：`fetch`/`render`/`cmp`/`emit-xmp`/`selftest`；A6 加 `capabilities` + `apple` 默认 feature 关断 Apple 链接；A7a 加 `commands`/`run`（JSONL 喂引擎草稿会话）；B12′-b 加 `run` 会话文件（每行作业排空 + `--hold` 留会话）；B13′-b2 加 `run` 真实会话打印（文件内照片 `short:steps:cursor`）+ `bench` 计时工具（`setup`/`paste`，开发用非导入）；入口 `Scripts/oracle.sh`，钉点 `Scripts/oracle.lock`）+ perf 探针（A3R 挪到 `apps/lightamer-cli`） | A4b（`history dump`）/ A5 已填 / A6 已填 / A7a 已填 / B12′-b 已填 / B13′-b2 已填 |
 | exempt | `xtask` | 仓库维护任务：`check-i18n`（骨架，B17 启用）；`gen-iop-stubs`（解析上游 `iop_order.c` 生成夹具+桩）/`check-order-sync`（上游×夹具×桩三方比对）/`check-no-iop-names`（核心零 op 名机检）/`layers`（分层检查，A3R 加） | A2 骨架 / A3 三子命令 / A3R layers / B17 |
 

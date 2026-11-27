@@ -15,6 +15,8 @@ lightamer-iop-traits = { path = "../lightamer-iop-traits" }
 lightamer-raster = { path = "../lightamer-raster" }
 lightamer-sysmem = { path = "../lightamer-sysmem" }
 serde_json = { version = "1" }
+libc = { version = "0.2" }
 
 [dev-dependencies]
 lightamer-testkit = { path = "../lightamer-testkit" }
+rayon = { version = "1" }

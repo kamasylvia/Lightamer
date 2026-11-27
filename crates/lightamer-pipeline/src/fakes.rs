@@ -5,11 +5,11 @@
 #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, atomic::AtomicUsize};
 
 use lightamer_iop_traits::{
     ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, Plane, PlaneMut,
-    Roi,
+    Roi, TilingReq, get_float,
 };
 use serde_json::{Map, Value};
 
@@ -393,4 +393,532 @@ pub fn table(modules: Vec<SharedModule>) -> HashMap<String, SharedModule> {
 /// Empty parameters.
 pub fn no_params() -> Map<String, Value> {
     Map::new()
+}
+
+/// Shared probe behind counting fakes: how often `process` ran and which
+/// regions it saw, per module instance.
+#[derive(Debug, Default)]
+pub struct Probe {
+    calls: AtomicUsize,
+    regions: Mutex<Vec<(Roi, Roi)>>,
+}
+
+impl Probe {
+    /// An untouched probe.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// `process` calls so far.
+    pub fn calls(&self) -> usize {
+        self.calls.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// `(rin, rout)` per call, in call order.
+    pub fn regions(&self) -> Vec<(Roi, Roi)> {
+        self.regions.lock().unwrap().clone()
+    }
+
+    fn record(&self, rin: Roi, rout: Roi) {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.regions.lock().unwrap().push((rin, rout));
+    }
+}
+
+/// Copies its input to its output, counting calls and regions.
+pub struct FakeCopy {
+    desc: ModuleDesc,
+    probe: Arc<Probe>,
+}
+
+impl FakeCopy {
+    /// A copying fake behind `id`, reporting to `probe`.
+    pub fn new(id: &'static str, probe: Arc<Probe>) -> Self {
+        Self {
+            desc: desc(id),
+            probe,
+        }
+    }
+
+    /// Copies input rows to output rows; both planes must match `rin`/`rout`.
+    pub fn copy_planes(
+        input: &Plane<'_>,
+        output: &mut PlaneMut<'_>,
+        rin: Roi,
+        rout: Roi,
+    ) -> Result<(), PipeError> {
+        if rin.width != rout.width || rin.height != rout.height {
+            return Err(PipeError::RoiMismatch(format!(
+                "copy fake needs equal shapes, got {}x{} in and {}x{} out",
+                rin.width, rin.height, rout.width, rout.height
+            )));
+        }
+        if input.width() != output.width() || input.height() != output.height() {
+            return Err(PipeError::RoiMismatch(format!(
+                "copy fake planes differ: {}x{} vs {}x{}",
+                input.width(),
+                input.height(),
+                output.width(),
+                output.height()
+            )));
+        }
+        for y in 0..rout.height.max(0).cast_unsigned() {
+            let src = input.row(y)?;
+            let dst = output.row_mut(y)?;
+            if src.len() != dst.len() {
+                return Err(PipeError::RoiMismatch(format!(
+                    "copy fake row {y} lengths differ: {} vs {}",
+                    src.len(),
+                    dst.len()
+                )));
+            }
+            dst.copy_from_slice(src);
+        }
+        Ok(())
+    }
+}
+
+impl IopModule for FakeCopy {
+    fn desc(&self) -> &ModuleDesc {
+        &self.desc
+    }
+
+    fn commit(
+        &self,
+        _params: &Map<String, Value>,
+        _image: &ImageInfo,
+    ) -> Result<CommitData, PipeError> {
+        Ok(Arc::new(FakeCommit))
+    }
+
+    fn process(
+        &self,
+        _data: &CommitData,
+        input: &Plane<'_>,
+        output: &mut PlaneMut<'_>,
+        rin: Roi,
+        rout: Roi,
+    ) -> Result<(), PipeError> {
+        self.probe.record(rin, rout);
+        Self::copy_planes(input, output, rin, rout)
+    }
+}
+
+/// Per-instance gain from `{"gain": {"type": "float", "value": g}}`.
+#[derive(Debug)]
+pub struct GainCommit {
+    gain: f32,
+}
+
+/// Multiplies every pixel by its `gain` parameter, counting calls.
+pub struct FakeGain {
+    desc: ModuleDesc,
+    probe: Arc<Probe>,
+}
+
+impl FakeGain {
+    /// A gain fake behind `id`, reporting to `probe`.
+    pub fn new(id: &'static str, probe: Arc<Probe>) -> Self {
+        Self {
+            desc: desc(id),
+            probe,
+        }
+    }
+}
+
+impl IopModule for FakeGain {
+    fn desc(&self) -> &ModuleDesc {
+        &self.desc
+    }
+
+    fn commit(
+        &self,
+        params: &Map<String, Value>,
+        _image: &ImageInfo,
+    ) -> Result<CommitData, PipeError> {
+        #[allow(clippy::cast_possible_truncation)]
+        let gain = get_float(params, "gain")? as f32;
+        Ok(Arc::new(GainCommit { gain }))
+    }
+
+    fn process(
+        &self,
+        data: &CommitData,
+        input: &Plane<'_>,
+        output: &mut PlaneMut<'_>,
+        rin: Roi,
+        rout: Roi,
+    ) -> Result<(), PipeError> {
+        self.probe.record(rin, rout);
+        let Some(commit) = data.downcast_ref::<GainCommit>() else {
+            return Err(PipeError::Backend(
+                "gain fake opened a foreign commit".to_owned(),
+            ));
+        };
+        FakeCopy::copy_planes(input, output, rin, rout)?;
+        for y in 0..rout.height.max(0).cast_unsigned() {
+            let dst = output.row_mut(y)?;
+            for value in dst.iter_mut() {
+                *value *= commit.gain;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Copies like [`FakeCopy`] but reports a heavy tiling request, forcing grids.
+pub struct FakeMem {
+    desc: ModuleDesc,
+    probe: Arc<Probe>,
+    factor: f32,
+    overlap: u32,
+}
+
+impl FakeMem {
+    /// A copying fake with `factor`/`overlap` tiling needs.
+    pub fn new(id: &'static str, probe: Arc<Probe>, factor: f32, overlap: u32) -> Self {
+        Self {
+            desc: desc(id),
+            probe,
+            factor,
+            overlap,
+        }
+    }
+}
+
+impl IopModule for FakeMem {
+    fn desc(&self) -> &ModuleDesc {
+        &self.desc
+    }
+
+    fn commit(
+        &self,
+        _params: &Map<String, Value>,
+        _image: &ImageInfo,
+    ) -> Result<CommitData, PipeError> {
+        Ok(Arc::new(FakeCommit))
+    }
+
+    fn tiling(&self, _data: &CommitData, _rin: &Roi, _rout: &Roi) -> TilingReq {
+        TilingReq {
+            factor: self.factor,
+            factor_cl: self.factor,
+            maxbuf: 1.0,
+            maxbuf_cl: 1.0,
+            overhead: 0,
+            overlap: self.overlap,
+            align: 1,
+        }
+    }
+
+    fn process(
+        &self,
+        _data: &CommitData,
+        input: &Plane<'_>,
+        output: &mut PlaneMut<'_>,
+        rin: Roi,
+        rout: Roi,
+    ) -> Result<(), PipeError> {
+        self.probe.record(rin, rout);
+        FakeCopy::copy_planes(input, output, rin, rout)
+    }
+}
+
+/// Writes a per-pixel value derived from absolute coordinates, ignoring its
+/// input: `v = (x * 131 + y) as f32` in all four channels. Tiled and untiled
+/// runs agree bitwise because the value only depends on where the pixel is.
+pub struct FakePosition {
+    desc: ModuleDesc,
+    probe: Arc<Probe>,
+}
+
+impl FakePosition {
+    /// A position-writing fake behind `id`, reporting to `probe`.
+    pub fn new(id: &'static str, probe: Arc<Probe>) -> Self {
+        Self {
+            desc: desc(id),
+            probe,
+        }
+    }
+}
+
+impl IopModule for FakePosition {
+    fn desc(&self) -> &ModuleDesc {
+        &self.desc
+    }
+
+    fn commit(
+        &self,
+        _params: &Map<String, Value>,
+        _image: &ImageInfo,
+    ) -> Result<CommitData, PipeError> {
+        Ok(Arc::new(FakeCommit))
+    }
+
+    fn tiling(&self, _data: &CommitData, _rin: &Roi, _rout: &Roi) -> TilingReq {
+        TilingReq {
+            factor: 8.0,
+            factor_cl: 8.0,
+            maxbuf: 1.0,
+            maxbuf_cl: 1.0,
+            overhead: 0,
+            overlap: 4,
+            align: 1,
+        }
+    }
+
+    fn process(
+        &self,
+        _data: &CommitData,
+        input: &Plane<'_>,
+        output: &mut PlaneMut<'_>,
+        rin: Roi,
+        rout: Roi,
+    ) -> Result<(), PipeError> {
+        self.probe.record(rin, rout);
+        if input.width() != output.width() || input.height() != output.height() {
+            return Err(PipeError::RoiMismatch(format!(
+                "position fake planes differ: {}x{} vs {}x{}",
+                input.width(),
+                input.height(),
+                output.width(),
+                output.height()
+            )));
+        }
+        for y in 0..rout.height.max(0).cast_unsigned() {
+            let dst = output.row_mut(y)?;
+            let gy = i64::from(rout.y) + i64::from(y);
+            let pixels = dst.len() / 4;
+            for lx in 0..pixels {
+                let local = i64::try_from(lx).unwrap_or(0);
+                let gx = i64::from(rout.x) + local;
+                #[allow(clippy::cast_precision_loss)]
+                let value = (gx * 131 + gy) as f32;
+                let base = lx * 4;
+                dst[base] = value;
+                dst[base + 1] = value;
+                dst[base + 2] = value;
+                dst[base + 3] = value;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Scales geometry like [`FakeScale`] and fills its output with ones,
+/// validating that both planes match the regions the pipe passes in.
+pub struct FakeScaleCopy {
+    desc: ModuleDesc,
+    probe: Arc<Probe>,
+    num: i64,
+    den: i64,
+}
+
+impl FakeScaleCopy {
+    /// A scaling fake (`num`/`den`), reporting to `probe`.
+    pub fn new(id: &'static str, probe: Arc<Probe>, num: i64, den: i64) -> Self {
+        Self {
+            desc: desc(id),
+            probe,
+            num,
+            den,
+        }
+    }
+
+    fn scale_out(&self, v: i32) -> i32 {
+        let scaled = i64::from(v) * self.num;
+        let rounded = if scaled >= 0 {
+            (scaled + self.den / 2) / self.den
+        } else {
+            (scaled - self.den / 2) / self.den
+        };
+        i32::try_from(rounded.clamp(i64::from(i32::MIN), i64::from(i32::MAX))).unwrap_or(0)
+    }
+
+    fn scale_in(&self, v: i32) -> i32 {
+        let scaled = (i64::from(v) * self.den) / self.num;
+        i32::try_from(scaled.clamp(i64::from(i32::MIN), i64::from(i32::MAX))).unwrap_or(0)
+    }
+}
+
+impl IopModule for FakeScaleCopy {
+    fn desc(&self) -> &ModuleDesc {
+        &self.desc
+    }
+
+    fn commit(
+        &self,
+        _params: &Map<String, Value>,
+        _image: &ImageInfo,
+    ) -> Result<CommitData, PipeError> {
+        Ok(Arc::new(FakeCommit))
+    }
+
+    fn roi_out(&self, _data: &CommitData, rin: Roi) -> Roi {
+        Roi::new(
+            self.scale_out(rin.x),
+            self.scale_out(rin.y),
+            self.scale_out(rin.width),
+            self.scale_out(rin.height),
+            rin.scale,
+        )
+    }
+
+    fn roi_in(&self, _data: &CommitData, rout: Roi) -> Roi {
+        Roi::new(
+            self.scale_in(rout.x),
+            self.scale_in(rout.y),
+            self.scale_in(rout.width),
+            self.scale_in(rout.height),
+            rout.scale,
+        )
+    }
+
+    fn process(
+        &self,
+        _data: &CommitData,
+        input: &Plane<'_>,
+        output: &mut PlaneMut<'_>,
+        rin: Roi,
+        rout: Roi,
+    ) -> Result<(), PipeError> {
+        self.probe.record(rin, rout);
+        let (Ok(rw), Ok(rh), Ok(ow), Ok(oh)) = (
+            u32::try_from(rin.width),
+            u32::try_from(rin.height),
+            u32::try_from(rout.width),
+            u32::try_from(rout.height),
+        ) else {
+            return Err(PipeError::RoiMismatch(
+                "scale fake got negative regions".to_owned(),
+            ));
+        };
+        if input.width() != rw || input.height() != rh {
+            return Err(PipeError::RoiMismatch(format!(
+                "scale fake input is {}x{}, region says {rw}x{rh}",
+                input.width(),
+                input.height()
+            )));
+        }
+        if output.width() != ow || output.height() != oh {
+            return Err(PipeError::RoiMismatch(format!(
+                "scale fake output is {}x{}, region says {ow}x{oh}",
+                output.width(),
+                output.height()
+            )));
+        }
+        for y in 0..oh {
+            output.row_mut(y)?.fill(1.0);
+        }
+        Ok(())
+    }
+}
+
+/// A source module: needs no input (`roi_in` is empty), produces a fixed
+/// `width` by `height` frame, fills it with threes.
+pub struct FakeSource {
+    desc: ModuleDesc,
+    probe: Arc<Probe>,
+    width: i32,
+    height: i32,
+}
+
+impl FakeSource {
+    /// A source fake producing `width` by `height`, reporting to `probe`.
+    pub fn new(id: &'static str, probe: Arc<Probe>, width: i32, height: i32) -> Self {
+        Self {
+            desc: desc(id),
+            probe,
+            width,
+            height,
+        }
+    }
+}
+
+impl IopModule for FakeSource {
+    fn desc(&self) -> &ModuleDesc {
+        &self.desc
+    }
+
+    fn commit(
+        &self,
+        _params: &Map<String, Value>,
+        _image: &ImageInfo,
+    ) -> Result<CommitData, PipeError> {
+        Ok(Arc::new(FakeCommit))
+    }
+
+    fn roi_out(&self, _data: &CommitData, rin: Roi) -> Roi {
+        Roi::new(0, 0, self.width, self.height, rin.scale)
+    }
+
+    fn roi_in(&self, _data: &CommitData, rout: Roi) -> Roi {
+        Roi::new(0, 0, 0, 0, rout.scale)
+    }
+
+    fn process(
+        &self,
+        _data: &CommitData,
+        input: &Plane<'_>,
+        output: &mut PlaneMut<'_>,
+        rin: Roi,
+        rout: Roi,
+    ) -> Result<(), PipeError> {
+        self.probe.record(rin, rout);
+        if input.width() != 0 || input.height() != 0 {
+            return Err(PipeError::RoiMismatch(format!(
+                "source fake input must be empty, got {}x{}",
+                input.width(),
+                input.height()
+            )));
+        }
+        for y in 0..rout.height.max(0).cast_unsigned() {
+            output.row_mut(y)?.fill(3.0);
+        }
+        Ok(())
+    }
+}
+
+/// Commits fine, then fails `process` with a backend error (after recording).
+pub struct FakeBackendFail {
+    desc: ModuleDesc,
+    probe: Arc<Probe>,
+}
+
+impl FakeBackendFail {
+    /// A backend-failing fake behind `id`, reporting to `probe`.
+    pub fn new(id: &'static str, probe: Arc<Probe>) -> Self {
+        Self {
+            desc: desc(id),
+            probe,
+        }
+    }
+}
+
+impl IopModule for FakeBackendFail {
+    fn desc(&self) -> &ModuleDesc {
+        &self.desc
+    }
+
+    fn commit(
+        &self,
+        _params: &Map<String, Value>,
+        _image: &ImageInfo,
+    ) -> Result<CommitData, PipeError> {
+        Ok(Arc::new(FakeCommit))
+    }
+
+    fn process(
+        &self,
+        _data: &CommitData,
+        _input: &Plane<'_>,
+        _output: &mut PlaneMut<'_>,
+        rin: Roi,
+        rout: Roi,
+    ) -> Result<(), PipeError> {
+        self.probe.record(rin, rout);
+        Err(PipeError::Backend(
+            "mod_backendfail always fails".to_owned(),
+        ))
+    }
 }

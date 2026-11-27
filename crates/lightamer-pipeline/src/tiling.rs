@@ -69,7 +69,9 @@ pub enum TilingDecision {
 /// Decides whole-frame vs tiled.
 ///
 /// `frame_bytes` is one full frame (`width * height * bytes-per-pixel`);
-/// `budget_bytes` is this pipe's memory budget. Both regions must be the
+/// `budget_bytes` is this pipe's memory budget;
+/// `singlebuffer_floor` is this pipe's single-tile floor in bytes (see
+/// [`crate::kinds::singlebuffer_floor`]). Both regions must be the
 /// ptp shape (bitwise equal, `tiling.c:1176`); anything else answers
 /// [`TilingDecision::NoTiling`] (see module docs).
 #[must_use]
@@ -79,6 +81,7 @@ pub fn decide(
     roi_out: &GeomRoi,
     frame_bytes: u64,
     budget_bytes: u64,
+    singlebuffer_floor: u64,
 ) -> TilingDecision {
     if roi_in.is_empty() || roi_out.is_empty() {
         return TilingDecision::NoTiling;
@@ -111,10 +114,9 @@ pub fn decide(
     // (tiling.c:613-615); the floor is zero.
     let resident = frame_bytes.saturating_mul(2).saturating_add(req.overhead);
     let available = bytes_f64(budget_bytes.saturating_sub(resident));
-    // Upstream floors this at dt_get_singlebuffer_mem(); B1-a has no global
-    // config, so the quotient stands alone (a zero budget degrades to the
-    // give-up below instead of tiling on the floor).
-    let singlebuffer = available / factor;
+    // Upstream floors this at dt_get_singlebuffer_mem() (tiling.c:613-620);
+    // the caller passes its kind's floor (a zero floor keeps the quotient).
+    let singlebuffer = (available / factor).max(bytes_f64(singlebuffer_floor));
 
     let full_w = i64::from(roi_in.width);
     let full_h = i64::from(roi_in.height);
@@ -390,13 +392,13 @@ mod tests {
         assert_eq!(default.factor, 2.0);
         // Fits: 2 * 160_000 = 320_000 <= 1_000_000.
         assert_eq!(
-            decide(&default, &roi, &roi, frame, 1_000_000),
+            decide(&default, &roi, &roi, frame, 1_000_000, 0),
             TilingDecision::NoTiling
         );
         // Even past the fit check the no-gain gate (factor 2 < 2.2) keeps
         // default requests untiled: 320_000 > 200_000 yet NoTiling.
         assert_eq!(
-            decide(&default, &roi, &roi, frame, 200_000),
+            decide(&default, &roi, &roi, frame, 200_000, 0),
             TilingDecision::NoTiling
         );
     }
@@ -414,7 +416,7 @@ mod tests {
         // tiles_x = ceil(1000 / 500) = 2, tiles_y = 1.
         let roi = geom(0, 0, 1000, 100);
         let frame = 1000 * 100 * BPP;
-        let grid = tiled(decide(&req(5.0, 0, 1), &roi, &roi, frame, 7_200_000)).unwrap();
+        let grid = tiled(decide(&req(5.0, 0, 1), &roi, &roi, frame, 7_200_000, 0)).unwrap();
         assert_eq!((grid.tiles_x, grid.tiles_y), (2, 1));
         assert_eq!(grid.tiles.len(), 2);
         assert_eq!(grid.tiles[0].output, geom(0, 0, 500, 100));
@@ -433,7 +435,7 @@ mod tests {
         // sqrt(0.25) = 0.5: 500x500. tiles 2x2.
         let roi = geom(0, 0, 1000, 1000);
         let frame = 1000 * 1000 * BPP;
-        let grid = tiled(decide(&req(5.0, 0, 1), &roi, &roi, frame, 52_000_000)).unwrap();
+        let grid = tiled(decide(&req(5.0, 0, 1), &roi, &roi, frame, 52_000_000, 0)).unwrap();
         assert_eq!((grid.tiles_x, grid.tiles_y), (2, 2));
         assert_eq!(grid.tiles.len(), 4);
         assert_eq!(grid.tiles[0].output, geom(0, 0, 500, 500));
@@ -452,7 +454,7 @@ mod tests {
         // widths min(496, 1000 - tx * 496): 496, 496, 8.
         let roi = geom(0, 0, 1000, 100);
         let frame = 1000 * 100 * BPP;
-        let grid = tiled(decide(&req(5.0, 0, 16), &roi, &roi, frame, 7_200_000)).unwrap();
+        let grid = tiled(decide(&req(5.0, 0, 16), &roi, &roi, frame, 7_200_000, 0)).unwrap();
         assert_eq!((grid.tiles_x, grid.tiles_y), (3, 1));
         assert_eq!(grid.tiles.len(), 3);
         for tile in &grid.tiles {
@@ -472,7 +474,7 @@ mod tests {
         // tx2: input (968, 32), good (976, 24). 32 > 2 * 8: processed.
         let roi = geom(0, 0, 1000, 100);
         let frame = 1000 * 100 * BPP;
-        let grid = tiled(decide(&req(5.0, 8, 1), &roi, &roi, frame, 7_200_000)).unwrap();
+        let grid = tiled(decide(&req(5.0, 8, 1), &roi, &roi, frame, 7_200_000, 0)).unwrap();
         assert_eq!((grid.tiles_x, grid.tiles_y), (3, 1));
         assert_eq!(grid.tiles.len(), 3);
         assert_eq!(grid.tiles[0].input, geom(0, 0, 500, 100));
@@ -496,7 +498,7 @@ mod tests {
         // (100 - 9 * 9), the rest are full 25.
         let roi = geom(0, 0, 100, 100);
         let frame = 100 * 100 * BPP;
-        let grid = tiled(decide(&req(5.0, 8, 1), &roi, &roi, frame, 370_000)).unwrap();
+        let grid = tiled(decide(&req(5.0, 8, 1), &roi, &roi, frame, 370_000, 0)).unwrap();
         assert_eq!((grid.tiles_x, grid.tiles_y), (12, 12));
         assert_eq!(grid.tiles.len(), 100);
         for tile in &grid.tiles {
@@ -520,7 +522,7 @@ mod tests {
         let roi = geom(0, 0, 1000, 100);
         let frame = 1000 * 100 * BPP;
         assert_eq!(
-            decide(&req(5.0, 0, 1), &roi, &roi, frame, 1_000),
+            decide(&req(5.0, 0, 1), &roi, &roi, frame, 1_000, 0),
             TilingDecision::NoTiling
         );
     }
@@ -532,20 +534,82 @@ mod tests {
         // Shape mismatch: the roi-variant path is B1-b work.
         let other = geom(0, 0, 50, 50);
         assert_eq!(
-            decide(&req(5.0, 0, 1), &roi, &other, frame, 1_000),
+            decide(&req(5.0, 0, 1), &roi, &other, frame, 1_000, 0),
             TilingDecision::NoTiling
         );
         // Scale mismatch counts too (bitwise dispatch, tiling.c:1176).
         let rescaled = GeomRoi::new(0, 0, 100, 100, 0.5).unwrap();
         assert_eq!(
-            decide(&req(5.0, 0, 1), &roi, &rescaled, frame, 1_000),
+            decide(&req(5.0, 0, 1), &roi, &rescaled, frame, 1_000, 0),
             TilingDecision::NoTiling
         );
         // Empty regions have nothing to split.
         let empty = geom(0, 0, 0, 0);
         assert_eq!(
-            decide(&req(5.0, 0, 1), &empty, &empty, 0, 1_000),
+            decide(&req(5.0, 0, 1), &empty, &empty, 0, 1_000, 0),
             TilingDecision::NoTiling
         );
+    }
+
+    #[test]
+    fn floor_below_quotient_changes_nothing() {
+        // Same hand-computed case as `wide_frame_splits_into_two_x_tiles`
+        // (singlebuffer 800_000): a 700_000 floor loses to the quotient.
+        let roi = geom(0, 0, 1000, 100);
+        let frame = 1000 * 100 * BPP;
+        let grid = tiled(decide(
+            &req(5.0, 0, 1),
+            &roi,
+            &roi,
+            frame,
+            7_200_000,
+            700_000,
+        ))
+        .unwrap();
+        assert_eq!((grid.tiles_x, grid.tiles_y), (2, 1));
+        assert_eq!(grid.tiles.len(), 2);
+    }
+
+    #[test]
+    fn floor_above_quotient_grows_the_tile() {
+        // Same case, but the floor (1_200_000) beats the quotient (800_000):
+        // scale = 1_200_000 / 1_600_000 = 0.75, width = floor(1000 * 0.75)
+        // = 750, stride 750, tiles_x = ceil(1000 / 750) = 2 with the last
+        // tile clamped to 250.
+        let roi = geom(0, 0, 1000, 100);
+        let frame = 1000 * 100 * BPP;
+        let grid = tiled(decide(
+            &req(5.0, 0, 1),
+            &roi,
+            &roi,
+            frame,
+            7_200_000,
+            1_200_000,
+        ))
+        .unwrap();
+        assert_eq!((grid.tiles_x, grid.tiles_y), (2, 1));
+        assert_eq!(grid.tiles.len(), 2);
+        assert_eq!(grid.tiles[0].input, geom(0, 0, 750, 100));
+        assert_eq!(grid.tiles[1].input, geom(750, 0, 250, 100));
+    }
+
+    #[test]
+    fn floor_covering_the_frame_yields_one_tile() {
+        // A floor at the full frame size (1_600_000): scale = 1.0, no
+        // shrink, one tile covering the frame.
+        let roi = geom(0, 0, 1000, 100);
+        let frame = 1000 * 100 * BPP;
+        let grid = tiled(decide(
+            &req(5.0, 0, 1),
+            &roi,
+            &roi,
+            frame,
+            7_200_000,
+            1_600_000,
+        ))
+        .unwrap();
+        assert_eq!((grid.tiles_x, grid.tiles_y), (1, 1));
+        assert_eq!(grid.tiles.len(), 1);
+        assert_eq!(grid.tiles[0].input, geom(0, 0, 1000, 100));
     }
 }

@@ -1,0 +1,495 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//! Cache keys and the plane cache.
+//!
+//! Each node's key folds everything its output depends on: the pipe kind, the
+//! input identity, the process version, every upstream node's
+//! position/id/multi/params (chained, so any upstream change re-keys this
+//! node and all below it), and this node's input/output geometry (scales
+//! bitwise). That mirrors darktable's
+//! `_dev_pixelpipe_cache_basichash` + roi fold
+//! (`src/develop/pixelpipe_cache.c:99-184`): image id, pipe type, per-piece
+//! `piece->hash` (op + instance + params, `imageop.c:2562-2595`), folded roi.
+//!
+//! The hash is FNV-1a over a domain tag plus little-endian fields — the same
+//! algorithm history's `hash64` uses, reimplemented here so the pipeline takes
+//! no history dependency for one hash function. Test vectors below pin the
+//! standard outputs.
+
+use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
+
+use serde_json::{Map, Value};
+
+use super::budgeted::SharedFrame;
+use super::chain::{NodeGeometry, PipeNode};
+use super::kinds::PipeKind;
+
+/// FNV-1a offset basis (64-bit).
+const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+
+/// FNV-1a prime (64-bit).
+const FNV_PRIME: u64 = 0x0100_0000_01b3;
+
+/// Domain tag: keeps pipe keys distinct from history hashes even if a byte
+/// stream ever coincided.
+const DOMAIN: &str = "lightamer.pipe.cache.v1";
+
+/// FNV-1a over `bytes` from the offset basis.
+fn fnv1a(bytes: &[u8]) -> u64 {
+    let mut hash = FNV_OFFSET;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+    hash
+}
+
+/// Continues `hash` over `bytes`.
+fn mix(hash: u64, bytes: &[u8]) -> u64 {
+    let mut out = hash;
+    for byte in bytes {
+        out ^= u64::from(*byte);
+        out = out.wrapping_mul(FNV_PRIME);
+    }
+    out
+}
+
+/// Canonical bytes of one instance's parameters: JSON with object keys sorted
+/// at every level, so equal parameters hash equally whatever insertion order
+/// built them. Sorting is done here (not trusted to the map): the workspace
+/// unifies `serde_json` with `preserve_order`, so `Map` keeps insertion order
+/// and a plain `to_string` would key identical parameters differently.
+fn canonical_params(params: &Map<String, Value>) -> String {
+    let mut out = String::new();
+    push_object(params, &mut out);
+    out
+}
+
+/// Appends one JSON value in canonical form (sorted object keys, recursion).
+fn push_value(value: &Value, out: &mut String) {
+    match value {
+        Value::Null => out.push_str("null"),
+        Value::Bool(then) => out.push_str(if *then { "true" } else { "false" }),
+        Value::Number(number) => out.push_str(&number.to_string()),
+        Value::String(text) => out.push_str(&serde_json::to_string(text).unwrap_or_default()),
+        Value::Array(items) => {
+            out.push('[');
+            for (index, item) in items.iter().enumerate() {
+                if index > 0 {
+                    out.push(',');
+                }
+                push_value(item, out);
+            }
+            out.push(']');
+        }
+        Value::Object(map) => push_object(map, out),
+    }
+}
+
+/// Appends one JSON object in canonical form: entries sorted by key.
+fn push_object(map: &Map<String, Value>, out: &mut String) {
+    let mut entries: Vec<(&String, &Value)> = map.iter().collect();
+    entries.sort_by(|left, right| left.0.cmp(right.0));
+    out.push('{');
+    for (index, (key, value)) in entries.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        out.push_str(&serde_json::to_string(key).unwrap_or_default());
+        out.push(':');
+        push_value(value, out);
+    }
+    out.push('}');
+}
+
+/// One pipe kind's key tag.
+fn kind_tag(kind: PipeKind) -> &'static str {
+    match kind {
+        PipeKind::Full => "full",
+        PipeKind::Export => "export",
+        PipeKind::Preview => "preview",
+        PipeKind::Thumbnail => "thumbnail",
+    }
+}
+
+/// Per-node cache keys for a committed render: `keys[i]` folds the render
+/// identity (kind, input id, process version) plus nodes `0..=i`, each with
+/// position, id, multi-instance index, canonical params, and both regions.
+///
+/// The result has one key per node; a shorter geometry slice truncates (the
+/// renderer always passes matching slices, so truncation only guards).
+#[must_use]
+pub fn chain_keys(
+    kind: PipeKind,
+    input_id: u64,
+    process: u32,
+    nodes: &[PipeNode],
+    geos: &[NodeGeometry],
+) -> Vec<u64> {
+    let mut key = fnv1a(DOMAIN.as_bytes());
+    key = mix(key, kind_tag(kind).as_bytes());
+    key = mix(key, &input_id.to_le_bytes());
+    key = mix(key, &process.to_le_bytes());
+    let mut keys = Vec::with_capacity(nodes.len());
+    for (index, (node, geo)) in nodes.iter().zip(geos.iter()).enumerate() {
+        // Fixed-width positions and lengths; saturation only guards platforms
+        // where memory outgrows u64 (impossible in practice).
+        let position = u64::try_from(index).unwrap_or(u64::MAX);
+        key = mix(key, &position.to_le_bytes());
+        let id_len = u64::try_from(node.id.len()).unwrap_or(u64::MAX);
+        key = mix(key, &id_len.to_le_bytes());
+        key = mix(key, node.id.as_bytes());
+        key = mix(key, &node.multi.to_le_bytes());
+        let params = canonical_params(&node.params);
+        let params_len = u64::try_from(params.len()).unwrap_or(u64::MAX);
+        key = mix(key, &params_len.to_le_bytes());
+        key = mix(key, params.as_bytes());
+        for roi in [&geo.input, &geo.output] {
+            key = mix(key, &roi.x.to_le_bytes());
+            key = mix(key, &roi.y.to_le_bytes());
+            key = mix(key, &roi.width.to_le_bytes());
+            key = mix(key, &roi.height.to_le_bytes());
+            key = mix(key, &roi.scale.to_bits().to_le_bytes());
+        }
+        keys.push(key);
+    }
+    keys
+}
+
+/// Least-recently-used plane store, counted in bytes and slots.
+///
+/// Entries hold `Arc<SharedFrame>`: evicting drops the cache's handle, and
+/// the budget bytes return when the last holder anywhere drops. Insertion
+/// evicts the least recently used entries until the new plane fits both caps;
+/// a plane bigger than the byte cap is refused (`false`) and the render that
+/// made it still succeeds uncached.
+#[derive(Debug, Default)]
+pub struct PlaneCache {
+    slots: usize,
+    cap_bytes: u64,
+    bytes: u64,
+    entries: HashMap<u64, Arc<SharedFrame>>,
+    /// Least recently used at the front, most recent at the back.
+    order: VecDeque<u64>,
+}
+
+impl PlaneCache {
+    /// An empty cache holding at most `slots` planes and `cap_bytes` of them.
+    /// A zero slot count disables storing (every insert refuses).
+    #[must_use]
+    pub fn new(slots: u32, cap_bytes: u64) -> Self {
+        Self {
+            slots: usize::try_from(slots).unwrap_or(0),
+            cap_bytes,
+            bytes: 0,
+            entries: HashMap::new(),
+            order: VecDeque::new(),
+        }
+    }
+
+    /// Entries currently held.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Whether no plane is cached.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Bytes currently cached.
+    #[must_use]
+    pub fn bytes(&self) -> u64 {
+        self.bytes
+    }
+
+    /// Looks up `key` without touching recency; the renderer peeks mid-run
+    /// and applies recency only when the run commits, so a cancelled or
+    /// failed run leaves the cache exactly as it found it.
+    #[must_use]
+    pub fn peek(&self, key: u64) -> Option<Arc<SharedFrame>> {
+        self.entries.get(&key).map(Arc::clone)
+    }
+
+    /// Marks `key` most recently used. Unknown keys are ignored.
+    pub fn touch(&mut self, key: u64) {
+        if self.entries.contains_key(&key) {
+            self.order.retain(|held| *held != key);
+            self.order.push_back(key);
+        }
+    }
+
+    /// Stores `plane` under `key`, evicting least-recently-used entries until
+    /// it fits both caps. Re-storing a key replaces the plane and refreshes
+    /// recency. Returns whether the plane is cached (`false` = bigger than
+    /// the byte cap, or a slot-less cache: the caller renders on uncached).
+    pub fn insert(&mut self, key: u64, plane: Arc<SharedFrame>) -> bool {
+        if self.slots == 0 {
+            return false;
+        }
+        let bytes = plane.bytes();
+        if bytes > self.cap_bytes {
+            return false;
+        }
+        if self.entries.contains_key(&key) {
+            self.remove(key);
+        }
+        while self.entries.len() >= self.slots || self.bytes.saturating_add(bytes) > self.cap_bytes
+        {
+            let Some(oldest) = self.order.pop_front() else {
+                break;
+            };
+            self.remove(oldest);
+        }
+        self.bytes += bytes;
+        self.entries.insert(key, plane);
+        self.order.push_back(key);
+        true
+    }
+
+    /// Drops every entry.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+        self.order.clear();
+        self.bytes = 0;
+    }
+
+    /// Removes one entry, returning its bytes to the cache tally (the budget
+    /// bytes follow the entry's last `Arc` holder, not this tally).
+    fn remove(&mut self, key: u64) {
+        if let Some(entry) = self.entries.remove(&key) {
+            self.bytes = self.bytes.saturating_sub(entry.bytes());
+            self.order.retain(|held| *held != key);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
+    use lightamer_geom::Roi as GeomRoi;
+    use lightamer_raster::{FrameExtent, PixelFormat};
+    use lightamer_sysmem::Budget;
+    use serde_json::{Value, json};
+    use std::sync::Arc;
+
+    use super::{DOMAIN, PlaneCache, chain_keys, fnv1a};
+    use crate::PipeNode;
+    use crate::budgeted::{SharedFrame, alloc_shared};
+    use crate::chain::NodeGeometry;
+    use crate::fakes::no_params;
+    use crate::kinds::PipeKind;
+
+    fn node(id: &str) -> PipeNode {
+        PipeNode {
+            id: id.to_owned(),
+            multi: 0,
+            params: no_params(),
+        }
+    }
+
+    fn geo_pair(side: i32) -> NodeGeometry {
+        let roi = GeomRoi::new(0, 0, side, side, 1.0).unwrap();
+        NodeGeometry {
+            input: roi,
+            output: roi,
+        }
+    }
+
+    #[test]
+    fn fnv_vectors_match_the_standard() {
+        assert_eq!(fnv1a(b""), 0xcbf2_9ce4_8422_2325);
+        assert_eq!(fnv1a(b"foobar"), 0x8594_4171_f739_67e8);
+        // The domain tag is folded, so it must be stable too.
+        assert_eq!(fnv1a(DOMAIN.as_bytes()), fnv1a(DOMAIN.as_bytes()));
+    }
+
+    #[test]
+    fn every_key_dimension_flips_the_key() {
+        let nodes = vec![node("mod_a"), node("mod_b")];
+        let geos = vec![geo_pair(8), geo_pair(8)];
+        let base = chain_keys(PipeKind::Full, 7, 1, &nodes, &geos);
+        assert_eq!(base.len(), 2);
+        // Position: identical twins never share a key (position 0 folds
+        // differently from position 1; the cumulative chain already separates
+        // them, the explicit position fold pins it).
+        let twins = vec![node("mod_a"), node("mod_a")];
+        let twin_geos = vec![geo_pair(8), geo_pair(8)];
+        let twin_keys = chain_keys(PipeKind::Full, 7, 1, &twins, &twin_geos);
+        assert_ne!(twin_keys[0], twin_keys[1]);
+        // Kind, input id, process version.
+        assert_ne!(chain_keys(PipeKind::Preview, 7, 1, &nodes, &geos), base);
+        assert_ne!(chain_keys(PipeKind::Full, 8, 1, &nodes, &geos), base);
+        assert_ne!(chain_keys(PipeKind::Full, 7, 2, &nodes, &geos), base);
+        // Second node's own id and multi index.
+        let mut renamed = nodes.clone();
+        renamed[1].id = "mod_c".to_owned();
+        assert_ne!(
+            chain_keys(PipeKind::Full, 7, 1, &renamed, &geos)[1],
+            base[1]
+        );
+        let mut multi = nodes.clone();
+        multi[1].multi = 3;
+        assert_ne!(chain_keys(PipeKind::Full, 7, 1, &multi, &geos)[1], base[1]);
+        // Second node's params (canonical JSON, insertion order irrelevant).
+        let mut changed = nodes.clone();
+        let mut params = no_params();
+        params.insert("gain".to_owned(), json!({"type": "float", "value": 2.0}));
+        changed[1].params = params;
+        assert_ne!(
+            chain_keys(PipeKind::Full, 7, 1, &changed, &geos)[1],
+            base[1]
+        );
+        // Geometry: input region, output region, scale bits.
+        let mut moved = geos.clone();
+        moved[1].output = GeomRoi::new(1, 0, 8, 8, 1.0).unwrap();
+        assert_ne!(chain_keys(PipeKind::Full, 7, 1, &nodes, &moved)[1], base[1]);
+        let mut scaled = geos.clone();
+        scaled[1].input = GeomRoi::new(0, 0, 8, 8, 0.5).unwrap();
+        assert_ne!(
+            chain_keys(PipeKind::Full, 7, 1, &nodes, &scaled)[1],
+            base[1]
+        );
+    }
+
+    #[test]
+    fn upstream_change_rekeys_node_and_downstream_only() {
+        let nodes = vec![node("mod_a"), node("mod_b"), node("mod_c")];
+        let geos = vec![geo_pair(8), geo_pair(8), geo_pair(8)];
+        let base = chain_keys(PipeKind::Full, 7, 1, &nodes, &geos);
+        let mut changed = nodes.clone();
+        let mut params = no_params();
+        params.insert("on".to_owned(), json!({"type": "bool", "value": true}));
+        changed[1].params = params;
+        let next = chain_keys(PipeKind::Full, 7, 1, &changed, &geos);
+        // The chain folds upstream-first: node 0 keeps its key, nodes 1-2 move.
+        assert_eq!(next[0], base[0]);
+        assert_ne!(next[1], base[1]);
+        assert_ne!(next[2], base[2]);
+    }
+
+    #[test]
+    fn params_key_ignores_insertion_order() {
+        let mut first = no_params();
+        first.insert("a".to_owned(), json!({"type": "int", "value": 1}));
+        first.insert("b".to_owned(), json!({"type": "int", "value": 2}));
+        let mut second = no_params();
+        second.insert("b".to_owned(), json!({"type": "int", "value": 2}));
+        second.insert("a".to_owned(), json!({"type": "int", "value": 1}));
+        let nodes_first = vec![PipeNode {
+            id: "mod_a".to_owned(),
+            multi: 0,
+            params: first,
+        }];
+        let nodes_second = vec![PipeNode {
+            id: "mod_a".to_owned(),
+            multi: 0,
+            params: second,
+        }];
+        let geos = vec![geo_pair(8)];
+        assert_eq!(
+            chain_keys(PipeKind::Full, 7, 1, &nodes_first, &geos),
+            chain_keys(PipeKind::Full, 7, 1, &nodes_second, &geos)
+        );
+    }
+
+    #[test]
+    fn nested_params_key_ignores_insertion_order() {
+        // Nested objects are `Map`s too (insertion-ordered under the
+        // workspace's `preserve_order`): canonical form sorts every level.
+        let mut inner_first = no_params();
+        inner_first.insert("x".to_owned(), json!(1));
+        inner_first.insert("y".to_owned(), json!(2));
+        let mut inner_second = no_params();
+        inner_second.insert("y".to_owned(), json!(2));
+        inner_second.insert("x".to_owned(), json!(1));
+        let mut first = no_params();
+        first.insert(
+            "cell".to_owned(),
+            json!({"type": "floats", "value": [1.0, 2.0]}),
+        );
+        first.insert("nested".to_owned(), Value::Object(inner_first));
+        let mut second = no_params();
+        second.insert("nested".to_owned(), Value::Object(inner_second));
+        second.insert(
+            "cell".to_owned(),
+            json!({"type": "floats", "value": [1.0, 2.0]}),
+        );
+        let nodes_first = vec![PipeNode {
+            id: "mod_a".to_owned(),
+            multi: 0,
+            params: first,
+        }];
+        let nodes_second = vec![PipeNode {
+            id: "mod_a".to_owned(),
+            multi: 0,
+            params: second,
+        }];
+        let geos = vec![geo_pair(8)];
+        assert_eq!(
+            chain_keys(PipeKind::Full, 7, 1, &nodes_first, &geos),
+            chain_keys(PipeKind::Full, 7, 1, &nodes_second, &geos)
+        );
+    }
+
+    fn cached_plane(budget: &Arc<Budget>, side: u32) -> Arc<SharedFrame> {
+        Arc::new(
+            alloc_shared(
+                budget,
+                FrameExtent::new(0, 0, side, side),
+                PixelFormat::RgbaF32Premul,
+            )
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn insert_evicts_least_recently_used_by_bytes() {
+        let budget = Arc::new(Budget::new(10_000_000));
+        // Two 8x8 planes (1024 bytes each) fit 2048; the third evicts key 1.
+        let mut cache = PlaneCache::new(8, 2_048);
+        assert!(cache.insert(1, cached_plane(&budget, 8)));
+        assert!(cache.insert(2, cached_plane(&budget, 8)));
+        assert_eq!(cache.bytes(), 2_048);
+        assert!(cache.insert(3, cached_plane(&budget, 8)));
+        assert_eq!(cache.len(), 2);
+        assert!(cache.peek(1).is_none());
+        assert!(cache.peek(2).is_some());
+        assert!(cache.peek(3).is_some());
+        // Touching key 2 makes key 3 the victim next.
+        cache.touch(2);
+        assert!(cache.insert(4, cached_plane(&budget, 8)));
+        assert!(cache.peek(2).is_some());
+        assert!(cache.peek(3).is_none());
+        assert!(cache.peek(4).is_some());
+    }
+
+    #[test]
+    fn oversized_plane_is_refused_and_slot_cap_binds() {
+        let budget = Arc::new(Budget::new(10_000_000));
+        let mut cache = PlaneCache::new(8, 1_000);
+        assert!(!cache.insert(1, cached_plane(&budget, 8)));
+        assert!(cache.is_empty());
+        // Slots bind before bytes: one slot keeps only the newest plane.
+        let mut cache = PlaneCache::new(1, 10_000_000);
+        assert!(cache.insert(1, cached_plane(&budget, 8)));
+        assert!(cache.insert(2, cached_plane(&budget, 8)));
+        assert_eq!(cache.len(), 1);
+        assert!(cache.peek(2).is_some());
+    }
+
+    #[test]
+    fn eviction_returns_budget_when_cache_holds_last_arc() {
+        let budget = Arc::new(Budget::new(10_000_000));
+        let mut cache = PlaneCache::new(1, 10_000_000);
+        assert!(cache.insert(1, cached_plane(&budget, 8)));
+        assert_eq!(budget.used(), 1_024);
+        assert!(cache.insert(2, cached_plane(&budget, 8)));
+        // Key 1's plane had no other holder: its bytes are back.
+        assert_eq!(budget.used(), 1_024);
+        cache.clear();
+        assert_eq!(budget.used(), 0);
+    }
+}

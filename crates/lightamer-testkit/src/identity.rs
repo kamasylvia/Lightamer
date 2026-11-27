@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use lightamer_iop_traits::{
     CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, Plane, PlaneMut, Roi,
+    par_map_rows,
 };
 use serde_json::{Map, Value};
 
@@ -86,19 +87,26 @@ impl IopModule for IdentityModule {
                 output.height()
             )));
         }
-        for y in 0..rout.height.max(0).cast_unsigned() {
-            let src = input.row(y)?;
-            let dst = output.row_mut(y)?;
-            if src.len() != dst.len() {
-                return Err(PipeError::RoiMismatch(format!(
-                    "identity row {y} lengths differ: {} vs {}",
-                    src.len(),
-                    dst.len()
-                )));
-            }
-            dst.copy_from_slice(src);
-        }
-        Ok(())
+        let rows = usize::try_from(rout.height.max(0)).map_err(|_| {
+            PipeError::RoiMismatch(format!("identity height {} overflows", rout.height))
+        })?;
+        let row_len = usize::try_from(input.width())
+            .ok()
+            .and_then(|w| w.checked_mul(4))
+            .ok_or_else(|| {
+                PipeError::RoiMismatch(format!("identity width {} overflows", input.width()))
+            })?;
+        let src_stride = input.stride();
+        let dst_stride = output.stride();
+        par_map_rows(
+            input.as_slice(),
+            output.as_mut_slice(),
+            rows,
+            src_stride,
+            dst_stride,
+            row_len,
+            |src, dst| dst.copy_from_slice(src),
+        )
     }
 }
 

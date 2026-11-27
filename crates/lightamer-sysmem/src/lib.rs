@@ -15,7 +15,7 @@
 )]
 
 use std::fmt;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 /// Byte budget with a hard cap, shared across threads.
 #[derive(Debug)]
@@ -33,6 +33,17 @@ pub struct Budget {
 #[derive(Debug)]
 pub struct Grant<'a> {
     budget: &'a Budget,
+    bytes: u64,
+}
+/// Proof that `bytes` were charged against a shared [`Budget`].
+///
+/// Same promise as [`Grant`], but the budget travels as an [`Arc`] instead
+/// of a borrow: a cached plane and a returned frame can each hold bytes past
+/// the call that charged them, and the last dropped grant returns the bytes.
+/// The pipeline pairs one of these with every frame it owns.
+#[derive(Debug)]
+pub struct SharedGrant {
+    budget: Arc<Budget>,
     bytes: u64,
 }
 
@@ -102,7 +113,36 @@ impl Budget {
     /// [`BudgetError`] when `bytes` past the used total would exceed the cap
     /// (or overflow `u64`, which is treated the same way: ungrantable).
     pub fn acquire(&self, bytes: u64) -> Result<Grant<'_>, BudgetError> {
-        let mut used = self
+        let mut used = self.charge(bytes)?;
+        *used += bytes;
+        Ok(Grant {
+            budget: self,
+            bytes,
+        })
+    }
+
+    /// Charges `bytes` against a shared budget, returning an owned grant.
+    ///
+    /// Same accounting as [`Budget::acquire`]; the grant holds an [`Arc`] to
+    /// the budget so it can outlive the call that charged it. Dropping the
+    /// last grant for charged bytes returns them.
+    ///
+    /// # Errors
+    ///
+    /// [`BudgetError`] under the same condition as [`Budget::acquire`].
+    pub fn acquire_shared(self: &Arc<Self>, bytes: u64) -> Result<SharedGrant, BudgetError> {
+        let mut used = self.charge(bytes)?;
+        *used += bytes;
+        Ok(SharedGrant {
+            budget: Arc::clone(self),
+            bytes,
+        })
+    }
+
+    /// Locks the used counter and refuses `bytes` past the cap. The caller
+    /// adds `bytes` to the returned guard while still holding the lock.
+    fn charge(&self, bytes: u64) -> Result<std::sync::MutexGuard<'_, u64>, BudgetError> {
+        let used = self
             .used
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -114,11 +154,7 @@ impl Budget {
                 cap: self.cap,
             });
         }
-        *used += bytes;
-        Ok(Grant {
-            budget: self,
-            bytes,
-        })
+        Ok(used)
     }
 
     /// Returns `bytes` to the budget; saturates rather than underflowing.
@@ -140,6 +176,20 @@ impl Grant<'_> {
 }
 
 impl Drop for Grant<'_> {
+    fn drop(&mut self) {
+        self.budget.release(self.bytes);
+    }
+}
+
+impl SharedGrant {
+    /// Bytes this grant holds.
+    #[must_use]
+    pub fn bytes(&self) -> u64 {
+        self.bytes
+    }
+}
+
+impl Drop for SharedGrant {
     fn drop(&mut self) {
         self.budget.release(self.bytes);
     }
@@ -217,5 +267,38 @@ mod tests {
             }
         });
         assert_eq!(budget.used(), 0);
+    }
+
+    #[test]
+    fn shared_grant_outlives_its_call_and_returns_on_drop() {
+        use std::sync::Arc;
+        let budget = Arc::new(Budget::new(100));
+        let grant = budget.acquire_shared(60).unwrap();
+        assert_eq!(grant.bytes(), 60);
+        assert_eq!(budget.used(), 60);
+        // The grant owns its budget link: the bytes stay charged while the
+        // grant lives, whatever happens to other handles to the budget.
+        let again = Arc::clone(&budget);
+        drop(budget);
+        assert_eq!(again.used(), 60);
+        drop(grant);
+        assert_eq!(again.used(), 0);
+    }
+
+    #[test]
+    fn shared_acquire_past_cap_reports_same_numbers() {
+        use std::sync::Arc;
+        let budget = Arc::new(Budget::new(100));
+        let _first = budget.acquire_shared(60).unwrap();
+        let err = budget.acquire_shared(41).unwrap_err();
+        assert_eq!(
+            err,
+            BudgetError {
+                requested_total: 101,
+                remaining: 40,
+                cap: 100
+            }
+        );
+        assert_eq!(budget.used(), 60);
     }
 }

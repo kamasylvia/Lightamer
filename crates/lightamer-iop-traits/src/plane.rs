@@ -68,6 +68,12 @@ impl<'a> Plane<'a> {
         self.stride
     }
 
+    /// Whole borrowed buffer (all rows, gaps included).
+    #[must_use]
+    pub const fn as_slice(&self) -> &[f32] {
+        self.data
+    }
+
     /// Row `y`, exactly `width * 4` floats.
     ///
     /// # Errors
@@ -125,6 +131,11 @@ impl<'a> PlaneMut<'a> {
     #[must_use]
     pub const fn stride(&self) -> usize {
         self.stride
+    }
+
+    /// Whole borrowed buffer, writable (all rows, gaps included).
+    pub fn as_mut_slice(&mut self) -> &mut [f32] {
+        self.data
     }
 
     /// Row `y`, writable, exactly `width * 4` floats.

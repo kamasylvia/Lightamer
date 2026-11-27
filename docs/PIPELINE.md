@@ -1,8 +1,8 @@
-# PIPELINE — 管线地基（B1-a）
+# PIPELINE — 管线内核（B1-a 地基 + B1-b 执行）
 
 B1-a 落的是管线内核的地基：画面与区域的数据类型、模块接口、几何链、
-格式协商、分块决策。执行（缓存、并行、分块执行、渲染作业）是 B1-b；
-渲染作业接引擎是 B1-c。
+格式协商、分块决策。B1-b 落的是执行：渲染入口、缓存、按行并行、分块
+执行、单块下限、按物理内存推导的配额。渲染作业接引擎是 B1-c。
 
 darktable 源码引用皆指 `refs/dt-master @ 679d594f5d`（只读上游）。
 规则是读源码移植的，代码没有抄一行 C。
@@ -146,8 +146,9 @@ L0 不许跨 crate 依赖，trait 要用的类型只能和 trait 住一起。
    （`dt_tiling_piece_fits_host_memory`，`:1923-1933`）。
 2. 无增益门：`factor < 2.2` 且开销小则不分块（`:599-610`）。
 3. 可用 = 预算 − 输入整帧 − 输出整帧 − 开销，下限零（`:613-615`）；
-   单块 = 可用 / factor（上游还和 `dt_get_singlebuffer_mem()` 取大，
-   B1-a 无全局配置，不取——零预算退化成下面的放弃一路）。
+   单块 = max(可用 / factor, 单块下限)（上游和 `dt_get_singlebuffer_mem()`
+   取大，`:613-620`；B1-b 起 `decide` 收一个下限参数，调用方按实例给，
+   见「四种管线实例」；传零即 B1-a 行为）。
 4. 收缩：超单块则按 `scale` 缩（宽小于高且 `scale >= 0.333` 缩高，
    高小于等于宽且 `scale >= 0.333` 缩宽，否则两边缩 `sqrt(scale)`，
    一律 `floor`，`:629-646`；阈值是上游字面量 `0.333f`（`:634,638`），
@@ -164,7 +165,7 @@ L0 不许跨 crate 依赖，trait 要用的类型只能和 trait 住一起。
 
 分发照 `:1176`（roi 按位相等才走 ptp；`TILING_FULL_ROI` 那半暂无）。
 形状对不上的回答 `NoTiling`：roi 变体路（迭代拟合 `:527-567` + 单纯形
-`:496-525`）要模块回调进循环，随 B1-b 的执行一起落地。
+`:496-525`）要模块回调进循环，仍在后面（B1-b 只执行 ptp 网格）。
 
 ## 四种管线实例
 
@@ -172,21 +173,92 @@ L0 不许跨 crate 依赖，trait 要用的类型只能和 trait 住一起。
 （`dt_dev_pixelpipe_type_t`，`src/develop/pixelpipe.h:42-63`），
 B1 立四种（第二个预览管线暂无对应）：
 `Full`（完整分辨率）、`Export`（导出）、`Preview`（预览）、
-`Thumbnail`（缩略图）。`quota()` 给每种三份配额——
-内存预算、单块上限、缓存槽位数。**初值，B1-b 实测后再调**：
+`Thumbnail`（缩略图）。B1-a 那张常量表（`quota()`）自 B1-b 起只作上限；
+活预算按物理内存推导（`quota_for(kind, total)`）：
+每种取物理内存的固定分成（Full/Export 各 16%、Preview 5%、
+Thumbnail 3%，合计 40%），钳进[下限，上限]（下限 Full/Export
+512 MiB、Preview 256 MiB、Thumbnail 128 MiB，上限即 B1-a 表）；
+四份钳完若超 40% 池（只发生在下限都放不下的小机器上），按比例压回池内。
+分成照 darktable `default` 资源档（`src/common/darktable.c:2334-2339`
+的 512/1024，`resourcelevel` 默认 `default`，见
+`data/darktableconfig.xml.in`），收紧到 40%（16 GiB 开发机上是
+6.4 GiB，看门狗 9 GB 线之下）；Thumbnail 的 3% 对应上游整管 `/3`
+（`dt_get_available_pipe_mem`，`pixelpipe_hb.c:359-376`）。
 
-| 实例 | 内存预算 | 单块上限 | 缓存槽位 |
-|---|---|---|---|
-| Full | 4 GiB | 256 MiB | 8 |
-| Export | 4 GiB | 256 MiB | 4 |
-| Preview | 1 GiB | 64 MiB | 4 |
-| Thumbnail | 512 MiB | 16 MiB | 2 |
+16 GiB 机器上的值：Full/Export 各 2,748,779,069 B（2.56 GiB）、
+Preview 858,993,459 B（0.8 GiB）、Thumbnail 515,396,075 B（0.48 GiB），
+合计 6,871,947,672 B（6.4 GiB）。
+
+单块下限（`singlebuffer_floor(kind, total)`）：Full/Export 取
+max(2 MiB, 物理/128)（与上游 `default` 档的 `dt_get_singlebuffer_mem()`
+逐字相同，`darktable.c:3081-3091`），Preview 取 max(2 MiB, 物理/256)、
+Thumbnail 取 max(2 MiB, 物理/512)（帧小，下限逐级减半，否则单块比帧还大）。
+16 GiB 上四份是 128/128/64/32 MiB。
+
+`max_tile_bytes` 与 `cache_slots` 沿用 B1-a 表（Full/Export 256 MiB，
+Preview 64 MiB，Thumbnail 16 MiB；槽位 8/4/4/2）：
+
+| 实例 | 预算上限 | 下限 | 分成 | 单块上限 | 缓存槽位 |
+|---|---|---|---|---|---|
+| Full | 4 GiB | 512 MiB | 16% | 256 MiB | 8 |
+| Export | 4 GiB | 512 MiB | 16% | 256 MiB | 4 |
+| Preview | 1 GiB | 256 MiB | 5% | 64 MiB | 4 |
+| Thumbnail | 512 MiB | 128 MiB | 3% | 16 MiB | 2 |
 
 （darktable 那边 Full 缓存 64 行、Preview 12 行，计的是行不是面，
 数字不可比，只借「同构不同配额」的形状。）
 
+## 执行（B1-b）
+
+`lightamer-pipeline::render`。`Pipe` 是一种实例一台：持有预算（`Arc<Budget>`）
+和画面缓存（`PlaneCache`）。`render` 是同步调用，调用方给执行序节点、
+模块来源、输入画面与图像信息、输入标识（u64，解码结果换了它就变）、
+处理版本号（u32 明文，管线不依赖历史模型的类型）、想要的输出区域、
+取消检查（`&dyn Fn() -> bool`）；交出输出画面（`OutputFrame`）或分了类型的
+错误（`RenderError` 七种：链/几何、格式缺口、节点、预算、画面、输入、取消）。
+
+次序照 `_dev_pixelpipe_process_rec`（`pixelpipe_hb.c:2323-2480` 的缓存优先
+加 `:2575-2600` 的推区域/递归/执行），去掉没有的步骤（无解码腿、无色彩
+变换、无 OpenCL/混合/蒙版/直方图）：建图并提交 → 前推几何（反推核对）→
+格式协商（有变换步骤即报 `ColorGap`，点名起止空间；变换本身在 B5）→
+逐节点：查缓存（命中复用，不调 `process`、不重分配）→ 未命中则分块决策 →
+不分块：分配输出画面调一次 `process`；分块：逐块从上游画面取出含重叠的
+输入调 `process`，好块写回 → 全程成功才提交缓存写入。
+
+分块执行照 `_default_process_tiling_ptp`（`tiling.c:690-806`）：一对可复用的
+输入/输出暂存（按最大块分配，充电到预算上）；每块绝对坐标的 `iroi`/`oroi`
+（`:740-741`）；只把好块（裁掉前侧重叠）拷回（`:780-790`）。帧边截掉的
+重叠由网格 builder 钳掉（B1-a 已定），执行侧按 `view` containment 拷贝。
+与上游的两处偏离：块与块之间串行（块级并行不做）；暂存分配失败是分了类型
+的预算错误（上游回落不分块加一条日志，我方确定性优先）。
+
+缓存键（`cache::chain_keys`）是链式的 FNV-1a：域名标签 +
+实例种类 ＋ 输入标识 ＋ 处理版本号 ＋ 逐节点（链位置、模块标识、多实例
+下标、参数规范 JSON、输入/输出区域，缩放按位）。算法与历史模型的 `hash64`
+同为 FNV-1a（`settings.rs:492`），在这个 crate 里另算一份，不添依赖；
+标准向量（空串、`foobar`）钉死。形状照上游 `_dev_pixelpipe_cache_basichash`
+加区域折叠（`pixelpipe_cache.c:99-184`：图像 id、管线类型、逐 piece 的
+`piece->hash` 即操作名＋实例＋参数 `imageop.c:2562-2595`）。同样的请求第二
+次零 `process`；改一个参数只重算它及下游（上游键不变）；实例、处理版本号、
+输入标识任一不同即互不命中。
+
+预算跟着画面走：每幅画面配一份 `SharedGrant`（`sysmem` 新增的 `Arc` 授权；
+借用式 `Grant` 原样保留），画面包在 `Arc<SharedFrame>` 里，缓存条目和返回
+的输出各持一份，**最后一个持有者放手预算才回来**，不靠调用者守纪律。
+缓存按字节与槽位双重准入（字节上限 = 预算的一半，给下一趟的工作集留地方），
+淘汰按最久没用；放不下的平面跳过缓存，渲染照常成功。取消与出错不写缓存
+（连命中触达都只在成功提交时应用），临时的画面随栈帧放掉，预算全数归还。
+
+取消在每个节点前、每块前各查一次；已置的取消在入口即拦。空输入区域的节点
+照常调 `process`（输入是空平面）。空链是拷贝（输入须已在想要的区域）。
+
+按行并行（`lightamer-iop-traits::parallel::par_map_rows`，rayon）：给模块作者
+的小工具，按行切块并行跑闭包，写面天然不交叠，与串行逐位相同。恒等模块用
+它来抄；分块之间串行。
+
 ## 测试模块
 
 `lightamer-testkit::IdentityModule`（id `test_identity`）：
-默认 roi 对和默认分块，`process` 把输入逐行抄到输出。
-只许作开发依赖（分层检查钉死）。B1-b/B1-c 继续用它。
+默认 roi 对和默认分块，`process` 把输入逐行抄到输出（B1-b 起走
+`par_map_rows` 并行抄，与串行逐位相同）。
+只许作开发依赖（分层检查钉死）。B1-c 继续用它。

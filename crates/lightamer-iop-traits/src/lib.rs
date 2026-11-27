@@ -30,6 +30,7 @@
 mod error;
 mod image;
 mod module;
+mod parallel;
 mod params;
 mod plane;
 mod roi;
@@ -38,6 +39,7 @@ mod tiling;
 pub use error::PipeError;
 pub use image::ImageInfo;
 pub use module::{CommitData, IopModule, SharedModule};
+pub use parallel::par_map_rows;
 pub use params::{get_bool, get_float, get_floats, get_int, get_text};
 pub use plane::{Plane, PlaneMut};
 pub use roi::Roi;

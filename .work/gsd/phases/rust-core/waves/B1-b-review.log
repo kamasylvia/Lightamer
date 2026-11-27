@@ -1,0 +1,41 @@
+Working...
+**PASS / 2 error + 4 minor**
+
+HEAD `f040c281`（父 `553aff52`）只读复审。全程 `-j6`、无 caffeinate、无 Swift 构建、无图形程序；每次重活前 `Scripts/machine-guard.sh` 均为 PASS（heavy=0）。代码零错行为；两 error 均为可快速修的漏验＋文档错数。
+
+## 亲跑验收（与报告 §9 逐项对，全对）
+
+| # | 项 | 复测值 | 报告值 |
+|---|---|---|---|
+| 1 | 六 crate | pipeline 69+1ign / raster 9 / sysmem 7 / iop-traits 19 / geom 11 / testkit 6+1doc | 一致 |
+| 2 | 全工作区 | 509 通过 0 失败，83 二进制全 ok | 一致（基线 460 未独立重跑：需 checkout，违只读纪律；但增量 +49 已用 `git grep -c "#\[test\]"` 逐 crate 对账闭合：pipeline +44fn=43跑+1忽略、iop-traits +4、sysmem +2） |
+| 3 | 治理四件 | layers OK 29 / names OK 97,4roots / boundary ALL GREEN / licenses 852/1/0/853 | 一致 |
+| 4 | lint/fmt/文档 | clippy 六开关 exit 0 / fmt exit 0 / `RUSTDOCFLAGS="-D warnings" cargo doc` exit 0 | 一致 |
+| 5 | 封存面 | `git diff --stat 553aff52 HEAD -- …` 无输出 | 一致 |
+| 6 | 提交面 | 18 文件全在允许路径（六 crate 内 15＋lock＋PIPELINE＋README；报告/复审日志尚未 amend） | 路径一致，计数措辞见 M2 |
+| 7 | 空转发行版 | miss **28.0ms** / hit 0.002ms / peak 1840MB / `load1=2.63 ncpu=10 guard_ok=true` | miss 27.5ms（1.8% 波动，门 200ms 下余量七倍；peak 与负载行一致） |
+
+## 深审（源码逐行＋上游逐行对）
+
+- **dt 抽查三条全对**（refs `dt-master @679d594f5d` 已验 rev）：① `run_tiled` 对 `tiling.c:690-806`：暂存对 `:695-711`、iroi/oroi 绝对坐标对 `:740-741`、好块只裁前侧对 `:779-790`、暂存失败上游 `error→fallback` 回落日志对 `:808-818`（报告 §4 偏离记录属实）；② 缓存键对 `pixelpipe_cache.c:99-181`（imgid/type/逐 piece hash＋roi 折叠）＋`imageop.c:2568-2570`（op＋instance＋params）＋`_get_by_hash` 尺寸失配失效 `:270-280`（我方 extent 复核同款）；③ 内存对 `pixelpipe_hb.c:359-376`（granted−cachemem、thumbnail /3）、`darktable.c:2334`（default 512/1024）、`:3081-3090`（MAX(2M,total/128)）、config `resourcelevel` 默认 `default`。附带核 `pixelpipe_hb.c:2323/2595` 缓存优先＋递归、`settings.rs:492` hash64，引用行号全准。
+- **调用计数真探针**：`Probe::record` 在 `FakeCopy/FakeGain::process` 入口（`fakes.rs:502,552`）；`param_change…` 断言 `(1,2,2)`（`render.rs:1093-1096`）；`upstream_hit…` 用 `Arc::ptr_eq`（`:1130`）。
+- **缓存键九维全找到折叠点**（`cache.rs:129-154`）：kind `:130`、input_id `:131`、process `:132`、position `:138`、id＋len `:139-141`、multi `:142`、params `:143-146`、上游链（累积 key）、几何 in/out×5 `:147-153`；`foobar` 独立 Python 验算 `0x85944171f73967e8` 一致。
+- **取消与错误**：入口＋每节点＋每块三处 cancel（`render.rs:268,296,543`）；缓存唯一成功路径提交点（touch `:336-338`＋逆序 insert `:343-346`），取消/错误早返零触达；全部 cancel/error 测试断言 `used==0`＋`cache_len==0`；`SharedGrant::drop` 归还（sysmem）、lint 禁 panic/unwrap/expect、零 `mem::forget`，无泄漏路径。
+- **decide 加参**：11 处旧调用全加 `, 0)`（diff `-` 行仅 decide 调用＋签名/注释/单行逻辑，期望零动）；唯一生产调用 `render.rs:318` 传 `self.floor`，`Pipe::new` 接 `singlebuffer_floor`（`:203-210`）。
+- **配额手算**：16GiB 四值 2748779069/2748779069/858993459/515396075、合计 6871947672 ≤ pool 6871947673（无缩放，与测试钉死值逐位合）；1TiB 全钳上限（和 9.5GiB＜pool）；512MiB 压回 pool、全正有序；total=0 全零无除零；u128 无溢出；钳制方向（下限让路、池不让）与代码 `:110-120` 一致；下限 128/128/64/32MiB✓。`SHRINK_BRANCH=0.333` 使 §4（scale 0.131→sqrt→23）与 §6（scale 0.75→线性→750）两套手算各自成立，已对 `settle_tile_size` 确认分支。
+
+## Findings
+
+**E1（漏验）：`RenderError::Frame` 零触发测试，报告 §1“每种一例”失实。** 证据：8 个 `error_*` 测试只覆盖 Chain×4/ColorGap/Node/OutOfBudget/InputMismatch＋2 cancel；`grep RenderError::Frame render.rs` 测试区零断言。复现：`grep -n "RenderError::Frame" crates/lightamer-pipeline/src/render.rs`（仅生产行）。修法：加一例——恒等链 `final_out=geom(0,0,i32::MAX,i32::MAX)` 使 `plane_bytes` 上溢（`render.rs:403-408`，在 `check_input` 之前触发），断言 `Frame`＋人话＋`used==0`＋`cache_len==0`；或报告改措辞。
+
+**E2（错数）：`docs/PIPELINE.md` 配额表 Preview 下限 `64 MiB` 错，应 `256 MiB`。** 证据：`kinds.rs:166`（`floor_for` Preview=256MiB）及同节正文“Preview 256 MiB”；表内值系从“单块上限”列误抄。复现：`git diff 553aff52 HEAD -- docs/PIPELINE.md` 表格行。修法：改表一格。
+
+**M1（报告措辞）：** REPORT §1“render.rs +27 测试，含 1 计时”→ 实际 28 个 `#[test]`（27 跑＋1 ignored；render.rs 系新文件，`git cat-file -e 553aff52:…render.rs` 不存在）。§9 的“+43，另 1 ignored”正确，以 §9 为准。
+
+**M2（报告措辞）：** REPORT §9“六 crate 内 14”→ 实际 15（iop-traits 4＋pipeline 9＋sysmem 1＋testkit 1）；“14＋…＋报告/复审日志＝18”算术自洽也不成立（应 19，amend 后 20）。
+
+**M3（测试命名精度）：** `every_key_dimension_flips_the_key`（`cache.rs:310`）未翻转 position 维（折叠点 `:137-138` 有实现无用例）。
+
+**M4（建议补测）：** “取消/出错缓存逐字节不动”现有用例全系空缓存起步（fresh pipe 断言 len 0）；暖缓存＋取消/错误保持原样无用例。结构保证强（唯一提交点 `:336-346`），建议补一例暖缓存取消。
+
+未验项：基线 460（只读禁 checkout，增量已对账闭合）；`rust-session-demo.sh`/`rust-history-demo.sh`/`rust-ci-lite.sh` 三演示脚本（任务书未列）；非 macOS 编译（与报告 §13 同口径）。风险：无—— findings 全系测试缺口与文字错数，无行为风险。

@@ -11,3 +11,4 @@ workspace = true
 
 [dependencies]
 serde_json = { version = "1" }
+rayon = { version = "1" }

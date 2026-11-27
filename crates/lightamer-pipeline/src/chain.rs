@@ -256,7 +256,7 @@ pub fn backward_check(
 }
 
 /// Geometry to the wire shape modules speak.
-fn to_wire(roi: &GeomRoi) -> WireRoi {
+pub(crate) fn to_wire(roi: &GeomRoi) -> WireRoi {
     WireRoi::new(roi.x, roi.y, roi.width, roi.height, roi.scale)
 }
 
