@@ -1657,6 +1657,7 @@ mod tests {
             params: &serde_json::Map<String, serde_json::Value>,
             _image: &ImageInfo,
             _state: &mut PipeState,
+            _kind: PipeKind,
         ) -> Result<CommitData, PipeError> {
             #[expect(clippy::cast_possible_truncation)]
             // test gains are small; the downcast cannot lose them
@@ -1729,6 +1730,7 @@ mod tests {
             _params: &serde_json::Map<String, serde_json::Value>,
             _image: &ImageInfo,
             _state: &mut PipeState,
+            _kind: PipeKind,
         ) -> Result<CommitData, PipeError> {
             Ok(Arc::new(TestBlurCommit))
         }
@@ -1839,6 +1841,7 @@ mod tests {
             _params: &serde_json::Map<String, serde_json::Value>,
             _image: &ImageInfo,
             _state: &mut PipeState,
+            _kind: PipeKind,
         ) -> Result<CommitData, PipeError> {
             Ok(Arc::new(TestStatsCommit))
         }

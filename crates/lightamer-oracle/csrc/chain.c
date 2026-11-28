@@ -7,6 +7,7 @@
 #include "oracle_abi.h"
 
 #include "dt_shim.h"
+#include "pipe_type_enum.inc"
 
 #include <stdlib.h>
 #include <string.h>
@@ -47,6 +48,26 @@ void modify_roi_in(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
                    const dt_iop_roi_t *const roi_out, dt_iop_roi_t *roi_in);
 size_t oracle_rawprepare_params_size(void);
 
+// --- hotpixels row (renamed in hotpixels_tu.c: upstream callback names
+// collide across modules, so the TU macro-renames them before the verbatim
+// includes; the roi pair is glue — hotpixels implements none and inherits
+// upstream's identity defaults) ---
+void hotpixels_init_pipe(dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe,
+                         dt_dev_pixelpipe_iop_t *piece);
+void hotpixels_cleanup_pipe(dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe,
+                            dt_dev_pixelpipe_iop_t *piece);
+void hotpixels_reload_defaults(dt_iop_module_t *self);
+void hotpixels_commit_params(dt_iop_module_t *self, dt_iop_params_t *params,
+                             dt_dev_pixelpipe_t *pipe, dt_dev_pixelpipe_iop_t *piece);
+void hotpixels_process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
+                       const void *const ivoid, void *const ovoid,
+                       const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out);
+void hotpixels_modify_roi_out(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
+                              dt_iop_roi_t *roi_out, const dt_iop_roi_t *const roi_in);
+void hotpixels_modify_roi_in(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
+                             const dt_iop_roi_t *const roi_out, dt_iop_roi_t *roi_in);
+size_t oracle_hotpixels_params_size(void);
+
 // rawprepare always emits mono float (the u16 leg converts on the way out).
 static void rawprepare_output_dsc(unsigned int *channels, dt_iop_buffer_type_t *datatype)
 {
@@ -54,9 +75,33 @@ static void rawprepare_output_dsc(unsigned int *channels, dt_iop_buffer_type_t *
   *datatype = TYPE_FLOAT;
 }
 
+// hotpixels leaves the descriptor alone (its process never writes dsc).
+static void hotpixels_output_dsc(unsigned int *channels, dt_iop_buffer_type_t *datatype)
+{
+  (void)channels;
+  (void)datatype;
+}
+
+// Colorspace gate for dt_dev_prepare_piece_cfa: hotpixels answers RAW on
+// both callbacks upstream (default_colorspace returns IOP_CS_RAW, input
+// falls back to it), so the per-piece CFA always derives there; rawprepare
+// reads neither piece->filters nor piece->xtrans (verified: no reference in
+// its fragments), so deriving for it too is unobservable.
+static int oracle_raw_colorspace(dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe,
+                                 dt_dev_pixelpipe_iop_t *piece)
+{
+  (void)self;
+  (void)pipe;
+  (void)piece;
+  return IOP_CS_RAW;
+}
+
 static const oracle_vtab_t MODULES[] = {
   { "rawprepare", oracle_rawprepare_params_size, init_pipe, cleanup_pipe, reload_defaults,
     commit_params, process, modify_roi_out, modify_roi_in, rawprepare_output_dsc },
+  { "hotpixels", oracle_hotpixels_params_size, hotpixels_init_pipe, hotpixels_cleanup_pipe,
+    hotpixels_reload_defaults, hotpixels_commit_params, hotpixels_process,
+    hotpixels_modify_roi_out, hotpixels_modify_roi_in, hotpixels_output_dsc },
   { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL },
 };
 
@@ -218,7 +263,7 @@ typedef struct oracle_stage
 int oracle_run(const char **names, const void **params_list, int count,
                const oracle_facts *facts, const void *input, int input_is_u16,
                const oracle_roi *rin, void *output, const oracle_roi *rout,
-               oracle_state_out *state)
+               oracle_state_out *state, int pipe_type, int planes)
 {
   if(count <= 0) return 1;
   oracle_stage_t *stages = calloc((size_t)count, sizeof(*stages));
@@ -242,6 +287,7 @@ int oracle_run(const char **names, const void **params_list, int count,
   fill_image(&dev.image_storage, facts);
   pipe.image = dev.image_storage;
   pipe.want_detail_mask = FALSE;
+  pipe.type = pipe_type; // render kind as dt_dev_pixelpipe_type_t bits
   pipe.dsc.channels = 1;
   pipe.dsc.datatype = input_is_u16 ? TYPE_UINT16 : TYPE_FLOAT;
   pipe.dsc.filters = facts->filters;
@@ -255,6 +301,9 @@ int oracle_run(const char **names, const void **params_list, int count,
     oracle_stage_t *st = &stages[i];
     st->module.dev = &dev;
     st->module.widget = NULL;
+    st->module.input_colorspace = oracle_raw_colorspace;
+    st->module.default_colorspace = oracle_raw_colorspace;
+    st->piece.module = &st->module;
     st->default_params = calloc(1, st->vtab->params_size());
     st->module.default_params = st->default_params;
     st->piece.pipe = &pipe;
@@ -289,6 +338,8 @@ int oracle_run(const char **names, const void **params_list, int count,
   else
   {
     // Stage buffers: caller input in, caller output out, float middles.
+    // Every buffer holds `planes` floats per pixel (hotpixels runs 4-wide
+    // on a mono small-RAW, 1-wide otherwise).
     bufs = calloc((size_t)count + 1, sizeof(*bufs));
     if(!bufs)
       rc = 4;
@@ -298,7 +349,8 @@ int oracle_run(const char **names, const void **params_list, int count,
       bufs[count] = (float *)output;
       for(int i = 1; i < count && !rc; i++)
       {
-        size_t n = (size_t)stages[i - 1].rout.width * (size_t)stages[i - 1].rout.height;
+        size_t n = (size_t)stages[i - 1].rout.width * (size_t)stages[i - 1].rout.height
+                   * (size_t)planes;
         bufs[i] = malloc(n * sizeof(float));
         if(!bufs[i]) rc = 4;
       }
@@ -323,10 +375,14 @@ int oracle_run(const char **names, const void **params_list, int count,
           rc = 2;
         else
           memcpy(bufs[i + 1], bufs[i],
-                 (size_t)st->rout.width * (size_t)st->rout.height * sizeof(float));
+                 (size_t)st->rout.width * (size_t)st->rout.height * (size_t)planes
+                     * sizeof(float));
       }
       else
       {
+        // Per-piece CFA from the current dsc, like upstream ahead of every
+        // process call (pixelpipe_hb.c:1391, roi_in).
+        dt_dev_prepare_piece_cfa(&st->piece, &st->rin);
         st->vtab->process(&st->module, &st->piece, bufs[i], bufs[i + 1], &st->rin, &st->rout);
         st->vtab->output_dsc(&pipe.dsc.channels, &pipe.dsc.datatype);
       }

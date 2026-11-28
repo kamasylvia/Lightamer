@@ -1,9 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Pipe kinds and their quotas.
-//!
-//! darktable runs five pipe types off one struct
-//! (`dt_dev_pixelpipe_type_t`, `src/develop/pixelpipe.h:42-63`); B1 stands up
-//! four (the second preview pipe has no counterpart yet).
+//! Per-kind quotas ([`PipeKind`] itself lives in the module vocabulary).
 //!
 //! Memory budgets derive from physical RAM ([`quota_for`]): each kind takes a
 //! fixed share of it within a floor and a cap. The B1-a constant table
@@ -12,18 +8,9 @@
 //! the 16 GiB dev machine the pool is 6.4 GiB, under the 9 GiB watchdog line
 //! with room for the app around it.
 
-/// Which pipe runs: same shape, different quotas.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PipeKind {
-    /// Full-resolution interactive pipe.
-    Full,
-    /// Export pipe.
-    Export,
-    /// Preview pipe.
-    Preview,
-    /// Thumbnail pipe.
-    Thumbnail,
-}
+/// Re-exported from the module vocabulary (L0): commits take the kind, so
+/// the type lives where the trait lives; quotas below still key on it.
+pub use lightamer_iop_traits::PipeKind;
 
 /// Per-kind quotas: a memory budget plus how many planes the cache keeps.
 ///

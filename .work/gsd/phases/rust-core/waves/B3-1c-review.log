@@ -1,0 +1,145 @@
+PASS / 0 error + 7 minor
+B3-1c 只读复审日志（复审者自述：静态逐行核对，未构建、未跑测试）
+基线：提交 701e76a9（父 d4b93c23 = B3-1b，与报告一致）；当前 HEAD 12fe25b5 已超前，
+故全部文件断言取 `git show 701e76a9:<路径>`，不读工作树现状。上游
+`Lightamer-rust-spike/refs/dt-master` 的 release-5.7.0 为附注标签（"the beginning
+of 5.7 dev cycle"，指向 cfe57f3，"Prepare the 5.6.0 release"系该提交原文名，属正常，
+非基线漂移；5 个 manifest blob 哈希全对上）。
+
+§1 逐字节（清单项 1）
+- 工作树实跑（LIGHTAMER_DT_REF 指向参考克隆，只读 --check）：hotpixels 12/12 OK，
+  rawprepare 15/15 OK。
+- 钉到 701e76a9 的等价复验（git show 取提交内 .inc 与上游区间逐字节 cmp）：12/12
+  OK-pin；5 个上游 blob（hotpixels.c ca687dd1、imageop_math.h 8bc306cc、
+  pixelpipe_hb.c d6f1d1bb、pixelpipe_hb.h 0c0acea0、pixelpipe.h e0dce537）与
+  extract.sh manifest 全对。结论：12 个新 .inc 与上游行范围逐字节一致。
+- extract.sh 新增 hotpixels 节恰 12 个 dt 行（35-41,43-50,52-61 合并为 types 一行），
+  与报告 §1 "12 行"一致；MANIFEST/NOTICE 登记的范围与之一致。
+
+§2 转写逐行对（清单项 2；行号无前缀指被审提交内
+crates/lightamer-iop-raw/src/modules/hotpixels/mod.rs，无前缀上游行指 hotpixels.c）
+- commit（mod.rs:144-176 对 :368-385）：缺省 0.25/0.05/false/false 对 :37-40；
+  0..=1 有限校验系披露过的严格先例（rawprepare 同款）；multiplier = strength/2.0
+  f32：除 2 精确，与上游 double 商落回 float 逐位同，论证成立；markfixed 门控
+  Thumbnail|Export 对 :377（bitmask 语义经 PipeKind 枚举 4 变体承载，映射见 §3）；
+  monochrome/pure_monochrome 对 :380/:382-383；applies=(is_raw||pure)&&strength!=0
+  对 :381/:384（is_raw()=raw.is_some()，pure_mono 双侧同真，等价）；cfa 快照对 :373。
+- process（mod.rs:385-496 对 :327-356）：planes=pure?4:1 对 :334；先整块拷贝对 :335；
+  腿选择 mono→xtrans→bayer 对 :339/:343/else，其中 X-Trans 读处理时刻 state.cfa
+  而非快照——与上游读 pipe->dsc.filters==9 同构，报告 §5.1 已披露；快照字段
+  expect(dead_code)+单测读值，报告 §5.2 已披露；CfaPattern::None 落 bayer 腿对上游
+  filters==0 落 else，报告 §5.5 已披露；GUI 计数不转写，报告 §4 已披露；state 零写
+  对应上游全文件无 dsc 写（grep 实证：dsc 仅 :343/:373 两处读）。
+- bayer 腿（mod.rs:504-549 对 :105-158）：循环域/TESTONE 四邻居同序/maxin 初值 0.0+
+  严格大于/count>=min/修复写 maxin 全对；mark_bayer 无符号改写与 :149-150 同序列
+  同边界（左 k<=c ⟺ i>=-col，右 c+k<width ⟺ i<width-col），行内闭合；rayon 按行
+  并行与 DT_OMP_FOR 同构（检测只读 in，标记不出本行）。
+- mono 腿（mod.rs:557-606 对 :161-216）：循环域 1..h-1/1..w-1、planes 步进邻居同序、
+  全 planes 写 maxin 全对；mark_mono 读 planes 步：4 宽与上游 out[4*i+c]逐项同
+  （对照 marked 档逐位相等佐证），1 宽为有意偏离（见 M1/M7 相关：单测锁定行内 sane
+  行为，对照侧 1 宽只跑无标记档，正确避开）。
+- xtrans 腿（mod.rs:615-737 对 :219-325）：XTRANS_SEARCH 20 步与 :229-248 逐项同；
+  shifted[j][i]=cells[((j+oy)%6)*6+(i+ox)%6] 与 piece_cfa :1300
+  piece[jj][ii]=dsc[(jj+oy)%6][(ii+ox)%6] 同映射（XTrans row-major 已核
+  image.rs:106-107）；FCNxtrans 的 +600 取模与 rem_euclid 在 ±2 偏移下同值；
+  偏移表读 [r%6][c%6]、dx=[0]/dy=[1]、邻居 in+xx+yy*width 对 :287-289；
+  mark_xtrans 同色检查+2..=10 步 1 对 :303-317（含 (c-k)%6 在 k<=c 下与上游
+  (col-k+600)%6 同值，600%6==0）；(1,3) 非零原点对照档命中该映射，强项有效。
+- 空 tile（0 宽/高）：各腿守卫提前返回 + par_map_rows rows==0 为 Ok no-op（已核
+  parallel.rs 文档与实现），拷贝 0 行状态不碰，对上游空循环，报告 §5.6 成立。
+- §5 第 4 条 UB 论证 verdict： mechanics 成立、"恒"字过强，记 M1。
+
+§3 PipeKind 下沉与 commit 加参（清单项 3；对照 git show 全 diff）
+- 签名：traits kind.rs 新 PipeKind 四变体（Full/Export/Preview/Thumbnail）；
+  pipeline kinds.rs 改重导出，内外路径零变化；IopModule::commit 尾加 kind: PipeKind，
+  build_chain 尾加 kind；Pipe::render 传 self.kind、render_stream_from 经既有 kind()
+  方法传（stream.rs:1102）。oracle 侧自立 PipeType（bits 2/1/4/8 对
+  pixelpipe.h:44-47），iop-raw 对照测试内 4 臂映射（hotpixels_oracle.rs:364-371），
+  不碰 Cargo.lock（§5 已验）。
+- 普查（`git grep 'fn commit(' 701e76a9`）：13 个文件的 IopModule commit
+  impl/声明全部带 kind（fakes 20、module 3 含 trait 声明、stats 1、testkit 1、
+  engine src tests 3 + tests/ 3、cli 演示 2、render/stream 测试桩各 1、
+  rawprepare/hotpixels 本体各 1；catalog/history 的 fn commit 系异 trait，不相干）；
+  build_chain 测试调用 +PipeKind::Full 共 33（chain 13 + negotiate 3 + render 16 +
+  stream 1），与报告一致；rawprepare 机械跟进断言零动（diff 亲见）。
+  结论：接线无漏点（编译器强制+普查双证）。报告 §4 计数句有 3 处对不上，记 M2。
+
+§4 测试覆盖（清单项 4）
+- 数量：oracle 自测 2（lib.rs:827-891 烟囱两测）+ 转写单测 10（mod.rs:840-1017，
+  与报告 §7 十项逐项对上）+ 对照集成 12（hotpixels_oracle.rs:443-920，
+  与报告 §7 十二项逐项对上）= 24 ✓；旧测试仅 commit 加参机械跟进，断言未动 ✓。
+- 瓦片：真瓦片 4（top-left/center/brightest/darkest，256×256，各 4 孤立+1 相邻对
+  超白热点）+ 合成 15（四相位 1、相邻对 2、平场 1、X-Trans 双原点 2、单色拜耳 1、
+  纯单色 2、零强度 1、markfixed 两类 2、非 RAW 1、双改参 2）= 19 ✓ 与报告 §6 表一致。
+- 门：MEAN_ABS_GATE=1/65535、IN_TOLERANCE_GATE=0.9999、TOLERANCE=1/65535（已核
+  testkit/compare.rs:6-12），与报告 §6 一致；max_abs 全 0 仅 eprintln 人读，门本身
+  不断言，记 M3。
+- 空断言抽查（均为活断言，手算复核过）：bayer_hot_at_each_phase（四热点修到 0.5，
+  相邻热点间距保证独立）；strength_zero（ours==input + oracle 禁用）；
+  threshold/strength 三组手算（0.25 保/0.1 修/1.0 修，mid 值与比较方向逐项对）；
+  markfixed_preview（preview[3*8+1]==5.0 步 2 落点 + export_marked==export_plain）；
+  mono_planes_one_markfixed_stays_in_row（步 1 落点 + 非本行全 0.5，锁定偏离行为）。
+- 关键避让正确：1 宽 mono 对照只跑无标记档（mono_bayer_matches 用缺省 params），
+  4 宽跑 plain+marked 双档锁定"4 宽逐字节同"；合成 X-Trans 表经平移不变性验算每格
+  恒命中 4 格（搜索序 s=4,7,13,14），无上游未初始化读、无 flake；oracle 无 OpenMP
+  （build.rs 无 -fopenmp，DT_OMP_FOR 退化串行），与"串行 memcpy"替身一致。
+- 链测试状态断言（oracle enabled、双侧 maxima [1.0;4]、CFA 解码相等）全活；
+  bayer_filters/pattern_from_oracle 与 dcraw 位序（(0,0)/(0,1)/(1,0)/(1,1)→移位
+  0/2/4/6）逐项对，RGGB=0x94949494 与报告 §6 样张事实一致。
+
+§5 纪律（清单项 5）
+- 提交文件：45 个全在 crates/|apps/|docs/|NOTICE 下（name-status 逐项过），无越界；
+  Cargo.lock、Cargo.toml 零 diff（grep 实证），"外部包零新增"成立。
+- 上游读法：对照架 ROI 恒等胶水对 imageop.c:86-100（已亲核）；上游 process 前
+  prepare_piece_cfa 调用位对 pixelpipe_hb.c:1391（已亲核，传 roi_in）；
+  MONOCHROME_BAYER=1<<19 对 image.h:101，IOP_CS_RAW=0 对 colorspaces.h:45，
+  copy 并行阈值对 imagebuf.c:152-153，rawprepare 无 pipe-type 读（grep NONE）且其
+  .inc 无 piece CFA 引用（10 文件 grep 全空），state_out 取自 pipe dsc 非 piece
+  （chain.c:388-392）——故全 RAW colorspace 胶水对 rawprepare 三重不可观察，
+  报告 §1 论证成立且仍保守（RAW 图下与上游门控结果本来就相同）。
+- 自动发现：iop-raw build.rs 扫描 modules/*/mod.rs 生成注册表（lib.rs:1-8），
+  hotpixels 父版本为 16 行 stub，故本次无注册表文件改动属正常，lookup 测试锁死接线。
+- 注释/文档矛盾：NOTICE（15→27 文件，B3-1c 件表准确）、README（3 替身行+改名+六步
+  更新准确）、MANIFEST（9+3 范围准确）、PIPELINE.md（两句准确）均与代码一致；
+  余下行锚/措辞漂移记 M1/M2/M6；未发现与代码矛盾的功能性文档。
+
+发现清单（严重度 error=必须修，minor=可修可不修；行号均为 701e76a9 内）
+- [minor M1] .work/gsd/phases/rust-core/waves/B3-1c-REPORT.md:107-111,124-127（同文
+  见 crates/lightamer-iop-raw/src/modules/hotpixels/mod.rs:551-555 注释）："恒为 UB"
+  过强——1 宽步 4 写在串行+宽瓦片下是在界内错行（逻辑错非 UB），仅窄瓦片（w+col<40
+  首行写出缓冲）与 OpenMP 跨行竞争时为 UB；修法：改"恒为 UB"为"跨行错写，窄瓦片
+  越界、OpenMP 下数据竞争，生产构建中无从对等"。
+- [minor M2] .work/gsd/phases/rust-core/waves/B3-1c-REPORT.md:88-95："engine/cli 测试桩
+  5"对不上实测 engine 6（src tests 3 + tests/ 3）+ cli 演示 2 = 8（若 5=tests/ 3+cli 2
+  则 engine/src 3 未计入）；"engine 零改动"与 engine 3 文件改动字面矛盾（实为生产逻辑
+  与 import 路径零改）；修法：改计数为"engine 测试桩 6、cli 演示桩 2"，并限定"engine
+  生产逻辑零改动"。
+- [minor M3] crates/lightamer-iop-raw/tests/hotpixels_oracle.rs:336-352：assert_gate
+  不断言 max_abs，§6"全逐位相等"依赖 --nocapture 人读，且门对偶允许 256² 瓦片上
+  <~1.0 的单像素偏差双双过门（mean<1/65535 且 in_tol=0.99998>0.9999）；本模块
+  select-only 数学使残留仅具理论性；修法：assert_gate 加 assert!(max_abs==0.0)。
+- [minor M4] crates/lightamer-oracle/src/lib.rs:594（run_rawprepare_hotpixels planes
+  硬编码 1）+ crates/lightamer-oracle/csrc/chain.c:351,374（中间缓冲/禁用 memcpy
+  按 1 宽）：mono sRAW 走双模块链或禁用态 4 宽 stage 将致 C 侧堆 OOB 读/写，当前
+  测试不可达（链全 Bayer、禁用全 1 宽）；修法：run_rawprepare_hotpixels 入口
+  planes!=1 返 BadInput（或打通 planes），chain.c 两处乘通道数。
+- [minor M5] crates/lightamer-iop-raw/src/modules/hotpixels/mod.rs:404-409：process
+  的恒等几何检查只验形状不验原点，而 X-Trans 原点映射以"rin==rout 恒成立"（§5.3）
+  为 load-bearing（oracle 读 rin 原点，转写读 rout 原点）；管线内 trait 默认 roi
+  恒等故不可达；修法：该检查加 x/y 相等要求。
+- [minor M6] 上游行锚漂移（纯注释）：mod.rs:254-255 ":145-149"实际 fors 在 :149-150；
+  mod.rs:277-278 ":202-208"实际 :206-209；mod.rs:326-328 ":307-320"实际 :304-317；
+  mod.rs:410 ":335"（planes 行）实际 :334；mod.rs:302 ":230-250"实际表 :229-248；
+  lib.rs:250 与 kind.rs:4-5 "pixelpipe.h:42-63"实际枚举 :41-57（:58 起为下一枚举，
+  kind.rs 系 B1 原文搬运）；修法：逐处订正行号。
+- [minor M7] crates/lightamer-iop-raw/src/modules/hotpixels/mod.rs:698-700：
+  xtrans_offsets 零初值 vs 上游 offsets 未初始化数组——<4 命中时上游读未初始化栈内存
+  （UB），转写零填充（=自偏移，不计数），真实/合成表恒命中 4 故不可达，但报告 §4
+  "唯一算术偏离"未披露此项；修法：该函数注释加一句说明。
+
+未验事项（纪律禁构建/禁跑测试，以下采信报告 §8，不列为发现）
+- cargo test（799 passed/0 failed/5 ignored）、clippy 六 lint、cargo doc、cargo fmt、
+  xtask 三门、check-licenses.sh、五个 rust demo 脚本的退出码与计数；
+  真瓦片 4 块+合成 15 块 max_abs 全 0 的 --nocapture 实测值（门逻辑本身已静态复核）。
+复审方法注记：凡"亲核"均指本轮 git show/grep 实证，非转述报告；工作树 VERIFY.md
+未提交改动与其它会话产物一概未读；除本日志外零写入。

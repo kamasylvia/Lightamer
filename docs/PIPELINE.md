@@ -99,6 +99,8 @@ RAW 输入由解码 crate 的 `pipe_input` 喂入（`MonoF32` 帧 + `RawFacts`�
 
 1. **提交**（`build_chain`）：逐个调 `commit`，找不到模块是
    `UnknownModule`，提交拒绝是 `Commit`（带模块标识和源错误）。
+   管线把自己的渲染种类（`PipeKind`，即上游 `pipe->type`）传给每个
+   `commit`，供渲染种类相关的提交行为读取（`hotpixels` 的 `markfixed`）。
 2. **前推**（`forward`）：从最后想要的输出区域出发，逆执行顺序，
    每个节点的输入变成上一个节点的输出，一直推到需要解码的那块。
    相邻两项恒有 `geos[i].output == geos[i+1].input`。

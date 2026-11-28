@@ -7,8 +7,8 @@ use std::sync::Arc;
 use serde_json::{Map, Value};
 
 use super::{
-    ColorSpace, ImageInfo, ModuleDesc, ModuleFlags, PipeError, PipeState, PixelFormat, Plane,
-    PlaneMut, Roi, TilingReq,
+    ColorSpace, ImageInfo, ModuleDesc, ModuleFlags, PipeError, PipeKind, PipeState, PixelFormat,
+    Plane, PlaneMut, Roi, TilingReq,
 };
 
 /// Opaque per-instance commit product: `commit` seals it, only the module
@@ -77,7 +77,9 @@ pub trait IopModule: Send + Sync {
     /// belong to the [`get_float`](super::get_float)-family helpers.
     /// `state` is the chain state so far: commits run in chain order sharing
     /// one value, so a commit reads what earlier commits wrote (upstream
-    /// commits instead read a synch-time snapshot of `pipe->dsc`).
+    /// commits instead read a synch-time snapshot of `pipe->dsc`). `kind`
+    /// is the render this commit serves (upstream's `pipe->type`):
+    /// kind-gated behavior (hotpixels' `markfixed`) reads it here.
     ///
     /// # Errors
     ///
@@ -87,6 +89,7 @@ pub trait IopModule: Send + Sync {
         params: &Map<String, Value>,
         image: &ImageInfo,
         state: &mut PipeState,
+        kind: PipeKind,
     ) -> Result<CommitData, PipeError>;
 
     /// Pixel format this module outputs for `input`.
@@ -160,7 +163,8 @@ mod tests {
 
     use super::{CommitData, IopModule};
     use crate::{
-        ColorSpace, ImageInfo, ModuleDesc, OrderKey, PipeError, PipeState, Plane, PlaneMut, Roi,
+        ColorSpace, ImageInfo, ModuleDesc, OrderKey, PipeError, PipeKind, PipeState, Plane,
+        PlaneMut, Roi,
     };
 
     /// Minimal local module: multiplies every pixel by a gain.
@@ -182,6 +186,7 @@ mod tests {
             params: &Map<String, Value>,
             _image: &ImageInfo,
             _state: &mut PipeState,
+            _kind: PipeKind,
         ) -> Result<CommitData, PipeError> {
             // Test gains are small; the downcast cannot lose them.
             #[expect(clippy::cast_possible_truncation)]
@@ -252,6 +257,7 @@ mod tests {
             _params: &Map<String, Value>,
             _image: &ImageInfo,
             _state: &mut PipeState,
+            _kind: PipeKind,
         ) -> Result<CommitData, PipeError> {
             Ok(Arc::new(ZeroerCommit))
         }
@@ -298,7 +304,11 @@ mod tests {
         let mut state = PipeState::from_image(&image());
         let commits: Vec<CommitData> = table
             .iter()
-            .map(|module| module.commit(&params, &image(), &mut state).unwrap())
+            .map(|module| {
+                module
+                    .commit(&params, &image(), &mut state, PipeKind::Full)
+                    .unwrap()
+            })
             .collect();
 
         let rin = Roi::new(0, 0, 4, 2, 1.0);

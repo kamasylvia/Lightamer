@@ -17,8 +17,8 @@ use std::sync::Arc;
 use lightamer_iop_traits::{
     CfaColor, CfaPattern, ColorRequirement, ColorSpace, CommitData, HistoryKeys, ImageInfo,
     IopModule, ModuleDesc, ModuleFlags, ModuleGroup, OrderKey, OrderKeys, ParamField, ParamType,
-    ParamsDesc, PipeError, PipeState, Plane, PlaneMut, RawFacts, Roi, SharedModule, get_bool,
-    get_int, par_map_rows,
+    ParamsDesc, PipeError, PipeKind, PipeState, Plane, PlaneMut, RawFacts, Roi, SharedModule,
+    get_bool, get_int, par_map_rows,
 };
 use serde_json::{Map, Value};
 
@@ -392,6 +392,7 @@ impl IopModule for RawprepareModule {
         params: &Map<String, Value>,
         image: &ImageInfo,
         state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(resolve_commit(params, image, state)?))
     }
@@ -591,8 +592,8 @@ mod tests {
     #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use super::{RawprepareCommit, RawprepareModule, create, is_normalized, shift_bayer};
     use lightamer_iop_traits::{
-        BufferDataType, CfaColor, CfaPattern, ColorSpace, ImageInfo, IopModule, PipeState, Plane,
-        PlaneMut, RawFacts, Roi,
+        BufferDataType, CfaColor, CfaPattern, ColorSpace, ImageInfo, IopModule, PipeKind, PipeState,
+        Plane, PlaneMut, RawFacts, Roi,
     };
     use serde_json::{Map, Value, json};
 
@@ -637,7 +638,7 @@ mod tests {
 
     fn open(module: &RawprepareModule, params: &Map<String, Value>) -> RawprepareCommit {
         let mut state = state();
-        let data = module.commit(params, &image(), &mut state).expect("commit");
+        let data = module.commit(params, &image(), &mut state, PipeKind::Full).expect("commit");
         data.downcast_ref::<RawprepareCommit>().copied().expect("our commit")
     }
 
@@ -670,13 +671,13 @@ mod tests {
         assert_eq!(commit.left, 2);
         let bad: Map<String, Value> =
             [("white".to_owned(), int_cell(70000))].into_iter().collect();
-        assert!(module.commit(&bad, &image(), &mut state()).is_err());
+        assert!(module.commit(&bad, &image(), &mut state(), PipeKind::Full).is_err());
         let bad_crop: Map<String, Value> =
             [("left".to_owned(), int_cell(-1))].into_iter().collect();
-        assert!(module.commit(&bad_crop, &image(), &mut state()).is_err());
+        assert!(module.commit(&bad_crop, &image(), &mut state(), PipeKind::Full).is_err());
         let flat: Map<String, Value> =
             [("flat_field".to_owned(), bool_cell(true))].into_iter().collect();
-        assert!(module.commit(&flat, &image(), &mut state()).is_err());
+        assert!(module.commit(&flat, &image(), &mut state(), PipeKind::Full).is_err());
     }
 
     #[test]
@@ -689,7 +690,7 @@ mod tests {
         let module = RawprepareModule;
         let mut state = state();
         let plain = ImageInfo::new(8, 8, ColorSpace::Rgb);
-        let data = module.commit(&Map::new(), &plain, &mut state).expect("commit");
+        let data = module.commit(&Map::new(), &plain, &mut state, PipeKind::Full).expect("commit");
         let commit = data.downcast_ref::<RawprepareCommit>().expect("our commit");
         assert!(!commit.applies);
     }
@@ -706,7 +707,7 @@ mod tests {
         .into_iter()
         .collect();
         let mut state = state();
-        let data = module.commit(&params, &image(), &mut state).expect("commit");
+        let data = module.commit(&params, &image(), &mut state, PipeKind::Full).expect("commit");
         let rin = Roi::new(0, 0, 64, 64, 1.0);
         let rout = module.roi_out(&data, rin);
         assert_eq!((rout.x, rout.y, rout.width, rout.height), (0, 0, 56, 52));
@@ -717,7 +718,7 @@ mod tests {
     #[test]
     fn mosaic_pixels_follow_upstream_order() {
         let module = RawprepareModule;
-        let data = module.commit(&Map::new(), &image(), &mut state()).expect("commit");
+        let data = module.commit(&Map::new(), &image(), &mut state(), PipeKind::Full).expect("commit");
         // 4x4 ramp; levels differ per channel so ids show.
         let input: Vec<f32> = (0..16i16).map(|i| 512.0 + f32::from(i) * 100.0).collect();
         let mut output = vec![0.0; 16];
@@ -765,7 +766,7 @@ mod tests {
     #[test]
     fn short_tail_planes_refuse_loudly() {
         let module = RawprepareModule;
-        let data = module.commit(&Map::new(), &image(), &mut state()).expect("commit");
+        let data = module.commit(&Map::new(), &image(), &mut state(), PipeKind::Full).expect("commit");
         // Valid short-tail plane: 4x4 stride 5 needs exactly 19 floats.
         let input = vec![600.0; 19];
         let mut output = vec![0.0; 16];
@@ -780,7 +781,7 @@ mod tests {
     #[test]
     fn nonzero_rout_origin_shifts_bayer_ids() {
         let module = RawprepareModule;
-        let data = module.commit(&Map::new(), &image(), &mut state()).expect("commit");
+        let data = module.commit(&Map::new(), &image(), &mut state(), PipeKind::Full).expect("commit");
         // rout at (1,1): ids read (((j+1)&1)<<1)|((i+1)&1) over the ramp.
         let input: Vec<f32> = (0..4i16).map(|i| 512.0 + f32::from(i) * 100.0).collect();
         let mut output = vec![0.0; 4];

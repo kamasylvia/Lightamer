@@ -30,6 +30,7 @@
 mod error;
 mod format;
 mod image;
+mod kind;
 mod module;
 mod parallel;
 mod params;
@@ -42,6 +43,7 @@ mod tiling;
 pub use error::PipeError;
 pub use format::PixelFormat;
 pub use image::{CfaColor, CfaPattern, ImageInfo, RawFacts};
+pub use kind::PipeKind;
 pub use module::{CommitData, ImplementedModule, IopModule, SharedModule};
 pub use parallel::par_map_rows;
 pub use params::{get_bool, get_float, get_floats, get_int, get_text};

@@ -5,6 +5,7 @@
 // citation each, since predicates compare against them.
 #pragma once
 
+#include <assert.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -42,6 +43,8 @@ struct _GList
 
 // --- gtk vocabulary: widget is always NULL, guarded by `if(self->widget)` ---
 typedef void GtkWidget;
+typedef void GtkToggleButton;
+typedef void GtkLabel;
 #define GTK_STACK(x) ((GtkWidget *)(x))
 
 // --- opaque upstream enums: single dummy values, never inspected ---
@@ -67,7 +70,14 @@ typedef enum
   DT_IMAGE_4BAYER = 16384,
   DT_IMAGE_MONOCHROME = 32768,
   DT_IMAGE_S_RAW = 1 << 17,
+  DT_IMAGE_MONOCHROME_BAYER = 1 << 19,
 } dt_image_flags_subset_t;
+
+// --- colorspace tag (value from src/common/colorspaces.h:45) ---
+typedef enum
+{
+  IOP_CS_RAW = 0,
+} dt_colorspace_subset_t;
 
 // --- buffer types (order from src/develop/format.h dt_iop_buffer_type_t) ---
 typedef enum
@@ -136,23 +146,28 @@ typedef struct dt_dev_pixelpipe_t
   dt_image_t image;
   dt_iop_buffer_dsc_t dsc;
   gboolean want_detail_mask;
+  int type; // dt_dev_pixelpipe_type_t bits (pipe_type_enum.inc, included by its readers)
 } dt_dev_pixelpipe_t;
 
 typedef struct dt_dev_pixelpipe_iop_t
 {
   void *data;
   struct dt_dev_pixelpipe_t *pipe;
+  struct dt_iop_module_t *module;
   gboolean enabled;
   float iscale;
   int colors;
   dt_iop_roi_t buf_in;
   gboolean process_tiling_ready;
   dt_iop_buffer_dsc_t dsc_in;
+  uint32_t filters; // per-piece CFA, derived by dt_dev_prepare_piece_cfa
+  uint8_t xtrans[6][6]; // same, X-Trans table
 } dt_dev_pixelpipe_iop_t;
 
 typedef struct dt_develop_t
 {
   dt_image_t image_storage;
+  gboolean gui_attached; // always FALSE here; hotpixels short-circuits on NULL gui_data first
 } dt_develop_t;
 
 typedef struct dt_iop_module_t
@@ -162,6 +177,11 @@ typedef struct dt_iop_module_t
   gboolean hide_enable_button;
   gboolean default_enabled;
   void *widget;
+  void *gui_data; // always NULL here; process skips its GUI branch
+  int (*input_colorspace)(struct dt_iop_module_t *, struct dt_dev_pixelpipe_t *,
+                          struct dt_dev_pixelpipe_iop_t *);
+  int (*default_colorspace)(struct dt_iop_module_t *, struct dt_dev_pixelpipe_t *,
+                           struct dt_dev_pixelpipe_iop_t *);
 } dt_iop_module_t;
 
 // --- verbatim-logic functions, defined in their own translation units ---
@@ -169,6 +189,9 @@ gboolean dt_image_is_raw(const dt_image_t *img);
 gboolean dt_image_is_mono_sraw(const dt_image_t *img);
 gboolean dt_image_is_rawprepare_supported(const dt_image_t *img);
 uint32_t dt_rawspeed_crop_dcraw_filters(uint32_t filters, uint32_t crop_x, uint32_t crop_y);
+void dt_dev_prepare_piece_cfa(dt_dev_pixelpipe_iop_t *piece, const dt_iop_roi_t *roi);
+void dt_iop_image_copy_by_size(float *const out, const float *const in, const size_t width,
+                               const size_t height, const size_t ch);
 extern _Thread_local dt_image_t *oracle_active_image; // registered by the chain before commit
 // --- stubs (stubs/stubs.c): pure interfaces, zero upstream logic ---
 dt_image_t *dt_image_cache_get(dt_imgid_t imgid, int mode);

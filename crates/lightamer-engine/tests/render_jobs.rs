@@ -21,8 +21,8 @@ use lightamer_engine::{
     SharedModuleSource, command_specs,
 };
 use lightamer_iop_traits::{
-    ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, PipeState,
-    Plane, PlaneMut, Roi, SharedModule, get_float,
+    ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, PipeKind,
+    PipeState, Plane, PlaneMut, Roi, SharedModule, get_float,
 };
 use lightamer_raster::{Frame, FrameExtent, PixelFormat};
 use serde_json::{Value, json};
@@ -160,6 +160,7 @@ impl IopModule for GainModule {
         params: &serde_json::Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         #[expect(clippy::cast_possible_truncation)]
         // test gains are small; the downcast cannot lose them

@@ -17,11 +17,16 @@ refuses it as a normal dependency).
 - `stubs/stubs.c` — pure-interface stand-ins (cache, log, GUI, glib list).
   No upstream logic; behavior differences (if any) are in the table below.
 - `csrc/chain.c` — the mini pipe: one module table, build phase (init +
-  `reload_defaults` + `commit_params` against the image snapshot), geometry
-  phase (`modify_roi_out` threading), process phase (in chain order,
-  `pipe->dsc` evolving). ABI in `csrc/oracle_abi.h`.
+  `reload_defaults` + `commit_params` against the image snapshot, with the
+  pipe type set from the caller's render kind), geometry phase
+  (`modify_roi_out` threading), process phase (in chain order,
+  `dt_dev_prepare_piece_cfa` then `process` per stage, `pipe->dsc`
+  evolving). ABI in `csrc/oracle_abi.h`.
 - `csrc/*_tu.c(pp)` — translation units: shim + fragments in dependency
-  order. `rawprepare_glue.c` holds the scalar params fill/read pair so
+  order. Upstream callback names collide across modules (every iop defines
+  `process`), so each TU after the first macro-renames them
+  (`hotpixels_process`, …) before the verbatim includes; the `.inc` bytes
+  stay untouched. `*_glue.c` holds the scalar params fill/read pair so
   Rust never mirrors the C struct layout.
 - `src/lib.rs` — the only `unsafe` boundary: `#[repr(C)]` mirrors (sizes
   asserted both sides), length checks before every call, owned results out.
@@ -48,9 +53,12 @@ observed in this oracle's runs:
 | `MIN`/`MAX`/`CLAMP` | glib statement expressions | plain ternaries | every extracted call site passes side-effect-free arguments |
 | `DT_OMP_FOR(SIMD)` | OpenMP parallel loops | serial | matches a no-OpenMP upstream build; pixel math identical |
 | `dng_gain_maps = NULL` | DNG opcodes from EXIF | always empty | ARW carries none; flat-field stays off in every run |
+| `dt_iop_image_copy_by_size` | copy, parallel past a threshold | serial `memcpy` | bytes out equal bytes in either way |
+| hotpixels roi pair | inherited identity defaults | identity glue | byte-equal to `_iop_modify_roi_out/in` (`imageop.c`) |
+| module colorspace callbacks | per-module `input/default_colorspace` | always `IOP_CS_RAW` | hotpixels answers RAW on both upstream; rawprepare never reads piece CFA (no reference in its fragments) |
 | disabled stage (chain behavior, not a stub) | piece skipped whole (pixels + geometry pass through) | float tiles pass through incl. nonzero crop; `rc=2` refuses u16 input | float runs match upstream exactly (tested); u16 passthrough is inexpressible in the f32-only ABI, so it errors loudly instead of diverging |
 
-## Adding the second module
+## Adding another module
 
 1. Append its manifest lines to `tools/extract.sh` (`repo|rev|path|blob|
    ranges|dest`), run it, confirm `upstream/` gains the fragments.
@@ -59,10 +67,12 @@ observed in this oracle's runs:
 3. Add `csrc/<module>_glue.c`: scalar params fill/read + params-size
    helper, same shape as `rawprepare_glue.c`.
 4. Add a `csrc/<module>_tu.c` including shim + fragments in dependency
-   order; list every new file in `build.rs` (`C_SOURCES` /
-   `UPSTREAM_SOURCES` / rerun guards).
-5. Extend `src/lib.rs`: one `run_<module>` + roi/defaults wrappers reusing
-   the same `Facts`/`Roi`/`StateOut` vocabulary.
+   order, macro-renaming the colliding callback names first (see
+   `hotpixels_tu.c`); list every new file in `build.rs` (`GLUE_SOURCES` /
+   `VERBATIM_TUS` / `UPSTREAM_SOURCES` / rerun guards). Glue compiles
+   with warnings on, verbatim TUs with `-w`.
+5. Extend `src/lib.rs`: one `run_<module>` (+ chain entries as needed)
+   reusing the same `Facts`/`Roi`/`StateOut`/`PipeType` vocabulary.
 6. Extend `upstream/MANIFEST.md` and this README's tables; run
    `tools/extract.sh <module> --check`.
 

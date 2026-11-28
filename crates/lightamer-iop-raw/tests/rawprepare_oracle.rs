@@ -8,8 +8,8 @@
 #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
 
 use lightamer_iop_traits::{
-    CfaColor, CfaPattern, ColorSpace, ImageInfo, PipeState, Plane, PlaneMut, RawFacts, Roi,
-    SharedModule,
+    CfaColor, CfaPattern, ColorSpace, ImageInfo, PipeKind, PipeState, Plane, PlaneMut, RawFacts,
+    Roi, SharedModule,
 };
 use lightamer_oracle as oracle;
 use lightamer_raster::FrameExtent;
@@ -181,7 +181,7 @@ fn run_ours(
 ) -> (Vec<f32>, PipeState, Roi) {
     let mut commit_state = PipeState::from_image(image);
     let data = module
-        .commit(params, image, &mut commit_state)
+        .commit(params, image, &mut commit_state, PipeKind::Full)
         .expect("commit");
     let rout = module.roi_out(&data, rin);
     let area = usize::try_from(
@@ -515,7 +515,12 @@ fn user_crop_shrinks_roi_both_sides() {
     assert_gate("synthetic user crop", &ours, &theirs);
     // roi_in restores both sides too.
     let data = module
-        .commit(&params.json(), &image, &mut PipeState::from_image(&image))
+        .commit(
+            &params.json(),
+            &image,
+            &mut PipeState::from_image(&image),
+            PipeKind::Full,
+        )
         .expect("commit");
     let back = module.roi_in(&data, our_rout);
     let oracle_back =

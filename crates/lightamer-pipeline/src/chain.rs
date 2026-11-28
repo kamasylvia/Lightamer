@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use lightamer_geom::Roi as GeomRoi;
 use lightamer_iop_traits::{
-    CommitData, ImageInfo, IopModule, PipeError, PipeState, PixelFormat as WireFormat,
+    CommitData, ImageInfo, IopModule, PipeError, PipeKind, PipeState, PixelFormat as WireFormat,
     Roi as WireRoi,
 };
 use lightamer_raster::PixelFormat as RasterFormat;
@@ -153,7 +153,8 @@ impl std::error::Error for ChainError {
 ///
 /// `state` starts from the caller (the pipe seeds it from the image) and
 /// each commit sees what earlier commits wrote; the pipe then runs
-/// processing from the value this leaves behind.
+/// processing from the value this leaves behind. `kind` is the render the
+/// pipe serves: it reaches every commit for kind-gated behavior.
 ///
 /// # Errors
 ///
@@ -165,6 +166,7 @@ pub fn build_chain<L: ModuleLookup>(
     nodes: &[PipeNode],
     image: &ImageInfo,
     state: &mut PipeState,
+    kind: PipeKind,
 ) -> Result<Vec<CommittedNode>, ChainError> {
     let mut out = Vec::with_capacity(nodes.len());
     for node in nodes {
@@ -172,7 +174,7 @@ pub fn build_chain<L: ModuleLookup>(
             return Err(ChainError::UnknownModule(node.id.clone()));
         };
         let data = module
-            .commit(&node.params, image, state)
+            .commit(&node.params, image, state, kind)
             .map_err(|source| ChainError::Commit {
                 id: node.id.clone(),
                 source,
@@ -301,7 +303,7 @@ mod tests {
     use std::sync::Arc;
 
     use lightamer_geom::Roi as GeomRoi;
-    use lightamer_iop_traits::{ColorSpace, ImageInfo, PipeState};
+    use lightamer_iop_traits::{ColorSpace, ImageInfo, PipeKind, PipeState};
 
     use super::{ChainError, NodeGeometry, PipeNode, backward_check, build_chain, forward};
     use crate::fakes::{
@@ -392,6 +394,7 @@ mod tests {
             &[node("test_identity"), node("mod_b")],
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap();
         assert_eq!(chain.len(), 2);
@@ -411,6 +414,7 @@ mod tests {
             &[node("mod_up")],
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap();
         let final_out = geom(0, 0, 100, 100);
@@ -428,6 +432,7 @@ mod tests {
             &[node("mod_down")],
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap();
         let final_out = geom(0, 0, 100, 100);
@@ -450,6 +455,7 @@ mod tests {
             &nodes,
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap();
         let final_out = geom(0, 0, 100, 100);
@@ -476,6 +482,7 @@ mod tests {
             &[node("mod_mid")],
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap();
         // Out leg rounds half up: 100 * 3/2 = 150.
@@ -507,6 +514,7 @@ mod tests {
             &[node("test_identity")],
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap();
         let empty = geom(0, 0, 0, 0);
@@ -520,6 +528,7 @@ mod tests {
             &[node("mod_sink")],
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap();
         let final_out = geom(0, 0, 100, 60);
@@ -546,6 +555,7 @@ mod tests {
             &nodes,
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap();
         assert_eq!(chain.len(), 64);
@@ -574,6 +584,7 @@ mod tests {
             &nodes,
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap();
         let final_out = geom(0, 0, 100, 100);
@@ -600,6 +611,7 @@ mod tests {
             &[node("mod_missing")],
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap_err();
         assert!(matches!(err, ChainError::UnknownModule(_)));
@@ -610,6 +622,7 @@ mod tests {
             &[node("mod_fail")],
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap_err();
         assert!(matches!(err, ChainError::Commit { .. }));
@@ -620,6 +633,7 @@ mod tests {
             &[node("mod_bad")],
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap();
         let err = forward(&chain, &geom(0, 0, 64, 64)).unwrap_err();
@@ -649,6 +663,7 @@ mod tests {
             }],
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap();
         assert_eq!((chain[0].id.as_str(), chain[0].multi), ("mod_up", 3));

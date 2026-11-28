@@ -66,7 +66,7 @@ const _: () = assert!(size_of::<CFacts>() == 100);
 const _: () = assert!(size_of::<CRoi>() == 20);
 const _: () = assert!(size_of::<CStateOut>() == 68);
 
-// The chain entry points plus rawprepare's params fill/read pair. Argument
+// The chain entry points plus the params fill/read pairs. Argument
 // shapes are fixed here so no caller can pass a mismatched pointer.
 #[expect(unsafe_code)]
 // This crate owns the oracle FFI boundary: the extern block below plus one
@@ -84,6 +84,8 @@ unsafe extern "C" {
         output: *mut c_void,
         rout: *const CRoi,
         state: *mut CStateOut,
+        pipe_type: c_int,
+        planes: c_int,
     ) -> c_int;
     fn oracle_roi_map(
         want_out: c_int,
@@ -112,6 +114,13 @@ unsafe extern "C" {
         black: *mut u16,
         white: *mut u16,
         flat_field: *mut c_int,
+    );
+    fn oracle_hotpixels_fill(
+        out: *mut c_void,
+        strength: f32,
+        threshold: f32,
+        markfixed: c_int,
+        permissive: c_int,
     );
 }
 
@@ -238,6 +247,47 @@ pub struct Params {
     pub flat_field: bool,
 }
 
+/// Which render a chain run serves: the oracle-side pipe type. Values are
+/// the `dt_dev_pixelpipe_type_t` bits (`src/develop/pixelpipe.h:41-57`),
+/// so commit-time kind checks (`dt_pipe_is_thumb`, `dt_pipe_is_export`)
+/// read what upstream reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PipeType {
+    /// Full-resolution interactive pipe.
+    Full,
+    /// Export pipe.
+    Export,
+    /// Preview pipe.
+    Preview,
+    /// Thumbnail pipe.
+    Thumbnail,
+}
+
+impl PipeType {
+    fn bits(self) -> c_int {
+        match self {
+            PipeType::Full => 1 << 1,
+            PipeType::Export => 1 << 0,
+            PipeType::Preview => 1 << 2,
+            PipeType::Thumbnail => 1 << 3,
+        }
+    }
+}
+
+/// hotpixels parameters: fix strength, detection threshold, and the two
+/// switches (`hotpixels.c:35-41`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HotParams {
+    /// Fix strength, 0..=1 (halved into the neighbor multiplier).
+    pub strength: f32,
+    /// Detection threshold: pixels at or below it are never hot.
+    pub threshold: f32,
+    /// Paint fixed pixels (forced off on thumbnail/export pipes).
+    pub markfixed: bool,
+    /// Detect by 3 neighbors instead of 4.
+    pub permissive: bool,
+}
+
 /// One input tile: raw sensor words or unnormalized floats.
 #[derive(Debug, Clone, Copy)]
 pub enum TileInput<'a> {
@@ -291,11 +341,23 @@ impl std::error::Error for OracleError {}
 /// Module table name of the first transcribed module.
 pub const RAWPREPARE: &CStr = c"rawprepare";
 
+/// Module table name of the second transcribed module.
+pub const HOTPPIXELS: &CStr = c"hotpixels";
+
 /// `DT_IMAGE_RAW` (`src/common/image.h`): the capture needs demosaicing.
 pub const DT_IMAGE_RAW: u32 = 64;
 
 /// `DT_IMAGE_HDR` (`src/common/image.h`): float-bits levels.
 pub const DT_IMAGE_HDR: u32 = 128;
+
+/// `DT_IMAGE_S_RAW` (`src/common/image.h`): small-RAW container.
+pub const DT_IMAGE_S_RAW: u32 = 1 << 17;
+
+/// `DT_IMAGE_MONOCHROME` (`src/common/image.h`): detected monochrome.
+pub const DT_IMAGE_MONOCHROME: u32 = 32768;
+
+/// `DT_IMAGE_MONOCHROME_BAYER` (`src/common/image.h`): mono via demosaic.
+pub const DT_IMAGE_MONOCHROME_BAYER: u32 = 1 << 19;
 
 fn area_of(width: i32, height: i32) -> Result<usize, OracleError> {
     let width = u64::try_from(width).map_err(|_| OracleError::BadInput("negative width"))?;
@@ -333,31 +395,70 @@ fn fill_params(params: &Params) -> Result<Vec<u8>, OracleError> {
     Ok(blob)
 }
 
-/// Runs verbatim `rawprepare` over one tile: commit against the image
-/// snapshot, then process; the evolved state comes back beside the pixels.
-///
-/// # Errors
-///
-/// [`OracleError::BadInput`] when a region is malformed or a buffer is
-/// short; [`OracleError::Chain`] when the C chain refuses the run.
-#[must_use = "the oracle ran for its output"]
+/// Fills one hotpixels params blob through the C helper.
 #[expect(unsafe_code)]
-// All lengths are checked above: the input holds its region, the output
-// holds its own, every pointer stays inside its live allocation for the
-// call, and the chain touches nothing else.
-pub fn run_rawprepare(
+// The blob is exactly `oracle_params_size` bytes; the fill helper writes
+// that struct and nothing else.
+fn fill_hotparams(params: &HotParams) -> Result<Vec<u8>, OracleError> {
+    let size = unsafe { oracle_params_size(HOTPPIXELS.as_ptr()) };
+    let size = usize::try_from(size).map_err(|_| OracleError::Chain(1))?;
+    if size == 0 {
+        return Err(OracleError::Chain(1));
+    }
+    let mut blob = vec![0u8; size];
+    unsafe {
+        oracle_hotpixels_fill(
+            blob.as_mut_ptr().cast::<c_void>(),
+            params.strength,
+            params.threshold,
+            c_int::from(params.markfixed),
+            c_int::from(params.permissive),
+        );
+    }
+    Ok(blob)
+}
+
+/// Floats per pixel hotpixels reads and writes: 4 for a monochrome
+/// small-RAW (`pure_monochrome`), 1 otherwise — the same flag read
+/// `commit_params` makes (`hotpixels.c:379-380`).
+fn hotpixels_planes(flags: u32) -> usize {
+    if flags & (DT_IMAGE_S_RAW | DT_IMAGE_MONOCHROME) == DT_IMAGE_S_RAW | DT_IMAGE_MONOCHROME {
+        4
+    } else {
+        1
+    }
+}
+
+/// Runs one chain over one tile: every entry point funnels here. `in_planes`
+/// and `out_planes` are scalars per pixel on each side (hotpixels reads and
+/// writes 4-wide on a monochrome small-RAW, 1-wide otherwise); `out_planes`
+/// also reaches the C side, which sizes middle buffers and disabled-stage
+/// copies by it.
+#[expect(unsafe_code)]
+// All lengths are checked below: the input holds its region times its
+// stride, the output holds its own, every pointer stays inside its live
+// allocation for the call, and the chain touches nothing else.
+#[allow(clippy::too_many_arguments)]
+fn run_chain(
+    names: &[*const c_char],
+    blobs: &[*const c_void],
     facts: &Facts,
-    params: &Params,
     input: TileInput<'_>,
+    in_planes: usize,
     rin: Roi,
     rout: Roi,
+    kind: PipeType,
+    out_planes: usize,
 ) -> Result<(Vec<f32>, StateOut), OracleError> {
     let c_facts = facts.abi();
     let c_rin = rin.abi();
     let c_rout = rout.abi();
-    let blob = fill_params(params)?;
-    let in_area = area_of(rin.width, rin.height)?;
-    let out_area = area_of(rout.width, rout.height)?;
+    let in_area = area_of(rin.width, rin.height)?
+        .checked_mul(in_planes)
+        .ok_or(OracleError::BadInput("input area overflows"))?;
+    let out_area = area_of(rout.width, rout.height)?
+        .checked_mul(out_planes)
+        .ok_or(OracleError::BadInput("output area overflows"))?;
     let (in_ptr, input_is_u16) = match input {
         TileInput::U16(words) => {
             if words.len() < in_area {
@@ -385,13 +486,12 @@ pub fn run_rawprepare(
         p_width: 0,
         p_height: 0,
     };
-    let names = [RAWPREPARE.as_ptr()];
-    let blobs = [blob.as_ptr().cast::<c_void>()];
+    let count = c_int::try_from(names.len()).map_err(|_| OracleError::Chain(1))?;
     let rc = unsafe {
         oracle_run(
             names.as_ptr(),
             blobs.as_ptr(),
-            1,
+            count,
             &raw const c_facts,
             in_ptr,
             input_is_u16,
@@ -399,6 +499,8 @@ pub fn run_rawprepare(
             output.as_mut_ptr().cast::<c_void>(),
             &raw const c_rout,
             &raw mut state,
+            kind.bits(),
+            c_int::try_from(out_planes).map_err(|_| OracleError::BadInput("planes overflow"))?,
         )
     };
     if rc != 0 {
@@ -415,6 +517,108 @@ pub fn run_rawprepare(
             p_height: state.p_height,
         },
     ))
+}
+
+/// Runs verbatim `rawprepare` over one tile: commit against the image
+/// snapshot, then process; the evolved state comes back beside the pixels.
+/// The pipe kind is [`PipeType::Full`] (rawprepare never reads it).
+///
+/// # Errors
+///
+/// [`OracleError::BadInput`] when a region is malformed or a buffer is
+/// short; [`OracleError::Chain`] when the C chain refuses the run.
+#[must_use = "the oracle ran for its output"]
+pub fn run_rawprepare(
+    facts: &Facts,
+    params: &Params,
+    input: TileInput<'_>,
+    rin: Roi,
+    rout: Roi,
+) -> Result<(Vec<f32>, StateOut), OracleError> {
+    let blob = fill_params(params)?;
+    let names = [RAWPREPARE.as_ptr()];
+    let blobs = [blob.as_ptr().cast::<c_void>()];
+    run_chain(
+        &names,
+        &blobs,
+        facts,
+        input,
+        1,
+        rin,
+        rout,
+        PipeType::Full,
+        1,
+    )
+}
+
+/// Runs verbatim `hotpixels` over one tile: commit against the image
+/// snapshot (the kind decides `markfixed`), then process; the evolved
+/// state comes back beside the pixels. Float input only: upstream reads
+/// the `TYPE_FLOAT` buffer unconditionally.
+///
+/// # Errors
+///
+/// [`OracleError::BadInput`] when a region is malformed or a buffer is
+/// short; [`OracleError::Chain`] when the C chain refuses the run.
+#[must_use = "the oracle ran for its output"]
+pub fn run_hotpixels(
+    facts: &Facts,
+    params: &HotParams,
+    kind: PipeType,
+    input: &[f32],
+    rin: Roi,
+    rout: Roi,
+) -> Result<(Vec<f32>, StateOut), OracleError> {
+    let blob = fill_hotparams(params)?;
+    let names = [HOTPPIXELS.as_ptr()];
+    let blobs = [blob.as_ptr().cast::<c_void>()];
+    let planes = hotpixels_planes(facts.flags);
+    run_chain(
+        &names,
+        &blobs,
+        facts,
+        TileInput::F32(input),
+        planes,
+        rin,
+        rout,
+        kind,
+        planes,
+    )
+}
+
+/// Runs verbatim `rawprepare` into verbatim `hotpixels` over one tile:
+/// the two-module chain entry. Geometry threads through rawprepare's roi
+/// (hotpixels is identity); the caller passes `rin` only. Mosaic runs
+/// only: a mono small-RAW would enter hotpixels 4-wide behind rawprepare's
+/// 1-wide middle, which no caller needs, so it refuses loudly instead.
+///
+/// # Errors
+///
+/// [`OracleError::BadInput`] when a region is malformed, a buffer is
+/// short, or the facts are a mono small-RAW; [`OracleError::Chain`] when
+/// the C chain refuses the run.
+#[must_use = "the oracle ran for its output"]
+pub fn run_rawprepare_hotpixels(
+    facts: &Facts,
+    rawprepare: &Params,
+    hotpixels: &HotParams,
+    kind: PipeType,
+    input: TileInput<'_>,
+    rin: Roi,
+) -> Result<(Vec<f32>, StateOut, Roi), OracleError> {
+    if hotpixels_planes(facts.flags) != 1 {
+        return Err(OracleError::BadInput("two-module chain is mosaic-only"));
+    }
+    let rp_blob = fill_params(rawprepare)?;
+    let hp_blob = fill_hotparams(hotpixels)?;
+    let rout = rawprepare_roi_out(facts, rawprepare, rin)?;
+    let names = [RAWPREPARE.as_ptr(), HOTPPIXELS.as_ptr()];
+    let blobs = [
+        rp_blob.as_ptr().cast::<c_void>(),
+        hp_blob.as_ptr().cast::<c_void>(),
+    ];
+    let (output, state) = run_chain(&names, &blobs, facts, input, 1, rin, rout, kind, 1)?;
+    Ok((output, state, rout))
 }
 
 /// Runs verbatim `modify_roi_out` for committed `params` over `rin`.
@@ -539,7 +743,11 @@ pub fn rawprepare_defaults(facts: &Facts) -> Result<Params, OracleError> {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
-    use super::{BufferType, Facts, Params, Roi, TileInput, rawprepare_defaults, run_rawprepare};
+    use super::{
+        BufferType, DT_IMAGE_MONOCHROME, DT_IMAGE_S_RAW, Facts, HotParams, OracleError, Params,
+        PipeType, Roi, TileInput, rawprepare_defaults, run_hotpixels, run_rawprepare,
+        run_rawprepare_hotpixels,
+    };
 
     // ARW-shaped facts: RGGB Bayer, black 512, white 15360, no loader crop.
     fn argb_facts() -> Facts {
@@ -626,5 +834,137 @@ mod tests {
         assert_eq!(defaults.black, [512, 512, 512, 512]);
         assert_eq!(defaults.white, 15360);
         assert!(!defaults.flat_field);
+    }
+
+    #[test]
+    fn hotpixels_fixes_an_isolated_hot_pixel() {
+        let facts = argb_facts();
+        let params = HotParams {
+            strength: 0.25,
+            threshold: 0.05,
+            markfixed: false,
+            permissive: false,
+        };
+        let mut input = vec![0.5f32; 64];
+        input[3 * 8 + 3] = 5.0;
+        let rin = Roi {
+            x: 0,
+            y: 0,
+            width: 8,
+            height: 8,
+            scale: 1.0,
+        };
+        let (output, state) =
+            run_hotpixels(&facts, &params, PipeType::Full, &input, rin, rin).expect("oracle runs");
+        assert!(state.enabled);
+        // The hot pixel drops to the brightest same-color neighbor; the
+        // flat field around it is untouched.
+        assert_eq!(output[3 * 8 + 3], 0.5);
+        for (i, pixel) in output.iter().enumerate() {
+            if i != 3 * 8 + 3 {
+                assert_eq!(*pixel, input[i], "pixel {i}");
+            }
+        }
+    }
+
+    #[test]
+    fn markfixed_paints_on_full_and_drops_on_export() {
+        let facts = argb_facts();
+        let marked = HotParams {
+            strength: 0.25,
+            threshold: 0.05,
+            markfixed: true,
+            permissive: false,
+        };
+        let plain = HotParams {
+            markfixed: false,
+            ..marked
+        };
+        let mut input = vec![0.5f32; 64];
+        input[3 * 8 + 3] = 5.0;
+        let rin = Roi {
+            x: 0,
+            y: 0,
+            width: 8,
+            height: 8,
+            scale: 1.0,
+        };
+        let (full_out, _) =
+            run_hotpixels(&facts, &marked, PipeType::Full, &input, rin, rin).expect("full runs");
+        let (export_out, _) = run_hotpixels(&facts, &marked, PipeType::Export, &input, rin, rin)
+            .expect("export runs");
+        let (plain_out, _) =
+            run_hotpixels(&facts, &plain, PipeType::Export, &input, rin, rin).expect("plain runs");
+        // Same-color cross around (3,3): (3,1), (3,5), (3,7) at stride 2.
+        assert_eq!(full_out[3 * 8 + 1], 5.0);
+        assert_eq!(full_out[3 * 8 + 5], 5.0);
+        assert_eq!(full_out[3 * 8 + 7], 5.0);
+        assert_ne!(full_out, export_out);
+        assert_eq!(export_out, plain_out);
+    }
+
+    // Mono small-RAW facts: no RAW bit, 4-wide float buffer.
+    fn mono_facts() -> Facts {
+        let mut facts = argb_facts();
+        facts.filters = 0;
+        facts.flags = DT_IMAGE_S_RAW | DT_IMAGE_MONOCHROME;
+        facts.buf_channels = 4;
+        facts.buf_datatype = BufferType::Float;
+        facts
+    }
+
+    #[test]
+    fn two_module_chain_refuses_mono() {
+        let facts = mono_facts();
+        let rin = Roi {
+            x: 0,
+            y: 0,
+            width: 8,
+            height: 8,
+            scale: 1.0,
+        };
+        let input = vec![0.5f32; 8 * 8 * 4];
+        let params = HotParams {
+            strength: 0.25,
+            threshold: 0.05,
+            markfixed: false,
+            permissive: false,
+        };
+        let err = run_rawprepare_hotpixels(
+            &facts,
+            &unit_params(),
+            &params,
+            PipeType::Full,
+            TileInput::F32(&input),
+            rin,
+        )
+        .expect_err("mono chain refuses");
+        assert!(
+            matches!(err, OracleError::BadInput(_)),
+            "loud refusal: {err}"
+        );
+    }
+
+    #[test]
+    fn disabled_four_wide_stage_passes_everything_through() {
+        let facts = mono_facts();
+        let params = HotParams {
+            strength: 0.0,
+            threshold: 0.05,
+            markfixed: false,
+            permissive: false,
+        };
+        let input: Vec<f32> = (0..256i16).map(|i| f32::from(i % 251) * 0.01).collect();
+        let rin = Roi {
+            x: 0,
+            y: 0,
+            width: 8,
+            height: 8,
+            scale: 1.0,
+        };
+        let (output, state) =
+            run_hotpixels(&facts, &params, PipeType::Full, &input, rin, rin).expect("oracle runs");
+        assert!(!state.enabled, "strength zero disables the piece");
+        assert_eq!(output, input, "all four lanes pass through");
     }
 }

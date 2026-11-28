@@ -138,6 +138,7 @@ impl IopModule for GainModule {
         params: &serde_json::Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         #[expect(clippy::cast_possible_truncation)]
         // test gains are small; the downcast cannot lose them
@@ -209,6 +210,7 @@ impl IopModule for BlurModule {
         _params: &serde_json::Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(BlurCommit))
     }

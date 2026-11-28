@@ -23,8 +23,8 @@ use lightamer_engine::{
     SharedModuleSource,
 };
 use lightamer_iop_traits::{
-    ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, PipeState,
-    Plane, PlaneMut, Roi, SharedModule, get_float,
+    ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, PipeKind,
+    PipeState, Plane, PlaneMut, Roi, SharedModule, get_float,
 };
 use lightamer_raster::{Frame, FrameExtent, PixelFormat};
 use serde_json::{Map, Value, json};
@@ -107,6 +107,7 @@ impl IopModule for DemoGain {
         params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         #[expect(clippy::cast_possible_truncation)]
         // demo gains are small; the downcast cannot lose them

@@ -4,8 +4,8 @@
 use std::sync::Arc;
 
 use lightamer_iop_traits::{
-    CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, PipeState, Plane, PlaneMut,
-    Roi, par_map_rows,
+    CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, PipeKind, PipeState, Plane,
+    PlaneMut, Roi, par_map_rows,
 };
 use serde_json::{Map, Value};
 
@@ -56,6 +56,7 @@ impl IopModule for IdentityModule {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(IdentityCommit))
     }
@@ -123,7 +124,7 @@ impl IopModule for IdentityModule {
 mod tests {
     #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use super::{IdentityCommit, IdentityModule};
-    use lightamer_iop_traits::{ColorSpace, IopModule, PipeState};
+    use lightamer_iop_traits::{ColorSpace, IopModule, PipeKind, PipeState};
     use std::sync::Arc;
 
     #[test]
@@ -133,7 +134,9 @@ mod tests {
         let params = serde_json::Map::new();
         let image = lightamer_iop_traits::ImageInfo::new(4, 2, ColorSpace::Rgb);
         let mut state = PipeState::from_image(&image);
-        let data = module.commit(&params, &image, &mut state).unwrap();
+        let data = module
+            .commit(&params, &image, &mut state, PipeKind::Full)
+            .unwrap();
         assert!(data.downcast_ref::<IdentityCommit>().is_some());
 
         let roi = lightamer_iop_traits::Roi::new(0, 0, 4, 2, 1.0);

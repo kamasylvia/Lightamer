@@ -53,7 +53,7 @@ mod tests {
     #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use std::sync::Arc;
 
-    use lightamer_iop_traits::{ColorSpace, ImageInfo, PipeState};
+    use lightamer_iop_traits::{ColorSpace, ImageInfo, PipeKind, PipeState};
 
     use super::{ColorStep, negotiate};
     use crate::chain::PipeNode;
@@ -83,6 +83,7 @@ mod tests {
             &[node("mod_c0"), node("mod_c1"), node("mod_c2")],
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap();
         assert_eq!(negotiate(&chain).steps, Vec::new());
@@ -101,6 +102,7 @@ mod tests {
             &[node("mod_c0"), node("mod_c1")],
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap();
         let plan = negotiate(&chain);
@@ -126,6 +128,7 @@ mod tests {
             &[node("mod_c0"), node("mod_c1"), node("mod_c2")],
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap();
         let plan = negotiate(&chain);

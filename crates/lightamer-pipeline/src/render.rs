@@ -406,7 +406,7 @@ impl Pipe {
         }
         self.last_trace.clear();
         let mut state = PipeState::from_image(req.image);
-        let chain = build_chain(req.lookup, req.nodes, req.image, &mut state)
+        let chain = build_chain(req.lookup, req.nodes, req.image, &mut state, self.kind)
             .map_err(RenderError::Chain)?;
         if chain.is_empty() {
             return self.render_empty(req);
@@ -1352,9 +1352,14 @@ mod tests {
                 .all(|v| v.to_bits() == 1.0f32.to_bits())
         );
         // Each node saw exactly the forward pass's regions.
-        let chain =
-            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
-                .unwrap();
+        let chain = crate::chain::build_chain(
+            &lookup,
+            &nodes,
+            &image,
+            &mut PipeState::from_image(&image),
+            PipeKind::Full,
+        )
+        .unwrap();
         let geos = forward(&chain, &geom(0, 0, 64, 64)).unwrap();
         assert_eq!(geos[0].input, geom(0, 0, 64, 64));
         assert_eq!(geos[0].output, geom(0, 0, 128, 128));
@@ -1492,9 +1497,14 @@ mod tests {
         let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
         let nodes = vec![node("mod_a"), gain_node("mod_b", 2.0)];
         render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
-        let chain =
-            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
-                .unwrap();
+        let chain = crate::chain::build_chain(
+            &lookup,
+            &nodes,
+            &image,
+            &mut PipeState::from_image(&image),
+            PipeKind::Full,
+        )
+        .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         let before = pipe.cache.peek(keys[0]).unwrap().plane;
@@ -1502,9 +1512,14 @@ mod tests {
         render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
         // Node 0's key is unchanged (its params and upstream are): the cached
         // plane is the same allocation, not a fresh copy.
-        let chain =
-            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
-                .unwrap();
+        let chain = crate::chain::build_chain(
+            &lookup,
+            &nodes,
+            &image,
+            &mut PipeState::from_image(&image),
+            PipeKind::Full,
+        )
+        .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         let after = pipe.cache.peek(keys[0]).unwrap().plane;
@@ -1821,9 +1836,14 @@ mod tests {
         );
         // Node 0's plane is cached, complete: its key resolves and its bytes
         // equal the copied input. Nodes 1-2 have no entries.
-        let chain =
-            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
-                .unwrap();
+        let chain = crate::chain::build_chain(
+            &lookup,
+            &nodes,
+            &image,
+            &mut PipeState::from_image(&image),
+            PipeKind::Full,
+        )
+        .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         assert_eq!(pipe.cache_len(), 1);
@@ -2501,9 +2521,14 @@ mod tests {
         assert_eq!(pipe.cache_len(), 2);
         assert_eq!(pipe.budget().used(), 2 * 1_024);
         // Both entries resolve under their keys with the copied bytes.
-        let chain =
-            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
-                .unwrap();
+        let chain = crate::chain::build_chain(
+            &lookup,
+            &nodes,
+            &image,
+            &mut PipeState::from_image(&image),
+            PipeKind::Full,
+        )
+        .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         assert_eq!(
@@ -2667,9 +2692,14 @@ mod tests {
             ),
             (1, 1, 1, 0, 0, 0)
         );
-        let chain =
-            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
-                .unwrap();
+        let chain = crate::chain::build_chain(
+            &lookup,
+            &nodes,
+            &image,
+            &mut PipeState::from_image(&image),
+            PipeKind::Full,
+        )
+        .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         assert_eq!(pipe.cache_len(), 3);
@@ -2737,6 +2767,7 @@ mod tests {
             &nodes_failing,
             &image,
             &mut PipeState::from_image(&image),
+            PipeKind::Full,
         )
         .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
@@ -2766,6 +2797,7 @@ mod tests {
             &nodes_fixed,
             &image,
             &mut PipeState::from_image(&image),
+            PipeKind::Full,
         )
         .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
@@ -2813,6 +2845,7 @@ mod tests {
             &nodes_a,
             &image,
             &mut PipeState::from_image(&image),
+            PipeKind::Full,
         )
         .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
@@ -2835,6 +2868,7 @@ mod tests {
             &nodes_b,
             &image,
             &mut PipeState::from_image(&image),
+            PipeKind::Full,
         )
         .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
@@ -2873,9 +2907,14 @@ mod tests {
             7,
             geom(0, 0, 8, 8),
         );
-        let chain =
-            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
-                .unwrap();
+        let chain = crate::chain::build_chain(
+            &lookup,
+            &nodes,
+            &image,
+            &mut PipeState::from_image(&image),
+            PipeKind::Full,
+        )
+        .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys_a =
             crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
@@ -2930,6 +2969,7 @@ mod tests {
             &nodes_a,
             &image,
             &mut PipeState::from_image(&image),
+            PipeKind::Full,
         )
         .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
@@ -2942,6 +2982,7 @@ mod tests {
             &nodes_b,
             &image,
             &mut PipeState::from_image(&image),
+            PipeKind::Full,
         )
         .unwrap();
         let geos = forward(&chain, &GeomRoi::new(0, 0, 24, 24, 1.0).unwrap()).unwrap();
@@ -3142,9 +3183,14 @@ mod tests {
                 .all(|v| v.to_bits() == product.to_bits())
         );
         // A's entries are all gone; the budget never topped.
-        let chain =
-            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
-                .unwrap();
+        let chain = crate::chain::build_chain(
+            &lookup,
+            &nodes,
+            &image,
+            &mut PipeState::from_image(&image),
+            PipeKind::Full,
+        )
+        .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys_a =
             crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
@@ -3454,6 +3500,7 @@ mod tests {
             _params: &serde_json::Map<String, serde_json::Value>,
             _image: &ImageInfo,
             _state: &mut PipeState,
+            _kind: lightamer_iop_traits::PipeKind,
         ) -> Result<lightamer_iop_traits::CommitData, lightamer_iop_traits::PipeError> {
             Ok(Arc::new(MonoToRgbaCommit))
         }
@@ -3555,9 +3602,14 @@ mod tests {
         assert_eq!(probe.calls(), 1);
         // Poison the entry with a mono plane under the same key: the next
         // render recomputes instead of serving the wrong format.
-        let chain =
-            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
-                .unwrap();
+        let chain = crate::chain::build_chain(
+            &lookup,
+            &nodes,
+            &image,
+            &mut PipeState::from_image(&image),
+            PipeKind::Full,
+        )
+        .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         let poison =
@@ -3667,9 +3719,14 @@ mod tests {
         // never from the previous tile's write.
         assert_eq!(*seen.lock().unwrap(), vec![2.0; 9]);
         // The node left its last tile's value beside its plane.
-        let chain =
-            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
-                .unwrap();
+        let chain = crate::chain::build_chain(
+            &lookup,
+            &nodes,
+            &image,
+            &mut PipeState::from_image(&image),
+            PipeKind::Full,
+        )
+        .unwrap();
         let geos = forward(&chain, &geom(0, 0, 64, 64)).unwrap();
         let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         assert_eq!(

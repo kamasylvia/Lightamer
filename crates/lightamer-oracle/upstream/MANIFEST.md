@@ -36,3 +36,30 @@ Rust counterpart in this wave), `output_format` (its `dsc.rawprepare`
 write has no reader in the RAW head), `init_presets`/`description`/`name`/
 `operation_tags`/`flags`/`default_group`/`default_colorspace` (metadata,
 not pixels).
+
+## hotpixels
+
+| File | Upstream path | Blob | Ranges |
+|---|---|---|---|
+| `hotpixels_types.inc` | `src/iop/hotpixels.c` | `ca687dd1` | 35-41 (params struct), 43-50 (gui-data struct, type only: `process` names it), 52-61 (commit data struct) |
+| `hotpixels_bayer.inc` | `src/iop/hotpixels.c` | `ca687dd1` | 105-158 (`_process_bayer`) |
+| `hotpixels_mono.inc` | `src/iop/hotpixels.c` | `ca687dd1` | 161-216 (`_process_monochrome`) |
+| `hotpixels_xtrans.inc` | `src/iop/hotpixels.c` | `ca687dd1` | 219-325 (`_process_xtrans`) |
+| `hotpixels_process.inc` | `src/iop/hotpixels.c` | `ca687dd1` | 327-356 (`process`) |
+| `hotpixels_defaults.inc` | `src/iop/hotpixels.c` | `ca687dd1` | 358-366 (`reload_defaults`) |
+| `hotpixels_commit.inc` | `src/iop/hotpixels.c` | `ca687dd1` | 368-385 (`commit_params`) |
+| `hotpixels_pipe.inc` | `src/iop/hotpixels.c` | `ca687dd1` | 387-398 (`init_pipe`/`cleanup_pipe`) |
+| `hotpixels_fcn.inc` | `src/develop/imageop_math.h` | `8bc306cc` | 195-207 (`FCNxtrans`) |
+
+## Shared pipe infrastructure (first used by hotpixels)
+
+| File | Upstream path | Blob | Ranges |
+|---|---|---|---|
+| `piece_cfa.inc` | `src/develop/pixelpipe_hb.c` | `d6f1d1bb` | 1289-1304 (`dt_dev_prepare_piece_cfa`) |
+| `pipe_predicates.inc` | `src/develop/pixelpipe_hb.h` | `0c0acea0` | 272-283 (`dt_pipe_is_full/thumb/export`) |
+| `pipe_type_enum.inc` | `src/develop/pixelpipe.h` | `e0dce537` | 41-57 (`dt_dev_pixelpipe_type_t`) |
+
+Deliberately not extracted for hotpixels: GUI functions (`gui_init`/
+`gui_update`/`draw`), `name`/`description`/`default_group`/`flags`/
+`default_colorspace` (metadata, not pixels; the chain's colorspace gate
+covers what `dt_dev_prepare_piece_cfa` needs).

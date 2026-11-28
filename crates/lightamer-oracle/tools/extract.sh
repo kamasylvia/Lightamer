@@ -42,6 +42,22 @@ dt|release-5.7.0|src/common/dng_opcode.h|a57d2c8533590f45be90f96161922e493f9af59
 rs|0c16fee7772594e98897bded01fc31bc3409b4cb|src/librawspeed/metadata/ColorFilterArray.cpp|f349c81a96650bb187ecc4bdd2e0e30034fcff8d|143-170|shift_dcraw.inc
 EOF
       ;;
+    hotpixels)
+      cat <<'EOF'
+dt|release-5.7.0|src/iop/hotpixels.c|ca687dd10b2b325e075cff90cfbf8106f8f94ebe|35-41,43-50,52-61|hotpixels_types.inc
+dt|release-5.7.0|src/iop/hotpixels.c|ca687dd10b2b325e075cff90cfbf8106f8f94ebe|105-158|hotpixels_bayer.inc
+dt|release-5.7.0|src/iop/hotpixels.c|ca687dd10b2b325e075cff90cfbf8106f8f94ebe|161-216|hotpixels_mono.inc
+dt|release-5.7.0|src/iop/hotpixels.c|ca687dd10b2b325e075cff90cfbf8106f8f94ebe|219-325|hotpixels_xtrans.inc
+dt|release-5.7.0|src/iop/hotpixels.c|ca687dd10b2b325e075cff90cfbf8106f8f94ebe|327-356|hotpixels_process.inc
+dt|release-5.7.0|src/iop/hotpixels.c|ca687dd10b2b325e075cff90cfbf8106f8f94ebe|358-366|hotpixels_defaults.inc
+dt|release-5.7.0|src/iop/hotpixels.c|ca687dd10b2b325e075cff90cfbf8106f8f94ebe|368-385|hotpixels_commit.inc
+dt|release-5.7.0|src/iop/hotpixels.c|ca687dd10b2b325e075cff90cfbf8106f8f94ebe|387-398|hotpixels_pipe.inc
+dt|release-5.7.0|src/develop/imageop_math.h|8bc306cc396ee25ae5b9eb5c38fb6ddafadba96f|195-207|hotpixels_fcn.inc
+dt|release-5.7.0|src/develop/pixelpipe_hb.c|d6f1d1bb33489b70959b5b7ae76028ade2e05a28|1289-1304|piece_cfa.inc
+dt|release-5.7.0|src/develop/pixelpipe_hb.h|0c0acea088195aa313d410cc76b2ce88157ec044|272-283|pipe_predicates.inc
+dt|release-5.7.0|src/develop/pixelpipe.h|e0dce53737eeba5bf6ee8d61bb3ce111cdccde6b|41-57|pipe_type_enum.inc
+EOF
+      ;;
     *) echo "extract.sh: unknown module '$1'" >&2; exit 2 ;;
   esac
 }

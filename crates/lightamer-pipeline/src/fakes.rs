@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, atomic::AtomicUsize};
 
 use lightamer_iop_traits::{
-    ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, PipeState,
-    Plane, PlaneMut, Roi, TilingReq, get_float,
+    ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, PipeKind,
+    PipeState, Plane, PlaneMut, Roi, TilingReq, get_float,
 };
 use serde_json::{Map, Value};
 
@@ -88,6 +88,7 @@ impl IopModule for FakeScale {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -154,6 +155,7 @@ impl IopModule for FakeShift {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -225,6 +227,7 @@ impl IopModule for FakeCrop {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -285,6 +288,7 @@ impl IopModule for FakeSink {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -329,6 +333,7 @@ impl IopModule for FakeBadRoi {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -373,6 +378,7 @@ impl IopModule for FakeFail {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Err(PipeError::InvalidParams(
             "mod_fail refuses everything".to_owned(),
@@ -500,6 +506,7 @@ impl IopModule for FakeCopy {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -550,6 +557,7 @@ impl IopModule for FakeGain {
         params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         #[expect(clippy::cast_possible_truncation)]
         // test gains are small; the downcast cannot lose them
@@ -613,6 +621,7 @@ impl IopModule for FakeMem {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -669,6 +678,7 @@ impl IopModule for FakePosition {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -769,6 +779,7 @@ impl IopModule for FakeScaleCopy {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -865,6 +876,7 @@ impl IopModule for FakeSource {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -927,6 +939,7 @@ impl IopModule for FakeBackendFail {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -983,6 +996,7 @@ impl IopModule for FakeBlur {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -1089,6 +1103,7 @@ impl IopModule for FakeSpin {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -1155,6 +1170,7 @@ impl IopModule for FakeWhole {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -1203,6 +1219,7 @@ impl IopModule for FakeProxy {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -1260,6 +1277,7 @@ impl IopModule for FakeGrow {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         _state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -1354,6 +1372,7 @@ impl IopModule for FakeStateWriter {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         state.processed_maximum = [self.commit_mark; 4];
         Ok(Arc::new(FakeCommit))
@@ -1426,6 +1445,7 @@ impl IopModule for FakeStateReader {
         _params: &Map<String, Value>,
         _image: &ImageInfo,
         state: &mut PipeState,
+        _kind: PipeKind,
     ) -> Result<CommitData, PipeError> {
         self.commits
             .lock()

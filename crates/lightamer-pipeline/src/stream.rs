@@ -1099,7 +1099,8 @@ impl Pipe {
         }
         self.set_last_trace(Vec::new());
         let mut commit_state = PipeState::from_image(req.image);
-        let chain = build_chain(req.lookup, req.nodes, req.image, &mut commit_state)
+        let kind = self.kind();
+        let chain = build_chain(req.lookup, req.nodes, req.image, &mut commit_state, kind)
             .map_err(RenderError::Chain)?;
         let full_geos = if chain.is_empty() {
             Vec::new()
@@ -1274,6 +1275,7 @@ mod tests {
             nodes,
             &image(),
             &mut PipeState::from_image(&image()),
+            PipeKind::Full,
         )
         .unwrap();
         let geos = forward(&chain, final_out).unwrap();
@@ -2464,6 +2466,7 @@ mod tests {
             _params: &serde_json::Map<String, serde_json::Value>,
             _image: &ImageInfo,
             _state: &mut PipeState,
+            _kind: lightamer_iop_traits::PipeKind,
         ) -> Result<lightamer_iop_traits::CommitData, lightamer_iop_traits::PipeError> {
             Ok(Arc::new(FormatChangerCommit))
         }

@@ -92,3 +92,12 @@ void gtk_stack_set_visible_child_name(void *stack, const char *name)
   fprintf(stderr, "oracle: gtk reached, widget must be NULL\n");
   abort();
 }
+
+// Upstream dt_iop_image_copy_by_size (imagebuf.h:89-99): documents a copy
+// and parallelizes it past a threshold; bytes out equal bytes in either
+// way. Oracle: the same copy, serial (no OpenMP here, like DT_OMP_FOR).
+void dt_iop_image_copy_by_size(float *const out, const float *const in, const size_t width,
+                               const size_t height, const size_t ch)
+{
+  memcpy(out, in, width * height * ch * sizeof(float));
+}

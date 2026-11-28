@@ -173,6 +173,7 @@ mod tests {
             _params: &Map<String, Value>,
             _image: &ImageInfo,
             _state: &mut PipeState,
+            _kind: crate::PipeKind,
         ) -> Result<CommitData, PipeError> {
             Ok(Arc::new(()))
         }
@@ -213,7 +214,9 @@ mod tests {
     fn data_of(module: &Grower) -> CommitData {
         let image = ImageInfo::new(64, 64, crate::ColorSpace::Rgb);
         let mut state = crate::PipeState::from_image(&image);
-        module.commit(&Map::new(), &image, &mut state).unwrap()
+        module
+            .commit(&Map::new(), &image, &mut state, crate::PipeKind::Full)
+            .unwrap()
     }
 
     #[test]
