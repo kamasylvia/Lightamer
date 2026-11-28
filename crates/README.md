@@ -5,7 +5,7 @@
 > `FRAMEWORK-TABLES.md` T-F9。本文件只是一张索引，不复述规格。
 > 依赖方向由 `cargo xtask layers` 强制（`crates/xtask/src/layers.rs`）：
 > 严格向下，同层只许走登记的链（L0 `[lightamer-geom, lightamer-color-math, lightamer-raster]`、
-> L1 `[lightamer-meta, lightamer-decode]`、L2 `[lightamer-registry, lightamer-history, lightamer-pipeline]`），
+> L1 `[lightamer-meta, lightamer-decode]`、`[lightamer-color, lightamer-iop-color]`、L2 `[lightamer-registry, lightamer-history, lightamer-pipeline]`），
 > 界面 crate 只许在 L5，`lightamer-testkit` 只许作开发依赖。
 
 30 个包（`apps/lightamer-cli` 另计在 `apps/`；`lightamer-gpui` A7b 已建）：
@@ -19,10 +19,10 @@
 | L0 | `lightamer-sysmem` | 硬上限字节预算：`Budget`（超限是错）+ RAII `Grant`（drop 归还）+ 共享 `SharedGrant`（`Arc` 授权，随画面走）+ 余量可问，线程共享 | B1-a 已填 / B1-b 共享授权 |
 | L1 | `lightamer-iop-raw` | raw 段模块桩 8 个（rawprepare/demosaic/…；`build.rs` 扫 `src/modules/*/mod.rs` 自动发现） | A3 桩 / B3 起填像素 |
 | L1 | `lightamer-iop-geom` | 几何模块桩 21 个（lens/crop/…） | A3 桩 / B7 起填像素 |
-| L1 | `lightamer-iop-color` | 颜色模块桩 22 个（temperature/colorin/colorout/…） | A3 桩 / B3 起填像素 |
+| L1 | `lightamer-iop-color` | 颜色模块桩 22 个（temperature/colorin/colorout/…；temperature 已填像素，其余桩） | A3 桩 / B3-2a 起填像素 |
 | L1 | `lightamer-iop-display` | 显示段模块桩 46 个（exposure/曲线/finalscale/gamma/…） | A3 桩 / B3 起填像素（highlights 首用） |
 | L1 | `lightamer-meta` | 内嵌元数据解码与 sidecar helper | B2 |
-| L1 | `lightamer-color` | lcms2 腿 + 矩阵数学 | B3（temperature 首用） |
+| L1 | `lightamer-color` | 色彩管理：lcms2 薄封装（`white_point_from_temp`，B3-2a 首填）+ 矩阵数学待填 | B3-2a 首填 |
 | L1 | `lightamer-blend` | 蒙版栅格化 + 混合 | B14 |
 | L1 | `lightamer-decode` | rawspeed C ABI shim + 安全包装（B2-a 已填：子模块钉 `0c16fee77`、薄 C 接口、单例相机库、9 码错误表；B2-b 已填：纯 Rust 栅格解码 JPEG/PNG/TIFF + EXIF 光学参数 + 内嵌缩略图，10 码错误表，`rs_thumb` 占位移除） | B2-a 已填 / B2-b 已填 |
 | L1 | `lightamer-scenes` | 成像测试共用的确定性测试场景 | A5 |
@@ -38,8 +38,8 @@
 | L4 | `lightamer-engine` | 命令分发口（`execute` 唯一入口 + 24 条命令：A7a 13 条编辑/历史/作业 + B12′-b 7 条会话/模板（真实会话 + 备份/恢复/扫描作业 + 只读校验 + 模板）+ B13′-b2 `develop.sync`/`develop.merge`（源/剪贴板选中合并，模块/参数两颗粒）+ B1-c `render.request`/`render.cancel`（渲染作业 + 代际 latest-wins + 取消；输入/模块双注入口；渲染读库不写库）+ 草稿会话 + 作业池 + 事件；导出/导入命令后续逐条加）+ B13′-b1 真实会话落库（T5 三步 + 按需加载/LRU 64 + 盖库摘要）+ B1d-b 行带流式引擎侧（区域输入 + 超限自动转 + 落盘/保留配置 + 按字节 LRU 保留）+ B1d-c 探尺寸直流（`probe` + 按 `max_frame_bytes` 直转 + 单 `render_stream_from`，删嵌套循环） | A7a 已填 / B12′-b 会话命令 / B13′-b1 落库接线 / B13′-b2 两命令 / B1-c 渲染作业 / B1d-b 流式引擎侧 / B1d-c 直流 |
 | L5 | `lightamer-mcp` | 基于引擎命令的 MCP 服务器，C 期占位 | C 期 |
 | L5 | `lightamer-gpui` | 界面（gpui-kit 0.11.0 + gpui-fast 特性）：原生视口画布 + 右侧滑杆面板；双输入路径（框架回调/原生子类）→ 自有 `ViewportInput` 纯数据；只走 `execute` 与快照（A7b 已填） | A7b 已填 |
-| testkit | `lightamer-testkit` | 测试套件：skip 宏 + JSONL 记录 + `IdentityModule`（恒等测试模块，B1-b 起并行拷贝）+ 只许开发依赖 | A3R 已填 / B1-a 恒等模块 / B1-b 并行 |
-| testkit | `lightamer-oracle` | 上游对照：darktable 模块源码逐字抽取 + 桩接口 + 小管线，只许开发依赖（B3-1b rawprepare 首用） | B3-1b 已填 |
+| testkit | `lightamer-testkit` | 测试套件：skip 宏 + JSONL 记录 + `IdentityModule`（恒等测试模块，B1-b 起并行拷贝）+ 只许开发依赖 + B3-2a 起跨 crate 链对照（temperature 三模块链） | A3R 已填 / B1-a 恒等模块 / B1-b 并行 |
+| testkit | `lightamer-oracle` | 上游对照：darktable 模块源码逐字抽取 + 桩接口 + 小管线，只许开发依赖（B3-1b rawprepare 首用，B3-1c hotpixels，B3-2a temperature + lcms2 系统库） | B3-1b 已填 |
 | exempt | `lightamer-cli` | 命令行 + oracle 对照工具（A5 已填：`fetch`/`render`/`cmp`/`emit-xmp`/`selftest`；A6 加 `capabilities` + `apple` 默认 feature 关断 Apple 链接；A7a 加 `commands`/`run`（JSONL 喂引擎草稿会话）；B12′-b 加 `run` 会话文件（每行作业排空 + `--hold` 留会话）；B13′-b2 加 `run` 真实会话打印（文件内照片 `short:steps:cursor`）+ `bench` 计时工具（`setup`/`paste`，开发用非导入）；B1-c 加 `render-demo`（合成画面 + 私有增益模块七步演示）；B2-a 加 `decode --dump`（解码探针：字段 + 冷热计时 + `--thumb` 占位）；B2-b 加栅格 `--dump`（宽高/位深/分量/ICC）+ `--thumb O` 写盘（格式/字节/尺寸报告）；B1d-b 加 `stream-demo`（合成画面 + 私有增益/模糊模块七步演示）+ 管道关闭安静退出 + `bench` 负载门只管计时结论（可注入探针）+ hold 残留清扫；入口 `Scripts/oracle.sh`，钉点 `Scripts/oracle.lock`）+ perf 探针（A3R 挪到 `apps/lightamer-cli`） | A4b（`history dump`）/ A5 已填 / A6 已填 / A7a 已填 / B12′-b 已填 / B13′-b2 已填 / B1-c 已填 / B2-a 已填 / B2-b 已填 / B1d-b 已填 |
 | exempt | `xtask` | 仓库维护任务：`check-i18n`（骨架，B17 启用）；`gen-iop-stubs`（解析上游 `iop_order.c` 生成夹具+桩）/`check-order-sync`（上游×夹具×桩三方比对）/`check-no-iop-names`（核心零 op 名机检）/`layers`（分层检查，A3R 加） | A2 骨架 / A3 三子命令 / A3R layers / B17 |
 

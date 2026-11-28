@@ -63,3 +63,37 @@ Deliberately not extracted for hotpixels: GUI functions (`gui_init`/
 `gui_update`/`draw`), `name`/`description`/`default_group`/`flags`/
 `default_colorspace` (metadata, not pixels; the chain's colorspace gate
 covers what `dt_dev_prepare_piece_cfa` needs).
+
+## temperature
+
+| File | Upstream path | Blob | Ranges |
+|---|---|---|---|
+| `temperature_defs.inc` | `src/iop/temperature.c` | `eee5d23a` | 48-64 (temp/tint limits, preset tags) |
+| `temperature_types.inc` | `src/iop/temperature.c` | `eee5d23a` | 68-75 (params struct), 77-99 (gui-data struct, type only: conversions name it), 101-105 (commit data struct) |
+| `temperature_array.inc` | `src/iop/temperature.c` | `eee5d23a` | 185-199 (params/array helpers) |
+| `temperature_ignore.inc` | `src/iop/temperature.c` | `eee5d23a` | 201-236 (`_ignore_missing_wb`) |
+| `temperature_spectrum.inc` | `src/iop/temperature.c` | `eee5d23a` | 281-403 (`spd` typedef, blackbody/daylight spectra, temp-to-XYZ) |
+| `temperature_convert.inc` | `src/iop/temperature.c` | `eee5d23a` | 406-502 (XYZ-temp search, xyz/temp/mul conversions) |
+| `temperature_process.inc` | `src/iop/temperature.c` | `eee5d23a` | 504-639 (`scaled_copy_4wide`, `_publish_chroma`, `process`) |
+| `temperature_commit.inc` | `src/iop/temperature.c` | `eee5d23a` | 687-728 (`commit_params`) |
+| `temperature_pipe.inc` | `src/iop/temperature.c` | `eee5d23a` | 730-743 (`init_pipe`/`cleanup_pipe`) |
+| `temperature_coeffs.inc` | `src/iop/temperature.c` | `eee5d23a` | 1382-1511 (bogus daylight, matrix prep, `_find_coeffs`) |
+| `temperature_fcn.inc` | `src/develop/imageop_math.h` | `8bc306cc` | 154-157 (`FC`), 195-207 (`FCNxtrans`) |
+| `temperature_simd.inc` | `src/common/dttypes.h` | `f875f6a6` | 57 (`DT_ALIGNED_PIXEL`), 68-72 (SIMD lanes), 94-114 (channel loops) |
+| `temperature_colormatrix.inc` | `src/common/dttypes.h` | `f875f6a6` | 231-259 (colormatrix validity) |
+| `temperature_isnormal.inc` | `src/common/math.h` | `689dc106` | 114-117 (`dt_isnormal`) |
+| `temperature_d65.inc` | `src/common/colorspaces.h` | `9b01c350` | 37-38 (`D65xyY`) |
+| `temperature_matrices.inc` | `src/common/colorspaces.c` | `c3fc7d6d` | 2311-2456 (pseudoinverse, conversion matrices) |
+| `temperature_matrix_pred.inc` | `src/common/image.c` | `05605921` | 253-257 (`dt_image_is_matrix_correction_supported`) |
+| `temperature_preview_pred.inc` | `src/develop/pixelpipe_hb.h` | `0c0acea0` | 292-295 (`dt_pipe_is_preview`) |
+| `temperature_cie_tables.inc` | `src/external/cie_colorimetric_tables.c` | `051340d0` | 1-230 (full data tables) |
+
+Deliberately not extracted for temperature: GUI functions and state,
+`reload_defaults` (needs GUI/dev/history; callers pass explicit params and
+the glue default-fill is empty), `process_cl`/`init_global`, `legacy_params`,
+`name`/`description`/`default_group`/`flags`/`default_colorspace` (metadata,
+not pixels), the `wb_presets` table (GUI menu data; the count stub reads 0).
+`src/common/colorspaces_inline_conversions.h` contributes no referenced
+symbol to the extracted functions (verified by grep: the spectrum legs use
+only `D65xyY`, taken above), so it stays out as a whole rather than dragging
+its SSE header chain in.

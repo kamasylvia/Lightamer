@@ -58,6 +58,29 @@ dt|release-5.7.0|src/develop/pixelpipe_hb.h|0c0acea088195aa313d410cc76b2ce88157e
 dt|release-5.7.0|src/develop/pixelpipe.h|e0dce53737eeba5bf6ee8d61bb3ce111cdccde6b|41-57|pipe_type_enum.inc
 EOF
       ;;
+    temperature)
+      cat <<'EOF'
+dt|release-5.7.0|src/iop/temperature.c|eee5d23ab7d86cbd2999bf6c469cd388d99464b7|48-64|temperature_defs.inc
+dt|release-5.7.0|src/iop/temperature.c|eee5d23ab7d86cbd2999bf6c469cd388d99464b7|68-75,77-99,101-105|temperature_types.inc
+dt|release-5.7.0|src/iop/temperature.c|eee5d23ab7d86cbd2999bf6c469cd388d99464b7|185-199|temperature_array.inc
+dt|release-5.7.0|src/iop/temperature.c|eee5d23ab7d86cbd2999bf6c469cd388d99464b7|201-236|temperature_ignore.inc
+dt|release-5.7.0|src/iop/temperature.c|eee5d23ab7d86cbd2999bf6c469cd388d99464b7|281-403|temperature_spectrum.inc
+dt|release-5.7.0|src/iop/temperature.c|eee5d23ab7d86cbd2999bf6c469cd388d99464b7|406-502|temperature_convert.inc
+dt|release-5.7.0|src/iop/temperature.c|eee5d23ab7d86cbd2999bf6c469cd388d99464b7|504-639|temperature_process.inc
+dt|release-5.7.0|src/iop/temperature.c|eee5d23ab7d86cbd2999bf6c469cd388d99464b7|687-728|temperature_commit.inc
+dt|release-5.7.0|src/iop/temperature.c|eee5d23ab7d86cbd2999bf6c469cd388d99464b7|730-743|temperature_pipe.inc
+dt|release-5.7.0|src/iop/temperature.c|eee5d23ab7d86cbd2999bf6c469cd388d99464b7|1382-1511|temperature_coeffs.inc
+dt|release-5.7.0|src/develop/imageop_math.h|8bc306cc396ee25ae5b9eb5c38fb6ddafadba96f|154-157,195-207|temperature_fcn.inc
+dt|release-5.7.0|src/common/dttypes.h|f875f6a6f1ee1f07c30dc8d970b0d7ede5af0ab1|57-57,68-72,94-114|temperature_simd.inc
+dt|release-5.7.0|src/common/dttypes.h|f875f6a6f1ee1f07c30dc8d970b0d7ede5af0ab1|231-259|temperature_colormatrix.inc
+dt|release-5.7.0|src/common/math.h|689dc1061abd42553ac066fffc3dd6645011ae7c|114-117|temperature_isnormal.inc
+dt|release-5.7.0|src/common/colorspaces.h|9b01c35057afed8a3708198c1018b727ba0d82ac|37-38|temperature_d65.inc
+dt|release-5.7.0|src/common/colorspaces.c|c3fc7d6d8bd39a30b5b3b879a0848009f96289d3|2311-2456|temperature_matrices.inc
+dt|release-5.7.0|src/common/image.c|05605921dc2f684cf3419820f7e09d850e157489|253-257|temperature_matrix_pred.inc
+dt|release-5.7.0|src/develop/pixelpipe_hb.h|0c0acea088195aa313d410cc76b2ce88157ec044|292-295|temperature_preview_pred.inc
+dt|release-5.7.0|src/external/cie_colorimetric_tables.c|051340d06de32e69f2609496dc42cef33f51675d|1-230|temperature_cie_tables.inc
+EOF
+      ;;
     *) echo "extract.sh: unknown module '$1'" >&2; exit 2 ;;
   esac
 }

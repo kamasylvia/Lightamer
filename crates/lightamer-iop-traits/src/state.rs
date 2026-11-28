@@ -41,13 +41,18 @@ pub enum BufferDataType {
 }
 
 /// White-balance facts the temperature module publishes and the highlights
-/// module reads (`dsc.temperature`, `format.h:52-56`).
+/// module reads (`dsc.temperature`, `format.h:52-56`); the late-correction
+/// flag rides from `dev->chroma` (`develop.h:154-163`), where temperature's
+/// commit and processing both write it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TemperatureState {
     /// Whether a temperature module published these values.
     pub enabled: bool,
     /// Per-channel multipliers, R/G/B/G2.
     pub coeffs: [f32; 4],
+    /// Whether white balance defers full adaptation downstream (the D65
+    /// late preset): commit writes it, highlights reads it.
+    pub late_correction: bool,
 }
 
 /// Facts modules pass along the chain: plain data, stack-resident,
@@ -89,6 +94,7 @@ impl PipeState {
             temperature: TemperatureState {
                 enabled: false,
                 coeffs: [1.0; 4],
+                late_correction: false,
             },
         }
     }

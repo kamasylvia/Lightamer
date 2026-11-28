@@ -101,3 +101,37 @@ void dt_iop_image_copy_by_size(float *const out, const float *const in, const si
 {
   memcpy(out, in, width * height * ch * sizeof(float));
 }
+
+// Upstream dt_control_log: GUI toast. Oracle: silent, like dt_print.
+void dt_control_log(const char *msg, ...)
+{
+  (void)msg;
+}
+
+// Upstream dt_wb_presets_count: rows in the preset store. Oracle: the store
+// (GUI menu data) stays out, so zero; `_find_coeffs` skips straight to the
+// hardcoded fallback, which is exactly the camera-less path compared.
+int dt_wb_presets_count(void)
+{
+  return 0;
+}
+
+// Upstream dt_wb_preset: k-th store row. Oracle: unreachable (the count
+// above is zero, and both callers loop under it).
+dt_wb_data *dt_wb_preset(const int k)
+{
+  (void)k;
+  fprintf(stderr, "oracle: wb preset requested, count must be 0\n");
+  abort();
+}
+
+// glib g_str_has_suffix: same semantics (NULL-safe FALSE, empty suffix
+// TRUE), so `_ignore_missing_wb` reads what upstream reads.
+int g_str_has_suffix(const char *str, const char *suffix)
+{
+  if(!str || !suffix) return FALSE;
+  const size_t str_len = strlen(str);
+  const size_t suffix_len = strlen(suffix);
+  if(suffix_len > str_len) return FALSE;
+  return strcmp(str + str_len - suffix_len, suffix) == 0 ? TRUE : FALSE;
+}

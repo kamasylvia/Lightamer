@@ -17,3 +17,10 @@ serde_json = { version = "1" }
 # Workspace-internal edges only; no new packages.
 lightamer-decode = { path = "../lightamer-decode" }
 lightamer-raster = { path = "../lightamer-raster" }
+
+[dev-dependencies]
+# B3-2a: the three-module chain oracle test needs both L1 module crates
+# plus the oracle. Testkit sits at L5, so these edges are layer-clean.
+lightamer-iop-raw = { path = "../lightamer-iop-raw" }
+lightamer-iop-color = { path = "../lightamer-iop-color" }
+lightamer-oracle = { path = "../lightamer-oracle" }

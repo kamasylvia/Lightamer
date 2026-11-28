@@ -59,12 +59,25 @@ struct CStateOut {
     processed_maximum: [f32; 4],
     p_width: i32,
     p_height: i32,
+    temp_enabled: i32,
+    temp_coeffs: [f32; 4],
+    temp_late: i32,
 }
 
-// The C side asserts the same three sizes (chain.c `_Static_assert`).
+// Mirrors `oracle_temp_facts`: base facts plus white-balance facts.
+#[repr(C)]
+struct CTempFacts {
+    base: CFacts,
+    wb: [f32; 4],
+    xyz_to_cam: [f32; 9],
+    has_xyz: i32,
+}
+
+// The C side asserts the same four sizes (chain.c `_Static_assert`).
 const _: () = assert!(size_of::<CFacts>() == 100);
 const _: () = assert!(size_of::<CRoi>() == 20);
-const _: () = assert!(size_of::<CStateOut>() == 68);
+const _: () = assert!(size_of::<CStateOut>() == 92);
+const _: () = assert!(size_of::<CTempFacts>() == 156);
 
 // The chain entry points plus the params fill/read pairs. Argument
 // shapes are fixed here so no caller can pass a mismatched pointer.
@@ -122,6 +135,46 @@ unsafe extern "C" {
         markfixed: c_int,
         permissive: c_int,
     );
+    fn oracle_run_temp(
+        names: *const *const c_char,
+        params_list: *const *const c_void,
+        count: c_int,
+        facts: *const CTempFacts,
+        input: *const c_void,
+        input_is_u16: c_int,
+        rin: *const CRoi,
+        output: *mut c_void,
+        rout: *const CRoi,
+        state: *mut CStateOut,
+        pipe_type: c_int,
+        planes: c_int,
+    ) -> c_int;
+    fn oracle_temperature_fill(
+        out: *mut c_void,
+        red: f32,
+        green: f32,
+        blue: f32,
+        various: f32,
+        preset: c_int,
+    );
+    fn oracle_temperature_find_coeffs(facts: *const CTempFacts, coeffs_out: *mut f64) -> c_int;
+    fn oracle_temperature_bogus(facts: *const CTempFacts, bwb_out: *mut f64) -> c_int;
+    fn oracle_temperature_temp2mul(
+        facts: *const CTempFacts,
+        temp: f64,
+        tint: f64,
+        mul_out: *mut f64,
+    ) -> c_int;
+    fn oracle_temperature_mul2temp(
+        facts: *const CTempFacts,
+        red: f32,
+        green: f32,
+        blue: f32,
+        various: f32,
+        temp_out: *mut f32,
+        tint_out: *mut f32,
+    ) -> c_int;
+    fn oracle_temperature_tint_xyz(temp: f64, tint: f64, xyz_out: *mut f64) -> c_int;
 }
 
 /// Buffer scalar type, mirroring `TYPE_FLOAT`/`TYPE_UINT16`.
@@ -288,6 +341,48 @@ pub struct HotParams {
     pub permissive: bool,
 }
 
+/// temperature parameters: four channel multipliers plus the preset tag
+/// (`temperature.c:68-75`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TempParams {
+    /// Red multiplier, 0..=8.
+    pub red: f32,
+    /// Green multiplier, 0..=8.
+    pub green: f32,
+    /// Blue multiplier, 0..=8.
+    pub blue: f32,
+    /// Fourth-channel multiplier (G2 on four-color Bayer), 0..=8.
+    pub various: f32,
+    /// Preset tag: -1 unknown, 0 as-shot, 1 spot, 2 user, 3 D65, 4 D65 late.
+    pub preset: i32,
+}
+
+/// White-balance facts for temperature runs: base facts plus as-shot
+/// multipliers and the optional rawspeed XYZ-to-camera matrix. Separate
+/// from [`Facts`] so the base struct (and its tests) stays frozen.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TempFacts {
+    /// Base image facts.
+    pub base: Facts,
+    /// As-shot white-balance multipliers, R/G/B/G2.
+    pub wb: [f32; 4],
+    /// XYZ(D65)-to-camera matrix, row-major 3x3; [`None`] marks the slot
+    /// invalid (no matrix leg runs).
+    pub xyz_to_cam: Option<[f32; 9]>,
+}
+
+impl TempFacts {
+    /// Packs the ABI mirror: base facts plus white-balance facts.
+    fn abi(self) -> CTempFacts {
+        CTempFacts {
+            base: self.base.abi(),
+            wb: self.wb,
+            xyz_to_cam: self.xyz_to_cam.unwrap_or([0.0; 9]),
+            has_xyz: c_int::from(self.xyz_to_cam.is_some()),
+        }
+    }
+}
+
 /// One input tile: raw sensor words or unnormalized floats.
 #[derive(Debug, Clone, Copy)]
 pub enum TileInput<'a> {
@@ -315,6 +410,12 @@ pub struct StateOut {
     pub p_width: i32,
     /// Post-crop height.
     pub p_height: i32,
+    /// Whether a temperature stage published white balance.
+    pub temp_enabled: bool,
+    /// Published white-balance coeffs (zeros when unpublished).
+    pub temp_coeffs: [f32; 4],
+    /// Late-correction flag (`dev->chroma`, written by commit and process).
+    pub temp_late: bool,
 }
 
 /// What can go wrong across the oracle boundary.
@@ -344,6 +445,9 @@ pub const RAWPREPARE: &CStr = c"rawprepare";
 /// Module table name of the second transcribed module.
 pub const HOTPPIXELS: &CStr = c"hotpixels";
 
+/// Module table name of the third transcribed module.
+pub const TEMPERATURE: &CStr = c"temperature";
+
 /// `DT_IMAGE_RAW` (`src/common/image.h`): the capture needs demosaicing.
 pub const DT_IMAGE_RAW: u32 = 64;
 
@@ -358,6 +462,9 @@ pub const DT_IMAGE_MONOCHROME: u32 = 32768;
 
 /// `DT_IMAGE_MONOCHROME_BAYER` (`src/common/image.h`): mono via demosaic.
 pub const DT_IMAGE_MONOCHROME_BAYER: u32 = 1 << 19;
+
+/// `DT_IMAGE_4BAYER` (`src/common/image.h`): four-color Bayer.
+pub const DT_IMAGE_4BAYER: u32 = 16384;
 
 fn area_of(width: i32, height: i32) -> Result<usize, OracleError> {
     let width = u64::try_from(width).map_err(|_| OracleError::BadInput("negative width"))?;
@@ -418,6 +525,30 @@ fn fill_hotparams(params: &HotParams) -> Result<Vec<u8>, OracleError> {
     Ok(blob)
 }
 
+/// Fills one temperature params blob through the C helper.
+#[expect(unsafe_code)]
+// The blob is exactly `oracle_params_size` bytes; the fill helper writes
+// that struct and nothing else.
+fn fill_tempparams(params: &TempParams) -> Result<Vec<u8>, OracleError> {
+    let size = unsafe { oracle_params_size(TEMPERATURE.as_ptr()) };
+    let size = usize::try_from(size).map_err(|_| OracleError::Chain(1))?;
+    if size == 0 {
+        return Err(OracleError::Chain(1));
+    }
+    let mut blob = vec![0u8; size];
+    unsafe {
+        oracle_temperature_fill(
+            blob.as_mut_ptr().cast::<c_void>(),
+            params.red,
+            params.green,
+            params.blue,
+            params.various,
+            c_int::from(params.preset),
+        );
+    }
+    Ok(blob)
+}
+
 /// Floats per pixel hotpixels reads and writes: 4 for a monochrome
 /// small-RAW (`pure_monochrome`), 1 otherwise — the same flag read
 /// `commit_params` makes (`hotpixels.c:379-380`).
@@ -426,6 +557,59 @@ fn hotpixels_planes(flags: u32) -> usize {
         4
     } else {
         1
+    }
+}
+
+/// Checks the tile buffers for a chain run: the input holds its region
+/// times its stride, the output is reserved for its own. The returned
+/// pointer borrows `input` and stays valid while it lives.
+fn prepare_buffers(
+    input: TileInput<'_>,
+    in_planes: usize,
+    rin: Roi,
+    rout: Roi,
+    out_planes: usize,
+) -> Result<(*const c_void, c_int, Vec<f32>), OracleError> {
+    let in_area = area_of(rin.width, rin.height)?
+        .checked_mul(in_planes)
+        .ok_or(OracleError::BadInput("input area overflows"))?;
+    let out_area = area_of(rout.width, rout.height)?
+        .checked_mul(out_planes)
+        .ok_or(OracleError::BadInput("output area overflows"))?;
+    let (in_ptr, input_is_u16) = match input {
+        TileInput::U16(words) => {
+            if words.len() < in_area {
+                return Err(OracleError::BadInput("u16 input shorter than rin"));
+            }
+            (words.as_ptr().cast::<c_void>(), 1 as c_int)
+        }
+        TileInput::F32(samples) => {
+            if samples.len() < in_area {
+                return Err(OracleError::BadInput("f32 input shorter than rin"));
+            }
+            (samples.as_ptr().cast::<c_void>(), 0 as c_int)
+        }
+    };
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(out_area)
+        .map_err(|_| OracleError::BadInput("output reservation failed"))?;
+    output.resize(out_area, 0.0);
+    Ok((in_ptr, input_is_u16, output))
+}
+
+/// Reads the post-run C state into the owned report.
+fn read_state(state: &CStateOut) -> StateOut {
+    StateOut {
+        enabled: state.enabled != 0,
+        filters: state.filters,
+        xtrans: state.xtrans,
+        processed_maximum: state.processed_maximum,
+        p_width: state.p_width,
+        p_height: state.p_height,
+        temp_enabled: state.temp_enabled != 0,
+        temp_coeffs: state.temp_coeffs,
+        temp_late: state.temp_late != 0,
     }
 }
 
@@ -453,31 +637,8 @@ fn run_chain(
     let c_facts = facts.abi();
     let c_rin = rin.abi();
     let c_rout = rout.abi();
-    let in_area = area_of(rin.width, rin.height)?
-        .checked_mul(in_planes)
-        .ok_or(OracleError::BadInput("input area overflows"))?;
-    let out_area = area_of(rout.width, rout.height)?
-        .checked_mul(out_planes)
-        .ok_or(OracleError::BadInput("output area overflows"))?;
-    let (in_ptr, input_is_u16) = match input {
-        TileInput::U16(words) => {
-            if words.len() < in_area {
-                return Err(OracleError::BadInput("u16 input shorter than rin"));
-            }
-            (words.as_ptr().cast::<c_void>(), 1 as c_int)
-        }
-        TileInput::F32(samples) => {
-            if samples.len() < in_area {
-                return Err(OracleError::BadInput("f32 input shorter than rin"));
-            }
-            (samples.as_ptr().cast::<c_void>(), 0 as c_int)
-        }
-    };
-    let mut output = Vec::new();
-    output
-        .try_reserve_exact(out_area)
-        .map_err(|_| OracleError::BadInput("output reservation failed"))?;
-    output.resize(out_area, 0.0);
+    let (in_ptr, input_is_u16, mut output) =
+        prepare_buffers(input, in_planes, rin, rout, out_planes)?;
     let mut state = CStateOut {
         enabled: 0,
         filters: 0,
@@ -485,6 +646,9 @@ fn run_chain(
         processed_maximum: [0.0; 4],
         p_width: 0,
         p_height: 0,
+        temp_enabled: 0,
+        temp_coeffs: [0.0; 4],
+        temp_late: 0,
     };
     let count = c_int::try_from(names.len()).map_err(|_| OracleError::Chain(1))?;
     let rc = unsafe {
@@ -506,17 +670,63 @@ fn run_chain(
     if rc != 0 {
         return Err(OracleError::Chain(rc));
     }
-    Ok((
-        output,
-        StateOut {
-            enabled: state.enabled != 0,
-            filters: state.filters,
-            xtrans: state.xtrans,
-            processed_maximum: state.processed_maximum,
-            p_width: state.p_width,
-            p_height: state.p_height,
-        },
-    ))
+    Ok((output, read_state(&state)))
+}
+
+/// Runs one temperature-bearing chain over one tile: [`run_chain`] with
+/// white-balance facts (`oracle_run_temp` on the C side).
+#[expect(unsafe_code)]
+// Same contract as [`run_chain`]: checked buffers, live pointers, the
+// chain touches nothing else.
+#[allow(clippy::too_many_arguments)]
+fn run_temp_chain(
+    names: &[*const c_char],
+    blobs: &[*const c_void],
+    facts: &TempFacts,
+    input: TileInput<'_>,
+    in_planes: usize,
+    rin: Roi,
+    rout: Roi,
+    kind: PipeType,
+    out_planes: usize,
+) -> Result<(Vec<f32>, StateOut), OracleError> {
+    let c_facts = facts.abi();
+    let c_rin = rin.abi();
+    let c_rout = rout.abi();
+    let (in_ptr, input_is_u16, mut output) =
+        prepare_buffers(input, in_planes, rin, rout, out_planes)?;
+    let mut state = CStateOut {
+        enabled: 0,
+        filters: 0,
+        xtrans: [0; 36],
+        processed_maximum: [0.0; 4],
+        p_width: 0,
+        p_height: 0,
+        temp_enabled: 0,
+        temp_coeffs: [0.0; 4],
+        temp_late: 0,
+    };
+    let count = c_int::try_from(names.len()).map_err(|_| OracleError::Chain(1))?;
+    let rc = unsafe {
+        oracle_run_temp(
+            names.as_ptr(),
+            blobs.as_ptr(),
+            count,
+            &raw const c_facts,
+            in_ptr,
+            input_is_u16,
+            &raw const c_rin,
+            output.as_mut_ptr().cast::<c_void>(),
+            &raw const c_rout,
+            &raw mut state,
+            kind.bits(),
+            c_int::try_from(out_planes).map_err(|_| OracleError::BadInput("planes overflow"))?,
+        )
+    };
+    if rc != 0 {
+        return Err(OracleError::Chain(rc));
+    }
+    Ok((output, read_state(&state)))
 }
 
 /// Runs verbatim `rawprepare` over one tile: commit against the image
@@ -618,6 +828,118 @@ pub fn run_rawprepare_hotpixels(
         hp_blob.as_ptr().cast::<c_void>(),
     ];
     let (output, state) = run_chain(&names, &blobs, facts, input, 1, rin, rout, kind, 1)?;
+    Ok((output, state, rout))
+}
+
+/// Runs verbatim `temperature` over one tile: commit against the image
+/// snapshot, then process; the evolved state comes back beside the pixels.
+/// Float input only: upstream reads the `TYPE_FLOAT` buffer unconditionally.
+/// `planes` is scalars per pixel (1 mosaic, 4 non-mosaiced RGBA).
+///
+/// # Errors
+///
+/// [`OracleError::BadInput`] when a region is malformed, a buffer is
+/// short, or `planes` is neither 1 nor 4; [`OracleError::Chain`] when the
+/// C chain refuses the run.
+#[must_use = "the oracle ran for its output"]
+pub fn run_temperature(
+    facts: &TempFacts,
+    params: &TempParams,
+    kind: PipeType,
+    input: &[f32],
+    rin: Roi,
+    rout: Roi,
+    planes: usize,
+) -> Result<(Vec<f32>, StateOut), OracleError> {
+    if planes != 1 && planes != 4 {
+        return Err(OracleError::BadInput("temperature planes must be 1 or 4"));
+    }
+    let blob = fill_tempparams(params)?;
+    let names = [TEMPERATURE.as_ptr()];
+    let blobs = [blob.as_ptr().cast::<c_void>()];
+    run_temp_chain(
+        &names,
+        &blobs,
+        facts,
+        TileInput::F32(input),
+        planes,
+        rin,
+        rout,
+        kind,
+        planes,
+    )
+}
+
+/// Runs verbatim `rawprepare` into verbatim `temperature` over one tile:
+/// the RAW-head chain prefix (upstream runs temperature before hotpixels).
+/// Geometry threads through rawprepare's roi (temperature is identity);
+/// the caller passes `rin` only. Mosaic runs only.
+///
+/// # Errors
+///
+/// [`OracleError::BadInput`] when a region is malformed or a buffer is
+/// short; [`OracleError::Chain`] when the C chain refuses the run.
+#[must_use = "the oracle ran for its output"]
+pub fn run_rawprepare_temperature(
+    facts: &TempFacts,
+    rawprepare: &Params,
+    temperature: &TempParams,
+    kind: PipeType,
+    input: TileInput<'_>,
+    rin: Roi,
+) -> Result<(Vec<f32>, StateOut, Roi), OracleError> {
+    let rp_blob = fill_params(rawprepare)?;
+    let tp_blob = fill_tempparams(temperature)?;
+    let rout = rawprepare_roi_out(&facts.base, rawprepare, rin)?;
+    let names = [RAWPREPARE.as_ptr(), TEMPERATURE.as_ptr()];
+    let blobs = [
+        rp_blob.as_ptr().cast::<c_void>(),
+        tp_blob.as_ptr().cast::<c_void>(),
+    ];
+    let (output, state) = run_temp_chain(&names, &blobs, facts, input, 1, rin, rout, kind, 1)?;
+    Ok((output, state, rout))
+}
+
+/// Runs verbatim `rawprepare` into `temperature` into `hotpixels` over one
+/// tile: the three-module RAW-head chain in upstream order. Geometry
+/// threads through rawprepare's roi (both followers are identity); the
+/// caller passes `rin` only. Mosaic runs only: a mono small-RAW would
+/// enter hotpixels 4-wide behind 1-wide middles, which no caller needs.
+///
+/// # Errors
+///
+/// [`OracleError::BadInput`] when a region is malformed, a buffer is
+/// short, or the facts are a mono small-RAW; [`OracleError::Chain`] when
+/// the C chain refuses the run.
+#[must_use = "the oracle ran for its output"]
+#[allow(clippy::too_many_arguments)]
+pub fn run_rawprepare_temperature_hotpixels(
+    facts: &TempFacts,
+    rawprepare: &Params,
+    temperature: &TempParams,
+    hotpixels: &HotParams,
+    kind: PipeType,
+    input: TileInput<'_>,
+    rin: Roi,
+) -> Result<(Vec<f32>, StateOut, Roi), OracleError> {
+    if hotpixels_planes(facts.base.flags) != 1 {
+        return Err(OracleError::BadInput("three-module chain is mosaic-only"));
+    }
+    let rp_blob = fill_params(rawprepare)?;
+    let tp_blob = fill_tempparams(temperature)?;
+    let hp_blob = fill_hotparams(hotpixels)?;
+    let rout = rawprepare_roi_out(&facts.base, rawprepare, rin)?;
+    let names = [
+        RAWPREPARE.as_ptr(),
+        TEMPERATURE.as_ptr(),
+        HOTPPIXELS.as_ptr(),
+    ];
+    let blobs = [
+        rp_blob.as_ptr().cast::<c_void>(),
+        tp_blob.as_ptr().cast::<c_void>(),
+        hp_blob.as_ptr().cast::<c_void>(),
+    ];
+    let (output, state) = run_temp_chain(&names, &blobs, facts, input, 1, rin, rout, kind, 1)?;
     Ok((output, state, rout))
 }
 
@@ -740,13 +1062,135 @@ pub fn rawprepare_defaults(facts: &Facts) -> Result<Params, OracleError> {
     })
 }
 
+/// Runs verbatim `_find_coeffs` for `facts`: as-shot multipliers when the
+/// capture carries sane ones, else the bogus-daylight matrix leg, else the
+/// hardcoded fallback (the preset-table leg is empty here — see the
+/// `dt_wb_presets_count` stub row — so preset-less cameras fall through to
+/// the fallback exactly as upstream does without a table hit).
+///
+/// # Errors
+///
+/// [`OracleError::Chain`] when the C side refuses the query.
+#[must_use = "the oracle ran for its coeffs"]
+#[expect(unsafe_code)]
+// Fixed shapes: facts in, four doubles out, all live.
+pub fn temperature_find_coeffs(facts: &TempFacts) -> Result<[f64; 4], OracleError> {
+    let c_facts = facts.abi();
+    let mut coeffs = [0.0f64; 4];
+    let rc = unsafe { oracle_temperature_find_coeffs(&raw const c_facts, coeffs.as_mut_ptr()) };
+    if rc != 0 {
+        return Err(OracleError::Chain(rc));
+    }
+    Ok(coeffs)
+}
+
+/// Runs verbatim `_calculate_bogus_daylight_wb` for `facts`: green-
+/// normalized daylight multipliers from the camera matrix. Returns the
+/// multipliers plus whether the matrix leg ran ([`None`] = unsupported
+/// capture or no valid matrix, all-ones multipliers).
+///
+/// # Errors
+///
+/// [`OracleError::Chain`] when the C side refuses the query.
+#[must_use = "the oracle ran for its multipliers"]
+#[expect(unsafe_code)]
+// Fixed shapes: facts in, four doubles out, all live.
+pub fn temperature_bogus(facts: &TempFacts) -> Result<Option<[f64; 4]>, OracleError> {
+    let c_facts = facts.abi();
+    let mut bwb = [0.0f64; 4];
+    let rc = unsafe { oracle_temperature_bogus(&raw const c_facts, bwb.as_mut_ptr()) };
+    // Upstream polarity: 0 = matrix found and used, 1 = unsupported.
+    match rc {
+        0 => Ok(Some(bwb)),
+        1 => Ok(None),
+        other => Err(OracleError::Chain(other)),
+    }
+}
+
+/// Runs verbatim `_temp2mul` for `facts`: temperature + tint to channel
+/// multipliers through the prepared camera matrices.
+///
+/// # Errors
+///
+/// [`OracleError::Chain`] when the C side refuses the query.
+#[must_use = "the oracle ran for its multipliers"]
+#[expect(unsafe_code)]
+// Fixed shapes: facts in, four doubles out, all live.
+pub fn temperature_temp_to_mul(
+    facts: &TempFacts,
+    temp_kelvin: f64,
+    tint: f64,
+) -> Result<[f64; 4], OracleError> {
+    let c_facts = facts.abi();
+    let mut mul = [0.0f64; 4];
+    let rc = unsafe {
+        oracle_temperature_temp2mul(&raw const c_facts, temp_kelvin, tint, mul.as_mut_ptr())
+    };
+    if rc != 0 {
+        return Err(OracleError::Chain(rc));
+    }
+    Ok(mul)
+}
+
+/// Runs verbatim `_mul2temp` for `facts`: channel multipliers back to
+/// temperature + tint through the prepared camera matrices.
+///
+/// # Errors
+///
+/// [`OracleError::Chain`] when the C side refuses the query.
+#[must_use = "the oracle ran for its temperature"]
+#[expect(unsafe_code)]
+// Fixed shapes: facts in, two floats out, all live.
+pub fn temperature_mul_to_temp(
+    facts: &TempFacts,
+    coeffs: [f32; 4],
+) -> Result<(f32, f32), OracleError> {
+    let c_facts = facts.abi();
+    let mut temp = 0.0f32;
+    let mut tint = 0.0f32;
+    let rc = unsafe {
+        oracle_temperature_mul2temp(
+            &raw const c_facts,
+            coeffs[0],
+            coeffs[1],
+            coeffs[2],
+            coeffs[3],
+            &raw mut temp,
+            &raw mut tint,
+        )
+    };
+    if rc != 0 {
+        return Err(OracleError::Chain(rc));
+    }
+    Ok((temp, tint))
+}
+
+/// Runs verbatim `_temperature_tint_to_XYZ`: temperature + tint to CIE XYZ
+/// through the blackbody/daylight spectrum (lcms2 white point included).
+///
+/// # Errors
+///
+/// [`OracleError::Chain`] when the C side refuses the query.
+#[must_use = "the oracle ran for its white"]
+#[expect(unsafe_code)]
+// Fixed shapes: two doubles in, three doubles out, all live.
+pub fn temperature_tint_xyz(temp_kelvin: f64, tint: f64) -> Result<[f64; 3], OracleError> {
+    let mut xyz = [0.0f64; 3];
+    let rc = unsafe { oracle_temperature_tint_xyz(temp_kelvin, tint, xyz.as_mut_ptr()) };
+    if rc != 0 {
+        return Err(OracleError::Chain(rc));
+    }
+    Ok(xyz)
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use super::{
         BufferType, DT_IMAGE_MONOCHROME, DT_IMAGE_S_RAW, Facts, HotParams, OracleError, Params,
-        PipeType, Roi, TileInput, rawprepare_defaults, run_hotpixels, run_rawprepare,
-        run_rawprepare_hotpixels,
+        PipeType, Roi, TempFacts, TempParams, TileInput, rawprepare_defaults, run_hotpixels,
+        run_rawprepare, run_rawprepare_hotpixels, run_temperature, temperature_bogus,
+        temperature_find_coeffs, temperature_tint_xyz,
     };
 
     // ARW-shaped facts: RGGB Bayer, black 512, white 15360, no loader crop.
@@ -966,5 +1410,82 @@ mod tests {
             run_hotpixels(&facts, &params, PipeType::Full, &input, rin, rin).expect("oracle runs");
         assert!(!state.enabled, "strength zero disables the piece");
         assert_eq!(output, input, "all four lanes pass through");
+    }
+
+    fn temp_facts() -> TempFacts {
+        TempFacts {
+            base: argb_facts(),
+            wb: [2.5273, 1.0, 1.7344, 0.0],
+            xyz_to_cam: None,
+        }
+    }
+
+    #[test]
+    fn temperature_smoke_multiplies_and_publishes() {
+        let facts = temp_facts();
+        let params = TempParams {
+            red: 2.0,
+            green: 1.0,
+            blue: 1.5,
+            various: 1.0,
+            preset: 0,
+        };
+        // 4x4 ones on RGGB: R cells double, B cells gain 1.5, G stays.
+        let input = vec![1.0f32; 16];
+        let rin = Roi {
+            x: 0,
+            y: 0,
+            width: 4,
+            height: 4,
+            scale: 1.0,
+        };
+        let (output, state) = run_temperature(&facts, &params, PipeType::Full, &input, rin, rin, 1)
+            .expect("oracle runs");
+        // RGGB rows: R G R G / G B G B, repeated.
+        let want: [f32; 16] = [
+            2.0, 1.0, 2.0, 1.0, //
+            1.0, 1.5, 1.0, 1.5, //
+            2.0, 1.0, 2.0, 1.0, //
+            1.0, 1.5, 1.0, 1.5, //
+        ];
+        assert_eq!(output, want);
+        assert!(state.temp_enabled);
+        assert_eq!(state.temp_coeffs, [2.0, 1.0, 1.5, 1.0]);
+        assert_eq!(state.processed_maximum, [2.0, 1.0, 1.5, 1.0]);
+    }
+
+    #[test]
+    fn temperature_find_coeffs_prefers_sane_as_shot() {
+        let coeffs = temperature_find_coeffs(&temp_facts()).expect("oracle runs");
+        // Widened f32s, like the C `double` copy of `wb_coeffs`.
+        let want = [f64::from(2.5273f32), 1.0, f64::from(1.7344f32), 0.0];
+        assert_eq!(coeffs, want);
+    }
+
+    #[test]
+    fn temperature_find_coeffs_falls_back_without_wb_or_matrix() {
+        let mut facts = temp_facts();
+        facts.wb = [0.0; 4];
+        let coeffs = temperature_find_coeffs(&facts).expect("oracle runs");
+        assert_eq!(coeffs, [2.0, 1.0, 1.5, 1.0]);
+    }
+
+    #[test]
+    fn temperature_bogus_needs_a_matrix() {
+        assert!(
+            temperature_bogus(&temp_facts())
+                .expect("oracle runs")
+                .is_none(),
+            "no matrix, no bogus daylight"
+        );
+    }
+
+    #[test]
+    fn temperature_tint_xyz_runs_finite() {
+        let xyz = temperature_tint_xyz(5000.0, 1.0).expect("oracle runs");
+        assert!(
+            xyz.iter().all(|v| v.is_finite() && *v > 0.0),
+            "positive finite XYZ: {xyz:?}"
+        );
     }
 }

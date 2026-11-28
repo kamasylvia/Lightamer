@@ -27,7 +27,9 @@ refuses it as a normal dependency).
   `process`), so each TU after the first macro-renames them
   (`hotpixels_process`, …) before the verbatim includes; the `.inc` bytes
   stay untouched. `*_glue.c` holds the scalar params fill/read pair so
-  Rust never mirrors the C struct layout.
+  Rust never mirrors the C struct layout. Test-only conversions that call
+  file-static upstream functions (temperature's temp/tint legs) live as a
+  marked section at the end of their TU, since no other TU can see them.
 - `src/lib.rs` — the only `unsafe` boundary: `#[repr(C)]` mirrors (sizes
   asserted both sides), length checks before every call, owned results out.
   Thread-safe by construction: the one cross-call pointer
@@ -55,7 +57,15 @@ observed in this oracle's runs:
 | `dng_gain_maps = NULL` | DNG opcodes from EXIF | always empty | ARW carries none; flat-field stays off in every run |
 | `dt_iop_image_copy_by_size` | copy, parallel past a threshold | serial `memcpy` | bytes out equal bytes in either way |
 | hotpixels roi pair | inherited identity defaults | identity glue | byte-equal to `_iop_modify_roi_out/in` (`imageop.c`) |
-| module colorspace callbacks | per-module `input/default_colorspace` | always `IOP_CS_RAW` | hotpixels answers RAW on both upstream; rawprepare never reads piece CFA (no reference in its fragments) |
+| temperature roi pair + `reload_defaults` | inherited identity defaults; heavy GUI/dev/history defaults | identity glue + empty default-fill | byte-equal roi; callers always pass explicit params, so defaults never run |
+| module colorspace callbacks | per-module `input/default_colorspace` | always `IOP_CS_RAW` | hotpixels answers RAW on both upstream; rawprepare never reads piece CFA (no reference in its fragments); temperature's CFA read goes through the derived piece table either way |
+| `dt_wb_presets_count` / `dt_wb_preset` | rows in the WB preset store | count 0; lookup `abort()`s | the store is GUI menu data; the one extracted caller (`_find_coeffs`) loops under the count, so the preset leg is empty and falls through to the hardcoded fallback, compared exactly |
+| `d65_color_matrix` invalid | DNG-embedded 3x3 when present | always invalid | ARW carries none; the matrix legs take the adobe branch on both sides |
+| `camera_maker/model`, `filename`, `load_status` | EXIF strings + load result | constants (`""`, `"oracle.arw"`, OK) | only read through log gates (silent stubs) and the zero-count preset loop |
+| `dt_control_log` | GUI toast | silent | like `dt_print` |
+| `g_str_has_suffix` | glib suffix check | same semantics, NULL-safe | identical truth table; only `_ignore_missing_wb` calls it |
+| `DT_OMP_DECLARE_SIMD` | OpenMP SIMD hint | empty | matches a no-OpenMP upstream build, like `DT_OMP_FOR` |
+| lcms2 | system library | same system library (`/opt/homebrew/opt/lcms2`) | the Rust side links it dynamically too, so `cmsWhitePointFromTemp` computes identically |
 | disabled stage (chain behavior, not a stub) | piece skipped whole (pixels + geometry pass through) | float tiles pass through incl. nonzero crop; `rc=2` refuses u16 input | float runs match upstream exactly (tested); u16 passthrough is inexpressible in the f32-only ABI, so it errors loudly instead of diverging |
 
 ## Adding another module
@@ -72,7 +82,9 @@ observed in this oracle's runs:
    `VERBATIM_TUS` / `UPSTREAM_SOURCES` / rerun guards). Glue compiles
    with warnings on, verbatim TUs with `-w`.
 5. Extend `src/lib.rs`: one `run_<module>` (+ chain entries as needed)
-   reusing the same `Facts`/`Roi`/`StateOut`/`PipeType` vocabulary.
+   reusing the same `Facts`/`Roi`/`StateOut`/`PipeType` vocabulary
+   (`Facts` stays frozen once tests construct it — temperature's extras
+   ride the separate `TempFacts`, see `oracle_run_temp`).
 6. Extend `upstream/MANIFEST.md` and this README's tables; run
    `tools/extract.sh <module> --check`.
 

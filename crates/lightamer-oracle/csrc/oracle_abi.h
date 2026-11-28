@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // C ABI of the oracle chain: plain-old-data structs the Rust side mirrors
-// with #[repr(C)]. Sizes are asserted on both sides (100/20/68).
+// with #[repr(C)]. Sizes are asserted on both sides (100/20/92/156).
 #pragma once
 
 #include <stddef.h>
@@ -36,7 +36,21 @@ typedef struct oracle_state_out
   uint8_t xtrans[36]; // row-major 6x6
   float processed_maximum[4];
   int32_t p_width, p_height;
+  int32_t temp_enabled; // dsc.temperature.enabled (`_publish_chroma`)
+  float temp_coeffs[4]; // dsc.temperature.coeffs (zero when unpublished)
+  int32_t temp_late; // dev.chroma.late_correction (commit + process agree)
 } oracle_state_out;
+
+// Temperature-run facts: the base facts plus what `_find_coeffs` and the
+// matrix legs read (as-shot white balance, rawspeed XYZ-to-camera 3x3).
+// A separate struct so the base facts (and their tests) stay frozen.
+typedef struct oracle_temp_facts
+{
+  oracle_facts base;
+  float wb[4];
+  float xyz_to_cam[9]; // row-major 3x3, read when has_xyz is nonzero
+  int32_t has_xyz;
+} oracle_temp_facts;
 
 // Runs `count` modules in chain order: every stage builds and commits
 // against the image snapshot first, then stages process in order with
@@ -50,6 +64,11 @@ int oracle_run(const char **names, const void **params_list, int count,
                const oracle_facts *facts, const void *input, int input_is_u16,
                const oracle_roi *rin, void *output, const oracle_roi *rout,
                oracle_state_out *state, int pipe_type, int planes);
+// Same, with white-balance facts for temperature runs (same `rc` contract).
+int oracle_run_temp(const char **names, const void **params_list, int count,
+                    const oracle_temp_facts *facts, const void *input, int input_is_u16,
+                    const oracle_roi *rin, void *output, const oracle_roi *rout,
+                    oracle_state_out *state, int pipe_type, int planes);
 int oracle_roi_map(int want_out, const char *name, const oracle_facts *facts,
                const void *params, const oracle_roi *in, oracle_roi *out);
 int oracle_defaults(const char *name, const oracle_facts *facts, void *params_out);

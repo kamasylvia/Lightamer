@@ -68,6 +68,28 @@ void hotpixels_modify_roi_in(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piec
                              const dt_iop_roi_t *const roi_out, dt_iop_roi_t *roi_in);
 size_t oracle_hotpixels_params_size(void);
 
+// --- temperature row (renamed in temperature_tu.c, same collision as
+// hotpixels; the roi pair and `reload_defaults` are glue — temperature
+// implements no roi pair upstream (identity defaults), and its upstream
+// `reload_defaults` needs the GUI/dev/history, so the oracle never runs it:
+// callers always pass explicit params and the glue default-fill is empty) ---
+void temperature_init_pipe(dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe,
+                           dt_dev_pixelpipe_iop_t *piece);
+void temperature_cleanup_pipe(dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe,
+                             dt_dev_pixelpipe_iop_t *piece);
+void temperature_reload_defaults(dt_iop_module_t *self);
+void temperature_commit_params(dt_iop_module_t *self, dt_iop_params_t *params,
+                               dt_dev_pixelpipe_t *pipe, dt_dev_pixelpipe_iop_t *piece);
+void temperature_process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
+                         const void *const ivoid, void *const ovoid,
+                         const dt_iop_roi_t *const roi_in,
+                         const dt_iop_roi_t *const roi_out);
+void temperature_modify_roi_out(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
+                                dt_iop_roi_t *roi_out, const dt_iop_roi_t *const roi_in);
+void temperature_modify_roi_in(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
+                               const dt_iop_roi_t *const roi_out, dt_iop_roi_t *roi_in);
+size_t oracle_temperature_params_size(void);
+
 // rawprepare always emits mono float (the u16 leg converts on the way out).
 static void rawprepare_output_dsc(unsigned int *channels, dt_iop_buffer_type_t *datatype)
 {
@@ -77,6 +99,14 @@ static void rawprepare_output_dsc(unsigned int *channels, dt_iop_buffer_type_t *
 
 // hotpixels leaves the descriptor alone (its process never writes dsc).
 static void hotpixels_output_dsc(unsigned int *channels, dt_iop_buffer_type_t *datatype)
+{
+  (void)channels;
+  (void)datatype;
+}
+
+// temperature leaves channels/datatype alone (its process only writes the
+// temperature sub-record and the maxima, which the state report reads).
+static void temperature_output_dsc(unsigned int *channels, dt_iop_buffer_type_t *datatype)
 {
   (void)channels;
   (void)datatype;
@@ -102,6 +132,10 @@ static const oracle_vtab_t MODULES[] = {
   { "hotpixels", oracle_hotpixels_params_size, hotpixels_init_pipe, hotpixels_cleanup_pipe,
     hotpixels_reload_defaults, hotpixels_commit_params, hotpixels_process,
     hotpixels_modify_roi_out, hotpixels_modify_roi_in, hotpixels_output_dsc },
+  { "temperature", oracle_temperature_params_size, temperature_init_pipe,
+    temperature_cleanup_pipe, temperature_reload_defaults, temperature_commit_params,
+    temperature_process, temperature_modify_roi_out, temperature_modify_roi_in,
+    temperature_output_dsc },
   { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL },
 };
 
@@ -112,10 +146,11 @@ static const oracle_vtab_t *find_module(const char *name)
   return NULL;
 }
 
-// ABI layout guard: the Rust side asserts the same three sizes.
+// ABI layout guard: the Rust side asserts the same four sizes.
 _Static_assert(sizeof(oracle_facts) == 100, "oracle_facts size");
 _Static_assert(sizeof(oracle_roi) == 20, "oracle_roi size");
-_Static_assert(sizeof(oracle_state_out) == 68, "oracle_state_out size");
+_Static_assert(sizeof(oracle_state_out) == 92, "oracle_state_out size");
+_Static_assert(sizeof(oracle_temp_facts) == 156, "oracle_temp_facts size");
 
 static void fill_image(dt_image_t *img, const oracle_facts *facts)
 {
@@ -138,6 +173,37 @@ static void fill_image(dt_image_t *img, const oracle_facts *facts)
          sizeof(img->raw_black_level_separate));
   img->raw_white_point = facts->white_point;
   img->dng_gain_maps = NULL; // ARW carries none; DNG gain maps not transcribed
+  // Temperature-only fields, constant on every run: no rawprepare/hotpixels
+  // fragment reads them (verified), and the temperature fragments only read
+  // them through log gates (silent stubs) or the zero-count preset loop.
+  img->camera_maker[0] = '\0';
+  img->camera_model[0] = '\0';
+  img->camera_makermodel[0] = '\0';
+  strcpy(img->filename, "oracle.arw");
+  img->load_status = DT_IMAGEIO_OK;
+  img->camera_missing_sample = FALSE;
+  // No DNG-embedded matrix on this path (ARW carries none): invalid, like
+  // upstream's fresh-image init (`src/common/image.c:2232`). NAN matches
+  // `dt_mark_colormatrix_invalid` without dragging its header here.
+  for(int k = 0; k < 9; k++) img->d65_color_matrix[k] = (float)NAN;
+}
+
+// Temperature extras: as-shot white balance plus the rawspeed color matrix
+// (row-major 3x3; row 3 stays zero, like upstream's short-matrix pad in
+// `imageio_rawspeed.cc:266-276`). A NULL matrix marks the adobe slot
+// invalid, like upstream's failed-lookup init (`image.c:2252`).
+static void fill_temp_extras(dt_image_t *img, const float *wb, const float *xyz, int has_xyz)
+{
+  memcpy(img->wb_coeffs, wb, sizeof(img->wb_coeffs));
+  if(has_xyz && xyz)
+  {
+    for(int k = 0; k < 3; k++)
+      for(int i = 0; i < 3; i++) img->adobe_XYZ_to_CAM[k][i] = xyz[k * 3 + i];
+  }
+  else
+  {
+    img->adobe_XYZ_to_CAM[0][0] = (float)NAN;
+  }
 }
 
 static void fill_roi(dt_iop_roi_t *dst, const oracle_roi *src)
@@ -260,10 +326,11 @@ typedef struct oracle_stage
   dt_iop_roi_t rin, rout;
 } oracle_stage_t;
 
-int oracle_run(const char **names, const void **params_list, int count,
-               const oracle_facts *facts, const void *input, int input_is_u16,
-               const oracle_roi *rin, void *output, const oracle_roi *rout,
-               oracle_state_out *state, int pipe_type, int planes)
+static int run_impl(const char **names, const void **params_list, int count,
+                    const oracle_facts *facts, const void *input, int input_is_u16,
+                    const oracle_roi *rin, void *output, const oracle_roi *rout,
+                    oracle_state_out *state, int pipe_type, int planes,
+                    const float *temp_wb, const float *temp_xyz, int temp_has_xyz)
 {
   if(count <= 0) return 1;
   oracle_stage_t *stages = calloc((size_t)count, sizeof(*stages));
@@ -285,6 +352,7 @@ int oracle_run(const char **names, const void **params_list, int count,
   memset(&dev, 0, sizeof(dev));
   memset(&pipe, 0, sizeof(pipe));
   fill_image(&dev.image_storage, facts);
+  if(temp_wb) fill_temp_extras(&dev.image_storage, temp_wb, temp_xyz, temp_has_xyz);
   pipe.image = dev.image_storage;
   pipe.want_detail_mask = FALSE;
   pipe.type = pipe_type; // render kind as dt_dev_pixelpipe_type_t bits
@@ -397,6 +465,12 @@ int oracle_run(const char **names, const void **params_list, int count,
   // Commit may rewrite these even for a disabled piece (rawcrops leg).
   state->p_width = dev.image_storage.p_width;
   state->p_height = dev.image_storage.p_height;
+  // White-balance publication (`_publish_chroma`): runs without a
+  // temperature stage report disabled with zero coeffs (the memset pipe).
+  state->temp_enabled = pipe.dsc.temperature.enabled;
+  memcpy(state->temp_coeffs, pipe.dsc.temperature.coeffs, sizeof(state->temp_coeffs));
+  // Late correction rides `dev->chroma` (commit `:725` and process agree).
+  state->temp_late = dev.chroma.late_correction;
 
   if(bufs)
   {
@@ -411,4 +485,23 @@ int oracle_run(const char **names, const void **params_list, int count,
   free(stages);
   oracle_active_image = NULL;
   return rc;
+}
+
+int oracle_run(const char **names, const void **params_list, int count,
+               const oracle_facts *facts, const void *input, int input_is_u16,
+               const oracle_roi *rin, void *output, const oracle_roi *rout,
+               oracle_state_out *state, int pipe_type, int planes)
+{
+  return run_impl(names, params_list, count, facts, input, input_is_u16, rin,
+                  output, rout, state, pipe_type, planes, NULL, NULL, 0);
+}
+
+int oracle_run_temp(const char **names, const void **params_list, int count,
+                    const oracle_temp_facts *facts, const void *input, int input_is_u16,
+                    const oracle_roi *rin, void *output, const oracle_roi *rout,
+                    oracle_state_out *state, int pipe_type, int planes)
+{
+  return run_impl(names, params_list, count, &facts->base, input, input_is_u16,
+                  rin, output, rout, state, pipe_type, planes, facts->wb,
+                  facts->xyz_to_cam, facts->has_xyz);
 }

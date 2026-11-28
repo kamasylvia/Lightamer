@@ -535,12 +535,12 @@ Lumen RAW derivation (wave B1d-a, 2026-11-28):
   MIT permits this use; this attribution preserves the notice. These files
   are GPL-3.0-or-later as part of Lightamer.
 
-Upstream oracle (waves B3-1b/B3-1c, 2026-11-28; test-only, never shipped):
+Upstream oracle (waves B3-1b/B3-1c/B3-2a, 2026-11-28; test-only, never shipped):
 
   Upstream: darktable release-5.7.0 (GPL-3.0-or-later, Copyright (C)
   2009-2026 darktable developers) and rawspeed @ 0c16fee7
   (LGPL-2.1-or-later, see the rawspeed entry above).
-  Verbatim fragments in crates/lightamer-oracle/upstream/*.inc (27 files;
+  Verbatim fragments in crates/lightamer-oracle/upstream/*.inc (46 files;
   per-file path, tag, blob hash, and line ranges in upstream/MANIFEST.md;
   re-extractable via crates/lightamer-oracle/tools/extract.sh):
   rawprepare.c (params/data structs, _compute_proper_crop, modify_roi
@@ -554,8 +554,17 @@ Upstream oracle (waves B3-1b/B3-1c, 2026-11-28; test-only, never shipped):
   _process_xtrans, process, commit_params, init/cleanup_pipe,
   reload_defaults), imageop_math.h (FCNxtrans), pixelpipe_hb.c
   (dt_dev_prepare_piece_cfa), pixelpipe_hb.h (dt_pipe_is_full/thumb/
-  export), pixelpipe.h (dt_dev_pixelpipe_type_t). Unmodified; compiled
-  into the test-only oracle static libs beside Lightamer-written glue
-  (csrc/chain.c, stubs/, build.rs) and distributed as part of the
-  GPL-3.0-or-later whole, same as darktable. GUI, OpenCL, legacy-params,
-  distort, preset, and metadata functions are not extracted.
+  export), pixelpipe.h (dt_dev_pixelpipe_type_t); plus wave B3-2a:
+  temperature.c (params/data structs, temp/tint <-> coeffs conversions
+  with their spectrum, _publish_chroma, process, commit_params,
+  init/cleanup_pipe, _calculate_bogus_daylight_wb, _prepare_matrices,
+  _find_coeffs, _ignore_missing_wb), imageop_math.h (FC, FCNxtrans),
+  dttypes.h (DT_ALIGNED_PIXEL, DT_PIXEL_SIMD_CHANNELS, channel loops,
+  colormatrix validity), math.h (dt_isnormal), colorspaces.h (D65xyY),
+  colorspaces.c (pseudoinverse, conversion matrices), image.c
+  (dt_image_is_matrix_correction_supported), pixelpipe_hb.h
+  (dt_pipe_is_preview), cie_colorimetric_tables.c (full data tables).
+  Unmodified; compiled into the test-only oracle static libs beside
+  Lightamer-written glue (csrc/chain.c, stubs/, build.rs) and distributed
+  as part of the GPL-3.0-or-later whole, same as darktable. GUI, OpenCL,
+  legacy-params, distort, preset, and metadata functions are not extracted.

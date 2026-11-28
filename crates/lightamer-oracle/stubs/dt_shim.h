@@ -40,11 +40,21 @@ struct _GList
 // single-threaded.
 #define DT_OMP_FOR(clauses)
 #define DT_OMP_FOR_SIMD(clauses)
+// Matches a no-OpenMP upstream build too (`src/common/darktable.h`): the
+// SIMD-hint macro expands to nothing, like the loop macros above.
+#define DT_OMP_DECLARE_SIMD(...)
 
 // --- gtk vocabulary: widget is always NULL, guarded by `if(self->widget)` ---
 typedef void GtkWidget;
 typedef void GtkToggleButton;
 typedef void GtkLabel;
+
+// Opaque upstream struct, value field of the temperature gui-data type:
+// oracle-local size (never read here; only the matrix fields beside it are).
+typedef struct
+{
+  char _opaque[8];
+} dt_gui_collapsible_section_t;
 #define GTK_STACK(x) ((GtkWidget *)(x))
 
 // --- opaque upstream enums: single dummy values, never inspected ---
@@ -138,7 +148,35 @@ typedef struct dt_image_t
   uint16_t raw_black_level_separate[4];
   uint32_t raw_white_point;
   GList *dng_gain_maps;
+  dt_aligned_pixel_t wb_coeffs; // as-shot white balance (temperature)
+  float adobe_XYZ_to_CAM[4][3]; // rawspeed color matrix, row 3 zero (temperature)
+  float d65_color_matrix[9]; // DNG-embedded 3x3, always invalid here (temperature)
+  char camera_maker[64]; // always "" here; the preset loop never runs (temperature)
+  char camera_model[64]; // same
+  char camera_makermodel[128]; // same (`_ignore_missing_wb` only gates logs)
+  char filename[256]; // oracle-local size; always "oracle.arw" (log text only)
+  int load_status; // always DT_IMAGEIO_OK (log gate only)
+  gboolean camera_missing_sample; // always FALSE (log gate only)
 } dt_image_t;
+
+// Load result (values from `dt_imageio_retval_t`, `src/common/image.h:31-41`):
+// only the two success values are ever compared here.
+typedef enum
+{
+  DT_IMAGEIO_OK = 0,
+  DT_IMAGEIO_CACHE_FULL = 8,
+} dt_imageio_retval_subset_t;
+
+// White-balance preset row (`src/common/wb_presets.h`): the store lookup,
+// not the table (the table is GUI menu data and stays out).
+typedef struct
+{
+  const char *make;
+  const char *model;
+  const char *name;
+  int tuning;
+  double channels[4];
+} dt_wb_data;
 
 // --- pipe, piece, module, dev: fields the fragments touch ---
 typedef struct dt_dev_pixelpipe_t
@@ -162,12 +200,24 @@ typedef struct dt_dev_pixelpipe_iop_t
   dt_iop_buffer_dsc_t dsc_in;
   uint32_t filters; // per-piece CFA, derived by dt_dev_prepare_piece_cfa
   uint8_t xtrans[6][6]; // same, X-Trans table
+  gboolean process_cl_ready; // cleared for 4Bayer (temperature commit)
 } dt_dev_pixelpipe_iop_t;
+
+// White-balance summary (`src/develop/develop.h:154-163`): only the fields
+// temperature's commit and processing write (the D65/as-shot doubles live
+// in `reload_defaults`, which the oracle never runs).
+typedef struct dt_dev_chroma_t
+{
+  struct dt_iop_module_t *temperature;
+  dt_aligned_pixel_t wb_coeffs;
+  gboolean late_correction;
+} dt_dev_chroma_t;
 
 typedef struct dt_develop_t
 {
   dt_image_t image_storage;
   gboolean gui_attached; // always FALSE here; hotpixels short-circuits on NULL gui_data first
+  dt_dev_chroma_t chroma; // temperature's commit/processing write here
 } dt_develop_t;
 
 typedef struct dt_iop_module_t
@@ -188,6 +238,7 @@ typedef struct dt_iop_module_t
 gboolean dt_image_is_raw(const dt_image_t *img);
 gboolean dt_image_is_mono_sraw(const dt_image_t *img);
 gboolean dt_image_is_rawprepare_supported(const dt_image_t *img);
+gboolean dt_image_is_matrix_correction_supported(const dt_image_t *img);
 uint32_t dt_rawspeed_crop_dcraw_filters(uint32_t filters, uint32_t crop_x, uint32_t crop_y);
 void dt_dev_prepare_piece_cfa(dt_dev_pixelpipe_iop_t *piece, const dt_iop_roi_t *roi);
 void dt_iop_image_copy_by_size(float *const out, const float *const in, const size_t width,
@@ -197,6 +248,10 @@ extern _Thread_local dt_image_t *oracle_active_image; // registered by the chain
 dt_image_t *dt_image_cache_get(dt_imgid_t imgid, int mode);
 void dt_image_cache_write_release(dt_image_t *img, int mode);
 void dt_print(int level, const char *fmt, ...);
+void dt_control_log(const char *msg, ...);
+int dt_wb_presets_count(void);
+dt_wb_data *dt_wb_preset(const int k);
+int g_str_has_suffix(const char *str, const char *suffix);
 void dt_iop_set_module_trouble_message(dt_iop_module_t *self, const char *msg,
                                        const char *tooltip, const char *name);
 int dt_dev_write_scharr_mask(dt_dev_pixelpipe_iop_t *piece, float *out,

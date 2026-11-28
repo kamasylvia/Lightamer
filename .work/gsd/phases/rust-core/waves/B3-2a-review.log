@@ -1,0 +1,58 @@
+PASS / 0 error + 5 minor
+B3-2a 自审（8e44b832，静态只读；唯一运行 tools/extract.sh --check）
+基线：HEAD=8e44b832 与提交树一致；上游 LIGHTAMER_DT_REF @ release-5.7.0 只读。
+
+1. 逐字节：通过
+- `tools/extract.sh temperature --check` 19/19 OK（实跑；另核 rawprepare 15/15、hotpixels 12/12，与 REPORT §8 一致）。
+- 抽查 6 个 .inc 与上游区间 cmp 逐字节等：temperature_spectrum.inc(123 行)/temperature_cie_tables.inc(230 行)/temperature_process.inc(136 行)/temperature_commit.inc(42 行)/temperature_fcn.inc(17 行)/temperature_convert.inc(97 行)。
+- spectrum 首 `typedef double((*spd)(unsigned long int wavelength, double TempK));` 尾 `return xyz; }`；cie_tables 首 `typedef struct` 尾 modelines 三行；与上游同区间逐字节等。
+- 9 个 blob 无漂移：temperature.c eee5d23a、imageop_math.h 8bc306cc、dttypes.h f875f6a6、math.h 689dc106、colorspaces.h 9b01c350、colorspaces.c c3fc7d6d、image.c 05605921、pixelpipe_hb.h 0c0acea0、cie 表 051340d0（rev-parse 全等）。
+- extract.sh temperature 节 19 行 dt| 与 MANIFEST temperature 表 19 行逐行对（路径/blob/区间一致）。
+
+2. 对照架诚实：通过
+- chain.c temperature 行：声明 71-91、MODULES 行 135-138、output_dsc 107-113 空操作（注释称只写温度子记录与最大值，与 process.inc _publish_chroma 12-27 一致）；glue temperature_glue.c 27-30 空 defaults、32-46 roi 恒等；与 README Adding 六步（manifest/chain 行+output_dsc/glue/TU+build.rs/lib.rs/MANIFEST+README+check）逐步对。
+- 尺寸：oracle_abi.h TempFacts=100+16+36+4、StateOut=4+4+36+16+4+4+4+16+4；chain.c 150-153 _Static_assert 100/20/92/156；lib.rs 77-80 同值断言。
+- fill_image 176-188 新增常量（maker/model/makermodel 空、filename oracle.arw、load_status OK、missing_sample FALSE、d65 NAN）对旧模块不可观察：22 个旧 .inc grep 新字段零命中；温度侧仅经日志门/零预设循环读（coeffs.inc/ignore.inc），桩为静默/0/abort 同语义。
+- README 替身 9 行各有出处：roi+defaults→glue；colorspace→chain.c 120-127；wb count/preset→stubs.c 114-126；d65→chain.c 188；相机串→chain.c 179-184；control_log→stubs.c 106；has_suffix→stubs.c 130；SIMD→shim.h 45；lcms2→build.rs 107-112 + TU 10。
+
+3. 转写逐行对：通过
+- commit：resolve_commit(mod.rs 608-638) 逐键解析+缺省+preset -1..4 校验+late 写+applies=raw.filter(matrix_supported)；对 commit.inc 1-42：coeffs/preset/late(:725) 同，hide 早返外差异见 M2；wb_coeffs/temperature 指针/cl_ready/preview 坏件无读者，未建模不可观察。
+- process 三腿：run_bayer 937-967 / run_xtrans 974-1014 / run_planar 1019-1046 对 process.inc 46-133；rayon 按行与 DT_OMP_FOR 同构，行间独立。
+- 拜耳原点：shift_bayer_cells 730-738 与 rawprepare shift_bayer 同构，与 rawspeed shiftDcrawFilter 奇偶语义一致；四相位门锁定。
+- FC：bayer_color 742-746 `(((row<<1)&0xE)+(col&1))<<1` 对 FC `((row<<1&14)+(col&1))<<1`，0xE=14 同值。
+- X-Trans：shifted 991-997 `cells[((j+oy)%6)*6+(i+ox)%6]` + 读 1006-1010 `(r%6,c%6)`，对 piece_cfa.inc 12 + FCNxtrans(fcn.inc 6-17) 组合等价。
+- 发布：mod.rs 835-842 对 _publish_chroma(process.inc 12-27)：enabled/coeffs/最大值/late 全对；late 与最大值写序置换但异字段无依赖，最大值 coeffs-first 与 `*=` 对有限值逐位等（逐位门为证）。
+- 绿归一：resolve 615-618 `[r/g,1,b/g,v/g]` 对 reload_defaults :1633-1636（M1 纠报告行号）；g 恒非零（三腿保证）。
+- bogus 归一：bogus_daylight_wb 366-373 对 coeffs.inc 19-23 `[m0/m1,1,m2/m1,m3/m1]`；第四道 inf=1/0 双边同式（M5 外）。
+- _find_coeffs 四步：wb_to_coeffs 194-206（含 four_bayer 计数+is_normal+零检）/bogus/跳预设（与零桩同落兜底）/2.0,1.0,1.5,1.0，对 coeffs.inc 67-130 逐段等。
+- 互化四件：xyz_to_mul 534-552/_xyz2mul、mul_to_xyz 570-587/_mul2xyz（含 _temp_array_from_params float[4] 等价+非正置零）、temp_tint_to_coeffs 557-566/_temp2mul、coeffs_to_temp_tint 592-599/_mul2temp，全对。
+- 谱链：spd_blackbody 401-406 常量逐字，long double 在 ARM64 同 64 位；powl/expl→powi/exp 差 ≤1ulp 见 M3；spd_daylight 412-428 白点+m1/m2+表索引对 :321-342；spectrum_to_xyz 438-453 观测者加权+max 归一对 :348-376（f64::max 对 fmax，表波长由 cie_tables_stay_uniform 锁定）；temperature_to_xyz 457-462 钳制+4000 开关对 :379-394；tint 除 Y 对 :396-403。
+- 二分：xyz_to_temperature 508-530 f32 temp 迭代+f64 hi/lo+(hi+lo)/2+蓝红比+tint 比，对 convert.inc 1-25；manual_midpoint 保舍入。
+- 钳制：clamp_out 491-500 提升比较+舍入常量赋值，对上游 float 出参钳制；temperature_to_xyz .clamp 对双 if，NaN 双边皆透传。
+
+4. lcms2：通过
+- 薄封装唯一调用点：lightamer-color/src/lib.rs 26-27 `white_point_from_temp` 调 `lcms2::white_point_from_temp`；全仓 Rust 调用仅 temperature/mod.rs 414 一处；C 侧 TU 10 + build.rs 107-112 直链同系统库。
+- Cargo.lock 只增 `lcms2 6.3.0`/`lcms2-sys 4.2.0` 两节；bytemuck/foreign-types/cc/pkg-config/libc/dunce 皆锁内已有（父锁在位），余差仅工作区边。
+- 分层例外一条：xtask/src/layers.rs 加 `["lightamer-color","lightamer-iop-color"]` + 注释理由（谱腿需 lcms 腿，colorin/out 后用）；crates/README 同步。
+
+5. 测试诚实：通过
+- 门：compare.rs 9 MEAN_ABS_GATE=1/65535、12 IN_TOLERANCE_GATE=0.9999 对 REPORT §5；xy 门 1e-4 在 temp_sweep 两测 732/768 断言；mul 仅 eprint 最坏值，报告未谎称有门。
+- max_abs 置 0 处确应逐位：两 assert_gate（temperature_oracle.rs 228-245、chain 211-228）断 max_abs==0；三腿单乘无重排，链含 hotpixels 分支/取大/拷贝皆 B3-1c 已证逐位。
+- 非 RAW 无 oracle 已披露：non_raw_passes_through 591-594 注释 + REPORT §6-4。
+- D65 第四道置 1 有依据：temp_case 270-288（JSON 无 inf + 无 Bayer 读 + bogus 另证逐位）；报告漏注见 M5。
+- 无同义反复/空断言：12+1 集成皆比 oracle 或手算值；白点 5e-4 仅钉接线；tint_xyz 有限正断言非空。
+- 单测 inf 与上游同式：defaults_take_bogus 1131 / temp_to_coeffs 1350 置 inf，对 bogus_mul 第四行 num=0→1/0 与 _xyz2mul CAM[3]=0→1/0。
+
+6. 范围：通过
+- `git show --name-only 8e44b832` 46 文件仅纪律路径：对照架（extract/MANIFEST/19 inc/chain/abi/双 glue/TU/lib/shim/stubs/build/README）+iop-color（Cargo/mod/cie_tables/集成）+color（Cargo/lib）+traits 一字段+testkit（Cargo/链测）+xtask 一条+文档（REPORT/NOTICE/LICENSE-AUDIT/PIPELINE/README）。
+- 旧测试零改：两集成/链测/cie 表为新文件，mod.rs 父为桩；lib.rs 旧 7 测断言无减行（只增 5 测+状态读），color 旧 package_metadata 未动；TemperatureState 字面量仅 traits 内。
+
+7. 报告：通过（除 M1/M2/M3/M5 行号措辞）
+- 19/15/12 OK 实跑复核一致；38=5(oracle)+1(color)+19(单测)+12(集成)+1(链) 与 grep 计数一致；16=4 瓦片×4 参数（chain 262-267×375-380，386-388 双循环）；839=801+38 算术成立，801 基数与 2.220e-16/8.882e-16/1.332e-15 为运行时观测（隔离禁跑未复核，eprint 格式对）。
+- §6 七条源码依据：①移位 piece_cfa.inc+四相位门；②late :725（M2 限 hide）；③绿归一（M1 纠行号）；④非 RAW 披露；⑤testkit 分层（Cargo dev 边+L5）；⑥谱私有（spd_* 私有+四公开换算）；⑦f64（M3 限逐位措辞）。
+
+M1 REPORT 与注释绿归一 quote 行号错：B3-2a-REPORT.md §4/§6-3 与 mod.rs 601-603 写 `reload_defaults :1616-1621`，实为 :1633-1636（分支 :1631-1637，`dcoeffs[0]=coeffs[0]/coeffs[1]` 在 1633）。修法：三处改 `:1633-1636`。
+M2 “无条件写”夸大：REPORT §4/§6-2 称 commit 无条件写 late，上游 commit.inc 10-20 hide_enable_button 早返不写（置位见 temperature.c:1183/1545 true_monochrome）。对照架 hide 恒 FALSE 故恒写，转写同构， tested 域无差。修法：加限语“除 true-monochrome hide 早返外；对照架 hide 恒 FALSE”。
+M3 “逐位同构”夸大：mod.rs 394-396 `exact` 与 REPORT §6-7 `逐位同构`，实 powl→powi、expl→exp 差 ≤1ulp（REPORT §5 2.220e-16 自证非逐位）。修法：改“同位宽，计算差 ≤1ulp，以 1e-4 门锁定”。
+M4 PIPELINE 尾句截断：docs/PIPELINE.md 482-484 新文以“通道，”悬空，丢原文“两处都不收。”。修法：补全句子。
+M5 REPORT 漏 D65 替换注：chain temp_case 270-288 inf→1.0 双边同代 code 已披露，REPORT §5 “D65”未注。修法：§5 D65 后加“（第四道 inf→1.0 双边同代，bogus 另证逐位）”。

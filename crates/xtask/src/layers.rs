@@ -92,11 +92,15 @@ pub const PLANNED: &[&str] = &[
 
 /// Explicit orderings *within* a layer (earlier may be used by later).
 /// L0: `lightamer-raster` builds on `lightamer-color-math` and `lightamer-geom`.
-/// L1: `lightamer-decode` reads metadata through `lightamer-meta`.
+/// L1: `lightamer-decode` reads metadata through `lightamer-meta`;
+/// `lightamer-iop-color` builds on `lightamer-color` (the temperature
+/// module's daylight spectrum needs its lcms2 leg, and the later `colorin`
+/// / `colorout` modules will need the color-management crate too).
 /// L2: history aggregates the registry; the pipeline runs on both.
 pub const INTRA_LAYER_ORDER: &[&[&str]] = &[
     &["lightamer-geom", "lightamer-color-math", "lightamer-raster"],
     &["lightamer-meta", "lightamer-decode"],
+    &["lightamer-color", "lightamer-iop-color"],
     &[
         "lightamer-registry",
         "lightamer-history",

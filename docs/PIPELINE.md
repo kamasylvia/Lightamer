@@ -482,7 +482,8 @@ B1d-b 的引擎路先整帧取输入再试整帧入口，流式峰值跟着帧�
 `xtrans[6][6]` 合并为一个枚举，无效组合不可表示）、当前输入缓冲的通道数与
 标量类型（`channels`/`datatype`，管线按格式 threading 写入，模块只读）、
 四路最大值（`processed_maximum`）、白平衡事实（`temperature` 的 `enabled` +
-`coeffs`）。`rawprepare` 子记录只有曝光类模块读、`cst` 已有色彩声明通道，
+`coeffs` + 晚校正 `late_correction`，后者 `commit` 与 `process` 都写，下游
+`highlights` 读）。`rawprepare` 子记录只有曝光类模块读、`cst` 已有色彩声明通道，
 两处都不收。
 
 生命周期：起点按图像事实初始化（四路最大值 1.0，CFA 来自图像，上游

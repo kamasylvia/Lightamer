@@ -1192,3 +1192,17 @@
   `Scripts/check-licenses.sh` 实测退出 0（计数见 B3-1b-REPORT 验收节）。
 - `NOTICE` 末尾有对照架条目；单测对照门（平均绝对差 < 1/65535、
   容差内占比 > 0.9999）沿用计划 golden 门，落在 `lightamer-testkit` 的比较工具里。
+
+## §17 B3-2a 采用记录（2026-11-28，lane B3-2a，append-only）
+
+- 对照架加 19 个 temperature 片段（`temperature.c` 10 段 + 数学/数据 9 段，
+  blob 见 `tools/extract.sh` temperature 一节与 `upstream/MANIFEST.md`）：仍
+  darktable `release-5.7.0` GPL-3.0-or-later，与本项目同变体；只进测试二进制。
+- 新外部依赖 `lcms2 6`（MIT，§6 已登记：`github.com/mm2/Little-CMS` LICENSE 首行），
+  经 `lightamer-color` 的 `white_point_from_temp` 薄封装单点调用（上游
+  `_spd_daylight` 调的 `cmsWhitePointFromTemp`）。`Cargo.lock` 只增 `lcms2` 与
+  `lcms2-sys` 两节（`bytemuck`/`foreign-types`/`cc`/`pkg-config`/`libc` 皆复用锁内已有版）；
+  `lcms2-sys` 默认动态链接随本机系统库（Homebrew lcms2 2.19），对照库 C 侧直链同一系统库，
+  两边算的是同一个函数。`Scripts/check-licenses.sh` 实测退出 0（计数见 B3-2a-REPORT 验收节）。
+- `NOTICE` 对照架条目同步（46 文件）；色温对照门（xy 最大绝对差 < 1e-4，计划卡片值）
+  落在 `lightamer-iop-color` 的 `temp_sweep_matches_oracle_xy_and_mul`。
