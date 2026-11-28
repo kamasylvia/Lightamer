@@ -90,6 +90,10 @@ typedef struct rs_image_info {
   char mode[32];
   char decoder[64]; // demangled decoder class, e.g. "ArwDecoder"
   uint64_t mosaic_bytes; // cropped plane: width*height*cpp*sample_size
+  // Nonzero when the camera lacks RPU samples upstream
+  // (`Camera::SupportStatus::SupportedNoSamples`, appended in B3-0b; earlier
+  // fields keep their offsets).
+  int32_t camera_missing_sample;
 } rs_image_info;
 
 // Parse the file, select a decoder, run checkSupport. Pixels are NOT decoded
@@ -100,6 +104,19 @@ rs_image* rs_open(const char* path, const char* cameras_xml, rs_error* err);
 // Run decodeRaw + decodeMetaData. Idempotent: a second call is a no-op
 // success. Returns 0 on success, -1 on failure with *err set.
 int32_t rs_decode(rs_image* img, rs_error* err);
+
+// Run decodeMetaData alone plus ARW tag geometry (see below), filling the
+// same `rs_image_info` a decode would: no pixels are allocated or read.
+// Supported shapes only (ArwDecoder, compression 1 or 7); anything else is
+// an error and the caller falls back to `rs_decode`. Sets the handle's
+// probed flag: a probed handle must be freed, never decoded (decodeMetaData
+// would run a second time and re-shift levels). Returns 0/-1 with *err.
+int32_t rs_probe(rs_image* img, rs_image_info* out, rs_error* err);
+
+// Whether `rs_probe` would succeed on this handle (same shape checks, no
+// metadata call, no state change). Never throws: any anomaly degrades to 0
+// and the caller falls back to `rs_decode`, which reports the precise error.
+int32_t rs_probe_supported(const rs_image* img);
 
 // Fill metadata + mosaic geometry. Requires a decoded image.
 // Returns 0 on success, -1 on failure with *err set.
@@ -129,6 +146,12 @@ int32_t rs_ensure_meta(rs_error* err);
 // How many times cameras.xml has been parsed in this process (probe for the
 // singleton test: NULL-path opens must not increase it past 1).
 uint64_t rs_meta_parse_count(void);
+
+// Successful pixel decodes (`rs_decode` that ran, not idempotent no-ops) and
+// successful metadata probes (`rs_probe`) in this process. The engine's whole
+// path pins probe +1 / decode +1 per request on these counters.
+uint64_t rs_decode_count(void);
+uint64_t rs_probe_count(void);
 
 // sizeof(rs_image_info); the Rust side asserts its mirror matches.
 size_t rs_info_size(void);

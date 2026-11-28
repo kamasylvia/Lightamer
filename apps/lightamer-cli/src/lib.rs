@@ -28,6 +28,7 @@ pub mod cmp;
 pub mod commands;
 pub mod decode;
 pub mod fetch;
+pub mod raw_input;
 pub mod render;
 pub mod render_demo;
 pub mod selftest;

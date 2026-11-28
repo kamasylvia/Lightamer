@@ -126,6 +126,8 @@ pub struct RsImageInfo {
     pub decoder: [c_char; 64],
     /// Cropped plane byte count.
     pub mosaic_bytes: u64,
+    /// Nonzero when the camera lacks RPU samples upstream.
+    pub camera_missing_sample: c_int,
 }
 
 impl RsImageInfo {
@@ -172,6 +174,7 @@ impl RsImageInfo {
             mode: [0; 32],
             decoder: [0; 64],
             mosaic_bytes: 0,
+            camera_missing_sample: 0,
         }
     }
 }
@@ -191,6 +194,10 @@ unsafe extern "C" {
     ) -> *mut RsImage;
     /// Run `decodeRaw` + `decodeMetaData` (see header).
     pub fn rs_decode(img: *mut RsImage, err: *mut RsError) -> c_int;
+    /// Run `decodeMetaData` plus ARW tag geometry, no pixels (see header).
+    pub fn rs_probe(img: *mut RsImage, out: *mut RsImageInfo, err: *mut RsError) -> c_int;
+    /// Whether `rs_probe` would succeed (pure shape check, see header).
+    pub fn rs_probe_supported(img: *const RsImage) -> c_int;
     /// Fill metadata + geometry (see header).
     pub fn rs_fill_info(img: *const RsImage, out: *mut RsImageInfo, err: *mut RsError) -> c_int;
     /// Cropped u16 plane base, or NULL (see header).
@@ -205,6 +212,10 @@ unsafe extern "C" {
     pub fn rs_ensure_meta(err: *mut RsError) -> c_int;
     /// Process-wide `cameras.xml` parse count.
     pub fn rs_meta_parse_count() -> u64;
+    /// Successful pixel decodes in this process.
+    pub fn rs_decode_count() -> u64;
+    /// Successful metadata probes in this process.
+    pub fn rs_probe_count() -> u64;
     /// `sizeof(rs_image_info)`.
     pub fn rs_info_size() -> usize;
     /// `sizeof(rs_error)` (M3 pin for the error slot).

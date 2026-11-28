@@ -3902,6 +3902,8 @@ dependencies = [
  "flate2",
  "jpeg-encoder",
  "kamadak-exif",
+ "lightamer-iop-traits",
+ "lightamer-raster",
  "png 0.18.1",
  "tiff",
  "zune-jpeg 0.5.15",
@@ -4047,7 +4049,9 @@ version = "0.1.0"
 name = "lightamer-testkit"
 version = "0.1.0"
 dependencies = [
+ "lightamer-decode",
  "lightamer-iop-traits",
+ "lightamer-raster",
  "serde_json",
 ]
 

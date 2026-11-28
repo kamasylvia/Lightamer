@@ -88,6 +88,7 @@ L0 的四个 crate 互相不依赖，所以缓冲和预算的配对住在管线�
 提交的图像信息（`ImageInfo`：解码尺寸 + 相机输入色彩空间 + 缓冲格式 +
 RAW 事实，可选）也住这里——
 L0 不许跨 crate 依赖，trait 要用的类型只能和 trait 住一起。
+RAW 输入由解码 crate 的 `pipe_input` 喂入（`MonoF32` 帧 + `RawFacts`，输入空间 `Raw`）；引擎侧 `RawFileSource`（CLI）实现 `InputSource`，探尺寸只解元数据、整帧与流式共享一次像素解码。
 
 ## 几何链
 

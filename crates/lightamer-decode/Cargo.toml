@@ -25,6 +25,11 @@ exif = { package = "kamadak-exif", version = "0.6" }
 png = "0.18"
 tiff = "0.11"
 zune-jpeg = "0.5"
+# B3-0b: the pipe-input entry speaks the L0 vocabulary (`ImageInfo` /
+# `RawFacts` from iop-traits, `Frame` from raster). Workspace-internal
+# edges only; no new packages.
+lightamer-iop-traits = { path = "../lightamer-iop-traits" }
+lightamer-raster = { path = "../lightamer-raster" }
 
 [dev-dependencies]
 # Test-only synthesis. jpeg-encoder's license is the pre-registered

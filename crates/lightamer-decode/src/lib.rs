@@ -27,6 +27,7 @@ pub mod exif;
 pub mod ffi;
 #[expect(unsafe_code)]
 pub mod image;
+pub mod pipe;
 pub mod raster;
 pub mod thumbnail;
 

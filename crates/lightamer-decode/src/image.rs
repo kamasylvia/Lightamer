@@ -181,6 +181,9 @@ pub struct RawMetadata {
     pub pixel_aspect_ratio: f64,
     /// Cropped plane byte count.
     pub mosaic_bytes: u64,
+    /// No RPU sample for this camera upstream (`SupportedNoSamples`;
+    /// darktable's `camera_missing_sample`, filled by both paths).
+    pub camera_missing_sample: bool,
 }
 
 /// Owned cropped mosaic plane, pitch already removed.
@@ -433,6 +436,91 @@ fn check_dims(width: i32, height: i32, pitch: i32, cpp: i32) -> Result<(), Decod
     Ok(())
 }
 
+/// Build owned metadata from a filled C info block.
+///
+/// Shared by [`RawImage::metadata`] (post-decode) and
+/// [`RawImage::probe_metadata`] (post-probe): both run `decodeMetaData`, so
+/// the pixel-independent fields read identically, and the probe fills the
+/// geometry slots with the tag-derived values a decode would produce.
+fn metadata_from_info(info: &ffi::RsImageInfo, path: &Path) -> Result<RawMetadata, DecodeError> {
+    let mosaic_kind = if info.data_type == ffi::RS_MOSAIC_U16 {
+        MosaicKind::U16
+    } else if info.data_type == ffi::RS_MOSAIC_F32 {
+        MosaicKind::F32
+    } else {
+        return Err(DecodeError::new(
+            ErrorCode::Internal,
+            "unknown mosaic sample type",
+        ));
+    };
+    let valid = to_usize(info.cfa_valid, "cfa count")?
+        .min(ffi::RS_CFA_PATTERN_MAX)
+        .min(info.cfa_pattern.len());
+    let mut pattern = Vec::with_capacity(valid);
+    for cell in info.cfa_pattern.iter().take(valid) {
+        pattern.push(CfaColor::from_i32(*cell));
+    }
+    let cam_to_xyz = if info.has_color_matrix != 0 {
+        invert_3x3(info.color_matrix)
+    } else {
+        None
+    };
+    // EXIF optics are best-effort: absent or corrupt metadata leaves the
+    // fields `None` and never fails the call (`read_exif` only errors
+    // when the file cannot be opened at all).
+    let optics = crate::exif::read_exif(path).unwrap_or_default();
+    Ok(RawMetadata {
+        decoder: take_str(&info.decoder),
+        make: take_str(&info.make),
+        model: take_str(&info.model),
+        canonical_make: take_str(&info.canonical_make),
+        canonical_model: take_str(&info.canonical_model),
+        mode: take_str(&info.mode),
+        width: to_u32(info.width, "width")?,
+        height: to_u32(info.height, "height")?,
+        uncropped_width: to_u32(info.uncropped_width, "uncropped width")?,
+        uncropped_height: to_u32(info.uncropped_height, "uncropped height")?,
+        crop: CropBox {
+            left: to_u32(info.crop_left, "crop")?,
+            top: to_u32(info.crop_top, "crop")?,
+            right: to_u32(info.crop_right, "crop")?,
+            bottom: to_u32(info.crop_bottom, "crop")?,
+        },
+        mosaic_kind,
+        pitch_elems: to_usize(info.pitch_elems, "pitch")?,
+        cpp: to_u32(info.cpp, "cpp")?,
+        bpp: to_u32(info.bpp, "bpp")?,
+        is_cfa: info.is_cfa != 0,
+        is_xtrans: info.is_xtrans != 0,
+        cfa_w: to_u32(info.cfa_w, "cfa width")?,
+        cfa_h: to_u32(info.cfa_h, "cfa height")?,
+        cfa_pattern: pattern,
+        cfa_dcraw_filter: info.cfa_dcraw_filter,
+        black_level: info.black_level,
+        black_separate: (info.has_black_sep != 0).then_some(info.black_level_separate),
+        white_level: (info.has_white != 0).then_some(info.white_level),
+        white_balance: (info.has_wb != 0).then_some(info.wb_coeffs),
+        white_balance_kelvin: None,
+        white_balance_tint: None,
+        color_matrix_xyz_to_cam: (info.has_color_matrix != 0).then_some(info.color_matrix),
+        color_matrix_cam_to_xyz: cam_to_xyz,
+        iso: u32::try_from(info.iso_speed).ok().filter(|v| *v != 0),
+        exposure_time: optics.exposure_time,
+        aperture: optics.aperture,
+        focal_length: optics.focal_length,
+        lens_model: optics.lens_model,
+        capture_time: optics.capture_time,
+        orientation: optics.orientation,
+        subsampling: (
+            to_u32(info.subsampling_x, "subsampling")?,
+            to_u32(info.subsampling_y, "subsampling")?,
+        ),
+        pixel_aspect_ratio: info.pixel_aspect_ratio,
+        mosaic_bytes: info.mosaic_bytes,
+        camera_missing_sample: info.camera_missing_sample != 0,
+    })
+}
+
 impl RawImage {
     /// Parse `path`, select a decoder, run `checkSupport` (no pixels yet).
     ///
@@ -524,81 +612,7 @@ impl RawImage {
             return Err(DecodeError::new(ErrorCode::Internal, "image not decoded"));
         }
         let info = fill_info(self.handle)?;
-        let mosaic_kind = if info.data_type == ffi::RS_MOSAIC_U16 {
-            MosaicKind::U16
-        } else if info.data_type == ffi::RS_MOSAIC_F32 {
-            MosaicKind::F32
-        } else {
-            return Err(DecodeError::new(
-                ErrorCode::Internal,
-                "unknown mosaic sample type",
-            ));
-        };
-        let valid = to_usize(info.cfa_valid, "cfa count")?
-            .min(ffi::RS_CFA_PATTERN_MAX)
-            .min(info.cfa_pattern.len());
-        let mut pattern = Vec::with_capacity(valid);
-        for cell in info.cfa_pattern.iter().take(valid) {
-            pattern.push(CfaColor::from_i32(*cell));
-        }
-        let cam_to_xyz = if info.has_color_matrix != 0 {
-            invert_3x3(info.color_matrix)
-        } else {
-            None
-        };
-        // EXIF optics are best-effort: absent or corrupt metadata leaves the
-        // fields `None` and never fails the call (`read_exif` only errors
-        // when the file cannot be opened at all).
-        let optics = crate::exif::read_exif(&self.path).unwrap_or_default();
-        Ok(RawMetadata {
-            decoder: take_str(&info.decoder),
-            make: take_str(&info.make),
-            model: take_str(&info.model),
-            canonical_make: take_str(&info.canonical_make),
-            canonical_model: take_str(&info.canonical_model),
-            mode: take_str(&info.mode),
-            width: to_u32(info.width, "width")?,
-            height: to_u32(info.height, "height")?,
-            uncropped_width: to_u32(info.uncropped_width, "uncropped width")?,
-            uncropped_height: to_u32(info.uncropped_height, "uncropped height")?,
-            crop: CropBox {
-                left: to_u32(info.crop_left, "crop")?,
-                top: to_u32(info.crop_top, "crop")?,
-                right: to_u32(info.crop_right, "crop")?,
-                bottom: to_u32(info.crop_bottom, "crop")?,
-            },
-            mosaic_kind,
-            pitch_elems: to_usize(info.pitch_elems, "pitch")?,
-            cpp: to_u32(info.cpp, "cpp")?,
-            bpp: to_u32(info.bpp, "bpp")?,
-            is_cfa: info.is_cfa != 0,
-            is_xtrans: info.is_xtrans != 0,
-            cfa_w: to_u32(info.cfa_w, "cfa width")?,
-            cfa_h: to_u32(info.cfa_h, "cfa height")?,
-            cfa_pattern: pattern,
-            cfa_dcraw_filter: info.cfa_dcraw_filter,
-            black_level: info.black_level,
-            black_separate: (info.has_black_sep != 0).then_some(info.black_level_separate),
-            white_level: (info.has_white != 0).then_some(info.white_level),
-            white_balance: (info.has_wb != 0).then_some(info.wb_coeffs),
-            white_balance_kelvin: None,
-            white_balance_tint: None,
-            color_matrix_xyz_to_cam: (info.has_color_matrix != 0).then_some(info.color_matrix),
-            color_matrix_cam_to_xyz: cam_to_xyz,
-            iso: u32::try_from(info.iso_speed).ok().filter(|v| *v != 0),
-            exposure_time: optics.exposure_time,
-            aperture: optics.aperture,
-            focal_length: optics.focal_length,
-            lens_model: optics.lens_model,
-            capture_time: optics.capture_time,
-            orientation: optics.orientation,
-            subsampling: (
-                to_u32(info.subsampling_x, "subsampling")?,
-                to_u32(info.subsampling_y, "subsampling")?,
-            ),
-            pixel_aspect_ratio: info.pixel_aspect_ratio,
-            mosaic_bytes: info.mosaic_bytes,
-        })
+        metadata_from_info(&info, &self.path)
     }
 
     /// Copy the cropped mosaic plane (pitch padding removed).
@@ -689,6 +703,72 @@ impl RawImage {
     pub fn meta_parse_count() -> u64 {
         // SAFETY: pure atomic counter read, no pointers, no state change.
         unsafe { ffi::rs_meta_parse_count() }
+    }
+
+    /// Successful pixel decodes in this process (actual `decodeRaw` runs,
+    /// not idempotent no-ops).
+    #[must_use]
+    pub fn decode_count() -> u64 {
+        // SAFETY: pure atomic counter read, no pointers, no state change.
+        unsafe { ffi::rs_decode_count() }
+    }
+
+    /// Successful metadata probes in this process (fast-path `rs_probe`
+    /// runs; fallback probes count as decodes, not probes).
+    #[must_use]
+    pub fn probe_count() -> u64 {
+        // SAFETY: pure atomic counter read, no pointers, no state change.
+        unsafe { ffi::rs_probe_count() }
+    }
+
+    /// Whether [`RawImage::probe_metadata`] would take the fast path: a
+    /// pure shape check (ARW, compression 1 or 7), no pixels, no state.
+    #[must_use]
+    pub fn probe_supported(&self) -> bool {
+        // SAFETY: `handle` is live; `rs_probe_supported` takes no out-param
+        // and mutates nothing (returns 0 on any anomaly).
+        unsafe { ffi::rs_probe_supported(self.handle.as_ptr()) != 0 }
+    }
+
+    /// Read metadata without decoding pixels when the shape allows it.
+    ///
+    /// Fast path (see [`RawImage::probe_supported`]): `decodeMetaData`
+    /// plus tag-derived geometry — every [`RawMetadata`] field, pixel for
+    /// pixel what [`RawImage::metadata`] would report, with no pixel
+    /// allocation. Anything else falls back to [`RawImage::decode`] plus
+    /// [`RawImage::metadata`] (correct, at full decode cost).
+    ///
+    /// A probed handle must be freed, never decoded: probing then decoding
+    /// would run `decodeMetaData` twice. Probe and decode each open their
+    /// own handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorCode::Internal`] when the image is already decoded
+    /// or probed, else the same typed errors as [`RawImage::decode`].
+    pub fn probe_metadata(&mut self) -> Result<RawMetadata, DecodeError> {
+        if self.decoded {
+            return Err(DecodeError::new(
+                ErrorCode::Internal,
+                "image already decoded",
+            ));
+        }
+        if self.probe_supported() {
+            let mut info = ffi::RsImageInfo::new();
+            let mut err = ffi::RsError::new();
+            // SAFETY: `handle` is live and exclusively borrowed (`&mut
+            // self`); both out-params are exclusive stack slots. The shape
+            // was just checked, so failure here is a genuine decode-stage
+            // error, reported like `rs_decode`'s.
+            let rc = unsafe { ffi::rs_probe(self.handle.as_ptr(), &raw mut info, &raw mut err) };
+            if rc != 0 {
+                return Err(take_error(&err));
+            }
+            metadata_from_info(&info, &self.path)
+        } else {
+            self.decode()?;
+            self.metadata()
+        }
     }
 }
 

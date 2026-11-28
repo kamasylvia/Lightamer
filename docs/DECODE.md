@@ -39,12 +39,15 @@
 |---|---|
 | `rs_open(path, cameras_xml, err)` | Parse + select decoder + `checkSupport`. `cameras_xml == NULL` uses the process singleton. No pixels yet. |
 | `rs_decode(img, err)` | `decodeRaw` + `decodeMetaData`. Idempotent. |
+| `rs_probe(img, out, err)` | `decodeMetaData` on tag-sized dims + ARW crop, no pixels (B3-0b; compression 1/7 only, else fall back to `rs_decode`). Sets the probed flag (decode-after-probe is an error). |
+| `rs_probe_supported(img)` | Pure 1/0 shape check for `rs_probe`; any anomaly degrades to 0 (fall back). |
 | `rs_fill_info(img, out, err)` | Metadata + geometry into `rs_image_info`. |
 | `rs_mosaic_u16` / `rs_mosaic_f32` | Cropped plane base (rows `pitch_elems` apart); NULL on type mismatch. Borrows the handle. |
 | `rs_mosaic_hash(img, err)` | FNV-1a 64 over the cropped plane (u16 and f32). |
 | `rs_free` | Release (NULL-safe). |
 | `rs_ensure_meta(err)` | Parse the singleton database now (timing seam). |
 | `rs_meta_parse_count()` | Process parse count (singleton probe). |
+| `rs_decode_count()` / `rs_probe_count()` | Successful pixel decodes / fast probes in this process (B3-0b; engine whole-path pins +1/+1). |
 | `rs_info_size()` / `rs_error_size()` / `rs_classify_for_test(s, m)` | Test seams: struct-size pins, error-mapping pin. |
 
 The B2-a `rs_thumb` / `rs_free_bytes` placeholder pair is **removed** in
@@ -59,11 +62,14 @@ entry would only ferry file bytes nowhere.
 `rs_fill_info`/`rs_mosaic_hash`/`rs_ensure_meta` catch `std::exception`/`...`
 → `INTERNAL` (their `bad_alloc` lands on INTERNAL, undistinguished);
 `rs_mosaic_u16`/`rs_mosaic_f32` degrade any throw to NULL; the rest
-(`rs_free`/`rs_meta_parse_count`/`rs_info_size`/`rs_error_size`/
-`rs_classify_for_test`) need no `try` (pure getters over `noexcept`
-accessors). Nothing C++ crosses the boundary; corrupt input is a
-code, never an abort. The handle owns the file bytes, so the spike's
-`RawDecoder` buffer-lifetime caveat does not apply.
+(`rs_free`/`rs_meta_parse_count`/`rs_decode_count`/`rs_probe_count`/
+`rs_info_size`/`rs_error_size`/`rs_classify_for_test`) need no `try` (pure
+getters over `noexcept` accessors). `rs_probe` catches like `rs_decode`
+(same stage mapping) plus `INTERNAL` for its shape/crop guards;
+`rs_probe_supported` catches everything to 0 (fall back). Nothing C++
+crosses the boundary; corrupt input is a code, never an abort. The handle
+owns the file bytes, so the spike's `RawDecoder` buffer-lifetime caveat
+does not apply.
 
 **OpenMP waits**: the shim defaults `OMP_WAIT_POLICY` to `passive` (blocking
 waits) unless the user set it — libomp's default spin makes bursty decode
@@ -75,8 +81,12 @@ passive on the 61 MP gate file; see `B2a-REPORT.md` §timing). Set in
 
 - `RawImage::open` → `decode` → `metadata()` / `mosaic()` /
   `mosaic_hash()`; `decode_file` does all four. `unsafe` lives only in
-  `ffi` (declarations) plus one `SAFETY`-commented block per extern call in
+  `ffi` (declarations) plus one documented `unsafe` block per extern call in
   `image`; handles are `Send` but not `Sync`.
+- `RawImage::probe_metadata` (B3-0b) answers the same [`RawMetadata`]
+  without pixels on ARW shapes and falls back to `decode` + `metadata`
+  elsewhere; `pipe_image` / `DecodedImage::pipe_input` (`pipe.rs`) turn it
+  into pipe facts / the mono float frame (`input_space = Raw`).
 - `Mosaic::U16(Vec<u16>)` / `F32(Vec<f32>)`: owned cropped planes, pitch
   removed. `RawMetadata` carries every field below; absent fields are `None`
   by construction (see §5).

@@ -8,6 +8,9 @@
 
 #include "rawspeed_shim.h"
 #include "RawSpeed-API.h"
+#include "tiff/TiffEntry.h"
+#include "tiff/TiffIFD.h"
+#include "tiff/TiffTag.h"
 
 #include <atomic>
 #include <cstdio>
@@ -39,6 +42,7 @@ struct rs_image {
   RawImage raw = RawImage::create();
   RawImageData* data = nullptr;
   bool decoded = false;
+  bool probed = false;
   std::string decoderName;
 };
 
@@ -103,6 +107,8 @@ int32_t classify(int stage, const char* msg) {
 std::once_flag metaOnce;
 std::shared_ptr<const CameraMetaData> defaultMeta;
 std::atomic<uint64_t> metaParseCount{0};
+std::atomic<uint64_t> decodeCount{0};
+std::atomic<uint64_t> probeCount{0};
 
 // Throws on XML failure; callers map that to RS_ERR_INTERNAL (a broken
 // cameras.xml is a packaging bug, never a property of the input file).
@@ -147,6 +153,148 @@ void copyStr(char* dst, size_t cap, const std::string& src) {
     return;
   std::strncpy(dst, src.c_str(), cap - 1);
   dst[cap - 1] = '\0';
+}
+
+// Mirrors darktable's camera-sample check
+// (`dt_imageio_open_rawspeed[_sraw]`, `src/imageio/imageio_rawspeed.cc`):
+// the camera is known but ships without RPU samples.
+int cameraMissingSample(const CameraMetaData* meta, const RawImageData* r) {
+  if (!meta || !r)
+    return 0;
+  const Camera* cam = meta->getCamera(r->metadata.make, r->metadata.model,
+                                      r->metadata.mode);
+  return (cam && cam->supportStatus == Camera::SupportStatus::SupportedNoSamples)
+             ? 1
+             : 0;
+}
+
+// The pixel-independent half of `rs_image_info`: CFA, levels, WB, color
+// matrix, ISO, subsampling, and names. Shared by the decode fill and the
+// probe fill (both run decodeMetaData, so these read identically).
+void fillMetadataFields(const CameraMetaData* meta, RawImageData* r,
+                         const std::string& decoderName, rs_image_info* out) {
+  out->is_cfa = r->isCFA ? 1 : 0;
+  const iPoint2D cfaSize = r->cfa.getSize();
+  out->cfa_w = cfaSize.x;
+  out->cfa_h = cfaSize.y;
+  out->is_xtrans = (cfaSize.x == 6 && cfaSize.y == 6) ? 1 : 0;
+  const int cells = cfaSize.x * cfaSize.y;
+  out->cfa_valid = cells < RS_CFA_PATTERN_MAX ? cells : RS_CFA_PATTERN_MAX;
+  for (int i = 0; i < out->cfa_valid; ++i) {
+    const int y = i / cfaSize.x;
+    const int x = i % cfaSize.x;
+    out->cfa_pattern[i] = static_cast<int32_t>(r->cfa.getColorAt(x, y));
+  }
+  out->cfa_dcraw_filter = r->cfa.getDcrawFilter();
+  out->black_level = r->blackLevel;
+  if (r->blackLevelSeparate) {
+    // Always 2x2 over blackLevelSeparateStorage at the pinned commit.
+    const auto bl = *r->blackLevelSeparate;
+    out->has_black_sep = 1;
+    out->black_level_separate[0] = bl[0](0);
+    out->black_level_separate[1] = bl[0](1);
+    out->black_level_separate[2] = bl[1](0);
+    out->black_level_separate[3] = bl[1](1);
+  }
+  if (r->whitePoint) {
+    out->has_white = 1;
+    out->white_level = *r->whitePoint;
+  }
+  if (r->metadata.wbCoeffs) {
+    out->has_wb = 1;
+    const auto& wb = *r->metadata.wbCoeffs;
+    for (int i = 0; i < 4; ++i)
+      out->wb_coeffs[i] = wb[i];
+  }
+  // Exactly-9 gate: upstream fills a 4x3 (`idx < msize`, else 0), so a
+  // 12-value matrix loses its 4th row here; non-9 sizes report absent.
+  if (r->metadata.colorMatrix.size() == 9) {
+    out->has_color_matrix = 1;
+    for (int i = 0; i < 9; ++i) {
+      const auto& q = r->metadata.colorMatrix[i];
+      out->color_matrix[i] =
+          q.den ? static_cast<float>(q.num) / static_cast<float>(q.den) : 0.0F;
+    }
+  }
+  out->iso_speed = r->metadata.isoSpeed;
+  out->subsampling_x = r->metadata.subsampling.x;
+  out->subsampling_y = r->metadata.subsampling.y;
+  out->pixel_aspect_ratio = r->metadata.pixelAspectRatio;
+  copyStr(out->make, sizeof(out->make), r->metadata.make);
+  copyStr(out->model, sizeof(out->model), r->metadata.model);
+  copyStr(out->canonical_make, sizeof(out->canonical_make),
+          r->metadata.canonical_make);
+  copyStr(out->canonical_model, sizeof(out->canonical_model),
+          r->metadata.canonical_model);
+  copyStr(out->mode, sizeof(out->mode), r->metadata.mode);
+  copyStr(out->decoder, sizeof(out->decoder), decoderName);
+  out->camera_missing_sample = cameraMissingSample(meta, r);
+}
+
+// Probe shape check plus uncropped dims from TIFF tags, mirroring the
+// ArwDecoder dimension reads (`DecodeUncompressed` / `DecodeLJpeg`). The
+// crop itself is NOT computed here: `rs_probe` presets `mRaw->dim` with the
+// tag dims and lets rawspeed apply the crop (cameras.xml for compression 1
+// via `setMetaData`, `SONYRAWIMAGESIZE` for compression 7 with `applyCrop =
+// false`), exactly as the decode path does. Returns false for anything else
+// (caller falls back to a full decode, which reports the precise error);
+// never throws.
+bool probeArwGeometry(const rs_image* img, int& uncroppedW, int& uncroppedH,
+                       int& sonyCropW, int& sonyCropH, bool& useCamCrop) {
+  try {
+    if (!img || !img->decoder || img->decoderName != "ArwDecoder")
+      return false;
+    TiffIFD* root = img->decoder->getRootIFD();
+    if (!root)
+      return false;
+    const std::vector<const TiffIFD*> data =
+        root->getIFDsWithTag(TiffTag::STRIPOFFSETS);
+    if (data.empty() || !data[0])
+      return false;
+    const TiffIFD* raw = data[0];
+    const uint32_t compression =
+        raw->getEntry(TiffTag::COMPRESSION)->getU32();
+    const uint32_t width = raw->getEntry(TiffTag::IMAGEWIDTH)->getU32();
+    const uint32_t height = raw->getEntry(TiffTag::IMAGELENGTH)->getU32();
+    if (width == 0 || height == 0 || width > INT32_MAX || height > INT32_MAX)
+      return false;
+    if (compression == 7) {
+      const uint32_t photometric =
+          raw->getEntry(TiffTag::PHOTOMETRICINTERPRETATION)->getU32();
+      const uint32_t bitPerPixel =
+          raw->getEntry(TiffTag::BITSPERSAMPLE)->getU32();
+      if (photometric != 32803)
+        return false;
+      if (bitPerPixel != 8 && bitPerPixel != 12 && bitPerPixel != 14)
+        return false;
+      if (width % 2 != 0 || height % 2 != 0 || width > 10240 || height > 7168)
+        return false;
+      const TiffEntry* sizeEntry = raw->getEntry(TiffTag::SONYRAWIMAGESIZE);
+      const uint32_t cropW = sizeEntry->getU32(0);
+      const uint32_t cropH = sizeEntry->getU32(1);
+      if (cropW == 0 || cropH == 0 || cropW > width || cropH > height)
+        return false;
+      uncroppedW = static_cast<int>(width);
+      uncroppedH = static_cast<int>(height);
+      sonyCropW = static_cast<int>(cropW);
+      sonyCropH = static_cast<int>(cropH);
+      useCamCrop = false;
+      return true;
+    }
+    if (compression == 1) {
+      if (width > 9600 || height > 6376)
+        return false;
+      uncroppedW = static_cast<int>(width);
+      uncroppedH = static_cast<int>(height);
+      sonyCropW = 0;
+      sonyCropH = 0;
+      useCamCrop = true;
+      return true;
+    }
+    return false;
+  } catch (...) {
+    return false;
+  }
 }
 
 } // namespace
@@ -238,11 +386,17 @@ int32_t rs_decode(rs_image* img, rs_error* err) {
   }
   if (img->decoded)
     return 0;
+  if (img->probed) {
+    setErr(err, RS_ERR_INTERNAL,
+           "image already probed; open a new handle to decode");
+    return -1;
+  }
   try {
     img->raw = img->decoder->decodeRaw();
     img->decoder->decodeMetaData(img->meta.get());
     img->data = img->raw.get();
     img->decoded = true;
+    decodeCount.fetch_add(1, std::memory_order_relaxed);
     return 0;
   } catch (const std::bad_alloc&) {
     setErr(err, RS_ERR_NOMEM, "out of memory");
@@ -294,59 +448,7 @@ int32_t rs_fill_info(const rs_image* img, rs_image_info* out, rs_error* err) {
                                    .pitch());
     out->cpp = static_cast<int32_t>(r->getCpp());
     out->bpp = static_cast<int32_t>(r->getBpp());
-    out->is_cfa = r->isCFA ? 1 : 0;
-    const iPoint2D cfaSize = r->cfa.getSize();
-    out->cfa_w = cfaSize.x;
-    out->cfa_h = cfaSize.y;
-    out->is_xtrans = (cfaSize.x == 6 && cfaSize.y == 6) ? 1 : 0;
-    const int cells = cfaSize.x * cfaSize.y;
-    out->cfa_valid = cells < RS_CFA_PATTERN_MAX ? cells : RS_CFA_PATTERN_MAX;
-    for (int i = 0; i < out->cfa_valid; ++i) {
-      const int y = i / cfaSize.x;
-      const int x = i % cfaSize.x;
-      out->cfa_pattern[i] = static_cast<int32_t>(r->cfa.getColorAt(x, y));
-    }
-    out->cfa_dcraw_filter = r->cfa.getDcrawFilter();
-    out->black_level = r->blackLevel;
-    if (r->blackLevelSeparate) {
-      // Always 2x2 over blackLevelSeparateStorage at the pinned commit.
-      const auto bl = *r->blackLevelSeparate;
-      out->has_black_sep = 1;
-      out->black_level_separate[0] = bl[0](0);
-      out->black_level_separate[1] = bl[0](1);
-      out->black_level_separate[2] = bl[1](0);
-      out->black_level_separate[3] = bl[1](1);
-    }
-    if (r->whitePoint) {
-      out->has_white = 1;
-      out->white_level = *r->whitePoint;
-    }
-    if (r->metadata.wbCoeffs) {
-      out->has_wb = 1;
-      const auto& wb = *r->metadata.wbCoeffs;
-      for (int i = 0; i < 4; ++i)
-        out->wb_coeffs[i] = wb[i];
-    }
-    if (r->metadata.colorMatrix.size() == 9) {
-      out->has_color_matrix = 1;
-      for (int i = 0; i < 9; ++i) {
-        const auto& q = r->metadata.colorMatrix[i];
-        out->color_matrix[i] =
-            q.den ? static_cast<float>(q.num) / static_cast<float>(q.den) : 0.0F;
-      }
-    }
-    out->iso_speed = r->metadata.isoSpeed;
-    out->subsampling_x = r->metadata.subsampling.x;
-    out->subsampling_y = r->metadata.subsampling.y;
-    out->pixel_aspect_ratio = r->metadata.pixelAspectRatio;
-    copyStr(out->make, sizeof(out->make), r->metadata.make);
-    copyStr(out->model, sizeof(out->model), r->metadata.model);
-    copyStr(out->canonical_make, sizeof(out->canonical_make),
-            r->metadata.canonical_make);
-    copyStr(out->canonical_model, sizeof(out->canonical_model),
-            r->metadata.canonical_model);
-    copyStr(out->mode, sizeof(out->mode), r->metadata.mode);
-    copyStr(out->decoder, sizeof(out->decoder), img->decoderName);
+    fillMetadataFields(img->meta.get(), r, img->decoderName, out);
     out->mosaic_bytes =
         static_cast<uint64_t>(r->dim.x) * static_cast<uint64_t>(r->dim.y) *
         static_cast<uint64_t>(r->getCpp()) * (isU16 ? 2ULL : 4ULL);
@@ -355,6 +457,105 @@ int32_t rs_fill_info(const rs_image* img, rs_image_info* out, rs_error* err) {
     setErr(err, RS_ERR_INTERNAL, e.what());
   } catch (...) {
     setErr(err, RS_ERR_INTERNAL, "unknown C++ exception in rs_fill_info");
+  }
+  return -1;
+}
+
+int32_t rs_probe_supported(const rs_image* img) {
+  // Pure shape check: no metadata call, no state change. Any anomaly —
+  // including a corrupt TIFF tree — degrades to 0 so the caller falls back
+  // to `rs_decode`, which reports the precise error.
+  if (!img || img->decoded || img->probed)
+    return 0;
+  int uw = 0, uh = 0, cw = 0, ch = 0;
+  bool camCrop = false;
+  return probeArwGeometry(img, uw, uh, cw, ch, camCrop) ? 1 : 0;
+}
+
+int32_t rs_probe(rs_image* img, rs_image_info* out, rs_error* err) {
+  if (err) {
+    err->code = RS_OK;
+    err->message[0] = '\0';
+  }
+  if (!img || !out) {
+    setErr(err, RS_ERR_INTERNAL, "null handle");
+    return -1;
+  }
+  if (img->decoded) {
+    setErr(err, RS_ERR_INTERNAL, "image already decoded");
+    return -1;
+  }
+  if (img->probed) {
+    setErr(err, RS_ERR_INTERNAL, "image already probed");
+    return -1;
+  }
+  int uw = 0, uh = 0, cw = 0, ch = 0;
+  bool camCrop = false;
+  if (!probeArwGeometry(img, uw, uh, cw, ch, camCrop)) {
+    setErr(err, RS_ERR_INTERNAL,
+           "probe unsupported for this file; use rs_decode");
+    return -1;
+  }
+  // Preset the dims decodeRaw would set, so decodeMetaData runs against a
+  // sized (still pixel-less) image: the crop applies exactly as on the
+  // decode path, including any CFA shift. No pixel memory is allocated.
+  img->decoder->mRaw->dim = iPoint2D(uw, uh);
+  if (!camCrop)
+    img->decoder->applyCrop = false; // DecodeLJpeg does the same.
+  try {
+    img->decoder->decodeMetaData(img->meta.get());
+  } catch (const std::bad_alloc&) {
+    setErr(err, RS_ERR_NOMEM, "out of memory");
+    return -1;
+  } catch (const std::exception& e) {
+    setErr(err, classify(1, e.what()), e.what());
+    return -1;
+  } catch (...) {
+    setErr(err, RS_ERR_INTERNAL, "unknown C++ exception in rs_probe");
+    return -1;
+  }
+  RawImageData* r = img->decoder->mRaw.get();
+  if (!r) {
+    setErr(err, RS_ERR_INTERNAL, "probe metadata missing");
+    return -1;
+  }
+  try {
+    std::memset(out, 0, sizeof(*out));
+    if (!camCrop)
+      r->subFrame(iRectangle2D(0, 0, cw, ch)); // DecodeLJpeg's trailing crop.
+    // Geometry reads exactly as rs_fill_info does; only the sample layout
+    // is probe-known: both shapes are single-component u16 (the LJPEG path
+    // only ever creates u16 data). Pitch mirrors the fresh allocation
+    // (see below), not the tag width.
+    out->data_type = RS_MOSAIC_U16;
+    out->width = r->dim.x;
+    out->height = r->dim.y;
+    // Uncropped dims come from the tags: `uncropped_dim` is only assigned in
+    // `createData()` (pixel allocation), so `getUncroppedDim()` reads zero on
+    // a pixel-less image. Offset and cropped dims read back as usual.
+    out->uncropped_width = uw;
+    out->uncropped_height = uh;
+    const iPoint2D off = r->getCropOffset();
+    out->crop_left = off.x;
+    out->crop_top = off.y;
+    out->crop_right = uw - r->dim.x - off.x;
+    out->crop_bottom = uh - r->dim.y - off.y;
+    // Pitch mirrors `createData()`: bytes round up to 16 (`roundUp(dim.x *
+    // bpp, alignment)`), so elements are `roundUp(uw * 2, 16) / 2` — plain
+    // `uw` only when `uw % 8 == 0`.
+    out->pitch_elems = (uw * 2 + 15) / 16 * 16 / 2;
+    out->cpp = 1;
+    out->bpp = 2;
+    fillMetadataFields(img->meta.get(), r, img->decoderName, out);
+    out->mosaic_bytes = static_cast<uint64_t>(out->width) *
+                        static_cast<uint64_t>(out->height) * 2ULL;
+    img->probed = true;
+    probeCount.fetch_add(1, std::memory_order_relaxed);
+    return 0;
+  } catch (const std::exception& e) {
+    setErr(err, RS_ERR_INTERNAL, e.what());
+  } catch (...) {
+    setErr(err, RS_ERR_INTERNAL, "unknown C++ exception in rs_probe");
   }
   return -1;
 }
@@ -461,6 +662,14 @@ int32_t rs_ensure_meta(rs_error* err) {
 
 uint64_t rs_meta_parse_count(void) {
   return metaParseCount.load(std::memory_order_relaxed);
+}
+
+uint64_t rs_decode_count(void) {
+  return decodeCount.load(std::memory_order_relaxed);
+}
+
+uint64_t rs_probe_count(void) {
+  return probeCount.load(std::memory_order_relaxed);
 }
 
 size_t rs_info_size(void) { return sizeof(rs_image_info); }

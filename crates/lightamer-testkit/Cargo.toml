@@ -13,3 +13,7 @@ workspace = true
 [dependencies]
 lightamer-iop-traits = { path = "../lightamer-iop-traits" }
 serde_json = { version = "1" }
+# B3-0b: the RAW sample loader wraps the decode pipe-input entry.
+# Workspace-internal edges only; no new packages.
+lightamer-decode = { path = "../lightamer-decode" }
+lightamer-raster = { path = "../lightamer-raster" }

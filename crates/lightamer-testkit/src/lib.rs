@@ -4,7 +4,9 @@
 // `Need::Fonts` doc generalized (no font assets yet); tests avoid
 // unwrap/expect per the crate-level deny (no clippy.toml test exemption here).
 //! Test tooling shared by the workspace's tests. A dev-dependency only: `cargo xtask layers`
-//! refuses it as a normal dependency. Std only, so every crate can use it at no build cost.
+//! refuses it as a normal dependency. The skip log and the identity module are std-only; the
+//! RAW sample loader additionally pulls `lightamer-decode` + `lightamer-raster` (B3-0b), so any
+//! test binary linking testkit also builds one decode stack.
 //!
 //! **Skips.** libtest has no "skipped" status and hides the output of passing tests, so a test that
 //! needs a GPU, a corpus file, a model, or an input file, and returns early without them,
@@ -40,8 +42,10 @@ use std::io::Write as _;
 use std::path::Path;
 
 mod identity;
+mod raw_sample;
 
 pub use identity::{IdentityCommit, IdentityModule};
+pub use raw_sample::{load_raw_sample, sample_path};
 
 /// The environment variable naming the file skips are appended to (JSON lines).
 pub const SKIP_LOG_ENV: &str = "LIGHTAMER_SKIP_LOG";
