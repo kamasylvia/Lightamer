@@ -1,0 +1,10 @@
+Working...
+`PASS / 0 error + 2 minor`，日志已写 `.work/gsd/phases/rust-core/waves/B1dc-review.log`，HEAD `5514b242`，已跟踪树干净。
+
+核验：三 crate 测试 115/202/65、全量 672+5 ignored 零失败；clippy 六条（非增量）、fmt、doc 零警告、layers/no-iop-names/apple-boundary/licenses 全过；五演示 exit 0（含 stream-demo 2538MB）；`rust-ci-lite.sh` ALL GREEN。`fetch(` 生产调用点仅三处且全在非流式路上；`run_stream_fallback` 只剩一次 `render_stream_from`；B1d-a 旧测试体零 hunk；`render.rs` diff 零行；engine 无文件操作；两提交路径与冻结面合规，`Cargo.lock` 未变。
+
+第 9 条：footprint 条带 50→79MB、方块 672→631MB（200→500MP 基本不涨），lane 的 mmap 解释成立；四行完整数字在日志末尾供抄表。
+
+minor-1：覆写 probe 撒谎两方向无测试，探小取大静默截断；minor-2：默认 probe 下整帧路取两次，预览/缩略图/空链的探纯浪费（B2 接真解码时顺手修）。
+
+跳过：Lumen 源码未读（块公式本次未动，无需对照）；500MP 常驻行低于报告 7–11%（load 8–9 下干净页回收抖动，footprint 稳定为准）。

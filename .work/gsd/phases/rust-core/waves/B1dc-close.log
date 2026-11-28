@@ -1,0 +1,40 @@
+Working...
+收尾完成，一个提交。全文如下。
+
+## 两处 minor 的修法
+
+**minor-1（探与真实像素不一致）**：`crates/lightamer-engine/src/render.rs` 的 `InputSource::probe` 文档加契约——来源必须保证探到尺寸与真实像素一致；探大取小→默认按区域取越界，分类型失败；探小取大→按探到尺寸规划，输出偏小。两个 lying-probe 测试（默认按区域取，不覆写 `fetch_region`）把双向钉死。
+
+**minor-2（白探一次、整帧取两次）**：`run_render_job` 里仅 `kind.auto_streams() && !nodes.is_empty()` 时探（`Option<RenderFacts>` + let-chain，流式分支体零缩进改动）；预览/缩略图/空链不探，整帧路仍只取一次。`probe` 文档加注：大帧来源应覆写便宜地答，否则整帧路解码两次。`docs/PIPELINE.md` 行带流式（B1d-c）节跟补两句（条件探 + 契约）。
+
+## 新增测试（4 个，旧测试一字不改）
+
+1. `render::tests::lying_probe_larger_than_truth_fails_typed_on_default_regions`——真 256 探 512，直流后默认区域取越界，分类型失败（`!cancelled` + 非空 reason）。
+2. `render::tests::lying_probe_smaller_than_truth_delivers_the_probed_size`——真 512 探 256，输出 256（Strip/4 + 逐字节），注释写明系撒谎后果非期望行为。
+3. `render::tests::jobs_that_cannot_stream_never_probe`——预览/缩略图/空链探计数均为 0（`CountingInput` 加 `probes` 计数）。
+4. `render::tests::preview_whole_fetch_runs_exactly_once`——预览成功路取 1 次、探 0 次、区域 0 次。
+
+## 历史演示残留：原因和修法
+
+- 根因：运行中被 kill -9，trap 不执行，`$TMP` 原样留下。正常 exit 0/1/3 与 TERM/INT 均自清（干净跑亲验 exit 0 零残留）。
+- 复现：Big 建完（30000 张占位）后 `kill -9` 脚本 → 残留带 30000 张占位，与塔台所见一致。塔台 exit-0 跑的残留是此前被杀运行（执行 lane 主进程异常退出连带）留下的。
+- 修法（只动残留路径）：启动写 `.owner-pid` + 自愈清扫——死 pid 即删、无 pid 满 60 分钟删、活 pid/自目录/年轻无 pid 永跳过。
+- 验证：老残留（30k 张，做旧 2 小时）与死 pid 各一被删、活 pid 与年轻无 pid 各一被留，`sweep:` 行两条，exit 0。
+
+## 验收清单（命令与输出）
+
+- 守卫：`Scripts/machine-guard.sh` → `GUARD PASS (heavy=0 free=68% swap=?M disk=?GB)`（构建前）。
+- `cargo test -p lightamer-engine --locked -j6` → lib 86 + 集成 120 = 206 passed, 0 failed, 1 ignored（202+4）。
+- `cargo test --workspace --locked --no-fail-fast -j6` → passed=676（672+4，上列 4 个），failed=0，ignored=5。
+- 六条 lint（`CARGO_INCREMENTAL=0 cargo clippy --workspace --all-targets --locked -j6 -- -D warnings -D clippy::perf -D clippy::indexing_slicing -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic -D clippy::todo -D clippy::unimplemented`）→ exit 0；`cargo fmt --all --check` → exit 0；`RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked` → exit 0；`cargo xtask layers` → `OK: 29 crates, no layering violations.`；`cargo xtask check-no-iop-names` → `OK (97 names, 4 roots clean)`；`Scripts/rust-apple-boundary.sh` → ALL GREEN；`Scripts/check-licenses.sh` → exit 0（`Cargo.lock` 零动）。
+- `rg -n 'std::fs|...|tempfile' crates/lightamer-engine/src` → 零输出。
+- 预览/缩略图/空链不探 + 预览整帧取恰一次：新测 3、4。
+- `Scripts/rust-history-demo.sh` → exit 0，跑后 `${TMPDIR}` 与 `/tmp` 下 `lightamer-history-demo-*` 零条。
+- `Scripts/rust-stream-demo.sh` → exit 0（`peak rss = 2538MB (2661859328 bytes)`，与报告值差 65KB 噪声）；session/render/decode 各 exit 0 全绿。
+- `git status --porcelain` 跟踪面干净；`git show --name-only HEAD` 含 `B1dc-REPORT.md` + `B1dc-review.log`，仅 10 个纪律路径；零 push。
+
+报告 `waves/B1dc-REPORT.md` 待填全填（复审头 `PASS / 0 error + 2 minor`、两处修法、未做/未验、峰值占用小节、收尾节）；复审日志一个字未改。
+
+**commit：`3c13969be23a5da6a448cfad857d20a2c359c58b`（`fix(rust-core): B1d-c probe-first streaming, region-source pipe entry`，`refs #32`）**，父提交 `18499e44`，原两提交已合一。
+
+跳过/未验：`rust-ci-lite.sh` 未跑（不在收尾清单）；上限表未重测（渲染路径零动）；`/tmp/b1dc-*` 系执行 lane/首个复审实例遗留证据，未碰。风险：60 分钟内无 pid 残留需下次运行才清；默认探下完整/导出整帧路仍取两次，B2 接线时顺手。
