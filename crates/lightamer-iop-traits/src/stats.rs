@@ -137,8 +137,8 @@ mod tests {
 
     use super::{OverlapError, check_overlap_covers};
     use crate::{
-        CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, Plane, PlaneMut, Roi,
-        TilingReq,
+        CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, PipeState, Plane,
+        PlaneMut, Roi, TilingReq,
     };
 
     /// A module whose `roi_in` grows by `grow` pixels per side and whose
@@ -172,6 +172,7 @@ mod tests {
             &self,
             _params: &Map<String, Value>,
             _image: &ImageInfo,
+            _state: &mut PipeState,
         ) -> Result<CommitData, PipeError> {
             Ok(Arc::new(()))
         }
@@ -203,15 +204,16 @@ mod tests {
             _output: &mut PlaneMut<'_>,
             _rin: Roi,
             _rout: Roi,
+            _state: &mut PipeState,
         ) -> Result<(), PipeError> {
             Err(PipeError::Backend("stats probe never processes".to_owned()))
         }
     }
 
     fn data_of(module: &Grower) -> CommitData {
-        module
-            .commit(&Map::new(), &ImageInfo::new(64, 64, crate::ColorSpace::Rgb))
-            .unwrap()
+        let image = ImageInfo::new(64, 64, crate::ColorSpace::Rgb);
+        let mut state = crate::PipeState::from_image(&image);
+        module.commit(&Map::new(), &image, &mut state).unwrap()
     }
 
     #[test]

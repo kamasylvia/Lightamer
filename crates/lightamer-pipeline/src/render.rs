@@ -35,7 +35,8 @@ use std::time::Instant;
 
 use lightamer_geom::Roi as GeomRoi;
 use lightamer_iop_traits::{
-    ColorSpace, ImageInfo, PipeError, PixelFormat as WireFormat, Plane, PlaneMut, Roi as WireRoi,
+    ColorSpace, ImageInfo, PipeError, PipeState, PixelFormat as WireFormat, Plane, PlaneMut,
+    Roi as WireRoi,
 };
 use lightamer_raster::{Frame, FrameExtent, PixelFormat};
 use lightamer_sysmem::Budget;
@@ -404,7 +405,9 @@ impl Pipe {
             return Err(RenderError::Cancelled);
         }
         self.last_trace.clear();
-        let chain = build_chain(req.lookup, req.nodes, req.image).map_err(RenderError::Chain)?;
+        let mut state = PipeState::from_image(req.image);
+        let chain = build_chain(req.lookup, req.nodes, req.image, &mut state)
+            .map_err(RenderError::Chain)?;
         if chain.is_empty() {
             return self.render_empty(req);
         }
@@ -454,12 +457,14 @@ impl Pipe {
                 // wrong plane): upstream invalidates size-mismatched cachelines
                 // the same way (`pixelpipe_cache.c`, `_get_by_hash`). A format
                 // mismatch recomputes for the same reason.
-                if hit.frame.extent() == want && hit.frame.format() == out_format {
+                if hit.plane.frame.extent() == want && hit.plane.frame.format() == out_format {
                     self.cache.touch(*key);
                     protected.insert(*key);
                     self.last_trace
                         .push(NodeReport::for_node(node, true, 0, 0.0));
-                    prev = Some(hit);
+                    // The plane resumes with the state its run left behind.
+                    state = hit.state;
+                    prev = Some(hit.plane);
                     in_wire = out_wire;
                     continue;
                 }
@@ -468,6 +473,9 @@ impl Pipe {
                 Some(upstream) => &upstream.frame,
                 None => req.input,
             };
+            // The node reads the descriptor of the buffer it is given, like
+            // `output_format` feeding `pipe->dsc` (`pixelpipe_hb.c:2006`).
+            state.set_input(in_wire);
             let treq = node
                 .module
                 .tiling(&node.data, &to_wire(&geo.input), &to_wire(&geo.output));
@@ -492,6 +500,7 @@ impl Pipe {
                         input,
                         format_from_wire(in_wire),
                         out_format,
+                        &mut state,
                     )?;
                     (plane, 1)
                 }
@@ -506,6 +515,7 @@ impl Pipe {
                     req.cancel,
                     format_from_wire(in_wire),
                     out_format,
+                    &mut state,
                 )?,
             };
             self.last_trace.push(NodeReport::for_node(
@@ -515,11 +525,11 @@ impl Pipe {
                 started.elapsed().as_secs_f64() * 1000.0,
             ));
             let plane = Arc::new(plane);
-            // The plane is complete, so it lands in the cache at once: the
-            // next node (or the next render) reuses it, and a later cancel or
-            // failure keeps it. `false` = no room: the render still succeeds,
-            // uncached.
-            let _ = self.cache.insert(*key, Arc::clone(&plane));
+            // The plane is complete, so it lands in the cache at once with the
+            // state the node left: the next node (or the next render) reuses
+            // both, and a later cancel or failure keeps them. `false` = no
+            // room: the render still succeeds, uncached.
+            let _ = self.cache.insert(*key, Arc::clone(&plane), state);
             prev = Some(plane);
             in_wire = out_wire;
         }
@@ -733,6 +743,7 @@ fn run_untiled(
     input: &Frame,
     in_format: PixelFormat,
     out_format: PixelFormat,
+    state: &mut PipeState,
 ) -> Result<SharedFrame, RenderError> {
     check_input(&node.id, input, geo)?;
     let mut out = alloc_room(
@@ -784,6 +795,7 @@ fn run_untiled(
             &mut out_plane,
             to_wire(&geo.input),
             to_wire(&geo.output),
+            state,
         )
         .map_err(|source| RenderError::Node {
             id: node.id.clone(),
@@ -799,7 +811,9 @@ fn run_untiled(
 /// Follows `_default_process_tiling_ptp` (`src/develop/tiling.c:690-806`):
 /// one reusable input/output scratch pair sized to the largest tile; per-tile
 /// absolute-coordinate rois (`iroi`/`oroi`, `:740-741`); only the good part
-/// (leading overlap trimmed) copied back (`:780-790`).
+/// (leading overlap trimmed) copied back (`:780-790`). Each tile restarts the
+/// maxima from the node's entry value (`:757-758`); every other state field
+/// carries across tiles, and the node leaves its last tile's value behind.
 #[expect(clippy::too_many_arguments)] // one tiled run with its budget, cache, geometry, and input; splitting would scatter the tiling loop
 fn run_tiled(
     budget: &Arc<Budget>,
@@ -812,6 +826,7 @@ fn run_tiled(
     cancel: &dyn Fn() -> bool,
     in_format: PixelFormat,
     out_format: PixelFormat,
+    state: &mut PipeState,
 ) -> Result<(SharedFrame, u32), RenderError> {
     check_input(&node.id, input, geo)?;
     let mut out = alloc_room(
@@ -823,6 +838,11 @@ fn run_tiled(
         &node.id,
     )?;
     if grid.tiles.is_empty() {
+        // An empty grid leaves the entry state alone; upstream would clamp
+        // the maxima to 1.0 here (`tiling.c:715` seeds `new` to 1.0 and
+        // `:800-801` writes it back over zero tiles). Unreachable in
+        // practice (tile (0,0) never skips, `:733`; empty frames stay
+        // untiled), and keeping the entry value is the saner wart-free read.
         return Ok((out, 0));
     }
     // Scratch pair sized to the largest tile, reused across all tiles.
@@ -855,6 +875,7 @@ fn run_tiled(
         out_format,
         &node.id,
     )?;
+    let entry_maximum = state.processed_maximum;
     let mut run = TileRun {
         node,
         geo,
@@ -862,12 +883,18 @@ fn run_tiled(
         scratch_in: &mut scratch_in.frame,
         scratch_out: &mut scratch_out.frame,
         out: &mut out.frame,
+        state,
     };
     let mut calls: u32 = 0;
     for tile in &grid.tiles {
         if cancel() {
             return Err(RenderError::Cancelled);
         }
+        // Every tile starts from the node's entry maxima, like upstream
+        // (`tiling.c:757-758`): the last tile's value wins by simply being
+        // the last write (`:764-775` aggregate the same way; their
+        // differs-between-tiles warning has no log home here).
+        run.state.processed_maximum = entry_maximum;
         run_tile(&mut run, tile)?;
         calls += 1;
     }
@@ -882,6 +909,7 @@ struct TileRun<'a> {
     scratch_in: &'a mut Frame,
     scratch_out: &'a mut Frame,
     out: &'a mut Frame,
+    state: &'a mut PipeState,
 }
 
 /// One tile's dimensions as frame widths.
@@ -1019,6 +1047,7 @@ fn process_tile(run: &mut TileRun<'_>, tile: &Tile, in_len: usize) -> Result<Wir
             &mut tile_out,
             to_wire(&tile.input),
             oroi,
+            run.state,
         )
         .map_err(|source| RenderError::Node {
             id,
@@ -1133,17 +1162,18 @@ fn copy_good_part(
 mod tests {
     #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use lightamer_geom::Roi as GeomRoi;
-    use lightamer_iop_traits::{ColorSpace, ImageInfo};
+    use lightamer_iop_traits::{ColorSpace, ImageInfo, PipeState};
     use lightamer_raster::{Frame, FrameExtent, PixelFormat};
     use lightamer_testkit::IdentityModule;
     use serde_json::json;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     use super::{Pipe, RenderError, RenderRequest};
     use crate::chain::{PipeNode, forward};
     use crate::fakes::{
         FakeBackendFail, FakeBadRoi, FakeCopy, FakeFail, FakeGain, FakeMem, FakePosition,
-        FakeScale, FakeScaleCopy, FakeSource, Probe, no_params, table,
+        FakeScale, FakeScaleCopy, FakeSource, FakeStateReader, FakeStateWriter, Probe, no_params,
+        table,
     };
     use crate::kinds::PipeKind;
 
@@ -1322,7 +1352,9 @@ mod tests {
                 .all(|v| v.to_bits() == 1.0f32.to_bits())
         );
         // Each node saw exactly the forward pass's regions.
-        let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
+        let chain =
+            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
+                .unwrap();
         let geos = forward(&chain, &geom(0, 0, 64, 64)).unwrap();
         assert_eq!(geos[0].input, geom(0, 0, 64, 64));
         assert_eq!(geos[0].output, geom(0, 0, 128, 128));
@@ -1460,18 +1492,22 @@ mod tests {
         let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
         let nodes = vec![node("mod_a"), gain_node("mod_b", 2.0)];
         render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
-        let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
+        let chain =
+            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
+                .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
-        let before = pipe.cache.peek(keys[0]).unwrap();
+        let before = pipe.cache.peek(keys[0]).unwrap().plane;
         let nodes = vec![node("mod_a"), gain_node("mod_b", 3.0)];
         render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
         // Node 0's key is unchanged (its params and upstream are): the cached
         // plane is the same allocation, not a fresh copy.
-        let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
+        let chain =
+            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
+                .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
-        let after = pipe.cache.peek(keys[0]).unwrap();
+        let after = pipe.cache.peek(keys[0]).unwrap().plane;
         assert!(Arc::ptr_eq(&before, &after));
         assert_eq!(probes[0].calls(), 1);
     }
@@ -1785,12 +1821,14 @@ mod tests {
         );
         // Node 0's plane is cached, complete: its key resolves and its bytes
         // equal the copied input. Nodes 1-2 have no entries.
-        let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
+        let chain =
+            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
+                .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         assert_eq!(pipe.cache_len(), 1);
         assert_eq!(
-            pipe.cache.peek(keys[0]).unwrap().frame.as_slice(),
+            pipe.cache.peek(keys[0]).unwrap().plane.frame.as_slice(),
             input.as_slice()
         );
         assert!(pipe.cache.peek(keys[1]).is_none());
@@ -2463,15 +2501,17 @@ mod tests {
         assert_eq!(pipe.cache_len(), 2);
         assert_eq!(pipe.budget().used(), 2 * 1_024);
         // Both entries resolve under their keys with the copied bytes.
-        let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
+        let chain =
+            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
+                .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         assert_eq!(
-            pipe.cache.peek(keys[0]).unwrap().frame.as_slice(),
+            pipe.cache.peek(keys[0]).unwrap().plane.frame.as_slice(),
             input.as_slice()
         );
         assert_eq!(
-            pipe.cache.peek(keys[1]).unwrap().frame.as_slice(),
+            pipe.cache.peek(keys[1]).unwrap().plane.frame.as_slice(),
             input.as_slice()
         );
     }
@@ -2627,13 +2667,15 @@ mod tests {
             ),
             (1, 1, 1, 0, 0, 0)
         );
-        let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
+        let chain =
+            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
+                .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         assert_eq!(pipe.cache_len(), 3);
         for key in keys.iter().take(3) {
             assert_eq!(
-                pipe.cache.peek(*key).unwrap().frame.as_slice(),
+                pipe.cache.peek(*key).unwrap().plane.frame.as_slice(),
                 input.as_slice()
             );
         }
@@ -2690,7 +2732,13 @@ mod tests {
             (probes[0].calls(), probes[1].calls(), probes[2].calls()),
             (1, 1, 1)
         );
-        let chain = crate::chain::build_chain(&failing, &nodes_failing, &image).unwrap();
+        let chain = crate::chain::build_chain(
+            &failing,
+            &nodes_failing,
+            &image,
+            &mut PipeState::from_image(&image),
+        )
+        .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys = crate::cache::chain_keys_with_image(
             PipeKind::Full,
@@ -2702,18 +2750,24 @@ mod tests {
         );
         assert_eq!(pipe.cache_len(), 2);
         assert_eq!(
-            pipe.cache.peek(keys[0]).unwrap().frame.as_slice(),
+            pipe.cache.peek(keys[0]).unwrap().plane.frame.as_slice(),
             input.as_slice()
         );
         assert_eq!(
-            pipe.cache.peek(keys[1]).unwrap().frame.as_slice(),
+            pipe.cache.peek(keys[1]).unwrap().plane.frame.as_slice(),
             input.as_slice()
         );
         assert!(pipe.cache.peek(keys[2]).is_none());
         assert_eq!(pipe.budget().used(), 2_048);
         // The fixed chain reuses nodes 0-1 (same keys) and runs only node 2.
         let nodes_fixed = vec![node("mod_a"), node("mod_b"), node("mod_c")];
-        let chain = crate::chain::build_chain(&fixed, &nodes_fixed, &image).unwrap();
+        let chain = crate::chain::build_chain(
+            &fixed,
+            &nodes_fixed,
+            &image,
+            &mut PipeState::from_image(&image),
+        )
+        .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let fixed_keys =
             crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes_fixed, &geos);
@@ -2754,7 +2808,13 @@ mod tests {
             7,
             geom(0, 0, 8, 8),
         );
-        let chain = crate::chain::build_chain(&lookup, &nodes_a, &image).unwrap();
+        let chain = crate::chain::build_chain(
+            &lookup,
+            &nodes_a,
+            &image,
+            &mut PipeState::from_image(&image),
+        )
+        .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys_a =
             crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes_a, &geos);
@@ -2770,7 +2830,13 @@ mod tests {
             geom(0, 0, 8, 8),
         );
         assert_eq!(out.frame().as_slice(), input.as_slice());
-        let chain = crate::chain::build_chain(&lookup, &nodes_b, &image).unwrap();
+        let chain = crate::chain::build_chain(
+            &lookup,
+            &nodes_b,
+            &image,
+            &mut PipeState::from_image(&image),
+        )
+        .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys_b =
             crate::cache::chain_keys_with_image(PipeKind::Full, 9, 1, &image, &nodes_b, &geos);
@@ -2778,7 +2844,7 @@ mod tests {
         // reversal) yields, node 0 survives beside B.
         assert!(pipe.cache.peek(keys_a[1]).is_none());
         assert_eq!(
-            pipe.cache.peek(keys_a[0]).unwrap().frame.as_slice(),
+            pipe.cache.peek(keys_a[0]).unwrap().plane.frame.as_slice(),
             input.as_slice()
         );
         assert!(pipe.cache.peek(keys_b[0]).is_some());
@@ -2807,7 +2873,9 @@ mod tests {
             7,
             geom(0, 0, 8, 8),
         );
-        let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
+        let chain =
+            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
+                .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys_a =
             crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
@@ -2857,13 +2925,25 @@ mod tests {
             7,
             geom(0, 0, 8, 8),
         );
-        let chain = crate::chain::build_chain(&lookup, &nodes_a, &image).unwrap();
+        let chain = crate::chain::build_chain(
+            &lookup,
+            &nodes_a,
+            &image,
+            &mut PipeState::from_image(&image),
+        )
+        .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys_a =
             crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes_a, &geos);
-        let held_a0 = pipe.cache.peek(keys_a[0]).unwrap();
+        let held_a0 = pipe.cache.peek(keys_a[0]).unwrap().plane;
         let nodes_b = vec![node("mod_a"), node("mod_s")];
-        let chain = crate::chain::build_chain(&lookup, &nodes_b, &image).unwrap();
+        let chain = crate::chain::build_chain(
+            &lookup,
+            &nodes_b,
+            &image,
+            &mut PipeState::from_image(&image),
+        )
+        .unwrap();
         let geos = forward(&chain, &GeomRoi::new(0, 0, 24, 24, 1.0).unwrap()).unwrap();
         let keys_b =
             crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes_b, &geos);
@@ -2891,7 +2971,7 @@ mod tests {
         // Make-room took the stale entry; the hit entry survived with the
         // same allocation.
         assert!(pipe.cache.peek(keys_a[1]).is_none());
-        let kept = pipe.cache.peek(keys_a[0]).unwrap();
+        let kept = pipe.cache.peek(keys_a[0]).unwrap().plane;
         assert!(Arc::ptr_eq(&held_a0, &kept));
         assert_eq!(pipe.cache_len(), 1);
         assert_eq!(pipe.budget().used(), 10_240);
@@ -3062,7 +3142,9 @@ mod tests {
                 .all(|v| v.to_bits() == product.to_bits())
         );
         // A's entries are all gone; the budget never topped.
-        let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
+        let chain =
+            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
+                .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys_a =
             crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
@@ -3371,6 +3453,7 @@ mod tests {
             &self,
             _params: &serde_json::Map<String, serde_json::Value>,
             _image: &ImageInfo,
+            _state: &mut PipeState,
         ) -> Result<lightamer_iop_traits::CommitData, lightamer_iop_traits::PipeError> {
             Ok(Arc::new(MonoToRgbaCommit))
         }
@@ -3394,6 +3477,7 @@ mod tests {
             output: &mut lightamer_iop_traits::PlaneMut<'_>,
             rin: lightamer_iop_traits::Roi,
             rout: lightamer_iop_traits::Roi,
+            _state: &mut lightamer_iop_traits::PipeState,
         ) -> Result<(), lightamer_iop_traits::PipeError> {
             if data.downcast_ref::<MonoToRgbaCommit>().is_none() {
                 return Err(lightamer_iop_traits::PipeError::Backend(
@@ -3471,13 +3555,18 @@ mod tests {
         assert_eq!(probe.calls(), 1);
         // Poison the entry with a mono plane under the same key: the next
         // render recomputes instead of serving the wrong format.
-        let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
+        let chain =
+            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
+                .unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
         let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         let poison =
             crate::budgeted::alloc_shared(pipe.budget(), extent(0, 0, 8, 8), PixelFormat::MonoF32)
                 .unwrap();
-        assert!(pipe.cache.insert(keys[0], Arc::new(poison)));
+        assert!(
+            pipe.cache
+                .insert(keys[0], Arc::new(poison), PipeState::from_image(&image))
+        );
         let out = render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
         assert_eq!(probe.calls(), 2);
         assert_eq!(out.frame().format(), PixelFormat::RgbaF32Premul);
@@ -3487,5 +3576,155 @@ mod tests {
                 .iter()
                 .all(|v| v.to_bits() == 1.0f32.to_bits())
         );
+    }
+
+    #[test]
+    fn chain_state_flows_from_writer_to_reader_in_order() {
+        let commits = Arc::new(Mutex::new(Vec::new()));
+        let processes = Arc::new(Mutex::new(Vec::new()));
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let probes = [Arc::new(Probe::new()), Arc::new(Probe::new())];
+        let lookup = table(vec![
+            Arc::new(FakeStateWriter::new(
+                "mod_w",
+                Arc::clone(&probes[0]),
+                2.0,
+                4.0,
+                2.0,
+                Arc::clone(&seen),
+            )),
+            Arc::new(FakeStateReader::new(
+                "mod_r",
+                Arc::clone(&probes[1]),
+                Arc::clone(&commits),
+                Arc::clone(&processes),
+                false,
+            )),
+        ]);
+        let image = image();
+        let input = pattern_frame(8, 8);
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
+        let nodes = vec![node("mod_w"), node("mod_r")];
+        let out = render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
+        assert_eq!(out.frame().as_slice(), input.as_slice());
+        // Commits thread in order: the reader's commit saw the writer's mark.
+        assert_eq!(*commits.lock().unwrap(), vec![2.0]);
+        // Processing starts from the commit phase's end value: the writer's
+        // own process saw its commit mark, the reader saw the writer's
+        // process mark.
+        assert_eq!(*processes.lock().unwrap(), vec![4.0]);
+        assert_eq!(*seen.lock().unwrap(), vec![2.0]);
+
+        // Without the writer, the reader sees the seeded start in both phases.
+        let lookup = table(vec![Arc::new(FakeStateReader::new(
+            "mod_r",
+            Arc::new(Probe::new()),
+            Arc::clone(&commits),
+            Arc::clone(&processes),
+            false,
+        ))]);
+        render_ok(
+            &mut pipe,
+            &[node("mod_r")],
+            &lookup,
+            &image,
+            &input,
+            geom(0, 0, 8, 8),
+        );
+        assert_eq!(*commits.lock().unwrap(), vec![2.0, 1.0]);
+        assert_eq!(*processes.lock().unwrap(), vec![4.0, 1.0]);
+    }
+
+    #[test]
+    fn tiled_node_restarts_maxima_from_its_entry_value() {
+        // Same grid as `tiled_copy_matches_untiled_bitwise`: 64x64, factor 8,
+        // 200_000 budget tiles 3x3, one process call per tile.
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let probe = Arc::new(Probe::new());
+        let lookup = table(vec![Arc::new(FakeStateWriter::new(
+            "mod_w",
+            Arc::clone(&probe),
+            2.0,
+            9.0,
+            8.0,
+            Arc::clone(&seen),
+        ))]);
+        let image = image();
+        let input = pattern_frame(64, 64);
+        let nodes = vec![node("mod_w")];
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, 200_000, 0);
+        let out = render_ok(
+            &mut pipe,
+            &nodes,
+            &lookup,
+            &image,
+            &input,
+            geom(0, 0, 64, 64),
+        );
+        assert_eq!(out.frame().as_slice(), input.as_slice());
+        assert_eq!(probe.calls(), 9);
+        // Every tile started from the node's entry maxima (the commit mark),
+        // never from the previous tile's write.
+        assert_eq!(*seen.lock().unwrap(), vec![2.0; 9]);
+        // The node left its last tile's value beside its plane.
+        let chain =
+            crate::chain::build_chain(&lookup, &nodes, &image, &mut PipeState::from_image(&image))
+                .unwrap();
+        let geos = forward(&chain, &geom(0, 0, 64, 64)).unwrap();
+        let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
+        assert_eq!(
+            pipe.cache.peek(keys[0]).unwrap().state.processed_maximum,
+            [9.0; 4]
+        );
+    }
+
+    #[test]
+    fn cache_resume_restores_upstream_state_for_downstream() {
+        // The reader scales its output by the observed maxima: downstream
+        // bytes depend on upstream state, so a stale resume would show.
+        let commits = Arc::new(Mutex::new(Vec::new()));
+        let processes = Arc::new(Mutex::new(Vec::new()));
+        let lookup = table(vec![
+            Arc::new(FakeStateWriter::new(
+                "mod_w",
+                Arc::new(Probe::new()),
+                2.0,
+                4.0,
+                2.0,
+                Arc::new(Mutex::new(Vec::new())),
+            )),
+            Arc::new(FakeStateReader::new(
+                "mod_r",
+                Arc::new(Probe::new()),
+                Arc::clone(&commits),
+                Arc::clone(&processes),
+                true,
+            )),
+        ]);
+        let image = image();
+        let input = pattern_frame(8, 8);
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
+        let nodes = vec![node("mod_w"), node("mod_r")];
+        let first = render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
+        // Re-key only the reader with a dummy param its commit ignores: the
+        // writer hits, the reader recomputes against the restored state.
+        let mut params = no_params();
+        params.insert("note".to_owned(), json!({"type": "text", "value": "b"}));
+        let nodes = vec![
+            node("mod_w"),
+            PipeNode {
+                id: "mod_r".to_owned(),
+                multi: 0,
+                params,
+            },
+        ];
+        let second = render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
+        let trace = pipe.last_trace();
+        assert_eq!(trace.len(), 2);
+        assert!(trace[0].hit);
+        assert!(!trace[1].hit);
+        assert_eq!(second.frame().as_slice(), first.frame().as_slice());
+        assert_eq!(*processes.lock().unwrap(), vec![4.0, 4.0]);
+        assert_eq!(*commits.lock().unwrap(), vec![2.0, 2.0]);
     }
 }

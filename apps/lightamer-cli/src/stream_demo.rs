@@ -21,8 +21,8 @@ use lightamer_engine::{
     StreamMode,
 };
 use lightamer_iop_traits::{
-    ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, Plane, PlaneMut,
-    Roi, SharedModule, TilingReq,
+    ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, PipeState,
+    Plane, PlaneMut, Roi, SharedModule, TilingReq,
 };
 use lightamer_raster::{Frame, FrameExtent, PixelFormat};
 
@@ -163,6 +163,7 @@ impl IopModule for DemoBlur {
         &self,
         _params: &serde_json::Map<String, serde_json::Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(DemoBlurCommit))
     }
@@ -186,6 +187,7 @@ impl IopModule for DemoBlur {
         output: &mut PlaneMut<'_>,
         _rin: Roi,
         _rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         if input.width() != output.width() || input.height() != output.height() {
             return Err(PipeError::RoiMismatch(format!(

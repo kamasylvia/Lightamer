@@ -4,8 +4,8 @@
 use std::sync::Arc;
 
 use lightamer_iop_traits::{
-    CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, Plane, PlaneMut, Roi,
-    par_map_rows,
+    CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, PipeState, Plane, PlaneMut,
+    Roi, par_map_rows,
 };
 use serde_json::{Map, Value};
 
@@ -55,6 +55,7 @@ impl IopModule for IdentityModule {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(IdentityCommit))
     }
@@ -66,6 +67,7 @@ impl IopModule for IdentityModule {
         output: &mut PlaneMut<'_>,
         rin: Roi,
         rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         if data.downcast_ref::<IdentityCommit>().is_none() {
             return Err(PipeError::Backend(
@@ -121,7 +123,7 @@ impl IopModule for IdentityModule {
 mod tests {
     #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use super::{IdentityCommit, IdentityModule};
-    use lightamer_iop_traits::{ColorSpace, IopModule};
+    use lightamer_iop_traits::{ColorSpace, IopModule, PipeState};
     use std::sync::Arc;
 
     #[test]
@@ -130,7 +132,8 @@ mod tests {
         assert_eq!(module.id(), "test_identity");
         let params = serde_json::Map::new();
         let image = lightamer_iop_traits::ImageInfo::new(4, 2, ColorSpace::Rgb);
-        let data = module.commit(&params, &image).unwrap();
+        let mut state = PipeState::from_image(&image);
+        let data = module.commit(&params, &image, &mut state).unwrap();
         assert!(data.downcast_ref::<IdentityCommit>().is_some());
 
         let roi = lightamer_iop_traits::Roi::new(0, 0, 4, 2, 1.0);
@@ -142,7 +145,9 @@ mod tests {
         let mut out = vec![0.0f32; 4 * 2 * 4];
         {
             let mut plane = lightamer_iop_traits::PlaneMut::from_slice(&mut out, 4, 2, 16).unwrap();
-            module.process(&data, &input, &mut plane, roi, roi).unwrap();
+            module
+                .process(&data, &input, &mut plane, roi, roi, &mut state)
+                .unwrap();
         }
         assert_eq!(out, backing);
     }
@@ -157,9 +162,11 @@ mod tests {
         let mut plane = lightamer_iop_traits::PlaneMut::from_slice(&mut out, 2, 2, 8).unwrap();
         let rin = lightamer_iop_traits::Roi::new(0, 0, 2, 2, 1.0);
         let rout = lightamer_iop_traits::Roi::new(0, 0, 3, 2, 1.0);
+        let image = lightamer_iop_traits::ImageInfo::new(2, 2, ColorSpace::Rgb);
+        let mut state = PipeState::from_image(&image);
         assert!(
             module
-                .process(&data, &input, &mut plane, rin, rout)
+                .process(&data, &input, &mut plane, rin, rout, &mut state)
                 .is_err()
         );
     }
@@ -174,7 +181,11 @@ mod tests {
             let mut plane =
                 lightamer_iop_traits::PlaneMut::from_slice_channels(&mut out, 4, 2, 4, 1).unwrap();
             let roi = lightamer_iop_traits::Roi::new(0, 0, 4, 2, 1.0);
-            module.process(&data, &input, &mut plane, roi, roi).unwrap();
+            let image = lightamer_iop_traits::ImageInfo::new(4, 2, ColorSpace::Rgb);
+            let mut state = PipeState::from_image(&image);
+            module
+                .process(&data, &input, &mut plane, roi, roi, &mut state)
+                .unwrap();
         }
         assert_eq!(out, backing);
     }
@@ -188,6 +199,12 @@ mod tests {
         let mut out = vec![0.0f32; 4 * 2 * 4];
         let mut plane = lightamer_iop_traits::PlaneMut::from_slice(&mut out, 4, 2, 16).unwrap();
         let roi = lightamer_iop_traits::Roi::new(0, 0, 4, 2, 1.0);
-        assert!(module.process(&data, &input, &mut plane, roi, roi).is_err());
+        let image = lightamer_iop_traits::ImageInfo::new(4, 2, ColorSpace::Rgb);
+        let mut state = PipeState::from_image(&image);
+        assert!(
+            module
+                .process(&data, &input, &mut plane, roi, roi, &mut state)
+                .is_err()
+        );
     }
 }

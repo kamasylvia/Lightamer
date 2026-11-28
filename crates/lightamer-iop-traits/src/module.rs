@@ -7,8 +7,8 @@ use std::sync::Arc;
 use serde_json::{Map, Value};
 
 use super::{
-    ColorSpace, ImageInfo, ModuleDesc, ModuleFlags, PipeError, PixelFormat, Plane, PlaneMut, Roi,
-    TilingReq,
+    ColorSpace, ImageInfo, ModuleDesc, ModuleFlags, PipeError, PipeState, PixelFormat, Plane,
+    PlaneMut, Roi, TilingReq,
 };
 
 /// Opaque per-instance commit product: `commit` seals it, only the module
@@ -75,6 +75,9 @@ pub trait IopModule: Send + Sync {
     /// `params` is the instance's JSON object (`{"type": ..., "value": ...}`
     /// cells); `image` carries the decoded size and input colorspace. Reads
     /// belong to the [`get_float`](super::get_float)-family helpers.
+    /// `state` is the chain state so far: commits run in chain order sharing
+    /// one value, so a commit reads what earlier commits wrote (upstream
+    /// commits instead read a synch-time snapshot of `pipe->dsc`).
     ///
     /// # Errors
     ///
@@ -83,6 +86,7 @@ pub trait IopModule: Send + Sync {
         &self,
         params: &Map<String, Value>,
         image: &ImageInfo,
+        state: &mut PipeState,
     ) -> Result<CommitData, PipeError>;
 
     /// Pixel format this module outputs for `input`.
@@ -126,6 +130,12 @@ pub trait IopModule: Send + Sync {
 
     /// Renders `rin` of `input` into `rout` of `output`.
     ///
+    /// `state` is the chain state as the previous node's processing left it
+    /// (upstream's `pipe->dsc` at process time): read upstream facts from it,
+    /// publish downstream facts into it. Tiled runs reset
+    /// [`PipeState::processed_maximum`](super::PipeState::processed_maximum)
+    /// per tile from the node's entry value; every other field carries.
+    ///
     /// # Errors
     ///
     /// [`PipeError::RoiMismatch`] for misaligned regions;
@@ -137,6 +147,7 @@ pub trait IopModule: Send + Sync {
         output: &mut PlaneMut<'_>,
         rin: Roi,
         rout: Roi,
+        state: &mut PipeState,
     ) -> Result<(), PipeError>;
 }
 
@@ -148,7 +159,9 @@ mod tests {
     use serde_json::{Map, Value};
 
     use super::{CommitData, IopModule};
-    use crate::{ColorSpace, ImageInfo, ModuleDesc, OrderKey, PipeError, Plane, PlaneMut, Roi};
+    use crate::{
+        ColorSpace, ImageInfo, ModuleDesc, OrderKey, PipeError, PipeState, Plane, PlaneMut, Roi,
+    };
 
     /// Minimal local module: multiplies every pixel by a gain.
     struct Doubler {
@@ -168,6 +181,7 @@ mod tests {
             &self,
             params: &Map<String, Value>,
             _image: &ImageInfo,
+            _state: &mut PipeState,
         ) -> Result<CommitData, PipeError> {
             // Test gains are small; the downcast cannot lose them.
             #[expect(clippy::cast_possible_truncation)]
@@ -182,6 +196,7 @@ mod tests {
             output: &mut PlaneMut<'_>,
             rin: Roi,
             rout: Roi,
+            _state: &mut PipeState,
         ) -> Result<(), PipeError> {
             let commit = data
                 .downcast_ref::<DoublerCommit>()
@@ -236,6 +251,7 @@ mod tests {
             &self,
             _params: &Map<String, Value>,
             _image: &ImageInfo,
+            _state: &mut PipeState,
         ) -> Result<CommitData, PipeError> {
             Ok(Arc::new(ZeroerCommit))
         }
@@ -247,6 +263,7 @@ mod tests {
             output: &mut PlaneMut<'_>,
             _rin: Roi,
             rout: Roi,
+            _state: &mut PipeState,
         ) -> Result<(), PipeError> {
             if data.downcast_ref::<ZeroerCommit>().is_none() {
                 return Err(PipeError::Backend(
@@ -278,9 +295,10 @@ mod tests {
 
         let params: Map<String, Value> =
             serde_json::from_str(r#"{"gain": {"type": "float", "value": 3.0}}"#).unwrap();
+        let mut state = PipeState::from_image(&image());
         let commits: Vec<CommitData> = table
             .iter()
-            .map(|module| module.commit(&params, &image()).unwrap())
+            .map(|module| module.commit(&params, &image(), &mut state).unwrap())
             .collect();
 
         let rin = Roi::new(0, 0, 4, 2, 1.0);
@@ -298,7 +316,7 @@ mod tests {
         {
             let mut plane_a = PlaneMut::from_slice(&mut out_a, 4, 2, 16).unwrap();
             table[0]
-                .process(&commits[0], &input, &mut plane_a, rin, rin)
+                .process(&commits[0], &input, &mut plane_a, rin, rin, &mut state)
                 .unwrap();
         }
         assert!(out_a.iter().all(|v| v.to_bits() == 3.0f32.to_bits()));
@@ -307,7 +325,7 @@ mod tests {
         {
             let mut plane_b = PlaneMut::from_slice(&mut out_b, 4, 2, 16).unwrap();
             table[1]
-                .process(&commits[1], &input, &mut plane_b, rin, rin)
+                .process(&commits[1], &input, &mut plane_b, rin, rin, &mut state)
                 .unwrap();
         }
         assert!(out_b.iter().all(|v| *v == 0.0));
@@ -324,8 +342,9 @@ mod tests {
         let mut out = vec![0.0f32; 4];
         let mut plane = PlaneMut::from_slice(&mut out, 1, 1, 4).unwrap();
         let roi = Roi::new(0, 0, 1, 1, 1.0);
+        let mut state = PipeState::from_image(&image());
         let err = doubler
-            .process(&foreign, &input, &mut plane, roi, roi)
+            .process(&foreign, &input, &mut plane, roi, roi, &mut state)
             .unwrap_err();
         assert!(matches!(err, PipeError::Backend(_)));
     }

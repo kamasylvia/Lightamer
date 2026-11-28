@@ -18,8 +18,8 @@ use lightamer_engine::{
     Engine, Event, InputError, InputSource, RenderInput, RenderKind, SharedModuleSource, StreamMode,
 };
 use lightamer_iop_traits::{
-    ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, Plane, PlaneMut,
-    Roi, SharedModule, TilingReq, get_float,
+    ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, PipeState,
+    Plane, PlaneMut, Roi, SharedModule, TilingReq, get_float,
 };
 use lightamer_pipeline::{PipeKind, quota_for, singlebuffer_floor};
 use lightamer_raster::{Frame, FrameExtent, PixelFormat};
@@ -137,6 +137,7 @@ impl IopModule for GainModule {
         &self,
         params: &serde_json::Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         #[expect(clippy::cast_possible_truncation)]
         // test gains are small; the downcast cannot lose them
@@ -151,6 +152,7 @@ impl IopModule for GainModule {
         output: &mut PlaneMut<'_>,
         rin: Roi,
         rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         let Some(commit) = data.downcast_ref::<GainCommit>() else {
             return Err(PipeError::Backend(
@@ -206,6 +208,7 @@ impl IopModule for BlurModule {
         &self,
         _params: &serde_json::Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(BlurCommit))
     }
@@ -229,6 +232,7 @@ impl IopModule for BlurModule {
         output: &mut PlaneMut<'_>,
         _rin: Roi,
         _rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         if input.width() != output.width() || input.height() != output.height() {
             return Err(PipeError::RoiMismatch(format!(

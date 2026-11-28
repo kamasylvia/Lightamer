@@ -1481,8 +1481,8 @@ mod tests {
 
     use lightamer_history::{ModuleInstance, PhotoSettings, SettingValue};
     use lightamer_iop_traits::{
-        ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, Plane,
-        PlaneMut, Roi, SharedModule, StatsNeeds, get_float,
+        ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, PipeState,
+        Plane, PlaneMut, Roi, SharedModule, StatsNeeds, get_float,
     };
     use lightamer_pipeline::{Pipe, PipeKind, PipeNode};
     use lightamer_raster::{Frame, FrameExtent, PixelFormat};
@@ -1656,6 +1656,7 @@ mod tests {
             &self,
             params: &serde_json::Map<String, serde_json::Value>,
             _image: &ImageInfo,
+            _state: &mut PipeState,
         ) -> Result<CommitData, PipeError> {
             #[expect(clippy::cast_possible_truncation)]
             // test gains are small; the downcast cannot lose them
@@ -1670,6 +1671,7 @@ mod tests {
             output: &mut PlaneMut<'_>,
             rin: Roi,
             rout: Roi,
+            _state: &mut PipeState,
         ) -> Result<(), PipeError> {
             let Some(commit) = data.downcast_ref::<TestGainCommit>() else {
                 return Err(PipeError::Backend(
@@ -1726,6 +1728,7 @@ mod tests {
             &self,
             _params: &serde_json::Map<String, serde_json::Value>,
             _image: &ImageInfo,
+            _state: &mut PipeState,
         ) -> Result<CommitData, PipeError> {
             Ok(Arc::new(TestBlurCommit))
         }
@@ -1754,6 +1757,7 @@ mod tests {
             output: &mut PlaneMut<'_>,
             _rin: Roi,
             _rout: Roi,
+            _state: &mut PipeState,
         ) -> Result<(), PipeError> {
             if input.width() != output.width() || input.height() != output.height() {
                 return Err(PipeError::RoiMismatch(format!(
@@ -1834,6 +1838,7 @@ mod tests {
             &self,
             _params: &serde_json::Map<String, serde_json::Value>,
             _image: &ImageInfo,
+            _state: &mut PipeState,
         ) -> Result<CommitData, PipeError> {
             Ok(Arc::new(TestStatsCommit))
         }
@@ -1845,6 +1850,7 @@ mod tests {
             output: &mut PlaneMut<'_>,
             _rin: Roi,
             _rout: Roi,
+            _state: &mut PipeState,
         ) -> Result<(), PipeError> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             for y in 0..output.height() {

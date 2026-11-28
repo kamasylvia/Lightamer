@@ -24,7 +24,7 @@ use super::budgeted::SharedFrame;
 use super::chain::{NodeGeometry, PipeNode};
 use super::kinds::PipeKind;
 use lightamer_iop_traits::{
-    CfaColor, CfaPattern, ColorSpace, ImageInfo, PixelFormat as WireFormat, RawFacts,
+    CfaColor, CfaPattern, ColorSpace, ImageInfo, PipeState, PixelFormat as WireFormat, RawFacts,
 };
 
 /// FNV-1a offset basis (64-bit).
@@ -303,19 +303,33 @@ fn mix_opt_floats<const N: usize>(mut key: u64, values: Option<&[f32; N]>) -> u6
     }
 }
 
+/// One cached node output: the plane plus the chain state as the node left
+/// it. A hit restores both, like upstream's per-cacheline `dsc`
+/// (`src/develop/pixelpipe_cache.c:350-351`); eviction drops both together,
+/// so the state never outlives its plane.
+#[derive(Debug, Clone)]
+pub struct CachedPlane {
+    /// The node's output plane (shared; budget follows the last holder).
+    pub plane: Arc<SharedFrame>,
+    /// Chain state after this node processed (restored on a hit).
+    pub state: PipeState,
+}
+
 /// Least-recently-used plane store, counted in bytes and slots.
 ///
-/// Entries hold `Arc<SharedFrame>`: evicting drops the cache's handle, and
-/// the budget bytes return when the last holder anywhere drops. Insertion
-/// evicts the least recently used entries until the new plane fits both caps;
-/// a plane bigger than the byte cap is refused (`false`) and the render that
-/// made it still succeeds uncached.
+/// Entries hold [`CachedPlane`]: evicting drops the cache's plane handle,
+/// and the budget bytes return when the last holder anywhere drops. The
+/// byte cap counts plane bytes only; the state (tens of bytes, inline)
+/// rides beside its plane for free. Insertion evicts the least recently
+/// used entries until the new plane fits both caps; a plane bigger than
+/// the byte cap is refused (`false`) and the render that made it still
+/// succeeds uncached.
 #[derive(Debug, Default)]
 pub struct PlaneCache {
     slots: usize,
     cap_bytes: u64,
     bytes: u64,
-    entries: HashMap<u64, Arc<SharedFrame>>,
+    entries: HashMap<u64, CachedPlane>,
     /// Least recently used at the front, most recent at the back.
     order: VecDeque<u64>,
 }
@@ -357,8 +371,9 @@ impl PlaneCache {
     /// a later node cancels or fails; completed planes keep their entries
     /// under content-determined keys, and only half-written work (a node that
     /// never finished) stays out.
-    pub fn peek(&self, key: u64) -> Option<Arc<SharedFrame>> {
-        self.entries.get(&key).map(Arc::clone)
+    #[must_use]
+    pub fn peek(&self, key: u64) -> Option<CachedPlane> {
+        self.entries.get(&key).cloned()
     }
 
     /// Marks `key` most recently used. Unknown keys are ignored.
@@ -389,11 +404,12 @@ impl PlaneCache {
         Some(victim)
     }
 
-    /// Stores `plane` under `key`, evicting least-recently-used entries until
-    /// it fits both caps. Re-storing a key replaces the plane and refreshes
-    /// recency. Returns whether the plane is cached (`false` = bigger than
-    /// the byte cap, or a slot-less cache: the caller renders on uncached).
-    pub fn insert(&mut self, key: u64, plane: Arc<SharedFrame>) -> bool {
+    /// Stores `plane` under `key` with the chain `state` the node left,
+    /// evicting least-recently-used entries until it fits both caps.
+    /// Re-storing a key replaces the plane and refreshes recency. Returns
+    /// whether the plane is cached (`false` = bigger than the byte cap, or
+    /// a slot-less cache: the caller renders on uncached).
+    pub fn insert(&mut self, key: u64, plane: Arc<SharedFrame>, state: PipeState) -> bool {
         if self.slots == 0 {
             return false;
         }
@@ -412,7 +428,7 @@ impl PlaneCache {
             self.remove(oldest);
         }
         self.bytes += bytes;
-        self.entries.insert(key, plane);
+        self.entries.insert(key, CachedPlane { plane, state });
         self.order.push_back(key);
         true
     }
@@ -428,7 +444,7 @@ impl PlaneCache {
     /// bytes follow the entry's last `Arc` holder, not this tally).
     fn remove(&mut self, key: u64) {
         if let Some(entry) = self.entries.remove(&key) {
-            self.bytes = self.bytes.saturating_sub(entry.bytes());
+            self.bytes = self.bytes.saturating_sub(entry.plane.bytes());
             self.order.retain(|held| *held != key);
         }
     }
@@ -438,6 +454,7 @@ impl PlaneCache {
 mod tests {
     #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use lightamer_geom::Roi as GeomRoi;
+    use lightamer_iop_traits::{ColorSpace, ImageInfo, PipeState};
     use lightamer_raster::{FrameExtent, PixelFormat};
     use lightamer_sysmem::Budget;
     use serde_json::{Value, json};
@@ -614,22 +631,26 @@ mod tests {
         )
     }
 
+    fn cached_state() -> PipeState {
+        PipeState::from_image(&ImageInfo::new(8, 8, ColorSpace::Rgb))
+    }
+
     #[test]
     fn insert_evicts_least_recently_used_by_bytes() {
         let budget = Arc::new(Budget::new(10_000_000));
         // Two 8x8 planes (1024 bytes each) fit 2048; the third evicts key 1.
         let mut cache = PlaneCache::new(8, 2_048);
-        assert!(cache.insert(1, cached_plane(&budget, 8)));
-        assert!(cache.insert(2, cached_plane(&budget, 8)));
+        assert!(cache.insert(1, cached_plane(&budget, 8), cached_state()));
+        assert!(cache.insert(2, cached_plane(&budget, 8), cached_state()));
         assert_eq!(cache.bytes(), 2_048);
-        assert!(cache.insert(3, cached_plane(&budget, 8)));
+        assert!(cache.insert(3, cached_plane(&budget, 8), cached_state()));
         assert_eq!(cache.len(), 2);
         assert!(cache.peek(1).is_none());
         assert!(cache.peek(2).is_some());
         assert!(cache.peek(3).is_some());
         // Touching key 2 makes key 3 the victim next.
         cache.touch(2);
-        assert!(cache.insert(4, cached_plane(&budget, 8)));
+        assert!(cache.insert(4, cached_plane(&budget, 8), cached_state()));
         assert!(cache.peek(2).is_some());
         assert!(cache.peek(3).is_none());
         assert!(cache.peek(4).is_some());
@@ -639,12 +660,12 @@ mod tests {
     fn oversized_plane_is_refused_and_slot_cap_binds() {
         let budget = Arc::new(Budget::new(10_000_000));
         let mut cache = PlaneCache::new(8, 1_000);
-        assert!(!cache.insert(1, cached_plane(&budget, 8)));
+        assert!(!cache.insert(1, cached_plane(&budget, 8), cached_state()));
         assert!(cache.is_empty());
         // Slots bind before bytes: one slot keeps only the newest plane.
         let mut cache = PlaneCache::new(1, 10_000_000);
-        assert!(cache.insert(1, cached_plane(&budget, 8)));
-        assert!(cache.insert(2, cached_plane(&budget, 8)));
+        assert!(cache.insert(1, cached_plane(&budget, 8), cached_state()));
+        assert!(cache.insert(2, cached_plane(&budget, 8), cached_state()));
         assert_eq!(cache.len(), 1);
         assert!(cache.peek(2).is_some());
     }
@@ -653,9 +674,9 @@ mod tests {
     fn eviction_returns_budget_when_cache_holds_last_arc() {
         let budget = Arc::new(Budget::new(10_000_000));
         let mut cache = PlaneCache::new(1, 10_000_000);
-        assert!(cache.insert(1, cached_plane(&budget, 8)));
+        assert!(cache.insert(1, cached_plane(&budget, 8), cached_state()));
         assert_eq!(budget.used(), 1_024);
-        assert!(cache.insert(2, cached_plane(&budget, 8)));
+        assert!(cache.insert(2, cached_plane(&budget, 8), cached_state()));
         // Key 1's plane had no other holder: its bytes are back.
         assert_eq!(budget.used(), 1_024);
         cache.clear();
@@ -667,9 +688,9 @@ mod tests {
         let mut cache = PlaneCache::new(8, 10_000_000);
         // Empty cache: nothing to evict.
         assert_eq!(cache.evict_oldest_except(&HashSet::new()), None);
-        assert!(cache.insert(1, cached_plane(&budget, 8)));
-        assert!(cache.insert(2, cached_plane(&budget, 8)));
-        assert!(cache.insert(3, cached_plane(&budget, 8)));
+        assert!(cache.insert(1, cached_plane(&budget, 8), cached_state()));
+        assert!(cache.insert(2, cached_plane(&budget, 8), cached_state()));
+        assert!(cache.insert(3, cached_plane(&budget, 8), cached_state()));
         assert_eq!(budget.used(), 3_072);
         // Oldest-first order is 1, 2, 3; protecting 1 yields 2, then 3, and
         // then nothing: the protected entry never yields.
@@ -797,5 +818,21 @@ mod tests {
             raw.wb[0] = f32::from_bits(0x7fc0_0001);
         }
         assert_eq!(keys(&nan_a), keys(&nan_b));
+    }
+
+    #[test]
+    fn stored_state_returns_with_its_plane_and_leaves_with_it() {
+        let budget = Arc::new(Budget::new(10_000_000));
+        let mut cache = PlaneCache::new(8, 10_000_000);
+        let mut marked = cached_state();
+        marked.processed_maximum = [7.0; 4];
+        assert!(cache.insert(1, cached_plane(&budget, 8), marked));
+        assert_eq!(cache.peek(1).unwrap().state.processed_maximum, [7.0; 4]);
+        // Re-storing replaces the state with the plane.
+        assert!(cache.insert(1, cached_plane(&budget, 8), cached_state()));
+        assert_eq!(cache.peek(1).unwrap().state.processed_maximum, [1.0; 4]);
+        // Eviction drops the state with its plane: nothing lingers.
+        assert_eq!(cache.evict_oldest_except(&HashSet::new()), Some(1));
+        assert!(cache.peek(1).is_none());
     }
 }

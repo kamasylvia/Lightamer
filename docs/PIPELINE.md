@@ -466,3 +466,31 @@ B1d-b 的引擎路先整帧取输入再试整帧入口，流式峰值跟着帧�
 的循环删掉（规划只在管线里做一次）。上限表重测后，条带峰值是几十 MB 加
 拼装缓冲，方块在 1GB 以内，直到撞磁盘上限
 （见 `B1dc-REPORT.md` 新旧表并排）。
+
+## 链上状态（B3-1a）
+
+`lightamer-iop-traits::PipeState`：模块沿链传递的事实，镜像上游的
+`dt_iop_buffer_dsc_t`（`src/develop/format.h:35-64`）。纯数据、可 `Copy`、
+几十字节、无堆分配；`commit` 与 `process` 各多一个 `&mut PipeState` 参数。
+渲染时的临时量，不落库、不跨请求保留。
+
+字段只收 raw 头段四模块（`rawprepare`/`hotpixels`/`highlights`/`temperature`）
+与去马赛克实际读写的：CFA 图案（`CfaPattern`，上游 `filters` +
+`xtrans[6][6]` 合并为一个枚举，无效组合不可表示）、当前输入缓冲的通道数与
+标量类型（`channels`/`datatype`，管线按格式 threading 写入，模块只读）、
+四路最大值（`processed_maximum`）、白平衡事实（`temperature` 的 `enabled` +
+`coeffs`）。`rawprepare` 子记录只有曝光类模块读、`cst` 已有色彩声明通道，
+两处都不收。
+
+生命周期：起点按图像事实初始化（四路最大值 1.0，CFA 来自图像，上游
+`pixelpipe_hb.c:330-335` 的非 raw 初始化形状）；建链期同一份值按链序穿过
+每个 `commit`；处理期沿链演进——节点看到的是上一个节点处理完留下的值
+（上游 `:2816` 把演进后的 `pipe->dsc` 存给出格式）；分块时每块把最大值
+重置回本节点入口值（上游 `tiling.c:757-758`），其余字段跨块沿用，
+节点留下最后一块的值；每个缓存平面旁边存一份该节点处理完之后的状态，
+命中时平面与状态一起恢复（上游每条缓存行存 `dsc`，
+`pixelpipe_cache.c:350-351`）；流式每块从建链期终值独立起算，块与块互不
+见。与上游的两处偏离：上游 `commit` 读的是同步时刻的静态快照，我们按链序
+穿演进中的值（确定性，且与处理期演进一致）；逐块的 per-piece CFA
+（`dt_dev_prepare_piece_cfa`）不预计算，模块按 `rin` 偏移自行查表，
+纯函数等价。

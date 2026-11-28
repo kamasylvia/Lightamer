@@ -26,7 +26,7 @@
 
 use lightamer_geom::Roi as GeomRoi;
 use lightamer_iop_traits::{
-    ImageInfo, Plane, PlaneMut, Roi as WireRoi, StatsNeeds, check_overlap_covers,
+    ImageInfo, PipeState, Plane, PlaneMut, Roi as WireRoi, StatsNeeds, check_overlap_covers,
 };
 use lightamer_raster::{Frame, FrameExtent, PixelFormat};
 use std::fmt;
@@ -827,6 +827,8 @@ where
     /// Pixel format of the scratch pair and sink planes: the input format
     /// (streaming refuses chains that change it, so one format serves all).
     format: PixelFormat,
+    /// This piece's working chain state, seeded from the commit phase.
+    state: &'a mut PipeState,
     /// The run's reused scratch pair.
     scratch: &'a mut Option<StreamScratch>,
     /// Per-node `process` call totals to bump.
@@ -890,6 +892,7 @@ impl Pipe {
             piece,
             head_empty,
             format,
+            state,
             scratch,
             calls,
             millis,
@@ -953,7 +956,14 @@ impl Pipe {
             let mut out_plane = PlaneMut::from_slice_channels(out_sub, gw, gh, stride, channels)
                 .map_err(|err| frame_fail(format!("{err}")))?;
             node.module
-                .process(&node.data, &in_plane, &mut out_plane, rin, grown_wire)
+                .process(
+                    &node.data,
+                    &in_plane,
+                    &mut out_plane,
+                    rin,
+                    grown_wire,
+                    state,
+                )
                 .map_err(|source| RenderError::Node {
                     id: node.id.clone(),
                     tile: Some((piece.tx, piece.ty)),
@@ -1088,7 +1098,9 @@ impl Pipe {
             return Err(RenderError::Cancelled);
         }
         self.set_last_trace(Vec::new());
-        let chain = build_chain(req.lookup, req.nodes, req.image).map_err(RenderError::Chain)?;
+        let mut commit_state = PipeState::from_image(req.image);
+        let chain = build_chain(req.lookup, req.nodes, req.image, &mut commit_state)
+            .map_err(RenderError::Chain)?;
         let full_geos = if chain.is_empty() {
             Vec::new()
         } else {
@@ -1151,12 +1163,17 @@ impl Pipe {
                 outcome = Err(RenderError::Cancelled);
                 break;
             }
+            // Every piece runs the whole chain from the commit phase's value:
+            // pieces never see each other's processing.
+            let mut piece_state = commit_state;
+            piece_state.set_input(req.image.format);
             let step = self.run_stream_piece(PieceJob {
                 source,
                 chain: &chain,
                 piece: &piece,
                 head_empty,
                 format,
+                state: &mut piece_state,
                 scratch: &mut scratch,
                 calls: &mut calls,
                 millis: &mut millis,
@@ -1185,10 +1202,11 @@ impl Pipe {
 mod tests {
     #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
     use std::sync::Arc;
+    use std::sync::Mutex;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use lightamer_geom::Roi as GeomRoi;
-    use lightamer_iop_traits::{ColorSpace, ImageInfo};
+    use lightamer_iop_traits::{ColorSpace, ImageInfo, PipeState};
     use lightamer_raster::{Frame, FrameExtent, PixelFormat};
     use serde_json::json;
 
@@ -1199,7 +1217,8 @@ mod tests {
     use crate::chain::{CommittedNode, NodeGeometry, PipeNode, build_chain, forward};
     use crate::fakes::{
         FakeBackendFail, FakeBlur, FakeCopy, FakeGain, FakeGrow, FakePosition, FakeProxy,
-        FakeScale, FakeSource, FakeSpin, FakeWhole, Probe, no_params, table,
+        FakeScale, FakeSource, FakeSpin, FakeStateReader, FakeStateWriter, FakeWhole, Probe,
+        no_params, table,
     };
     use crate::kinds::PipeKind;
     use crate::render::{Pipe, RenderError, RenderRequest};
@@ -1250,7 +1269,13 @@ mod tests {
         nodes: &[PipeNode],
         final_out: &GeomRoi,
     ) -> (Vec<CommittedNode>, Vec<NodeGeometry>) {
-        let chain = build_chain(lookup, nodes, &image()).unwrap();
+        let chain = build_chain(
+            lookup,
+            nodes,
+            &image(),
+            &mut PipeState::from_image(&image()),
+        )
+        .unwrap();
         let geos = forward(&chain, final_out).unwrap();
         (chain, geos)
     }
@@ -2438,6 +2463,7 @@ mod tests {
             &self,
             _params: &serde_json::Map<String, serde_json::Value>,
             _image: &ImageInfo,
+            _state: &mut PipeState,
         ) -> Result<lightamer_iop_traits::CommitData, lightamer_iop_traits::PipeError> {
             Ok(Arc::new(FormatChangerCommit))
         }
@@ -2461,6 +2487,7 @@ mod tests {
             output: &mut lightamer_iop_traits::PlaneMut<'_>,
             rin: lightamer_iop_traits::Roi,
             rout: lightamer_iop_traits::Roi,
+            _state: &mut lightamer_iop_traits::PipeState,
         ) -> Result<(), lightamer_iop_traits::PipeError> {
             FakeCopy::copy_planes(input, output, rin, rout)
         }
@@ -2502,5 +2529,55 @@ mod tests {
         ));
         assert_eq!(pipe.budget().used(), 0);
         assert_eq!(pipe.cache_len(), 0);
+    }
+
+    #[test]
+    fn stream_pieces_each_start_from_commit_state() {
+        // Zero-overlap chain streams in 64-row strips; 130 rows make 3 pieces.
+        let commits = Arc::new(Mutex::new(Vec::new()));
+        let processes = Arc::new(Mutex::new(Vec::new()));
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let lookup = table(vec![
+            Arc::new(FakeStateWriter::new(
+                "mod_w",
+                Arc::new(Probe::new()),
+                2.0,
+                4.0,
+                2.0,
+                Arc::clone(&seen),
+            )),
+            Arc::new(FakeStateReader::new(
+                "mod_r",
+                Arc::new(Probe::new()),
+                Arc::clone(&commits),
+                Arc::clone(&processes),
+                false,
+            )),
+        ]);
+        let nodes = vec![node("mod_w"), node("mod_r")];
+        let input = pattern_frame(8, 130);
+        let image = ImageInfo::new(8, 130, ColorSpace::Rgb);
+        let final_out = geom(0, 0, 8, 130);
+        let no_cancel = || false;
+        let req = RenderRequest {
+            nodes: &nodes,
+            lookup: &lookup,
+            image: &image,
+            input: &input,
+            input_id: 7,
+            process: 1,
+            final_out,
+            cancel: &no_cancel,
+        };
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 1024 * 1024);
+        let (summary, streamed) = stream_assembled(&mut pipe, &req);
+        assert_eq!(summary.mode, StreamMode::Strip);
+        assert_eq!(summary.pieces, 3);
+        assert_eq!(streamed.as_slice(), input.as_slice());
+        // Commits ran once; each piece ran the whole chain from the commit
+        // value, never from a sibling piece's processing.
+        assert_eq!(*commits.lock().unwrap(), vec![2.0]);
+        assert_eq!(*seen.lock().unwrap(), vec![2.0, 2.0, 2.0]);
+        assert_eq!(*processes.lock().unwrap(), vec![4.0, 4.0, 4.0]);
     }
 }

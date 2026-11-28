@@ -35,6 +35,7 @@ mod parallel;
 mod params;
 mod plane;
 mod roi;
+mod state;
 mod stats;
 mod tiling;
 
@@ -46,6 +47,7 @@ pub use parallel::par_map_rows;
 pub use params::{get_bool, get_float, get_floats, get_int, get_text};
 pub use plane::{Plane, PlaneMut};
 pub use roi::Roi;
+pub use state::{BufferDataType, PipeState, TemperatureState};
 pub use stats::{OverlapError, StatsNeeds, check_overlap_covers};
 pub use tiling::TilingReq;
 

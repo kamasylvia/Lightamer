@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, atomic::AtomicUsize};
 
 use lightamer_iop_traits::{
-    ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, Plane, PlaneMut,
-    Roi, TilingReq, get_float,
+    ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, PipeState,
+    Plane, PlaneMut, Roi, TilingReq, get_float,
 };
 use serde_json::{Map, Value};
 
@@ -87,6 +87,7 @@ impl IopModule for FakeScale {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -118,6 +119,7 @@ impl IopModule for FakeScale {
         _output: &mut PlaneMut<'_>,
         _rin: Roi,
         _rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         Err(PipeError::Backend(
             "geometry-only fake never processes".to_owned(),
@@ -151,6 +153,7 @@ impl IopModule for FakeShift {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -182,6 +185,7 @@ impl IopModule for FakeShift {
         _output: &mut PlaneMut<'_>,
         _rin: Roi,
         _rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         Err(PipeError::Backend(
             "geometry-only fake never processes".to_owned(),
@@ -220,6 +224,7 @@ impl IopModule for FakeCrop {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -251,6 +256,7 @@ impl IopModule for FakeCrop {
         _output: &mut PlaneMut<'_>,
         _rin: Roi,
         _rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         Err(PipeError::Backend(
             "geometry-only fake never processes".to_owned(),
@@ -278,6 +284,7 @@ impl IopModule for FakeSink {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -293,6 +300,7 @@ impl IopModule for FakeSink {
         _output: &mut PlaneMut<'_>,
         _rin: Roi,
         _rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         Err(PipeError::Backend(
             "geometry-only fake never processes".to_owned(),
@@ -320,6 +328,7 @@ impl IopModule for FakeBadRoi {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -335,6 +344,7 @@ impl IopModule for FakeBadRoi {
         _output: &mut PlaneMut<'_>,
         _rin: Roi,
         _rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         Err(PipeError::Backend(
             "geometry-only fake never processes".to_owned(),
@@ -362,6 +372,7 @@ impl IopModule for FakeFail {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Err(PipeError::InvalidParams(
             "mod_fail refuses everything".to_owned(),
@@ -375,6 +386,7 @@ impl IopModule for FakeFail {
         _output: &mut PlaneMut<'_>,
         _rin: Roi,
         _rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         Err(PipeError::Backend(
             "uncommittable fake never processes".to_owned(),
@@ -487,6 +499,7 @@ impl IopModule for FakeCopy {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -498,6 +511,7 @@ impl IopModule for FakeCopy {
         output: &mut PlaneMut<'_>,
         rin: Roi,
         rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         self.probe.record(rin, rout);
         Self::copy_planes(input, output, rin, rout)
@@ -535,6 +549,7 @@ impl IopModule for FakeGain {
         &self,
         params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         #[expect(clippy::cast_possible_truncation)]
         // test gains are small; the downcast cannot lose them
@@ -549,6 +564,7 @@ impl IopModule for FakeGain {
         output: &mut PlaneMut<'_>,
         rin: Roi,
         rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         self.probe.record(rin, rout);
         let Some(commit) = data.downcast_ref::<GainCommit>() else {
@@ -596,6 +612,7 @@ impl IopModule for FakeMem {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -617,6 +634,7 @@ impl IopModule for FakeMem {
         output: &mut PlaneMut<'_>,
         rin: Roi,
         rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         self.probe.record(rin, rout);
         FakeCopy::copy_planes(input, output, rin, rout)
@@ -650,6 +668,7 @@ impl IopModule for FakePosition {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -671,6 +690,7 @@ impl IopModule for FakePosition {
         output: &mut PlaneMut<'_>,
         rin: Roi,
         rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         self.probe.record(rin, rout);
         if input.width() != output.width() || input.height() != output.height() {
@@ -748,6 +768,7 @@ impl IopModule for FakeScaleCopy {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -779,6 +800,7 @@ impl IopModule for FakeScaleCopy {
         output: &mut PlaneMut<'_>,
         rin: Roi,
         rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         self.probe.record(rin, rout);
         let (Ok(rw), Ok(rh), Ok(ow), Ok(oh)) = (
@@ -842,6 +864,7 @@ impl IopModule for FakeSource {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -861,6 +884,7 @@ impl IopModule for FakeSource {
         output: &mut PlaneMut<'_>,
         rin: Roi,
         rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         self.probe.record(rin, rout);
         if input.width() != 0 || input.height() != 0 {
@@ -902,6 +926,7 @@ impl IopModule for FakeBackendFail {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -913,6 +938,7 @@ impl IopModule for FakeBackendFail {
         _output: &mut PlaneMut<'_>,
         rin: Roi,
         rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         self.probe.record(rin, rout);
         Err(PipeError::Backend(
@@ -956,6 +982,7 @@ impl IopModule for FakeBlur {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -977,6 +1004,7 @@ impl IopModule for FakeBlur {
         output: &mut PlaneMut<'_>,
         rin: Roi,
         rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         self.probe.record(rin, rout);
         if input.width() != output.width() || input.height() != output.height() {
@@ -1060,6 +1088,7 @@ impl IopModule for FakeSpin {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -1091,6 +1120,7 @@ impl IopModule for FakeSpin {
         _output: &mut PlaneMut<'_>,
         rin: Roi,
         rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         self.probe.record(rin, rout);
         Err(PipeError::Backend(
@@ -1124,6 +1154,7 @@ impl IopModule for FakeWhole {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -1139,6 +1170,7 @@ impl IopModule for FakeWhole {
         output: &mut PlaneMut<'_>,
         rin: Roi,
         rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         self.probe.record(rin, rout);
         FakeCopy::copy_planes(input, output, rin, rout)
@@ -1170,6 +1202,7 @@ impl IopModule for FakeProxy {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -1187,6 +1220,7 @@ impl IopModule for FakeProxy {
         output: &mut PlaneMut<'_>,
         rin: Roi,
         rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         self.probe.record(rin, rout);
         FakeCopy::copy_planes(input, output, rin, rout)
@@ -1225,6 +1259,7 @@ impl IopModule for FakeGrow {
         &self,
         _params: &Map<String, Value>,
         _image: &ImageInfo,
+        _state: &mut PipeState,
     ) -> Result<CommitData, PipeError> {
         Ok(Arc::new(FakeCommit))
     }
@@ -1268,8 +1303,158 @@ impl IopModule for FakeGrow {
         output: &mut PlaneMut<'_>,
         rin: Roi,
         rout: Roi,
+        _state: &mut PipeState,
     ) -> Result<(), PipeError> {
         self.probe.record(rin, rout);
         FakeCopy::copy_planes(input, output, rin, rout)
+    }
+}
+
+/// Publishes chain-state markers: `commit_mark` at commit time,
+/// `process_mark` at process time, both into `processed_maximum[0]`.
+/// Copies like [`FakeCopy`]; reports `factor` tiling needs so tests can
+/// force grids. Records each process-time observation into `seen`.
+pub struct FakeStateWriter {
+    desc: ModuleDesc,
+    probe: Arc<Probe>,
+    commit_mark: f32,
+    process_mark: f32,
+    factor: f32,
+    seen: Arc<Mutex<Vec<f32>>>,
+}
+
+impl FakeStateWriter {
+    /// A state-publishing fake behind `id`, reporting to `probe`.
+    pub fn new(
+        id: &'static str,
+        probe: Arc<Probe>,
+        commit_mark: f32,
+        process_mark: f32,
+        factor: f32,
+        seen: Arc<Mutex<Vec<f32>>>,
+    ) -> Self {
+        Self {
+            desc: desc(id),
+            probe,
+            commit_mark,
+            process_mark,
+            factor,
+            seen,
+        }
+    }
+}
+
+impl IopModule for FakeStateWriter {
+    fn desc(&self) -> &ModuleDesc {
+        &self.desc
+    }
+
+    fn commit(
+        &self,
+        _params: &Map<String, Value>,
+        _image: &ImageInfo,
+        state: &mut PipeState,
+    ) -> Result<CommitData, PipeError> {
+        state.processed_maximum = [self.commit_mark; 4];
+        Ok(Arc::new(FakeCommit))
+    }
+
+    fn tiling(&self, _data: &CommitData, _rin: &Roi, _rout: &Roi) -> TilingReq {
+        TilingReq {
+            factor: self.factor,
+            maxbuf: 1.0,
+            overhead: 0,
+            overlap: 0,
+            align: 1,
+        }
+    }
+
+    fn process(
+        &self,
+        _data: &CommitData,
+        input: &Plane<'_>,
+        output: &mut PlaneMut<'_>,
+        rin: Roi,
+        rout: Roi,
+        state: &mut PipeState,
+    ) -> Result<(), PipeError> {
+        self.probe.record(rin, rout);
+        self.seen.lock().unwrap().push(state.processed_maximum[0]);
+        state.processed_maximum = [self.process_mark; 4];
+        FakeCopy::copy_planes(input, output, rin, rout)
+    }
+}
+
+/// Observes chain state: records `processed_maximum[0]` at commit time into
+/// `commits` and at process time into `processes`. Copies like [`FakeCopy`];
+/// with `scale_output` it also multiplies every output pixel by the observed
+/// value, so downstream bytes depend on upstream state.
+pub struct FakeStateReader {
+    desc: ModuleDesc,
+    probe: Arc<Probe>,
+    commits: Arc<Mutex<Vec<f32>>>,
+    processes: Arc<Mutex<Vec<f32>>>,
+    scale_output: bool,
+}
+
+impl FakeStateReader {
+    /// A state-observing fake behind `id`, reporting to `probe`.
+    pub fn new(
+        id: &'static str,
+        probe: Arc<Probe>,
+        commits: Arc<Mutex<Vec<f32>>>,
+        processes: Arc<Mutex<Vec<f32>>>,
+        scale_output: bool,
+    ) -> Self {
+        Self {
+            desc: desc(id),
+            probe,
+            commits,
+            processes,
+            scale_output,
+        }
+    }
+}
+
+impl IopModule for FakeStateReader {
+    fn desc(&self) -> &ModuleDesc {
+        &self.desc
+    }
+
+    fn commit(
+        &self,
+        _params: &Map<String, Value>,
+        _image: &ImageInfo,
+        state: &mut PipeState,
+    ) -> Result<CommitData, PipeError> {
+        self.commits
+            .lock()
+            .unwrap()
+            .push(state.processed_maximum[0]);
+        Ok(Arc::new(FakeCommit))
+    }
+
+    fn process(
+        &self,
+        _data: &CommitData,
+        input: &Plane<'_>,
+        output: &mut PlaneMut<'_>,
+        rin: Roi,
+        rout: Roi,
+        state: &mut PipeState,
+    ) -> Result<(), PipeError> {
+        self.probe.record(rin, rout);
+        let seen = state.processed_maximum[0];
+        self.processes.lock().unwrap().push(seen);
+        FakeCopy::copy_planes(input, output, rin, rout)?;
+        if self.scale_output {
+            for y in 0..rout.height.max(0).cast_unsigned() {
+                let dst = output.row_mut(y)?;
+                for value in dst.iter_mut() {
+                    *value *= seen;
+                }
+            }
+        }
+        Ok(())
     }
 }

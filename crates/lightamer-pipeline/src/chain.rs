@@ -11,7 +11,8 @@ use std::sync::Arc;
 
 use lightamer_geom::Roi as GeomRoi;
 use lightamer_iop_traits::{
-    CommitData, ImageInfo, IopModule, PipeError, PixelFormat as WireFormat, Roi as WireRoi,
+    CommitData, ImageInfo, IopModule, PipeError, PipeState, PixelFormat as WireFormat,
+    Roi as WireRoi,
 };
 use lightamer_raster::PixelFormat as RasterFormat;
 use serde_json::{Map, Value};
@@ -148,7 +149,11 @@ impl std::error::Error for ChainError {
     }
 }
 
-/// Commits every node in order.
+/// Commits every node in order, threading one chain state through.
+///
+/// `state` starts from the caller (the pipe seeds it from the image) and
+/// each commit sees what earlier commits wrote; the pipe then runs
+/// processing from the value this leaves behind.
 ///
 /// # Errors
 ///
@@ -159,6 +164,7 @@ pub fn build_chain<L: ModuleLookup>(
     lookup: &L,
     nodes: &[PipeNode],
     image: &ImageInfo,
+    state: &mut PipeState,
 ) -> Result<Vec<CommittedNode>, ChainError> {
     let mut out = Vec::with_capacity(nodes.len());
     for node in nodes {
@@ -166,7 +172,7 @@ pub fn build_chain<L: ModuleLookup>(
             return Err(ChainError::UnknownModule(node.id.clone()));
         };
         let data = module
-            .commit(&node.params, image)
+            .commit(&node.params, image, state)
             .map_err(|source| ChainError::Commit {
                 id: node.id.clone(),
                 source,
@@ -295,7 +301,7 @@ mod tests {
     use std::sync::Arc;
 
     use lightamer_geom::Roi as GeomRoi;
-    use lightamer_iop_traits::{ColorSpace, ImageInfo};
+    use lightamer_iop_traits::{ColorSpace, ImageInfo, PipeState};
 
     use super::{ChainError, NodeGeometry, PipeNode, backward_check, build_chain, forward};
     use crate::fakes::{
@@ -381,8 +387,13 @@ mod tests {
             Arc::new(lightamer_testkit::IdentityModule::new()),
             Arc::new(FakeScale::new("mod_b", 1, 1)),
         ]);
-        let chain =
-            build_chain(&lookup, &[node("test_identity"), node("mod_b")], &image()).unwrap();
+        let chain = build_chain(
+            &lookup,
+            &[node("test_identity"), node("mod_b")],
+            &image(),
+            &mut PipeState::from_image(&image()),
+        )
+        .unwrap();
         assert_eq!(chain.len(), 2);
         let final_out = geom(10, 20, 100, 60);
         let geos = forward(&chain, &final_out).unwrap();
@@ -395,7 +406,13 @@ mod tests {
     #[test]
     fn scale_up_grows_output_and_shrinks_input() {
         let lookup = table(vec![Arc::new(FakeScale::new("mod_up", 2, 1))]);
-        let chain = build_chain(&lookup, &[node("mod_up")], &image()).unwrap();
+        let chain = build_chain(
+            &lookup,
+            &[node("mod_up")],
+            &image(),
+            &mut PipeState::from_image(&image()),
+        )
+        .unwrap();
         let final_out = geom(0, 0, 100, 100);
         let geos = forward(&chain, &final_out).unwrap();
         // Forward asks: what input yields 100x100 out? Half: 50x50.
@@ -406,7 +423,13 @@ mod tests {
     #[test]
     fn scale_down_shrinks_output_and_grows_input() {
         let lookup = table(vec![Arc::new(FakeScale::new("mod_down", 1, 2))]);
-        let chain = build_chain(&lookup, &[node("mod_down")], &image()).unwrap();
+        let chain = build_chain(
+            &lookup,
+            &[node("mod_down")],
+            &image(),
+            &mut PipeState::from_image(&image()),
+        )
+        .unwrap();
         let final_out = geom(0, 0, 100, 100);
         let geos = forward(&chain, &final_out).unwrap();
         // Forward asks: what input yields 100x100 out? Double: 200x200.
@@ -422,7 +445,13 @@ mod tests {
             Arc::new(FakeScale::new("mod_down", 1, 2)),
         ]);
         let nodes = [node("mod_crop"), node("mod_up"), node("mod_down")];
-        let chain = build_chain(&lookup, &nodes, &image()).unwrap();
+        let chain = build_chain(
+            &lookup,
+            &nodes,
+            &image(),
+            &mut PipeState::from_image(&image()),
+        )
+        .unwrap();
         let final_out = geom(0, 0, 100, 100);
         let geos = forward(&chain, &final_out).unwrap();
         // Hand walk, back to front: down needs 200x200 in; up needs 100x100
@@ -442,7 +471,13 @@ mod tests {
     #[test]
     fn non_integer_scale_rounds_as_stated_and_breaks_round_trip() {
         let lookup = table(vec![Arc::new(FakeScale::new("mod_mid", 3, 2))]);
-        let chain = build_chain(&lookup, &[node("mod_mid")], &image()).unwrap();
+        let chain = build_chain(
+            &lookup,
+            &[node("mod_mid")],
+            &image(),
+            &mut PipeState::from_image(&image()),
+        )
+        .unwrap();
         // Out leg rounds half up: 100 * 3/2 = 150.
         let out = chain[0].module.roi_out(
             &chain[0].data,
@@ -467,14 +502,26 @@ mod tests {
             Arc::new(FakeSink::new("mod_sink")),
         ]);
         // Empty wanted out: identity echoes emptiness both ways.
-        let id_chain = build_chain(&lookup, &[node("test_identity")], &image()).unwrap();
+        let id_chain = build_chain(
+            &lookup,
+            &[node("test_identity")],
+            &image(),
+            &mut PipeState::from_image(&image()),
+        )
+        .unwrap();
         let empty = geom(0, 0, 0, 0);
         let geos = forward(&id_chain, &empty).unwrap();
         assert!(geos[0].input.is_empty());
         // Empty deserved input: pinned by equality, never by containment.
         assert_chained(&geos, &[geom(0, 0, 0, 0)], &empty);
         // A sink reports it needs nothing, whatever is wanted.
-        let sink_chain = build_chain(&lookup, &[node("mod_sink")], &image()).unwrap();
+        let sink_chain = build_chain(
+            &lookup,
+            &[node("mod_sink")],
+            &image(),
+            &mut PipeState::from_image(&image()),
+        )
+        .unwrap();
         let final_out = geom(0, 0, 100, 60);
         let geos = forward(&sink_chain, &final_out).unwrap();
         assert!(geos[0].input.is_empty());
@@ -494,7 +541,13 @@ mod tests {
         let nodes: Vec<PipeNode> = (0..32)
             .flat_map(|_| [node("mod_up"), node("mod_down")])
             .collect();
-        let chain = build_chain(&lookup, &nodes, &image()).unwrap();
+        let chain = build_chain(
+            &lookup,
+            &nodes,
+            &image(),
+            &mut PipeState::from_image(&image()),
+        )
+        .unwrap();
         assert_eq!(chain.len(), 64);
         let final_out = geom(8, 4, 256, 256);
         let geos = forward(&chain, &final_out).unwrap();
@@ -516,7 +569,13 @@ mod tests {
             Arc::new(FakeShift::new("mod_shift_b", 4, 2)),
         ]);
         let nodes = [node("mod_shift_a"), node("mod_up"), node("mod_shift_b")];
-        let chain = build_chain(&lookup, &nodes, &image()).unwrap();
+        let chain = build_chain(
+            &lookup,
+            &nodes,
+            &image(),
+            &mut PipeState::from_image(&image()),
+        )
+        .unwrap();
         let final_out = geom(0, 0, 100, 100);
         let geos = forward(&chain, &final_out).unwrap();
         // Back to front: shift_b needs (4,2,100,100); up halves to
@@ -536,15 +595,33 @@ mod tests {
             Arc::new(FakeFail::new("mod_fail")),
             Arc::new(FakeBadRoi::new("mod_bad")),
         ]);
-        let err = build_chain(&lookup, &[node("mod_missing")], &image()).unwrap_err();
+        let err = build_chain(
+            &lookup,
+            &[node("mod_missing")],
+            &image(),
+            &mut PipeState::from_image(&image()),
+        )
+        .unwrap_err();
         assert!(matches!(err, ChainError::UnknownModule(_)));
         assert!(err.to_string().contains("mod_missing"));
 
-        let err = build_chain(&lookup, &[node("mod_fail")], &image()).unwrap_err();
+        let err = build_chain(
+            &lookup,
+            &[node("mod_fail")],
+            &image(),
+            &mut PipeState::from_image(&image()),
+        )
+        .unwrap_err();
         assert!(matches!(err, ChainError::Commit { .. }));
         assert!(err.to_string().contains("mod_fail"));
 
-        let chain = build_chain(&lookup, &[node("mod_bad")], &image()).unwrap();
+        let chain = build_chain(
+            &lookup,
+            &[node("mod_bad")],
+            &image(),
+            &mut PipeState::from_image(&image()),
+        )
+        .unwrap();
         let err = forward(&chain, &geom(0, 0, 64, 64)).unwrap_err();
         assert!(matches!(err, ChainError::BadRoi { .. }));
         assert!(err.to_string().contains("mod_bad"));
@@ -571,6 +648,7 @@ mod tests {
                 params: no_params(),
             }],
             &image(),
+            &mut PipeState::from_image(&image()),
         )
         .unwrap();
         assert_eq!((chain[0].id.as_str(), chain[0].multi), ("mod_up", 3));
