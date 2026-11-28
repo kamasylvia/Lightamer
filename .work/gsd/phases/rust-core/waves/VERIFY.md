@@ -465,3 +465,88 @@
 ## 阶段 B 第五波 B1d 收口（2026-11-28 上午）
 
 三段闭环并经塔台复跑：B1d-a（管线侧）、B1d-b（引擎侧）、B1d-c（流式作业不再先取整帧）。计划卡片上 B1d 的六条验收都有测试：两亿像素的合成图在完整分辨率的预算内流式渲出，条带模式峰值不超过 1 GB（管线自己的测试 66 MB，引擎这条路峰值占用 50 MB）；整帧与流式逐字节相等（条带、方块、混合各一例）；「影响范围撒谎」的模块被拦；旋转类和要看整图的模块返回分了类型的拒绝；磁盘上限可配、超过返回分了类型的错误；双跑逐位。向用户汇报的两样都有：演示脚本 `Scripts/rust-stream-demo.sh`，和这台机器上的上限表。工作区 676 个测试。按约定在此停下，等用户定下一波。
+
+## B3-0a RAW 头段的管线准备（2026-11-28 上午，提交 `84fd878c`，执行 66 分钟）
+
+背景：B3 转写 raw 头段四个模块之前，管线只认 RGBA 浮点一种格式（16 字节每像素），`ImageInfo` 只有宽、高、色彩空间，引擎一律按非 RAW 链排序，模块表只有描述。这一段只做准备，不转写模块。
+
+- 塔台重跑（机器安静，负载 1.8）：`cargo test --workspace --locked --no-fail-fast -j6` **714 过 / 0 败 / 5 忽略**（原 676，新增 38）；五个演示脚本全绿；六条不崩溃 lint（`CARGO_INCREMENTAL=0`）零输出；文档零警告；`cargo xtask layers` 29 个 crate 无违反；`cargo fmt --check`、`Scripts/check-licenses.sh` 通过；`git grep 'OUTPUT_BPP|16 \* '` 在 `crates` 和 `apps/lightamer-cli` 零命中。
+- lane 的自审 `0 error + 4 minor`，四处当场修掉（内存条目的文档注释还写着每像素 4 个数；缓存键的测试名叫「每个事实都翻键」却漏翻三个字段；报告里的文件数和机械改动说明），复审日志 `waves/B3-0a-review.log` 有结论头。
+- 做成了：单通道 `f32` 格式 `PixelFormat::MonoF32`（4 字节每像素，可分配）；字节数一律从格式取（平面字节、预算、占用检查、缓存记账、流式规划、落盘）；`IopModule::output_format` 默认恒等，管线按它给每个节点分配输出平面，RGBA 专用入口碰单通道平面是分了类型的失败；`ImageInfo` 加 `format` 和可选的 `RawFacts`（17 个字段，每个对着上游 `dt_image_t` 标了出处；浮点按位比较和散列；仍是 `Copy`）；缓存键把整个 `ImageInfo` 折进去；四个域 crate 的构建脚本生成「已实现」的表（模块目录给出 `pub fn create()` 才算实现），`lightamer_registry::lookup_implemented` 串四域；引擎按 `is_raw()` 选 `raw_chain()` 或 `jpg_chain()`，探完尺寸才排，探一次、取一次。
+- 上限表（16 GiB 机，单通道 4 字节每像素）：完整分辨率和导出各 310,042,951 像素，预览 90,596,966，缩略图 56,035,901。A7R5 一帧 244,022,272 字节，占完整分辨率上限的 19.7%。
+- 内存（A7R5 大小的合成单通道，增益链，lane 量的）：峰值常驻 987,627,520 字节、峰值占用 742,917,152 字节；输入帧、增益输出、流式映射文件三块各 244 MB 同时活着。单通道流式 100 块逐位一致，落盘 244,022,272 字节。
+- 缺口（留给后面的段）：「已实现」的表现在是空的，新模块被扫进表这件事要到第一个真模块落地才验证；`temperature` 要的字符串事实（机身型号、文件名）没加（`ImageInfo` 要保持 `Copy`，填值那一波给方案）；DNG 增益图不做（A-27）；`p_width / p_height` 在上游会被改写，这里只是解码时刻的快照，语义由填值那一波定；流式走到一半变格式只拒绝不修，去马赛克来了再议；单通道链的流式工作集没重量，沿用 RGBA 的 150。
+- 三处旧签名留成了转发（`chain_keys`、`StreamSink::new`、`execution_order`），因为旧测试直接调它们；删要改旧测试，没删。
+- 提交 28 个文件，全在任务书允许的路径内；`Cargo.lock` 不变；旧测试函数体没改（只有 13 处取键调用跟着加了参数、4 处乘法换了顺序）。
+
+## B3-0b 解码接入管线（2026-11-28 上午，提交 `1b6b17a9`，执行 86 分钟）
+
+背景：B3-0a 把管线准备好之后，解码 crate 的数据还没填进 `ImageInfo`，引擎也没有真的 RAW 输入来源。这一段把这条线接通，仍然不转写模块。
+
+- 塔台重跑（负载约 4）：`cargo test --workspace --locked --no-fail-fast -j6` **740 过 / 0 败 / 5 忽略**（原 714，新增 26）；五个演示脚本全绿；六条不崩溃 lint（`CARGO_INCREMENTAL=0`）零输出；文档零警告；`cargo xtask layers` 29 个 crate 无违反；`cargo fmt --check`、`Scripts/check-licenses.sh` 通过。`git grep 'OUTPUT_BPP|16 \* '` 有一处命中：`crates/lightamer-decode/csrc/rawspeed_shim.cpp:546` 的 `(uw * 2 + 15) / 16 * 16 / 2`——那是探尺寸时按 rawspeed 的 16 字节对齐算行距，不是「每像素 16 字节」的旧假设，合规。
+- lane 的自审 `PASS / 1 error + 13 minor`。error 是「输入来源换文件时没有测试，缓存若退化会静默拿错文件的像素」，已补 `same_source_evicts_between_files`；探尺寸的行距没对齐、`F32` 马赛克和两个守卫没有测试、三处上游行号写偏，也都当场修了，修法在报告 §11。复审日志 `waves/B3-0b-review.log` 有结论头。
+- 做成了：只解元数据的入口 `RawImage::probe_metadata`（很薄的 C 接口加 `rs_probe` / `rs_probe_supported`：索尼 ARW 的压缩 1 和 7 先按标签预置尺寸再让 rawspeed 自己施裁切，和解码路逐位一致；其余形状回落成完整解码，A-27 允许）；解码数据填进 `RawFacts`（`crates/lightamer-decode/src/pipe.rs`，每个字段的出处对着 `src/imageio/imageio_rawspeed.cc` 标了行号），马赛克转成单通道 `f32` 帧（`u16` 精确转换）；真的 RAW 输入来源 `apps/lightamer-cli/src/raw_input.rs`（覆写探尺寸、一次请求里只解码一次像素、只留最近一张马赛克、不是 RAW 的文件分了类型的拒绝）；测试工具 `lightamer-testkit` 里按样张文件名取「单通道帧 + `ImageInfo`」。
+- 数（release，lane 量的，负载约 2.4；量数用的临时 example 按退出纪律删了，没有留日志）：A7R5 样张探尺寸约 8–12 毫秒，整帧解码约 86–108 毫秒；整帧路峰值常驻 926,892,032 字节、峰值占用 919,733,352 字节。峰值的构成：活着的三块 610 MB（`u16` 马赛克 122 + 输入帧 244 + 输出帧 244），已释放但分配器没还的约 300 MB（文件字节 86 + C++ 那张没裁切的平面 129.5 + 读 EXIF 首次调用 84）。`ColorChecker.ARW` 峰值常驻 872,595,456 字节。
+- 和任务书不一致的一处：`Cargo.lock` 多了 4 行，全是工作区内部的依赖边（解码 crate 依赖 `lightamer-iop-traits` 和 `lightamer-raster`，测试工具依赖解码和 `lightamer-raster`），零新外部包。任务书写的「锁不变」是塔台写错了（要交出带 `RawFacts` 的 `ImageInfo` 就必须有这两条边），lane 取功能规格是对的。以后这类任务书写「不新增外部包」。
+- 留下的（记进待办）：输入来源没有请求边界，解码好的整张马赛克留到下一个文件才逐出（A7R5 是 122 MB）；缓存命中只比路径不重验修改时间，文件被覆盖会服旧面（现在没有生产调用者）；读 EXIF 首次调用把整个文件读进内存（A7R5 是 84 MB，B2 的 kamadak 既有行为）；dcraw 滤波字没照上游按裁切偏移移位（两张样张偏移都是 0）；12 元颜色矩阵整体丢成空（两张样张都是 9 元）；`F32` 马赛克只有合成测试、没有端到端；`linear_response_limit` 固定 1.0（EXIF 覆盖和黑区强制没做）。A7a 报告 §5 的五行采样摘要在仓里没有测试钉着，这一波不碰解码路径，无从验证也没有可变的点。
+- 提交 19 个文件，产品文件都在任务书允许的路径内；解码 crate 的既有测试一个没改。
+
+## B3-1a 链上状态（2026-11-28 中午，提交 `cfbc3fba`，执行 58 分钟）
+
+背景：dt 的模块沿链读写一份共享状态 `pipe->dsc`（本体 `dt_iop_buffer_dsc_t`，`src/develop/format.h:35-64`）：`rawprepare` 的 `process` 把四路最大值置成 1.0、把按裁切重算的 CFA 图案写回；`highlights` 读最大值和 `temperature` 写的白平衡系数。我们的模块接口原来没有这个通道。这一段加通道，不转写模块。用户 2026-11-28 问过「用数据库存状态？」——答案是不用：这是渲染时的临时量，上游也是在管线的平面缓存里随平面存，走内存。
+
+- 塔台重跑（负载 1.8）：`cargo test --workspace --locked --no-fail-fast -j6` **749 过 / 0 败 / 5 忽略**（原 740，新增 9）；五个演示脚本全绿；六条不崩溃 lint（`CARGO_INCREMENTAL=0`）零输出；文档零警告；`cargo xtask layers` 29 个 crate 无违反；`cargo fmt --check`、`Scripts/check-licenses.sh` 通过。`raw_input` 那组测试塔台又单独跑了一遍，7 过（lane 中间见过一次红，见下）。`Cargo.lock` 不变。
+- lane 的自审 `PASS / 0 error + 8 minor`，全是报告里的行号和两处注释，逐条对上游复验后修了，修法在报告第六节。复审日志 `waves/B3-1a-review.log` 有结论头。
+- 塔台的读法被纠正的一条（以 lane 从源码读出的为准）：任务书里写「每块从建链期的终值出发」。上游实际是——**四路最大值：每个模块处理每一块时从该模块入口处的值重新开始，最后一块的值胜出**（`src/develop/tiling.c:757-758`，循环前保存 `:713-716`，块间差超过 1e-6 只打调试日志）；CFA 图案、X-Trans 表、白平衡系数块间不重置（写它们的模块每块重写，效果等同重置）；模块之间沿链演进，上游处理后的值交给下游。建链期读的是同步时刻的快照，`commit_params` 不写任何字段。
+- 做成了：`crates/lightamer-iop-traits/src/state.rs` 的 `PipeState`（CFA 图案、输入缓冲的通道数和数据类型、四路最大值、`temperature` 子状态；`Copy`，84 字节，零堆分配，测试钉住不超过 96 字节）；`commit` 和 `process` 各多一个 `state: &mut PipeState`；`build_chain` 按链序穿值；缓存条目改成 `CachedPlane { plane, state }`，命中时恢复给下游（上游同构：`pixelpipe_cache.c:350-351` 每条缓存行存 `dsc`）；分块时最大值每块重置（`render.rs` 的 `run_tiled`）；流式每块从建链期终值独立起算。
+- 和上游的两处偏离（lane 论证过，记在 `docs/PIPELINE.md`「链上状态」一节）：建链期我们传的是演进中的值（上游是静态快照）——我们的建链在任何处理之前，所以值相同；上游每次处理前按区域预计算每个模块的 CFA，我们让模块按 `rin` 偏移查表，纯函数等价。另有一处初值：`temperature.coeffs` 取恒等 `[1; 4]`，上游是零初值，但所有读点都有开关门或「小于等于 0 当 1」的兜底，观察不到差别。转写时如果发现有读点绕过这些门，要回头重审。
+- 测试 9 个：起点来自图像事实、没有 RAW 事实时无图案、输入描述跟着格式走、固定大小；上游写下游读且顺序对；分块的节点从入口值重置最大值；缓存续算时下游拿到上游的状态；流式每块从建链期终值起算；状态随平面存取。
+- 新发现的一个不稳定测试（不是这一段引入的）：`apps/lightamer-cli/tests/raw_input.rs` 的 `whole_path_counts_probe_once_decode_once` 偶尔红——它断言相机数据库的解析计数增量为 0，而那个计数是进程级的单例，同一个二进制里别的测试抢先解析时就会变。lane 在干净的 HEAD 上单跑也能复现红。塔台重跑时是绿的。交给 B3-1b 顺手修。
+- 提交 19 个文件，全在任务书允许的路径内。
+
+## B3-1b 模块级对照架 + 转写 rawprepare（2026-11-28 下午，提交 `d4b93c23`，执行 88 分钟）
+
+背景：计划卡片的验收是「darktable-cli 整条管线渲染后比」，但管线只有头段，整条管线要到后面几波才能出图。这一段换一种对照：把上游模块的 C 代码按 `release-5.7.0` 原样编进只给测试用的库，Rust 转写在同一块输入上跑，逐像素比。这是 B3 最大的不确定点，这一段证明可行。
+
+- 塔台重跑（负载 1.7）：`cargo test --workspace --locked --no-fail-fast -j6` **775 过 / 0 败 / 5 忽略**（原 749，新增 26）；五个演示脚本全绿；六条不崩溃 lint（`CARGO_INCREMENTAL=0`）零输出；`cargo xtask layers` 30 个 crate 无违反；`cargo fmt --check`、`Scripts/check-licenses.sh` 通过；文档零警告（rustdoc）。`LIGHTAMER_DT_REF=<参考克隆> tools/extract.sh rawprepare --check` 塔台亲跑，15 个片段逐字节一致。`raw_input` 那组测试连跑三遍都是 7 过（上一段发现的不稳定测试在这一段修了根因）。
+- lane 的自审 `PASS / 0 error + 8 minor`，全修。复审日志 `waves/B3-1b-review.log` 有结论头。
+- 对照架 `crates/lightamer-oracle`（分层表登记为 Testkit，别的 crate 只能当测试依赖用；带 `README.md`，里面有「加第二个模块」的六步）：`upstream/*.inc` 15 个逐字片段（出处、标签、blob 哈希、行范围记在 `upstream/MANIFEST.md`，`tools/extract.sh` 重抽核对，先对 blob 哈希防标签漂移）；`stubs/dt_shim.h` 最小接口替身（枚举值抄上游并逐个注出处）；`stubs/stubs.c` 纯接口替身；`csrc/chain.c` 小管线（建链期读快照、几何期、处理期按链序状态沿链演进）；`src/lib.rs` 唯一的 `unsafe` 边界（三个 `#[repr(C)]` 结构两边静态断言大小）。行为替身表在 README（图像缓存落到工作图、信号无操作、日志静默、细节蒙版和不存在的图形入口直接中止）。Rust 入口 `run_rawprepare` / `rawprepare_roi_out / roi_in / defaults`；比较工具 `lightamer-testkit::compare_planes`（门限常量 `MEAN_ABS_GATE` = 1/65535，`TOLERANCE` = 1/65535，`IN_TOLERANCE_GATE` = 0.9999）。
+- **转写 `rawprepare`**（`crates/lightamer-iop-raw/src/modules/rawprepare/`）：**19 块瓦片对上游逐位相等，最大绝对差全是 0**——真样张 4 块（左上、居中、最亮、最暗）、黑位、白点、超白点、四路不同黑位、裁切移位 6 种、用户裁切、X-Trans 加裁切、改黑位、改白点。链上状态同测：四路最大值两边都是 1.0，CFA 图案（含奇偶裁切移位和 X-Trans 表）相等。线性纯运算加两边都关了乘加合并，逐位相等符合预期。
+- 过程中修的两处：对照库里跨调用的唯一指针原来是全局的，并行测试撞了（段错误），改成线程局部后连跑五遍稳定；自带的 `shiftDcrawFilter`（`dt_rawspeed_crop_dcraw_filters` 的本体是 rawspeed 的 C++，不在 dt 的源码树里，从本仓同一条钉住的 rawspeed 原样取）改成弱定义，和解码 crate 的强符号并存。
+- 和任务书范围不一致的一处（lane 主动申报，报告第十节）：填实 `rawprepare` 的参数描述之后，历史演示脚本第 4 步红了——它用的是假参数 `rawprepare.p_gain`，而历史模型按设计拒绝已声明字段之外的参数（B13′ 的「选择检查」）。引擎行为正确，演示脚本陈旧；根因修在脚本（换成真参数 `white`）。塔台重跑五个演示全绿，接受。
+- 刻意偏离上游的五处（报告第五节，都有理由）：`dt_rawspeed_crop_dcraw_filters` 的取法（见上）；sRAW 类归一化浮点的那一半没转写（范围外，ARW 存 `u16` 不触发）；非归一化的 HDR 白点上游静默截成 16 位低位，我们判错；裁过头时上游算出负宽度，我们收敛成空区域；描述里的色彩空间静态声明成 `(Raw, Raw)`，上游对非 RAW 图返回 RGB——现在没有可观察面，色彩协商接上调用者时再对。
+- 塔台重跑时发现的一处小毛病（交给 B3-1c）：对照库的构建脚本编上游片段时 clang 报 8 个警告（未用参数、符号比较），都在逐字的上游代码里，cargo 把它们转成 28 行「warning」打在每次构建的日志里。不是 rustdoc 警告，文档检查的退出码是 0。
+- 提交 45 个文件：对照库 29 个、`lightamer-iop-raw` 3 个、测试工具 3 个、分层表、文档三份加 `NOTICE` 和 `crates/README.md`、根 `Cargo.toml` 和 `Cargo.lock`（只多出新 crate 自己那一个包，零外部包）、`apps/lightamer-cli/tests/raw_input.rs`、`Scripts/rust-history-demo.sh`、报告和复审日志。
+
+## B3-1c 转写 hotpixels（2026-11-28 下午，提交 `ebb70b59`，执行 78 分钟）
+
+- 塔台重跑（负载 1.6）：`cargo test --workspace --locked --no-fail-fast -j6` **801 过 / 0 败 / 5 忽略**（原 775，新增 26）；六条不崩溃 lint（`CARGO_INCREMENTAL=0`）零输出；文档构建的警告行 0（上一段对照库的 28 行 C 警告清掉了：逐字的上游片段整段 `-w`，自己写的胶水保留警告）；`cargo xtask layers` 30 个 crate 无违反；`cargo fmt --check`、`Scripts/check-licenses.sh` 通过；重抽核对塔台亲跑，`rawprepare` 15/15、`hotpixels` 12/12 逐字节一致；`Cargo.lock` 不变。
+- 演示脚本第一遍有四个没跑成：跑的时候机器可用内存掉到 29%，守卫的 G2（线 30%）按设计拦下，不是代码问题，也没有我方残留进程；可用内存回到 41% 后重跑，五个演示全绿。
+- lane 的自审 `PASS / 0 error + 7 minor`，全修。复审日志 `waves/B3-1c-review.log` 有结论头。
+- 对照架加了第二个模块：上游 `hotpixels.c` 8 段、`FCNxtrans`、按区域派生 CFA 表的 `dt_dev_prepare_piece_cfa`（`src/develop/pixelpipe_hb.c:1289`）、管线种类判定，共 12 个逐字片段；小管线建链时按调用方给的种类设旗标，处理之前先调原样的 CFA 派生；新入口 `run_hotpixels` 和两模块链 `run_rawprepare_hotpixels`。
+- **转写 `hotpixels`**（`crates/lightamer-iop-raw/src/modules/hotpixels/`）：**19 块瓦片对上游逐位相等，最大绝对差全是 0**——真样张 4 块（每块里人为点了热点）、四种 CFA 位置各一个热点、相邻一对热点（宽松开和关）、没有热点时逐位不变、X-Trans 两个原点、单色拜耳、纯单色（普通和标记）、强度 0 直通、标记在预览和导出各一例、非 RAW 直通、改阈值改强度。
+- 接口变更：`commit` 多一个参数 `kind: PipeKind`（`crates/lightamer-iop-traits/src/kind.rs`：完整分辨率 / 导出 / 预览 / 缩略图）。原因：上游的 `markfixed` 在缩略图和导出的管线上强制为假。管线重导出这个类型，引擎的生产逻辑没改；`process` 签名不动。
+- 纠正塔台读法的六处（报告第五节，以源码为准）。要紧的一条：选拜耳还是 X-Trans 那条路，上游看的是**处理时刻**链上的 CFA 图案（`pipe->dsc.filters == 9`），不是提交时存的那份快照（后者上游全文件只写不读）。这用上了链上状态：上游 `rawprepare` 处理时把裁切后的图案写回去，下游读活的值。其余：提交时的 CFA 快照既然没人读，转写侧用 `#[expect(dead_code)]` 承载并用单测断言；X-Trans 表的偏移读 `rout`（这个模块没有 roi 函数，`rin == rout` 恒成立）；`CfaPattern::None` 的输入落进拜耳分支（上游同样）；空瓦片跳过。
+- **上游自己的一处毛病**（无上游可对）：单色图宽度为 1 时，上游 `markfixed` 按四个一组的步长写，会跨行写错位置（越界，OpenMP 下还有数据竞争）。转写按平面的真实步长写，用单测锁住我方行为；四通道宽的情况和上游逐位相等。
+- 不做（任务书明确）：图形界面；「修了几个像素」的计数（模块接口没有回传通道，归设置面板那一波）。演示和 bench 里没有用到 `hotpixels` 的假参数。
+- 收尾时发现并清掉：系统临时目录里留着 8 个 `lightamer-engine-test-71605-*`（今天 09:31，B3-0a 那条 lane 的测试进程留下的，共 2.6 MB，没有打开的句柄）。测试中途失败或被杀时清理代码没跑到就会留下——这解释了之前「历史演示正常退出却留了临时目录」那一件的机理（那一次本身仍没复现）。
+- 提交 44 个文件，全在任务书允许的路径内。
+
+## B3-2a 转写 temperature（2026-11-28 傍晚，提交 `82aae9a1`，执行 128 分钟；演示未验——内置盘被守卫拦）
+
+- 塔台重跑（内置盘可用 23 GB，低于守卫 G4 的 25 GB 线）：`cargo test --workspace --locked --no-fail-fast -j6` **839 过 / 0 败 / 5 忽略**（原 801，新增 38）；六条不崩溃 lint（`CARGO_INCREMENTAL=0`）零输出；文档构建的警告行 0；`cargo xtask layers` 30 个 crate 无违反；`cargo fmt --check`、`Scripts/check-licenses.sh` 通过；重抽核对塔台亲跑，`rawprepare` 15/15、`hotpixels` 12/12、`temperature` 19/19 逐字节一致。**五个演示脚本塔台和 lane 都没跑成**：每个脚本开头硬调守卫，G4 报 `Data 卷可用=24032MB<25GB`。演示要等内置盘回到线以上补跑。
+- lane 的自审 `PASS / 0 error + 5 minor`，全修。复审日志 `waves/B3-2a-review.log` 有结论头。
+- 对照架加了第三个模块：19 个逐字片段（`temperature.c` 的非图形界面函数、色温换算用到的光谱函数和 CIE 表、`common/colorspaces.c` 里被调到的矩阵函数）；对照库和 Rust 侧链的是同一个系统 lcms2（Homebrew 2.19）。机身白平衡预设表不取，替身让预设数为 0。
+- **转写 `temperature`**（`crates/lightamer-iop-color/src/modules/temperature/`）：三模块链（`rawprepare` → `temperature` → 上游链序在前的位置）对上游，4 块真样张瓦片 × 4 组参数（机内、用户、D65、全一）共 16 道门，**全部逐位相等，最大绝对差 0**；缺省系数五条腿、冒牌日光、X-Trans 两个原点、四通道输入逐位。色温换算：xy 对上游最坏差 2.22e-16（计划卡片的门是 1e-4），系数最坏 1.33e-15，系数反推色温四组逐位相等。链上状态：发布的系数、乘过系数的四路最大值、晚校正标志，两边相等。
+- lcms2 的落点（计划卡片指定的）：新依赖 `lcms2 6.3.0`（MIT）加在 `lightamer-color`，里面只放色温 → xy 白点的薄封装；`lightamer-iop-color` 经它用。为此在分层规则的例外表里加了同层顺序「`lightamer-color` 在前，`lightamer-iop-color` 在后」（以后的 `colorin / colorout` 一定要用色彩管理 crate）。`Cargo.lock` 只多 `lcms2` 和 `lcms2-sys` 两节。
+- 接口变更：`PipeState` 的 `temperature` 子状态加 `late_correction`（建链期写；上游的 highlights、colorin 和对向法都要读）。
+- 纠正塔台读法的七处（报告第六节，以源码为准）。要紧的两条：模块关断时上游只落晚校正标志、其余不动，转写照做；上游对非 RAW 图是「不允许启用」，管线内上游照处理，转写对非 RAW 断言直通。三模块链的对照测试放在测试工具 crate 里，因为 `lightamer-iop-color` 和 `lightamer-iop-raw` 同层不能互相依赖。
+- 不做：相机预设那一步（要预设表和机身型号字符串，A-27 范围外，落到兜底值）；图形界面；取色预设；光谱算色温的显示用函数；OpenCL。
+- 提交 47 个文件，全在任务书允许的路径内。
+
+## B3 在这里暂停（2026-11-28 19:00，环境原因）
+
+- 内置盘可用空间从早上的 38 GB 掉到 23 GB：交换文件 9.7 GB、ZCode 自己的数据库今天涨到 2.8 GB、崩溃转储 1 GB。守卫 G4 的线是 25 GB，演示脚本和下一条 lane 的构建都会被拦。
+- 塔台的决定：**不派下一条 lane**（highlights 第一部分的任务书已写好：`waves/B3-2b-prompt.md`）。内置盘快满时再长交换文件正是十月里三次强制重启的根因。不删用户盘上的任何东西，不动守卫的线；等用户重启或腾出空间后继续。
+- 到这里已提交六段：B3-0a `84fd878c`、B3-0b `1b6b17a9`、B3-1a `cfbc3fba`、B3-1b `d4b93c23`、B3-1c `ebb70b59`、B3-2a `82aae9a1`。三个模块对上游逐位相等。
+- 没做完的：highlights 两段（剪切、LCH、对向；小波重建）；补绘和基于分割两个方法做不做由用户定；B3-2a 的五个演示。
