@@ -9,6 +9,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/lightamer-history-demo-XXXXXX")"
+echo $$ > "$TMP/.owner-pid"
 HOLDER=""
 cleanup() {
   if [ -n "$HOLDER" ] && ps -p "$HOLDER" -o comm= 2>/dev/null | grep -q "lightamer-cli"; then
@@ -17,6 +18,23 @@ cleanup() {
   rm -rf "$TMP"
 }
 trap cleanup EXIT
+
+# A run killed untrappable (-9, power) leaves its $TMP: no trap runs. Sweep
+# siblings whose owner is dead; pid-less (pre-tag) dirs only past 60 minutes,
+# so a live run (minutes, always tagged) is never touched.
+for stale in "${TMPDIR:-/tmp}"/lightamer-history-demo-*; do
+  [ -d "$stale" ] || continue
+  [ "$stale" = "$TMP" ] && continue
+  owner="$(cat "$stale/.owner-pid" 2>/dev/null || true)"
+  if [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null; then
+    continue
+  fi
+  if [ -z "$owner" ] && [ -z "$(find "$stale" -maxdepth 0 -mmin +60 2>/dev/null)" ]; then
+    continue
+  fi
+  echo "sweep: removing stale $stale"
+  rm -rf "$stale" || true
+done
 
 # Step 5 sizes: the gate procedure itself (3 fresh-slice rounds, median vs
 # 1000ms); setup holds exactly runs * photos.

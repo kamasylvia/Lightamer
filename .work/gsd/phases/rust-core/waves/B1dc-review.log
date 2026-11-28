@@ -1,0 +1,69 @@
+PASS / 0 error + 2 minor
+
+HEAD（亲核）：5514b242d2010c17a17c7a2c01766cf171f37e4c（docs(rust-core): B1d-c pipeline doc and crate rows）。
+上一提交 eecd4a4b（fix(rust-core): B1d-c probe-first streaming, region-source pipe entry），起点 18499e44。
+技能文件先读：ponytail（full）与 rust-best-practices，按任务书优先级（公开项 ///、其余注释只写为什么、手写错误类型、不跟单断言与类型状态）。
+
+1. 重跑验收清单
+- 守卫：`Scripts/machine-guard.sh` → `GUARD PASS (heavy=0 free=69% swap=?M disk=?GB)`（07:31，构建前）。
+- `cargo test -p lightamer-pipeline --locked -j6` → 115 passed, 0 failed, 3 ignored（起点 111 + 新增 4）。✓
+- `cargo test -p lightamer-engine --locked -j6` → lib 82 + 集成 26+6+1+25+18+17+13+11+3=120，合计 202 passed, 0 failed, 1 ignored（起点 200 + 新增 2）。✓
+- `cargo test -p lightamer-cli --locked -j6` → 50+9+6=65 passed, 0 failed（与起点持平）。✓
+- `cargo test --workspace --locked --no-fail-fast -j6` → passed=672, failed=0, ignored=5（666+6，删 0）。跑两遍，第一遍求和 passed/failed，第二遍补 ignored。✓
+- 六条 lint：`CARGO_INCREMENTAL=0 cargo clippy --workspace --all-targets --locked -j6 -- -D warnings -D clippy::perf -D clippy::indexing_slicing -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic -D clippy::todo -D clippy::unimplemented` → exit 0。✓
+- `cargo fmt --all --check` → exit 0；`RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked` → exit 0。✓
+- `cargo xtask layers` → `OK: 29 crates, no layering violations.`；`cargo xtask check-no-iop-names` → `OK (97 names, 4 roots clean)`；`Scripts/rust-apple-boundary.sh` → ALL GREEN（含 Linux 目标第 7 步）；`Scripts/check-licenses.sh` → exit 0（零新增依赖）。✓
+- `Scripts/rust-stream-demo.sh` → exit 0，`peak rss = 2538MB (2661842944 bytes)`（报告 2661793792，差 49KB，噪声；脚本零改，内无硬编码数）。✓
+- `Scripts/rust-decode-demo.sh` / `rust-session-demo.sh` / `rust-render-demo.sh` / `rust-history-demo.sh` → 各 exit 0、ALL GREEN（history 含一万张粘贴 round 1: 168.6ms，门内；当时 load ~9 未报测不准）。✓
+- `Scripts/rust-ci-lite.sh` → ALL GREEN，exit 0（`tests total passed=672`，172.7s；预算 overall PASS，target/ 11552MB）。✓
+- `git status --porcelain` 无我建的临时文件；`${TMPDIR}` 内 lightamer 条目 0；无残留 lightamer 进程。/tmp 下有 06:55–07:21 的 b1dc* 旧文件（执行 lane 与首个复审实例的，非我建，不碰）。
+
+2. 流式这条路一次都不整帧取输入
+- 读 `crates/lightamer-engine/src/render.rs` 的 `run_render_job`（933–1112 行）：933 行 `input.probe(photo)` 先行 → 955–960 行 `kind.auto_streams() && !nodes.is_empty() && whole_bytes > guard.max_frame_bytes()` 直流（`whole_bytes` = 探到宽×高×16）→ 否则 994 行 `input.fetch(photo)` 走整帧路。直流分支内（976–992）无任何 `fetch`；`run_stream_fallback` 经 `RegionStreamInput` 只调 `fetch_region`（312–318 行）。
+- grep `\.fetch\(|\.fetch_region\(|\.probe\(` 全 engine 源码：生产代码 `fetch(` 仅三处——246 行（默认 `probe` 内）、266 行（默认 `fetch_region` 内）、994 行（探后放得下才走的整帧路）。三处都不在流式作业路径上（除非来源自己用默认实现，那是来源的选择，见 minor-2）。
+- 整帧入口报 `FrameTooLarge` 的后备（1074–1098 行）：先 `drop(frame)` 丢掉整帧，再进 `run_stream_fallback`。与旧路同。✓
+- 计数的来源两例都真断言了整帧取 0 次：`full_streams_once_per_strip_and_matches_whole_and_direct`（2136 行）`assert_eq!(fetches, 0)` + regions==4；新测 `streaming_decision_precedes_any_pixel_fetch`（2689 行）用 `fail_fetch=true` 的来源（整帧取直接拒绝），照样流式成功，fetches==0、regions==4。✓
+
+3. 规划只在管线里做一次
+- `run_stream_fallback`（1175–1300 行）：只剩备拼装器 → 一次 `guard.render_stream_from(&req, &source, …)`（1237 行）→ 收拼装器。旧的 `build_chain`/`forward`/`plan_stream`/逐块嵌套 `render_stream`/路由闭包/`merge_trace`/`intersect_extents`/`crop_piece_plane` 全删；grep 三个旧辅助名在 crates;apps 零命中；`plan_stream|build_chain` 在 engine 源码零命中（只剩文档链接与测试里的 `render_stream`）。✓
+- 管线侧 `render_stream_from` 内规划一次（`plan_stream`，1082 行），`render_stream` 改经它实现。✓
+
+4. `render_stream` 改写没有改意思
+- `render_stream`（996–1018 行）现为薄适配：`WholeFrameInput` + `StreamRequest` 转调 `render_stream_from`，签名不动。
+- B1d-a 测试零改：`git diff -U0` 显示 stream.rs 测试区仅三处 hunk——import 行（+StreamInput/StreamRequest）、`stream_from_assembled`/`RecordedRegions` 纯插入（45 行）、文件尾 4 新测纯插入（160 行）；旧测试体零 hunk。✓
+- 区域盖不住分类型拒绝：`WholeFrameInput::fetch_region`（824–832 行）越界报 `RenderError::InputMismatch`，新测 `whole_frame_adapter_refuses_an_uncovered_piece` 钉死 `matches!(InputMismatch)`。旧覆盖检查的同类型语义保留（错误文案少了块坐标 (tx,ty)，无测试钉文案， cosmetic，不列 finding）。✓
+
+5. 默认 probe 与原行为逐值相同；覆写 probe 撒谎会怎样
+- 默认 `probe`（246–252 行）= 整帧取出来、只留 `image` + `frame.extent()`；新测 `probe_default_matches_fetch_facts_field_for_field` 逐值断言 `probed.image == fetched.image`、`probed.extent == fetched.frame.extent()`。✓ `input_id` 被丢是设计（`StreamRequest` 不带它，流式不碰缓存）。
+- 覆写 probe 撒谎（报告没说，我读代码得出）：直流路只信 `facts`（`facts.image` 进 commit、`facts.extent` 定 plan 与输出尺寸），全程不核对真实像素。探小取大 → 按小尺寸规划、输出静默偏小（成功交付，无错）；探大取小 → 默认 `fetch_region` 在 `view` 处越界、分类型 `InputError→RenderError::Frame` 失败，而演示式过程化来源（`StreamDemoInput::fetch_region`，120–131 行，不验 containment）会静默交出框外像素。见 minor-1。
+
+6. 探与取不一致的边角
+- 探说放得下、取出来更大：整帧路的 `render` 前置逐节点核对（至少与 `max_frame_bytes` 同严，首节点等价、后节点更严）报 `FrameTooLarge` → 后备丢帧转流式（1074 行），内存正确。✓ 但无测试覆盖此方向。
+- 探说超限、取出来更小（或更大）：见第 5 条， typed 失败或静默截断，无测试。
+- 后果：无崩溃、无 OOM（失败是分类型的，静默方向只发生在来源撒谎时），列 minor-1。
+
+7. 整帧入口一个字没改
+- `git diff 18499e44..HEAD -- crates/lightamer-pipeline/src/render.rs` → 零输出（0 行）。✓
+
+8. 引擎源码无文件操作
+- `rg -n 'std::fs|create_dir|read_dir|std::fs::copy|fs::copy|File::create|tempfile' crates/lightamer-engine/src` → 零输出。✓
+
+9. 内存的真相（footprint 对照，发行版串行，一次一个）
+- 命令形：`/usr/bin/time -l target/release/lightamer-cli stream-demo --mp N --only strip|block`（release 二进制亲核为 HEAD 代码所编，`cargo build --release` 无重编）。负载全程 8–9（10 核，他人重活，不碰；常驻行注明抖动）。
+- 条带 200MP：pieces=202（与报告/B1d-b 逐位一致），6.0s；maximum resident set size = 3258351616（3.03GiB，报告 3258679296，差 0.01%）；peak memory footprint = 52529840（约 50MB）。
+- 条带 500MP：pieces=319，18.4s；resident = 5707202560（5.32GiB，报告 5.98GiB，偏低 11%，负载下干净页回收抖动，报告自带同注脚）；footprint = 82794544（约 79MB）。
+- 方块 200MP：pieces=56，24.1s；resident = 3633496064（3.38GiB，报告 3633512448，差 0.0006%）；footprint = 704875256（约 672MB）。
+- 方块 500MP：pieces=120，63.9s；resident = 6002393088（5.59GiB，报告 6415777792，偏低 7%，同上抖动）；footprint = 662097160（约 631MB）。
+- 结论：帧放大 2.5 倍，footprint 条带 50→79MB、方块 672→631MB（基本不涨）；lane 的「输出拼装是内存映射文件、页干净可回收」解释成立。条带工作集几十 MB ✓，方块 1GB 以内 ✓。不列 error。
+- 收尾抄表用（resident, footprint）：条带200 (3258351616, 52529840)；条带500 (5707202560, 82794544)；方块200 (3633496064, 704875256)；方块500 (6002393088, 662097160)。
+
+10. 两个技能抽查
+- 无违反。新增公开项（`StreamInput`/`StreamRequest`/`render_stream_from`/`probe`/`RenderFacts`）`///` 齐全（`missing_docs=deny` + 文档零警告编译器亲证）；其余注释皆为 why；错误类型手写（无 thiserror/anyhow 新增）；新增 `to_vec`×3（`last_trace` 小记录交付必需）、`copy_from_slice`（像素搬运必需）、`Arc::` 仅测试；`clippy::perf` 全仓零命中；无任务书之外的抽象（`WholeFrameInput`/`RegionStreamInput` 皆任务书点名的适配器形状）。✓
+
+11. 边界
+- `git show --name-only` 两提交：eecd4a4b 含 pipeline stream.rs/lib.rs、engine render.rs/lib.rs、cli stream_demo.rs；5514b242 含 crates/README.md、docs/PIPELINE.md。皆在任务书允许路径内；`Scripts/rust-stream-demo.sh` 零改（无硬编码数可改）；`Cargo.lock` diff 0 行；历史模型/注册表/会话库/模块桩/Apple 模块 diff 0 行。✓
+- 收尾提醒（非代码 finding，不计数）：`B1dc-REPORT.md`（Commit 哈希、复审结论头、未做/未验三处「待填」）与本日志尚未 `commit --amend` 并入，属已知执行 lane 收尾中断，由收尾人填。
+
+发现清单
+- minor-1 · `crates/lightamer-engine/src/render.rs:976-992` + `apps/lightamer-cli/src/stream_demo.rs:120-131`：覆写 `probe` 所报尺寸与真实像素不一致时无测试；探小取大在直流路上静默输出偏小帧（成功交付），探大取小在默认来源走分类型失败、在过程化来源（不验 containment）走静默错像素。修法：加两个 lying-probe 测试把两方向行为钉死（至少探大取小断言分类型失败），或在 `InputSource::probe` 文档写明「来源必须保证 probe 与像素一致，否则行为未定义」。
+- minor-2 · `crates/lightamer-engine/src/render.rs:933,994`：默认 `probe` 下整帧路取两次（探内一次 + 994 行一次）；预览/缩略图/空链的探永不可能转流式，纯浪费一次整帧取。内存峰值不受影响（串行），但真解码接上后（B2）整帧路解码代价翻倍。修法（B2 接线时顺手）：仅当 `kind.auto_streams() && !nodes.is_empty()` 时探，或复用探到的帧。任务书明文要求先探后取，故列 minor。

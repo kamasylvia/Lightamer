@@ -17,7 +17,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use lightamer_engine::{
-    Engine, EngineConfig, Event, InputError, InputSource, RenderInput, RenderKind, StreamMode,
+    Engine, EngineConfig, Event, InputError, InputSource, RenderFacts, RenderInput, RenderKind,
+    StreamMode,
 };
 use lightamer_iop_traits::{
     ColorSpace, CommitData, ImageInfo, IopModule, ModuleDesc, OrderKey, PipeError, Plane, PlaneMut,
@@ -106,6 +107,13 @@ impl InputSource for StreamDemoInput {
             frame,
             image: ImageInfo::new(self.width, self.height, ColorSpace::Rgb),
             input_id: u64::from(self.width),
+        })
+    }
+
+    fn probe(&self, _photo: &str) -> Result<RenderFacts, InputError> {
+        Ok(RenderFacts {
+            image: ImageInfo::new(self.width, self.height, ColorSpace::Rgb),
+            extent: FrameExtent::new(0, 0, self.width, self.height),
         })
     }
 
@@ -304,9 +312,10 @@ fn run_streamed_step(
             streamed.pieces
         )));
     }
-    // One whole fetch for the facts, then one region call per piece.
-    if fetches.load(Ordering::SeqCst) != fetch_before + 1 {
-        return Err(Error::new("the run fetched whole more than once"));
+    // No whole fetch on the streaming path: the probe sized the frame, then
+    // one region call per piece.
+    if fetches.load(Ordering::SeqCst) != fetch_before {
+        return Err(Error::new("the streamed run fetched whole"));
     }
     let region_calls = regions.lock().map_or(0, |held| held.len()) - region_before;
     if u64::try_from(region_calls).unwrap_or(u64::MAX) != streamed.pieces {

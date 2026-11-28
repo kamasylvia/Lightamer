@@ -25,15 +25,17 @@
 //! whole-frame footprint check.
 
 use lightamer_geom::Roi as GeomRoi;
-use lightamer_iop_traits::{Plane, PlaneMut, Roi as WireRoi, StatsNeeds, check_overlap_covers};
-use lightamer_raster::{Frame, FrameExtent};
+use lightamer_iop_traits::{
+    ImageInfo, Plane, PlaneMut, Roi as WireRoi, StatsNeeds, check_overlap_covers,
+};
+use lightamer_raster::{Frame, FrameExtent, PixelFormat};
 use std::fmt;
 use std::time::Instant;
 
 use super::budgeted::SharedFrame;
 use super::chain::{
-    ChainError, CommittedNode, ModuleLookup, NodeGeometry, backward_check, build_chain, forward,
-    from_wire, to_wire,
+    ChainError, CommittedNode, ModuleLookup, NodeGeometry, PipeNode, backward_check, build_chain,
+    forward, from_wire, to_wire,
 };
 use super::negotiate::negotiate as negotiate_plan;
 use super::render::{NodeReport, Pipe, RenderError, RenderRequest};
@@ -333,6 +335,47 @@ pub struct StreamSummary {
     pub mode: StreamMode,
     /// Pieces handed to the sink (saturates at `u32::MAX`).
     pub pieces: u32,
+}
+/// Where streaming piece inputs come from: hand it an absolute input region,
+/// get that region's pixels back as a compact frame.
+///
+/// [`Pipe::render_stream_from`] calls this once per planned piece input and
+/// never holds a whole frame; sources that cannot serve a region fail typed,
+/// which fails the run like any other piece error.
+pub trait StreamInput {
+    /// Fetches `region` (absolute frame coordinates) as a compact frame
+    /// whose extent covers `region`.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError`] when the region is unservable.
+    fn fetch_region(&self, region: FrameExtent) -> Result<Frame, RenderError>;
+}
+
+/// What one region-source streaming render needs: [`RenderRequest`] without
+/// the whole input frame. Piece pixels arrive per planned input region from
+/// a [`StreamInput`] instead, so the run never holds a whole frame.
+pub struct StreamRequest<'a, L: ModuleLookup + ?Sized> {
+    /// Nodes in execution order.
+    pub nodes: &'a [PipeNode],
+    /// Where committed modules come from, by id.
+    pub lookup: &'a L,
+    /// Decoded-image facts for `commit`.
+    pub image: &'a ImageInfo,
+    /// Wanted final output region.
+    pub final_out: GeomRoi,
+    /// Cancellation probe, consulted between pieces.
+    pub cancel: &'a dyn Fn() -> bool,
+}
+
+impl<L: ModuleLookup + ?Sized> fmt::Debug for StreamRequest<'_, L> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("StreamRequest")
+            .field("nodes", &self.nodes)
+            .field("image", &self.image)
+            .field("final_out", &self.final_out)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Plans whole-chain streaming for `chain` at `frame`.
@@ -748,13 +791,12 @@ fn trace_totals(chain: &[CommittedNode], calls: &[u32], millis: &[f64]) -> Vec<N
 }
 
 /// One piece's run inputs, bundled so the piece runner takes two arguments.
-struct PieceJob<'a, 'r, L, F>
+struct PieceJob<'a, F>
 where
-    L: ModuleLookup + ?Sized,
     F: FnMut(StreamPiece) -> Result<(), RenderError>,
 {
-    /// The streaming request (input frame and cancel probe).
-    req: &'a RenderRequest<'r, L>,
+    /// Where this piece's grown input comes from.
+    source: &'a dyn StreamInput,
     /// The committed chain.
     chain: &'a [CommittedNode],
     /// The piece to run.
@@ -771,17 +813,55 @@ where
     sink: &'a mut F,
 }
 
+/// [`StreamInput`] over one in-RAM frame: [`Pipe::render_stream`]'s view of
+/// its whole input. Regions outside the frame refuse typed, like the piece
+/// runner's own coverage check did before the region-source entry landed.
+struct WholeFrameInput<'a> {
+    /// The caller's whole input frame.
+    frame: &'a Frame,
+}
+
+impl StreamInput for WholeFrameInput<'_> {
+    fn fetch_region(&self, region: FrameExtent) -> Result<Frame, RenderError> {
+        let fail = |detail: String| RenderError::Frame { detail };
+        let have = self.frame.extent();
+        if !have.contains(region) {
+            return Err(RenderError::InputMismatch {
+                detail: format!("stream piece needs input at {region:?}, caller gave {have:?}"),
+            });
+        }
+        let view = self
+            .frame
+            .view(region)
+            .map_err(|err| fail(format!("stream input view unreadable: {err}")))?;
+        let mut cropped = Frame::alloc(region, PixelFormat::RgbaF32Premul)
+            .map_err(|err| fail(format!("stream input crop would not build: {err}")))?;
+        for row in 0..region.height {
+            let src = view
+                .row(row)
+                .map_err(|err| fail(format!("stream input row {row} unreadable: {err}")))?;
+            let dst = cropped
+                .row_mut(row)
+                .map_err(|err| fail(format!("stream crop row {row} unwritable: {err}")))?;
+            if dst.len() != src.len() {
+                return Err(fail(format!("stream crop row {row} lengths disagree")));
+            }
+            dst.copy_from_slice(src);
+        }
+        Ok(cropped)
+    }
+}
+
 impl Pipe {
-    /// Runs one piece: checks caller coverage, stages the grown input, runs
-    /// the whole chain through the reused scratch pair, crops the piece into
+    /// Runs one piece: fetches the grown input from the source, runs the
+    /// whole chain through the reused scratch pair, crops the piece into
     /// a sink plane, and calls the sink.
-    fn run_stream_piece<L, F>(&mut self, job: PieceJob<'_, '_, L, F>) -> Result<(), RenderError>
+    fn run_stream_piece<F>(&mut self, job: PieceJob<'_, F>) -> Result<(), RenderError>
     where
-        L: ModuleLookup,
         F: FnMut(StreamPiece) -> Result<(), RenderError>,
     {
         let PieceJob {
-            req,
+            source,
             chain,
             piece,
             head_empty,
@@ -796,24 +876,13 @@ impl Pipe {
         let gh = u32::try_from(piece.input.height)
             .map_err(|_| frame_fail("stream grown height overflows".to_owned()))?;
         let grown = FrameExtent::new(piece.input.x, piece.input.y, gw, gh);
-        // Coverage before allocation: a caller that cannot feed this piece
-        // fails here, with budget and cache exactly as found.
-        if !head_empty && !req.input.extent().contains(grown) {
-            return Err(RenderError::InputMismatch {
-                detail: format!(
-                    "stream piece ({},{}) needs input at {grown:?}, caller gave {:?}",
-                    piece.tx,
-                    piece.ty,
-                    req.input.extent()
-                ),
-            });
-        }
         ensure_stream_room(self, scratch, gw, gh)?;
         let Some(pair) = scratch.as_mut() else {
             return Err(frame_fail("internal: stream scratch missing".to_owned()));
         };
         if !head_empty {
-            stage_piece_input(req.input, &grown, &mut pair.a, gw, gh)?;
+            let got = source.fetch_region(grown)?;
+            stage_piece_input(&got, &grown, &mut pair.a, gw, gh)?;
         }
         let grown_wire = to_wire(&piece.input);
         let empty_wire = WireRoi::new(0, 0, 0, 0, piece.input.scale);
@@ -908,7 +977,7 @@ impl Pipe {
     /// Order: commit → forward geometry → backward check → format plan (any
     /// conversion step is [`RenderError::ColorGap`]) → admission and planning
     /// ([`plan_stream`], refusals before anything allocates) → per piece:
-    /// cancel check, stage the grown input, run the whole chain through two
+    /// cancel check, fetch the grown input, run the whole chain through two
     /// reused scratch planes, crop the piece into a sink plane, call the sink.
     /// There is no footprint pre-check: oversized frames are why streaming
     /// exists. Every allocation still charges the budget, and a piece that
@@ -927,6 +996,58 @@ impl Pipe {
     pub fn render_stream<L, F>(
         &mut self,
         req: &RenderRequest<'_, L>,
+        sink: F,
+    ) -> Result<StreamSummary, RenderError>
+    where
+        L: ModuleLookup,
+        F: FnMut(StreamPiece) -> Result<(), RenderError>,
+    {
+        let whole = WholeFrameInput { frame: req.input };
+        let from = StreamRequest {
+            nodes: req.nodes,
+            lookup: req.lookup,
+            image: req.image,
+            final_out: req.final_out,
+            cancel: req.cancel,
+        };
+        self.render_stream_from(&from, &whole, sink)
+    }
+
+    /// Renders `req` piece by piece, fetching each grown input from `source`
+    /// and handing each finished piece to `sink`.
+    ///
+    /// The request carries no pixels ([`StreamRequest`]); `source` runs once
+    /// per planned piece input, in row-major piece order, and `sink` runs
+    /// once per strip or block, reporting its own failures (a spill sink's
+    /// disk errors) through [`RenderError`]. The sink plane is lent for the
+    /// call: the sink copies out what it keeps.
+    ///
+    /// Order: commit → forward geometry → backward check → format plan (any
+    /// conversion step is [`RenderError::ColorGap`]) → admission and planning
+    /// ([`plan_stream`], refusals before anything allocates) → per piece:
+    /// cancel check, fetch the grown input from `source`, run the whole
+    /// chain through two reused scratch planes, crop the piece into a sink
+    /// plane, call the sink. There is no footprint pre-check: oversized
+    /// frames are why streaming exists. Every allocation still charges the
+    /// budget, and a piece that does not fit fails typed
+    /// ([`RenderError::OutOfBudget`]).
+    ///
+    /// The cache sits untouched (no peeks, no inserts): streaming-size planes
+    /// exceed its byte cap, and peeking would let bitwise tests pass without
+    /// exercising this path. Cancel or any error drops the run's scratch
+    /// (budget back) and leaves per-node partial counts in `last_trace`; an
+    /// empty chain copies its input piece by piece; a chain whose head needs
+    /// no input never calls `source` and feeds its first node empty planes,
+    /// like the whole-frame run.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError`] for every failure above, including the source's own
+    /// region refusals; see its variants.
+    pub fn render_stream_from<L, F>(
+        &mut self,
+        req: &StreamRequest<'_, L>,
+        source: &dyn StreamInput,
         mut sink: F,
     ) -> Result<StreamSummary, RenderError>
     where
@@ -984,7 +1105,7 @@ impl Pipe {
                 break;
             }
             let step = self.run_stream_piece(PieceJob {
-                req,
+                source,
                 chain: &chain,
                 piece: &piece,
                 head_empty,
@@ -1023,7 +1144,10 @@ mod tests {
     use lightamer_raster::{Frame, FrameExtent, PixelFormat};
     use serde_json::json;
 
-    use super::{STREAM_BYTES_PER_PIXEL, StreamMode, StreamPiece, StreamRefusal, plan_stream};
+    use super::{
+        STREAM_BYTES_PER_PIXEL, StreamInput, StreamMode, StreamPiece, StreamRefusal, StreamRequest,
+        plan_stream,
+    };
     use crate::chain::{CommittedNode, NodeGeometry, PipeNode, build_chain, forward};
     use crate::fakes::{
         FakeBackendFail, FakeBlur, FakeCopy, FakeGain, FakeGrow, FakePosition, FakeProxy,
@@ -1111,6 +1235,51 @@ mod tests {
             })
             .unwrap();
         (summary, out)
+    }
+    /// Streams `req` from `source` on `pipe`, assembling pieces into one frame.
+    fn stream_from_assembled(
+        pipe: &mut Pipe,
+        req: &StreamRequest<'_, impl crate::chain::ModuleLookup>,
+        source: &dyn StreamInput,
+    ) -> (super::StreamSummary, Frame) {
+        let extent = FrameExtent::new(
+            req.final_out.x,
+            req.final_out.y,
+            u32::try_from(req.final_out.width).unwrap(),
+            u32::try_from(req.final_out.height).unwrap(),
+        );
+        let mut out = Frame::alloc(extent, PixelFormat::RgbaF32Premul).unwrap();
+        let summary = pipe
+            .render_stream_from(req, source, |piece: StreamPiece| {
+                let src = piece.plane.frame.as_slice();
+                let ox = usize::try_from(piece.extent.x - extent.x).unwrap();
+                let oy = usize::try_from(piece.extent.y - extent.y).unwrap();
+                for row in 0..piece.extent.height as usize {
+                    let seg = &src[row * piece.extent.width as usize * 4
+                        ..(row + 1) * piece.extent.width as usize * 4];
+                    let dst_row = u32::try_from(oy + row).unwrap();
+                    let dst = out.row_mut(dst_row).unwrap();
+                    dst[ox * 4..ox * 4 + seg.len()].copy_from_slice(seg);
+                }
+                Ok(())
+            })
+            .unwrap();
+        (summary, out)
+    }
+
+    /// [`StreamInput`] over one in-RAM frame, recording every region served.
+    struct RecordedRegions<'a> {
+        frame: &'a Frame,
+        regions: std::sync::Mutex<Vec<FrameExtent>>,
+    }
+
+    impl StreamInput for RecordedRegions<'_> {
+        fn fetch_region(&self, region: FrameExtent) -> Result<Frame, RenderError> {
+            if let Ok(mut held) = self.regions.lock() {
+                held.push(region);
+            }
+            super::WholeFrameInput { frame: self.frame }.fetch_region(region)
+        }
     }
 
     #[test]
@@ -1966,5 +2135,165 @@ mod tests {
             peak < STOP_RSS_BYTES,
             "peak rss {peak} tops the 4 GiB stop line"
         );
+    }
+
+    #[test]
+    fn stream_from_region_source_matches_whole_frame() {
+        let lookup = table(vec![
+            Arc::new(FakeCopy::new("mod_a", Arc::new(Probe::new()))),
+            Arc::new(FakeGain::new("mod_g0", Arc::new(Probe::new()))),
+            Arc::new(FakeBlur::new("mod_blur", Arc::new(Probe::new()), 8, 8)),
+        ]);
+        let nodes = vec![node("mod_a"), gain_node("mod_g0", 2.0), node("mod_blur")];
+        let input = pattern_frame(640, 640);
+        let final_out = geom(0, 0, 640, 640);
+        let no_cancel = || false;
+        let from = StreamRequest {
+            nodes: &nodes,
+            lookup: &lookup,
+            image: &image(),
+            final_out,
+            cancel: &no_cancel,
+        };
+        let source = RecordedRegions {
+            frame: &input,
+            regions: std::sync::Mutex::new(Vec::new()),
+        };
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, 64 * 1024 * 1024, 1024 * 1024);
+        let (summary, streamed) = stream_from_assembled(&mut pipe, &from, &source);
+        assert_eq!(summary.mode, StreamMode::Block);
+        assert_eq!(summary.pieces, 4);
+        let whole_req = RenderRequest {
+            nodes: &nodes,
+            lookup: &lookup,
+            image: &image(),
+            input: &input,
+            input_id: 7,
+            process: 1,
+            final_out,
+            cancel: &no_cancel,
+        };
+        let whole = pipe.render(&whole_req).unwrap();
+        assert_eq!(streamed.as_slice(), whole.frame().as_slice());
+        let (_, via_whole) = stream_assembled(&mut pipe, &whole_req);
+        assert_eq!(streamed.as_slice(), via_whole.as_slice());
+    }
+
+    #[test]
+    fn region_source_serves_exactly_the_planned_inputs() {
+        let lookup = table(vec![
+            Arc::new(FakeCopy::new("mod_a", Arc::new(Probe::new()))),
+            Arc::new(FakeGain::new("mod_g0", Arc::new(Probe::new()))),
+        ]);
+        let nodes = vec![node("mod_a"), gain_node("mod_g0", 2.0)];
+        let input = pattern_frame(200, 150);
+        let final_out = geom(0, 0, 200, 150);
+        let no_cancel = || false;
+        let from = StreamRequest {
+            nodes: &nodes,
+            lookup: &lookup,
+            image: &image(),
+            final_out,
+            cancel: &no_cancel,
+        };
+        let source = RecordedRegions {
+            frame: &input,
+            regions: std::sync::Mutex::new(Vec::new()),
+        };
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, 64 * 1024 * 1024, 1024 * 1024);
+        let (summary, _) = stream_from_assembled(&mut pipe, &from, &source);
+        assert_eq!(summary.pieces, 3);
+        let (chain, geos) = committed(&lookup, &nodes, &final_out);
+        let plan = plan_stream(
+            &chain,
+            &geos,
+            64 * 1024 * 1024,
+            &final_out,
+            STREAM_BYTES_PER_PIXEL,
+        )
+        .unwrap();
+        let want: Vec<FrameExtent> = plan
+            .pieces()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+            .into_iter()
+            .map(|piece| {
+                FrameExtent::new(
+                    piece.input.x,
+                    piece.input.y,
+                    u32::try_from(piece.input.width).unwrap(),
+                    u32::try_from(piece.input.height).unwrap(),
+                )
+            })
+            .collect();
+        assert_eq!(*source.regions.lock().unwrap(), want);
+    }
+
+    #[test]
+    fn sourceless_head_never_calls_its_source() {
+        let lookup = table(vec![Arc::new(FakeSource::new(
+            "mod_src",
+            Arc::new(Probe::new()),
+            96,
+            64,
+        ))]);
+        let nodes = vec![node("mod_src")];
+        let empty = Frame::alloc(FrameExtent::new(0, 0, 0, 0), PixelFormat::RgbaF32Premul).unwrap();
+        let final_out = geom(0, 0, 96, 64);
+        let no_cancel = || false;
+        let from = StreamRequest {
+            nodes: &nodes,
+            lookup: &lookup,
+            image: &image(),
+            final_out,
+            cancel: &no_cancel,
+        };
+        let source = RecordedRegions {
+            frame: &empty,
+            regions: std::sync::Mutex::new(Vec::new()),
+        };
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 1024 * 1024);
+        let (summary, streamed) = stream_from_assembled(&mut pipe, &from, &source);
+        assert_eq!(summary.mode, StreamMode::Strip);
+        assert!(source.regions.lock().unwrap().is_empty());
+        let whole_req = RenderRequest {
+            nodes: &nodes,
+            lookup: &lookup,
+            image: &image(),
+            input: &empty,
+            input_id: 7,
+            process: 1,
+            final_out,
+            cancel: &no_cancel,
+        };
+        let whole = pipe.render(&whole_req).unwrap();
+        assert_eq!(streamed.as_slice(), whole.frame().as_slice());
+    }
+
+    #[test]
+    fn whole_frame_adapter_refuses_an_uncovered_piece() {
+        let lookup = table(vec![Arc::new(FakeCopy::new(
+            "mod_a",
+            Arc::new(Probe::new()),
+        ))]);
+        let nodes = vec![node("mod_a")];
+        let input = pattern_frame(32, 32);
+        let final_out = geom(0, 0, 64, 64);
+        let no_cancel = || false;
+        let req = RenderRequest {
+            nodes: &nodes,
+            lookup: &lookup,
+            image: &image(),
+            input: &input,
+            input_id: 7,
+            process: 1,
+            final_out,
+            cancel: &no_cancel,
+        };
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 1024 * 1024);
+        let err = pipe
+            .render_stream(&req, |_: StreamPiece| Ok(()))
+            .unwrap_err();
+        assert!(matches!(err, RenderError::InputMismatch { .. }));
     }
 }
