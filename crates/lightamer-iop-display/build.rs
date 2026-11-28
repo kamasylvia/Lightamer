@@ -39,6 +39,14 @@ fn discover(modules_dir: &Path) -> Vec<String> {
     names
 }
 
+/// Whether the module's `mod.rs` defines its constructor: implemented
+/// modules expose `pub fn create() -> SharedModule`, stubs only a `DESC`.
+/// Textual on purpose — the table below references the constructor, so
+/// detection and reference stay in the same scan.
+fn is_implemented(path: &Path) -> bool {
+    fs::read_to_string(path).is_ok_and(|text| text.contains("pub fn create("))
+}
+
 /// Escapes `path` for embedding in a double-quoted `#[path]` attribute.
 fn escape_for_path_attr(path: &Path) -> String {
     path.display()
@@ -65,6 +73,16 @@ fn main() {
     out.push_str("pub static MODULES: &[&::lightamer_iop_traits::ModuleDesc] = &[");
     for name in &names {
         let _ = write!(out, "&{name}::DESC,");
+    }
+    out.push_str("];\n");
+    out.push_str("/// Constructors of this domain's implemented modules: (id, `create`).\n");
+    out.push_str("/// A module lands here only when its `mod.rs` defines `pub fn create(`;\n");
+    out.push_str("/// description-only stubs stay out.\n");
+    out.push_str("pub static IMPLEMENTED: &[::lightamer_iop_traits::ImplementedModule] = &[");
+    for name in &names {
+        if is_implemented(&modules_dir.join(name).join("mod.rs")) {
+            let _ = write!(out, "(\"{name}\", {name}::create),");
+        }
     }
     out.push_str("];\n");
     let gen_file =

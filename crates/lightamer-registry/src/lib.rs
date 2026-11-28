@@ -13,7 +13,7 @@
     clippy::unimplemented
 )]
 
-use lightamer_iop_traits::ModuleDesc;
+use lightamer_iop_traits::{ModuleDesc, SharedModule};
 
 /// Every known descriptor, grouped by domain crate.
 ///
@@ -28,6 +28,16 @@ pub fn all_descs() -> Vec<&'static ModuleDesc> {
         .chain(lightamer_iop_display::MODULES.iter())
         .copied()
         .collect()
+}
+
+/// Looks up an implemented module by id across all four domains; [`None`]
+/// for stubs and unknowns. No central list: each domain owns its table.
+#[must_use]
+pub fn lookup_implemented(id: &str) -> Option<SharedModule> {
+    lightamer_iop_raw::lookup_implemented(id)
+        .or_else(|| lightamer_iop_geom::lookup_implemented(id))
+        .or_else(|| lightamer_iop_color::lookup_implemented(id))
+        .or_else(|| lightamer_iop_display::lookup_implemented(id))
 }
 
 /// Finds a descriptor by id; [`None`] when unknown.
@@ -282,5 +292,21 @@ mod tests {
     fn chains_are_sorted_by_priority_then_tie() {
         assert!(is_sorted(&raw_chain(), true));
         assert!(is_sorted(&jpg_chain(), false));
+    }
+    #[test]
+    fn implemented_modules_resolve_and_stay_described() {
+        let tables = [
+            lightamer_iop_raw::IMPLEMENTED,
+            lightamer_iop_geom::IMPLEMENTED,
+            lightamer_iop_color::IMPLEMENTED,
+            lightamer_iop_display::IMPLEMENTED,
+        ];
+        for table in &tables {
+            for entry in *table {
+                assert!(super::lookup_implemented(entry.0).is_some());
+                assert!(super::find(entry.0).is_some());
+            }
+        }
+        assert!(super::lookup_implemented("__no_such_module__").is_none());
     }
 }

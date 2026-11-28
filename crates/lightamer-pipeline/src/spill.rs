@@ -17,8 +17,8 @@ use memmap2::MmapMut;
 use super::render::RenderError;
 use super::stream::StreamPiece;
 
-/// Working-format bytes per pixel (32-bit float RGBA).
-const OUTPUT_BPP: u64 = 16;
+// Bytes per pixel come from the sink's own format (never a constant: RGBA
+// counts 16, mono counts 4).
 
 /// Where an unfinished [`StreamSink`] writes its pieces.
 #[derive(Debug)]
@@ -39,6 +39,8 @@ enum SinkStore {
 pub struct StreamSink {
     /// The full output extent.
     full: FrameExtent,
+    /// Pixel format of the assembled output.
+    format: PixelFormat,
     /// Total output bytes.
     total: u64,
     /// Piece bytes received so far.
@@ -48,10 +50,11 @@ pub struct StreamSink {
 }
 
 impl StreamSink {
-    /// Prepares assembly of `full`: outputs of at most `memory_threshold`
-    /// bytes stay in RAM, bigger ones spill to an anonymous temp file under
-    /// `dir` (or the system temp directory when [`None`]), and anything past
-    /// `byte_limit` refuses here, before the run starts.
+    /// Prepares RGBA assembly of `full`: outputs of at most
+    /// `memory_threshold` bytes stay in RAM, bigger ones spill to an
+    /// anonymous temp file under `dir` (or the system temp directory when
+    /// [`None`]), and anything past `byte_limit` refuses here, before the
+    /// run starts.
     ///
     /// # Errors
     ///
@@ -63,8 +66,32 @@ impl StreamSink {
         byte_limit: u64,
         dir: Option<&Path>,
     ) -> Result<Self, RenderError> {
+        Self::new_with_format(
+            full,
+            PixelFormat::RgbaF32Premul,
+            memory_threshold,
+            byte_limit,
+            dir,
+        )
+    }
+
+    /// Prepares assembly of `full` in `format`: same contract as
+    /// [`StreamSink::new`], sized by the format's own bytes per pixel.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::Spill`] when the output exceeds `byte_limit`, overflows
+    /// its byte count, or the temp file/mapping fails.
+    pub fn new_with_format(
+        full: FrameExtent,
+        format: PixelFormat,
+        memory_threshold: u64,
+        byte_limit: u64,
+        dir: Option<&Path>,
+    ) -> Result<Self, RenderError> {
         let fail = |detail: String| RenderError::Spill { detail };
-        let total = full.area_u64().checked_mul(OUTPUT_BPP).ok_or_else(|| {
+        let bpp = format.bytes_per_pixel();
+        let total = full.area_u64().checked_mul(bpp).ok_or_else(|| {
             fail(format!(
                 "streaming output {full:?} overflows its byte count"
             ))
@@ -77,7 +104,7 @@ impl StreamSink {
         // Empty outputs stay in RAM: a zero-length mapping is rejected
         // outright on some platforms.
         let store = if full.is_empty() || total <= memory_threshold {
-            let frame = Frame::alloc(full, PixelFormat::RgbaF32Premul)
+            let frame = Frame::alloc(full, format)
                 .map_err(|err| fail(format!("streaming assembly: {err}")))?;
             SinkStore::Memory(frame)
         } else {
@@ -102,6 +129,7 @@ impl StreamSink {
         };
         Ok(Self {
             full,
+            format,
             total,
             received: 0,
             store,
@@ -130,12 +158,21 @@ impl StreamSink {
                 piece.extent, self.full
             )));
         }
+        if piece.plane.frame.format() != self.format {
+            return Err(fail(format!(
+                "stream piece {:?} is {:?}, sink assembles {:?}",
+                piece.extent,
+                piece.plane.frame.format(),
+                self.format
+            )));
+        }
         let floats = piece.plane.frame.as_slice();
         let bytes: &[u8] = bytemuck::cast_slice(floats);
+        let bpp = self.format.bytes_per_pixel();
         let want = piece
             .extent
             .area_u64()
-            .checked_mul(OUTPUT_BPP)
+            .checked_mul(bpp)
             .ok_or_else(|| fail(format!("stream piece {:?} overflows", piece.extent)))?;
         let got = u64::try_from(bytes.len())
             .map_err(|_| fail(format!("stream piece {:?} overflows", piece.extent)))?;
@@ -161,7 +198,7 @@ impl StreamSink {
         let start = dy
             .checked_mul(fx)
             .and_then(|rows| rows.checked_add(dx))
-            .and_then(|pixels| pixels.checked_mul(OUTPUT_BPP))
+            .and_then(|pixels| pixels.checked_mul(bpp))
             .ok_or_else(|| fail(format!("stream piece {:?} overflows", piece.extent)))?;
         let start = usize::try_from(start)
             .map_err(|_| fail(format!("stream piece {:?} overflows", piece.extent)))?;
@@ -181,7 +218,7 @@ impl StreamSink {
                         .ok_or_else(|| fail("stream piece leaves its output".to_owned()))?;
                     slot.copy_from_slice(bytes);
                 } else {
-                    Self::copy_rows(dst, bytes, &self.full, &piece.extent)?;
+                    Self::copy_rows(dst, bytes, &self.full, &piece.extent, bpp)?;
                 }
             }
             SinkStore::Mapped(mapped) => {
@@ -192,7 +229,7 @@ impl StreamSink {
                         .ok_or_else(|| fail("stream piece leaves its output".to_owned()))?;
                     slot.copy_from_slice(bytes);
                 } else {
-                    Self::copy_rows(&mut mapped.map, bytes, &self.full, &piece.extent)?;
+                    Self::copy_rows(&mut mapped.map, bytes, &self.full, &piece.extent, bpp)?;
                 }
             }
         }
@@ -206,21 +243,25 @@ impl StreamSink {
         src: &[u8],
         full: &FrameExtent,
         piece: &FrameExtent,
+        bpp: u64,
     ) -> Result<(), RenderError> {
         let fail = |detail: String| RenderError::Spill { detail };
+        let bpp = usize::try_from(bpp)
+            .ok()
+            .ok_or_else(|| fail("stream output stride overflows".to_owned()))?;
         let full_stride = usize::try_from(full.width)
             .ok()
-            .and_then(|width| width.checked_mul(16))
+            .and_then(|width| width.checked_mul(bpp))
             .ok_or_else(|| fail("stream output stride overflows".to_owned()))?;
         let piece_stride = usize::try_from(piece.width)
             .ok()
-            .and_then(|width| width.checked_mul(16))
+            .and_then(|width| width.checked_mul(bpp))
             .ok_or_else(|| fail("stream piece stride overflows".to_owned()))?;
         let dx = piece
             .x
             .checked_sub(full.x)
             .and_then(|off| usize::try_from(off).ok())
-            .and_then(|off| off.checked_mul(16))
+            .and_then(|off| off.checked_mul(bpp))
             .ok_or_else(|| fail("stream piece offset overflows".to_owned()))?;
         let dy = piece
             .y
@@ -296,7 +337,7 @@ impl StreamedOutput {
             StreamedOutput::Mapped(mapped) => mapped.extent(),
         }
     }
-    /// The output bytes, row-major 32-bit float RGBA.
+    /// The output bytes, row-major 32-bit floats.
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         match self {
@@ -328,7 +369,7 @@ impl MappedFrame {
         self.extent
     }
 
-    /// The output bytes, row-major 32-bit float RGBA.
+    /// The output bytes, row-major 32-bit floats.
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         &self.map
@@ -598,5 +639,90 @@ mod tests {
         drop(sink);
         let left: Vec<_> = std::fs::read_dir(dir.path()).unwrap().collect();
         assert!(left.is_empty());
+    }
+    /// One mono piece filled with `fill`.
+    fn mono_piece(
+        budget: &Arc<Budget>,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+        fill: f32,
+    ) -> StreamPiece {
+        let extent = FrameExtent::new(x, y, width, height);
+        let mut plane = alloc_shared(budget, extent, PixelFormat::MonoF32).unwrap();
+        plane.frame.as_mut_slice().fill(fill);
+        StreamPiece { extent, plane }
+    }
+
+    #[test]
+    fn mono_sink_sizes_by_four_bytes_per_pixel() {
+        let budget = budget();
+        let full = FrameExtent::new(0, 0, 64, 48);
+        let mut sink =
+            StreamSink::new_with_format(full, PixelFormat::MonoF32, u64::MAX, u64::MAX, None)
+                .unwrap();
+        assert!(!sink.spilled());
+        sink.push(&mono_piece(&budget, 0, 32, 64, 16, 2.0)).unwrap();
+        sink.push(&mono_piece(&budget, 0, 0, 64, 32, 1.0)).unwrap();
+        let out = sink.finish().unwrap();
+        assert!(matches!(out, StreamedOutput::Memory(_)));
+        let bytes: &[u8] = out.as_bytes();
+        assert_eq!(bytes.len(), 64 * 48 * 4);
+        let floats: &[f32] = bytemuck::cast_slice(bytes);
+        assert!(
+            floats[0..64 * 32]
+                .iter()
+                .all(|value| value.to_bits() == 1.0f32.to_bits())
+        );
+        assert!(
+            floats[64 * 32..]
+                .iter()
+                .all(|value| value.to_bits() == 2.0f32.to_bits())
+        );
+    }
+
+    #[test]
+    fn mono_disk_sink_assembles_partial_width_pieces() {
+        let budget = budget();
+        let full = FrameExtent::new(0, 0, 64, 48);
+        let dir = tempfile::tempdir().unwrap();
+        let mut sink =
+            StreamSink::new_with_format(full, PixelFormat::MonoF32, 0, u64::MAX, Some(dir.path()))
+                .unwrap();
+        assert!(sink.spilled());
+        // Half-width pieces land row by row, not as one run.
+        sink.push(&mono_piece(&budget, 0, 0, 32, 48, 1.0)).unwrap();
+        sink.push(&mono_piece(&budget, 32, 0, 32, 48, 2.0)).unwrap();
+        let out = sink.finish().unwrap();
+        assert!(matches!(out, StreamedOutput::Mapped(_)));
+        let bytes: &[u8] = out.as_bytes();
+        assert_eq!(bytes.len(), 64 * 48 * 4);
+        let floats: &[f32] = bytemuck::cast_slice(bytes);
+        for y in 0..48 {
+            for x in 0..64 {
+                let want = if x < 32 { 1.0 } else { 2.0 };
+                assert_eq!(floats[y * 64 + x], want, "pixel ({x},{y})");
+            }
+        }
+        drop(out);
+        let left: Vec<_> = std::fs::read_dir(dir.path()).unwrap().collect();
+        assert!(left.is_empty());
+    }
+
+    #[test]
+    fn piece_of_other_format_is_refused() {
+        let budget = budget();
+        let full = FrameExtent::new(0, 0, 64, 48);
+        let mut mono =
+            StreamSink::new_with_format(full, PixelFormat::MonoF32, u64::MAX, u64::MAX, None)
+                .unwrap();
+        let err = mono.push(&piece(&budget, 0, 0, 64, 48, 1.0)).unwrap_err();
+        assert!(matches!(err, crate::render::RenderError::Spill { .. }));
+        let mut rgba = StreamSink::new(full, u64::MAX, u64::MAX, None).unwrap();
+        let err = rgba
+            .push(&mono_piece(&budget, 0, 0, 64, 48, 1.0))
+            .unwrap_err();
+        assert!(matches!(err, crate::render::RenderError::Spill { .. }));
     }
 }

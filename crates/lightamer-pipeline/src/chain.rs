@@ -10,7 +10,10 @@ use std::fmt;
 use std::sync::Arc;
 
 use lightamer_geom::Roi as GeomRoi;
-use lightamer_iop_traits::{CommitData, ImageInfo, IopModule, PipeError, Roi as WireRoi};
+use lightamer_iop_traits::{
+    CommitData, ImageInfo, IopModule, PipeError, PixelFormat as WireFormat, Roi as WireRoi,
+};
+use lightamer_raster::PixelFormat as RasterFormat;
 use serde_json::{Map, Value};
 
 /// One module behind a shared pointer.
@@ -264,6 +267,26 @@ pub(crate) fn to_wire(roi: &GeomRoi) -> WireRoi {
 pub(crate) fn from_wire(roi: &WireRoi) -> Result<GeomRoi, String> {
     GeomRoi::new(roi.x, roi.y, roi.width, roi.height, roi.scale)
         .map_err(|err| format!("{roi:?}: {err}"))
+}
+
+/// Raster format to the wire shape modules speak.
+pub(crate) fn format_to_wire(format: RasterFormat) -> WireFormat {
+    match format {
+        RasterFormat::RgbaF32Premul => WireFormat::RgbaF32Premul,
+        RasterFormat::RgbaU8 => WireFormat::RgbaU8,
+        RasterFormat::RgbaU16 => WireFormat::RgbaU16,
+        RasterFormat::MonoF32 => WireFormat::MonoF32,
+    }
+}
+
+/// Wire format back to the raster format planes allocate.
+pub(crate) fn format_from_wire(format: WireFormat) -> RasterFormat {
+    match format {
+        WireFormat::RgbaF32Premul => RasterFormat::RgbaF32Premul,
+        WireFormat::RgbaU8 => RasterFormat::RgbaU8,
+        WireFormat::RgbaU16 => RasterFormat::RgbaU16,
+        WireFormat::MonoF32 => RasterFormat::MonoF32,
+    }
 }
 
 #[cfg(test)]
@@ -553,5 +576,19 @@ mod tests {
         assert_eq!((chain[0].id.as_str(), chain[0].multi), ("mod_up", 3));
         let boxed: Box<dyn std::error::Error> = Box::new(ChainError::UnknownModule("x".to_owned()));
         assert!(boxed.to_string().contains("unknown module"));
+    }
+    #[test]
+    fn format_mirrors_round_trip() {
+        use super::{format_from_wire, format_to_wire};
+        use lightamer_raster::PixelFormat as RasterFormat;
+
+        for format in [
+            RasterFormat::RgbaF32Premul,
+            RasterFormat::RgbaU8,
+            RasterFormat::RgbaU16,
+            RasterFormat::MonoF32,
+        ] {
+            assert_eq!(format_from_wire(format_to_wire(format)), format);
+        }
     }
 }

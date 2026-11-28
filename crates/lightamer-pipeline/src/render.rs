@@ -34,15 +34,17 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use lightamer_geom::Roi as GeomRoi;
-use lightamer_iop_traits::{ColorSpace, ImageInfo, PipeError, Plane, PlaneMut, Roi as WireRoi};
+use lightamer_iop_traits::{
+    ColorSpace, ImageInfo, PipeError, PixelFormat as WireFormat, Plane, PlaneMut, Roi as WireRoi,
+};
 use lightamer_raster::{Frame, FrameExtent, PixelFormat};
 use lightamer_sysmem::Budget;
 
 use super::budgeted::{BudgetedError, SharedFrame, alloc_shared};
-use super::cache::{PlaneCache, chain_keys};
+use super::cache::{PlaneCache, chain_keys_with_image};
 use super::chain::{
     ChainError, CommittedNode, ModuleLookup, NodeGeometry, PipeNode, backward_check, build_chain,
-    forward, to_wire,
+    format_from_wire, format_to_wire, forward, to_wire,
 };
 use super::kinds::{PipeKind, quota, quota_for, singlebuffer_floor, system_physical_memory};
 use super::negotiate::negotiate as negotiate_plan;
@@ -333,15 +335,24 @@ impl Pipe {
         &self.last_trace
     }
 
-    /// Allocates one streaming scratch or sink plane, evicting unhit cache
-    /// entries oldest-first until it fits. The protected set stays empty:
-    /// streaming never peeks the cache, so no entry is a live input.
+    /// Allocates one streaming scratch or sink plane of `format`, evicting
+    /// unhit cache entries oldest-first until it fits. The protected set
+    /// stays empty: streaming never peeks the cache, so no entry is a live
+    /// input.
     pub(crate) fn stream_alloc(
         &mut self,
         extent: FrameExtent,
+        format: PixelFormat,
         why: &str,
     ) -> Result<SharedFrame, RenderError> {
-        alloc_room(&self.budget, &mut self.cache, &HashSet::new(), extent, why)
+        alloc_room(
+            &self.budget,
+            &mut self.cache,
+            &HashSet::new(),
+            extent,
+            format,
+            why,
+        )
     }
 
     /// Replaces the last-trace report (streaming writes node totals on every
@@ -384,6 +395,7 @@ impl Pipe {
     /// # Errors
     ///
     /// [`RenderError`] for every failure above; see its variants.
+    #[expect(clippy::too_many_lines)] // one render pass (commit, geometry, footprints, per-node loop); splitting would scatter the cache/budget state
     pub fn render<L: ModuleLookup>(
         &mut self,
         req: &RenderRequest<'_, L>,
@@ -411,29 +423,44 @@ impl Pipe {
                 to: step.to,
             });
         }
-        let keys = chain_keys(self.kind, req.input_id, req.process, req.nodes, &geos);
+        let keys = chain_keys_with_image(
+            self.kind,
+            req.input_id,
+            req.process,
+            req.image,
+            req.nodes,
+            &geos,
+        );
 
         // Footprints before work: a frame no budget this size can host
         // refuses here, typed, with nothing allocated and nothing cached.
-        check_footprints(self.budget.cap(), self.floor, &geos)?;
+        let input_wire = format_to_wire(req.input.format());
+        check_footprints(self.budget.cap(), self.floor, &chain, &geos, input_wire)?;
 
         let mut prev: Option<Arc<SharedFrame>> = None;
         let mut protected: HashSet<u64> = HashSet::new();
+        // Running input format: node 0 reads the caller's frame, later nodes
+        // read the previous node's output. Advanced on hits and misses alike.
+        let mut in_wire = input_wire;
         for ((node, geo), key) in chain.iter().zip(geos.iter()).zip(keys.iter()) {
             if (req.cancel)() {
                 return Err(RenderError::Cancelled);
             }
             let want = geo_extent(&geo.output)?;
+            let out_wire = node.module.output_format(in_wire);
+            let out_format = format_from_wire(out_wire);
             if let Some(hit) = self.cache.peek(*key) {
                 // A key collision with different geometry recomputes (never a
                 // wrong plane): upstream invalidates size-mismatched cachelines
-                // the same way (`pixelpipe_cache.c`, `_get_by_hash`).
-                if hit.frame.extent() == want {
+                // the same way (`pixelpipe_cache.c`, `_get_by_hash`). A format
+                // mismatch recomputes for the same reason.
+                if hit.frame.extent() == want && hit.frame.format() == out_format {
                     self.cache.touch(*key);
                     protected.insert(*key);
                     self.last_trace
                         .push(NodeReport::for_node(node, true, 0, 0.0));
                     prev = Some(hit);
+                    in_wire = out_wire;
                     continue;
                 }
             }
@@ -444,7 +471,7 @@ impl Pipe {
             let treq = node
                 .module
                 .tiling(&node.data, &to_wire(&geo.input), &to_wire(&geo.output));
-            let frame_bytes = plane_bytes(&geo.output)?;
+            let frame_bytes = plane_bytes(&geo.output, out_format.bytes_per_pixel())?;
             let decision = decide(
                 &treq,
                 &geo.input,
@@ -456,8 +483,16 @@ impl Pipe {
             let started = Instant::now();
             let (plane, process_calls) = match decision {
                 TilingDecision::NoTiling => {
-                    let plane =
-                        run_untiled(&self.budget, &mut self.cache, &protected, node, geo, input)?;
+                    let plane = run_untiled(
+                        &self.budget,
+                        &mut self.cache,
+                        &protected,
+                        node,
+                        geo,
+                        input,
+                        format_from_wire(in_wire),
+                        out_format,
+                    )?;
                     (plane, 1)
                 }
                 TilingDecision::Tiled(grid) => run_tiled(
@@ -469,6 +504,8 @@ impl Pipe {
                     &grid,
                     input,
                     req.cancel,
+                    format_from_wire(in_wire),
+                    out_format,
                 )?,
             };
             self.last_trace.push(NodeReport::for_node(
@@ -484,6 +521,7 @@ impl Pipe {
             // uncached.
             let _ = self.cache.insert(*key, Arc::clone(&plane));
             prev = Some(plane);
+            in_wire = out_wire;
         }
         // Upstream entries land most-recently-used (B1-b rule): a downstream
         // edit reuses them while the reverse never holds. Keys refused or
@@ -520,6 +558,7 @@ impl Pipe {
             &mut self.cache,
             &protected,
             want,
+            req.input.format(),
             "empty chain",
         )?;
         out.frame
@@ -545,8 +584,8 @@ pub(crate) fn geo_extent(roi: &GeomRoi) -> Result<FrameExtent, RenderError> {
     Ok(FrameExtent::new(roi.x, roi.y, width, height))
 }
 
-/// Bytes of one full plane at `roi` (working format, 16 bytes per pixel).
-fn plane_bytes(roi: &GeomRoi) -> Result<u64, RenderError> {
+/// Bytes of one full plane at `roi` at `bpp` bytes per pixel.
+fn plane_bytes(roi: &GeomRoi, bpp: u64) -> Result<u64, RenderError> {
     let width = u64::try_from(roi.width).map_err(|_| RenderError::Frame {
         detail: format!("region width {} overflows its byte count", roi.width),
     })?;
@@ -555,7 +594,7 @@ fn plane_bytes(roi: &GeomRoi) -> Result<u64, RenderError> {
     })?;
     width
         .checked_mul(height)
-        .and_then(|area| area.checked_mul(PixelFormat::RgbaF32Premul.bytes_per_pixel()))
+        .and_then(|area| area.checked_mul(bpp))
         .ok_or_else(|| RenderError::Frame {
             detail: format!("region {roi:?} overflows its byte count"),
         })
@@ -576,18 +615,27 @@ fn map_budgeted(id: &str, err: BudgetedError) -> RenderError {
 /// Refuses runs whose frames no budget this size can host: node 0 charges
 /// its output (its input is the caller's uncharged plane), later nodes
 /// charge input + output, and every node margins `2 × floor` for a tiled
-/// scratch pair. Runs before any allocation, so a refusal leaves the budget
-/// and the cache exactly as found.
-fn check_footprints(cap: u64, floor: u64, geos: &[NodeGeometry]) -> Result<(), RenderError> {
+/// scratch pair. Each plane counts at its own format's byte size, threaded
+/// from `input` through the nodes' `output_format`. Runs before any
+/// allocation, so a refusal leaves the budget and the cache exactly as found.
+fn check_footprints(
+    cap: u64,
+    floor: u64,
+    chain: &[CommittedNode],
+    geos: &[NodeGeometry],
+    input: WireFormat,
+) -> Result<(), RenderError> {
     let reserve = floor.saturating_mul(2);
-    for (index, geo) in geos.iter().enumerate() {
-        let out = plane_bytes(&geo.output)?;
-        let input = if index == 0 {
+    let mut in_wire = input;
+    for (index, (node, geo)) in chain.iter().zip(geos.iter()).enumerate() {
+        let out_wire = node.module.output_format(in_wire);
+        let out = plane_bytes(&geo.output, format_from_wire(out_wire).bytes_per_pixel())?;
+        let upstream = if index == 0 {
             0
         } else {
-            plane_bytes(&geo.input)?
+            plane_bytes(&geo.input, format_from_wire(in_wire).bytes_per_pixel())?
         };
-        let need = input.saturating_add(out).saturating_add(reserve);
+        let need = upstream.saturating_add(out).saturating_add(reserve);
         if need > cap {
             return Err(RenderError::FrameTooLarge {
                 node: index,
@@ -595,8 +643,28 @@ fn check_footprints(cap: u64, floor: u64, geos: &[NodeGeometry]) -> Result<(), R
                 budget_bytes: cap,
             });
         }
+        in_wire = out_wire;
     }
     Ok(())
+}
+
+/// Output raster format of a node list: threads `input` through each node's
+/// `output_format`. Unknown ids resolve to identity (the pipe reports them
+/// as [`ChainError::UnknownModule`] when it builds, so this never invents
+/// a second error for them).
+#[must_use]
+pub fn chain_output_format<L: ModuleLookup>(
+    lookup: &L,
+    nodes: &[PipeNode],
+    input: WireFormat,
+) -> PixelFormat {
+    let mut format = input;
+    for node in nodes {
+        if let Some(module) = lookup.lookup(&node.id) {
+            format = module.output_format(format);
+        }
+    }
+    format_from_wire(format)
 }
 
 /// Allocates one plane, evicting cache entries this run has not hit (oldest
@@ -608,29 +676,29 @@ pub(crate) fn alloc_room(
     cache: &mut PlaneCache,
     protected: &HashSet<u64>,
     extent: FrameExtent,
+    format: PixelFormat,
     node_id: &str,
 ) -> Result<SharedFrame, RenderError> {
-    match alloc_shared(budget, extent, PixelFormat::RgbaF32Premul) {
+    match alloc_shared(budget, extent, format) {
         Ok(frame) => Ok(frame),
         Err(BudgetedError::Budget(_)) => {
-            let need = extent_bytes(&extent)?;
+            let need = extent_bytes(&extent, format.bytes_per_pixel())?;
             while budget.remaining() < need {
                 if cache.evict_oldest_except(protected).is_none() {
                     break;
                 }
             }
-            alloc_shared(budget, extent, PixelFormat::RgbaF32Premul)
-                .map_err(|err| map_budgeted(node_id, err))
+            alloc_shared(budget, extent, format).map_err(|err| map_budgeted(node_id, err))
         }
         Err(err) => Err(map_budgeted(node_id, err)),
     }
 }
 
-/// Bytes of one working-format plane at `extent` (16 bytes per pixel).
-fn extent_bytes(extent: &FrameExtent) -> Result<u64, RenderError> {
+/// Bytes of one plane at `extent` at `bpp` bytes per pixel.
+fn extent_bytes(extent: &FrameExtent, bpp: u64) -> Result<u64, RenderError> {
     extent
         .area_u64()
-        .checked_mul(PixelFormat::RgbaF32Premul.bytes_per_pixel())
+        .checked_mul(bpp)
         .ok_or_else(|| RenderError::Frame {
             detail: format!("extent {extent:?} overflows its byte count"),
         })
@@ -655,6 +723,7 @@ fn check_input(id: &str, input: &Frame, geo: &NodeGeometry) -> Result<(), Render
 ///
 /// An empty input region still calls `process` (with empty planes): the
 /// module reports it needs no input, not that it does nothing.
+#[expect(clippy::too_many_arguments)] // one whole-frame run with its budget, cache, geometry, formats, and input; a params struct would just rename the args
 fn run_untiled(
     budget: &Arc<Budget>,
     cache: &mut PlaneCache,
@@ -662,23 +731,35 @@ fn run_untiled(
     node: &CommittedNode,
     geo: &NodeGeometry,
     input: &Frame,
+    in_format: PixelFormat,
+    out_format: PixelFormat,
 ) -> Result<SharedFrame, RenderError> {
     check_input(&node.id, input, geo)?;
-    let mut out = alloc_room(budget, cache, protected, geo_extent(&geo.output)?, &node.id)?;
+    let mut out = alloc_room(
+        budget,
+        cache,
+        protected,
+        geo_extent(&geo.output)?,
+        out_format,
+        &node.id,
+    )?;
     let in_extent = input.extent();
     let in_plane = if geo.input.is_empty() {
-        Plane::from_slice(&[], 0, 0, 0).map_err(|err| RenderError::Frame {
-            detail: format!(
-                "node '{}' empty input plane would not build: {err}",
-                node.id
-            ),
+        Plane::from_slice_channels(&[], 0, 0, 0, in_format.channel_count()).map_err(|err| {
+            RenderError::Frame {
+                detail: format!(
+                    "node '{}' empty input plane would not build: {err}",
+                    node.id
+                ),
+            }
         })?
     } else {
-        Plane::from_slice(
+        Plane::from_slice_channels(
             input.as_slice(),
             in_extent.width,
             in_extent.height,
             input.row_stride(),
+            in_format.channel_count(),
         )
         .map_err(|err| RenderError::Frame {
             detail: format!("node '{}' input plane would not build: {err}", node.id),
@@ -686,11 +767,12 @@ fn run_untiled(
     };
     let out_extent = out.frame.extent();
     let out_stride = out.frame.row_stride();
-    let mut out_plane = PlaneMut::from_slice(
+    let mut out_plane = PlaneMut::from_slice_channels(
         out.frame.as_mut_slice(),
         out_extent.width,
         out_extent.height,
         out_stride,
+        out_format.channel_count(),
     )
     .map_err(|err| RenderError::Frame {
         detail: format!("node '{}' output plane would not build: {err}", node.id),
@@ -728,9 +810,18 @@ fn run_tiled(
     grid: &TileGrid,
     input: &Frame,
     cancel: &dyn Fn() -> bool,
+    in_format: PixelFormat,
+    out_format: PixelFormat,
 ) -> Result<(SharedFrame, u32), RenderError> {
     check_input(&node.id, input, geo)?;
-    let mut out = alloc_room(budget, cache, protected, geo_extent(&geo.output)?, &node.id)?;
+    let mut out = alloc_room(
+        budget,
+        cache,
+        protected,
+        geo_extent(&geo.output)?,
+        out_format,
+        &node.id,
+    )?;
     if grid.tiles.is_empty() {
         return Ok((out, 0));
     }
@@ -748,8 +839,22 @@ fn run_tiled(
     // out-of-budget, where upstream falls back to untiled processing with a
     // log line.
     let scratch_extent = FrameExtent::new(0, 0, widest, tallest);
-    let mut scratch_in = alloc_room(budget, cache, protected, scratch_extent, &node.id)?;
-    let mut scratch_out = alloc_room(budget, cache, protected, scratch_extent, &node.id)?;
+    let mut scratch_in = alloc_room(
+        budget,
+        cache,
+        protected,
+        scratch_extent,
+        in_format,
+        &node.id,
+    )?;
+    let mut scratch_out = alloc_room(
+        budget,
+        cache,
+        protected,
+        scratch_extent,
+        out_format,
+        &node.id,
+    )?;
     let mut run = TileRun {
         node,
         geo,
@@ -827,6 +932,7 @@ fn fill_tile_input(run: &mut TileRun<'_>, tile: &Tile) -> Result<usize, RenderEr
         detail: format!("node '{id}' tile height overflows its row count"),
     })?;
     let stride = run.scratch_in.row_stride();
+    let channels = run.scratch_in.format().channel_count();
     let in_len = rows.checked_mul(stride).ok_or_else(|| RenderError::Frame {
         detail: format!("node '{id}' tile input rows overflow"),
     })?;
@@ -837,8 +943,8 @@ fn fill_tile_input(run: &mut TileRun<'_>, tile: &Tile) -> Result<usize, RenderEr
         .ok_or_else(|| RenderError::Frame {
             detail: format!("node '{id}' tile input exceeds its scratch"),
         })?;
-    let mut in_plane =
-        PlaneMut::from_slice(in_sub, width, height, stride).map_err(|err| RenderError::Frame {
+    let mut in_plane = PlaneMut::from_slice_channels(in_sub, width, height, stride, channels)
+        .map_err(|err| RenderError::Frame {
             detail: format!("node '{id}' tile input plane would not build: {err}"),
         })?;
     for row in 0..height {
@@ -867,6 +973,7 @@ fn process_tile(run: &mut TileRun<'_>, tile: &Tile, in_len: usize) -> Result<Wir
         detail: format!("node '{id}' tile height overflows its row count"),
     })?;
     let stride_out = run.scratch_out.row_stride();
+    let out_channels = run.scratch_out.format().channel_count();
     let out_len = rows
         .checked_mul(stride_out)
         .ok_or_else(|| RenderError::Frame {
@@ -879,11 +986,12 @@ fn process_tile(run: &mut TileRun<'_>, tile: &Tile, in_len: usize) -> Result<Wir
         .ok_or_else(|| RenderError::Frame {
             detail: format!("node '{id}' tile output exceeds its scratch"),
         })?;
-    let mut tile_out = PlaneMut::from_slice(out_sub, width, height, stride_out).map_err(|err| {
-        RenderError::Frame {
-            detail: format!("node '{id}' tile output plane would not build: {err}"),
-        }
-    })?;
+    let mut tile_out =
+        PlaneMut::from_slice_channels(out_sub, width, height, stride_out, out_channels).map_err(
+            |err| RenderError::Frame {
+                detail: format!("node '{id}' tile output plane would not build: {err}"),
+            },
+        )?;
     let stride_in = run.scratch_in.row_stride();
     let in_sub = run
         .scratch_in
@@ -892,10 +1000,16 @@ fn process_tile(run: &mut TileRun<'_>, tile: &Tile, in_len: usize) -> Result<Wir
         .ok_or_else(|| RenderError::Frame {
             detail: format!("node '{id}' tile input exceeds its scratch"),
         })?;
-    let tile_in =
-        Plane::from_slice(in_sub, width, height, stride_in).map_err(|err| RenderError::Frame {
-            detail: format!("node '{id}' tile input plane would not build: {err}"),
-        })?;
+    let tile_in = Plane::from_slice_channels(
+        in_sub,
+        width,
+        height,
+        stride_in,
+        run.scratch_in.format().channel_count(),
+    )
+    .map_err(|err| RenderError::Frame {
+        detail: format!("node '{id}' tile input plane would not build: {err}"),
+    })?;
     let oroi = tile_output_roi(run.node, run.geo, tile)?;
     run.node
         .module
@@ -975,15 +1089,25 @@ fn copy_good_part(
         .get(0..sub_len)
         .ok_or_else(|| fail("good part exceeds its scratch"))?;
     let tile_w = u32::try_from(tile.input.width).map_err(|_| fail("tile width overflows"))?;
-    let src_plane =
-        Plane::from_slice(sub, tile_w, tile_h, stride).map_err(|err| fail(&err.to_string()))?;
+    let channels = usize::try_from(scratch.format().channel_count())
+        .map_err(|_| fail("good channels overflow"))?;
+    let src_plane = Plane::from_slice_channels(
+        sub,
+        tile_w,
+        tile_h,
+        stride,
+        scratch.format().channel_count(),
+    )
+    .map_err(|err| fail(&err.to_string()))?;
     let good_extent = FrameExtent::new(tile.output.x, tile.output.y, good_w, good_h);
     let mut dst = out
         .view_mut(good_extent)
         .map_err(|err| fail(&err.to_string()))?;
-    let ox4 = usize::try_from(ox).map_err(|_| fail("good offset overflows"))?;
-    let good4 = usize::try_from(good_w).map_err(|_| fail("good width overflows"))?;
-    let (Some(ox4), Some(good4)) = (ox4.checked_mul(4), good4.checked_mul(4)) else {
+    let ox_px = usize::try_from(ox).map_err(|_| fail("good offset overflows"))?;
+    let good_px = usize::try_from(good_w).map_err(|_| fail("good width overflows"))?;
+    let (Some(ox_lanes), Some(good_lanes)) =
+        (ox_px.checked_mul(channels), good_px.checked_mul(channels))
+    else {
         return Err(fail("good columns overflow"));
     };
     for row in 0..good_h {
@@ -994,7 +1118,7 @@ fn copy_good_part(
             .row(src_row)
             .map_err(|err| fail(&err.to_string()))?;
         let seg = src
-            .get(ox4..ox4 + good4)
+            .get(ox_lanes..ox_lanes + good_lanes)
             .ok_or_else(|| fail("good columns leave their row"))?;
         let dst_row = dst.row_mut(row).map_err(|err| fail(&err.to_string()))?;
         if dst_row.len() != seg.len() {
@@ -1338,7 +1462,7 @@ mod tests {
         render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
         let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
-        let keys = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes, &geos);
+        let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         let before = pipe.cache.peek(keys[0]).unwrap();
         let nodes = vec![node("mod_a"), gain_node("mod_b", 3.0)];
         render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
@@ -1346,7 +1470,7 @@ mod tests {
         // plane is the same allocation, not a fresh copy.
         let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
-        let keys = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes, &geos);
+        let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         let after = pipe.cache.peek(keys[0]).unwrap();
         assert!(Arc::ptr_eq(&before, &after));
         assert_eq!(probes[0].calls(), 1);
@@ -1663,7 +1787,7 @@ mod tests {
         // equal the copied input. Nodes 1-2 have no entries.
         let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
-        let keys = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes, &geos);
+        let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         assert_eq!(pipe.cache_len(), 1);
         assert_eq!(
             pipe.cache.peek(keys[0]).unwrap().frame.as_slice(),
@@ -2341,7 +2465,7 @@ mod tests {
         // Both entries resolve under their keys with the copied bytes.
         let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
-        let keys = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes, &geos);
+        let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         assert_eq!(
             pipe.cache.peek(keys[0]).unwrap().frame.as_slice(),
             input.as_slice()
@@ -2505,7 +2629,7 @@ mod tests {
         );
         let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
-        let keys = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes, &geos);
+        let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         assert_eq!(pipe.cache_len(), 3);
         for key in keys.iter().take(3) {
             assert_eq!(
@@ -2568,7 +2692,14 @@ mod tests {
         );
         let chain = crate::chain::build_chain(&failing, &nodes_failing, &image).unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
-        let keys = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes_failing, &geos);
+        let keys = crate::cache::chain_keys_with_image(
+            PipeKind::Full,
+            7,
+            1,
+            &image,
+            &nodes_failing,
+            &geos,
+        );
         assert_eq!(pipe.cache_len(), 2);
         assert_eq!(
             pipe.cache.peek(keys[0]).unwrap().frame.as_slice(),
@@ -2584,7 +2715,8 @@ mod tests {
         let nodes_fixed = vec![node("mod_a"), node("mod_b"), node("mod_c")];
         let chain = crate::chain::build_chain(&fixed, &nodes_fixed, &image).unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
-        let fixed_keys = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes_fixed, &geos);
+        let fixed_keys =
+            crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes_fixed, &geos);
         assert_eq!(fixed_keys[0], keys[0]);
         assert_eq!(fixed_keys[1], keys[1]);
         let out = render_ok(
@@ -2624,7 +2756,8 @@ mod tests {
         );
         let chain = crate::chain::build_chain(&lookup, &nodes_a, &image).unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
-        let keys_a = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes_a, &geos);
+        let keys_a =
+            crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes_a, &geos);
         assert_eq!(pipe.cache_len(), 2);
         let nodes_b = vec![node("mod_a")];
         let out = render_with_id(
@@ -2639,7 +2772,8 @@ mod tests {
         assert_eq!(out.frame().as_slice(), input.as_slice());
         let chain = crate::chain::build_chain(&lookup, &nodes_b, &image).unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
-        let keys_b = crate::cache::chain_keys(PipeKind::Full, 9, 1, &nodes_b, &geos);
+        let keys_b =
+            crate::cache::chain_keys_with_image(PipeKind::Full, 9, 1, &image, &nodes_b, &geos);
         // Oldest first: A's node 1 entry (oldest after the success-touch
         // reversal) yields, node 0 survives beside B.
         assert!(pipe.cache.peek(keys_a[1]).is_none());
@@ -2675,7 +2809,8 @@ mod tests {
         );
         let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
-        let keys_a = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes, &geos);
+        let keys_a =
+            crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         assert_eq!(pipe.cache_len(), 1);
         assert_eq!(pipe.budget().used(), 1_024);
         let input_b = pattern_frame(8, 16);
@@ -2724,12 +2859,14 @@ mod tests {
         );
         let chain = crate::chain::build_chain(&lookup, &nodes_a, &image).unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
-        let keys_a = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes_a, &geos);
+        let keys_a =
+            crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes_a, &geos);
         let held_a0 = pipe.cache.peek(keys_a[0]).unwrap();
         let nodes_b = vec![node("mod_a"), node("mod_s")];
         let chain = crate::chain::build_chain(&lookup, &nodes_b, &image).unwrap();
         let geos = forward(&chain, &GeomRoi::new(0, 0, 24, 24, 1.0).unwrap()).unwrap();
-        let keys_b = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes_b, &geos);
+        let keys_b =
+            crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes_b, &geos);
         // Same photo, same node 0 prefix: the hit key never moved.
         assert_eq!(keys_b[0], keys_a[0]);
         let out = render_with_id(
@@ -2768,7 +2905,7 @@ mod tests {
     fn pipe_reports_max_frame_bytes_per_kind() {
         // (budget − 2 × floor) / 2 at the 16 GiB derivations, pinned exactly.
         const MIB: u64 = 1024 * 1024;
-        let total = 16 * 1024 * MIB;
+        let total = 1024 * MIB * 16;
         for (kind, budget, floor, max) in [
             (PipeKind::Full, 2_748_779_069, 128 * MIB, 1_240_171_806),
             (PipeKind::Export, 2_748_779_069, 128 * MIB, 1_240_171_806),
@@ -2927,7 +3064,8 @@ mod tests {
         // A's entries are all gone; the budget never topped.
         let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
         let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
-        let keys_a = crate::cache::chain_keys(PipeKind::Full, 7, 1, &nodes, &geos);
+        let keys_a =
+            crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
         for key in &keys_a {
             assert!(tight.cache.peek(*key).is_none());
         }
@@ -3122,5 +3260,232 @@ mod tests {
         let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
         render_ok(&mut pipe, &[], &lookup, &image, &input, geom(0, 0, 8, 8));
         assert!(pipe.last_trace().is_empty());
+    }
+    fn mono_image() -> ImageInfo {
+        ImageInfo::new(64, 64, ColorSpace::Raw)
+            .with_format(lightamer_iop_traits::PixelFormat::MonoF32)
+    }
+
+    fn mono_filled_frame(x: i32, y: i32, w: u32, h: u32, value: f32) -> Frame {
+        let len = w as usize * h as usize;
+        Frame::from_parts(vec![value; len], extent(x, y, w, h), PixelFormat::MonoF32).unwrap()
+    }
+
+    #[expect(clippy::cast_precision_loss)] // test frames are small; the conversion is exact
+    fn mono_pattern_frame(w: u32, h: u32) -> Frame {
+        let len = w as usize * h as usize;
+        let buf: Vec<f32> = (0..len).map(|i| i as f32 * 0.125 - 3.0).collect();
+        Frame::from_parts(buf, extent(0, 0, w, h), PixelFormat::MonoF32).unwrap()
+    }
+
+    #[test]
+    fn mono_empty_chain_copies_bitwise() {
+        let lookup = table(vec![]);
+        let image = mono_image();
+        let input = mono_pattern_frame(8, 8);
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
+        let out = render_ok(&mut pipe, &[], &lookup, &image, &input, geom(0, 0, 8, 8));
+        assert_eq!(out.frame().format(), PixelFormat::MonoF32);
+        assert_eq!(out.frame().as_slice(), input.as_slice());
+    }
+
+    #[test]
+    fn mono_gain_chain_doubles_every_lane() {
+        let lookup = table(vec![Arc::new(FakeGain::new(
+            "mod_g",
+            Arc::new(Probe::new()),
+        ))]);
+        let image = mono_image();
+        let input = mono_pattern_frame(8, 8);
+        let nodes = vec![gain_node("mod_g", 2.0)];
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
+        let out = render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
+        assert_eq!(out.frame().format(), PixelFormat::MonoF32);
+        let got = out.frame().as_slice();
+        let want: Vec<f32> = input.as_slice().iter().map(|v| v * 2.0).collect();
+        assert_eq!(got, want.as_slice());
+        assert_eq!(pipe.budget().used(), 8 * 8 * 4);
+    }
+
+    #[test]
+    fn mono_tiled_copy_matches_untiled_bitwise() {
+        // 64x64 mono (16_384 bytes), factor 8: a 40_000 budget tiles 5x5
+        // (available = 40_000 - 2 * 16_384 = 7_232; single = 904; scale =
+        // 904 / 16_384 = 0.055 < 0.333, so sqrt shrink: 15x15 tiles,
+        // ceil(64 / 15) = 5 per side, 25 tiles); a 4 GiB budget stays untiled.
+        let probe_tiled = Arc::new(Probe::new());
+        let tiled_lookup = table(vec![Arc::new(FakeMem::new(
+            "mod_m",
+            Arc::clone(&probe_tiled),
+            8.0,
+            0,
+        ))]);
+        let probe_plain = Arc::new(Probe::new());
+        let plain_lookup = table(vec![Arc::new(FakeMem::new(
+            "mod_m",
+            Arc::clone(&probe_plain),
+            8.0,
+            0,
+        ))]);
+        let image = mono_image();
+        let input = mono_pattern_frame(64, 64);
+        let nodes = vec![node("mod_m")];
+        let mut tiled = Pipe::with_budget_and_floor(PipeKind::Full, 40_000, 0);
+        let tiled_out = render_ok(
+            &mut tiled,
+            &nodes,
+            &tiled_lookup,
+            &image,
+            &input,
+            geom(0, 0, 64, 64),
+        );
+        let mut plain = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
+        let plain_out = render_ok(
+            &mut plain,
+            &nodes,
+            &plain_lookup,
+            &image,
+            &input,
+            geom(0, 0, 64, 64),
+        );
+        assert_eq!(tiled_out.frame().format(), PixelFormat::MonoF32);
+        assert_eq!(tiled_out.frame().as_slice(), plain_out.frame().as_slice());
+        assert_eq!(tiled_out.frame().as_slice(), input.as_slice());
+        assert_eq!(probe_tiled.calls(), 25);
+        assert_eq!(probe_plain.calls(), 1);
+    }
+
+    /// Test module declaring mono-in/RGBA-out: replicates its single lane.
+    struct MonoToRgba {
+        desc: lightamer_iop_traits::ModuleDesc,
+    }
+
+    struct MonoToRgbaCommit;
+
+    impl lightamer_iop_traits::IopModule for MonoToRgba {
+        fn desc(&self) -> &lightamer_iop_traits::ModuleDesc {
+            &self.desc
+        }
+
+        fn commit(
+            &self,
+            _params: &serde_json::Map<String, serde_json::Value>,
+            _image: &ImageInfo,
+        ) -> Result<lightamer_iop_traits::CommitData, lightamer_iop_traits::PipeError> {
+            Ok(Arc::new(MonoToRgbaCommit))
+        }
+
+        fn output_format(
+            &self,
+            input: lightamer_iop_traits::PixelFormat,
+        ) -> lightamer_iop_traits::PixelFormat {
+            match input {
+                lightamer_iop_traits::PixelFormat::MonoF32 => {
+                    lightamer_iop_traits::PixelFormat::RgbaF32Premul
+                }
+                other => other,
+            }
+        }
+
+        fn process(
+            &self,
+            data: &lightamer_iop_traits::CommitData,
+            input: &lightamer_iop_traits::Plane<'_>,
+            output: &mut lightamer_iop_traits::PlaneMut<'_>,
+            rin: lightamer_iop_traits::Roi,
+            rout: lightamer_iop_traits::Roi,
+        ) -> Result<(), lightamer_iop_traits::PipeError> {
+            if data.downcast_ref::<MonoToRgbaCommit>().is_none() {
+                return Err(lightamer_iop_traits::PipeError::Backend(
+                    "mono-to-rgba opened a foreign commit".to_owned(),
+                ));
+            }
+            if rin.width != rout.width || rin.height != rout.height {
+                return Err(lightamer_iop_traits::PipeError::RoiMismatch(
+                    "mono-to-rgba needs equal shapes".to_owned(),
+                ));
+            }
+            for y in 0..rout.height.max(0).cast_unsigned() {
+                let src = input.row(y)?.to_vec();
+                let dst = output.row_mut(y)?;
+                let rep = dst.len() / src.len().max(1);
+                for (x, lane) in src.iter().enumerate() {
+                    let base = x * rep;
+                    for slot in dst.iter_mut().skip(base).take(rep) {
+                        *slot = *lane;
+                    }
+                }
+            }
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn format_change_mid_chain_threads_plane_formats() {
+        let key = lightamer_iop_traits::OrderKey {
+            priority: 1.0,
+            tie: 0,
+        };
+        let lookup = table(vec![
+            Arc::new(MonoToRgba {
+                desc: lightamer_iop_traits::ModuleDesc::stub("mod_expand", key, key),
+            }),
+            Arc::new(FakeGain::new("mod_g", Arc::new(Probe::new()))),
+        ]);
+        let image = mono_image();
+        let input = mono_filled_frame(0, 0, 8, 8, 3.0);
+        let nodes = vec![node("mod_expand"), gain_node("mod_g", 2.0)];
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
+        let out = render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
+        assert_eq!(out.frame().format(), PixelFormat::RgbaF32Premul);
+        assert!(
+            out.frame()
+                .as_slice()
+                .iter()
+                .all(|v| v.to_bits() == 6.0f32.to_bits())
+        );
+        // The helper threads the same declarations the run used.
+        assert_eq!(
+            super::chain_output_format(&lookup, &nodes, lightamer_iop_traits::PixelFormat::MonoF32),
+            PixelFormat::RgbaF32Premul
+        );
+        assert_eq!(
+            super::chain_output_format(
+                &lookup,
+                &[node("__missing__")],
+                lightamer_iop_traits::PixelFormat::MonoF32
+            ),
+            PixelFormat::MonoF32
+        );
+    }
+
+    #[test]
+    fn cache_hit_with_other_format_recomputes() {
+        let probe = Arc::new(Probe::new());
+        let lookup = table(vec![Arc::new(FakeCopy::new("mod_a", Arc::clone(&probe)))]);
+        let image = image();
+        let input = filled_frame(0, 0, 8, 8, 1.0);
+        let nodes = vec![node("mod_a")];
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 0);
+        render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
+        assert_eq!(probe.calls(), 1);
+        // Poison the entry with a mono plane under the same key: the next
+        // render recomputes instead of serving the wrong format.
+        let chain = crate::chain::build_chain(&lookup, &nodes, &image).unwrap();
+        let geos = forward(&chain, &geom(0, 0, 8, 8)).unwrap();
+        let keys = crate::cache::chain_keys_with_image(PipeKind::Full, 7, 1, &image, &nodes, &geos);
+        let poison =
+            crate::budgeted::alloc_shared(pipe.budget(), extent(0, 0, 8, 8), PixelFormat::MonoF32)
+                .unwrap();
+        assert!(pipe.cache.insert(keys[0], Arc::new(poison)));
+        let out = render_ok(&mut pipe, &nodes, &lookup, &image, &input, geom(0, 0, 8, 8));
+        assert_eq!(probe.calls(), 2);
+        assert_eq!(out.frame().format(), PixelFormat::RgbaF32Premul);
+        assert!(
+            out.frame()
+                .as_slice()
+                .iter()
+                .all(|v| v.to_bits() == 1.0f32.to_bits())
+        );
     }
 }

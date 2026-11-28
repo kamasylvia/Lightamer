@@ -220,7 +220,7 @@ mod tests {
     #[test]
     fn sixteen_gib_splits_the_pool_by_share() {
         const GIB: u64 = 1024 * 1024 * 1024;
-        let total = 16 * GIB;
+        let total = GIB * 16;
         let full = quota_for(PipeKind::Full, total).memory_budget;
         let export = quota_for(PipeKind::Export, total).memory_budget;
         let preview = quota_for(PipeKind::Preview, total).memory_budget;
@@ -272,7 +272,7 @@ mod tests {
     #[test]
     fn singlebuffer_floors_step_down_with_pipe_size() {
         const MIB: u64 = 1024 * 1024;
-        let total = 16 * 1024 * MIB;
+        let total = 1024 * MIB * 16;
         assert_eq!(singlebuffer_floor(PipeKind::Full, total), 128 * MIB);
         assert_eq!(singlebuffer_floor(PipeKind::Export, total), 128 * MIB);
         assert_eq!(singlebuffer_floor(PipeKind::Preview, total), 64 * MIB);

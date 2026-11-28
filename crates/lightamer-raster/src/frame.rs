@@ -79,7 +79,7 @@ pub enum RasterError {
         /// Human-readable detail.
         detail: String,
     },
-    /// Only [`PixelFormat::RgbaF32Premul`] is allocatable in B1.
+    /// Only float formats allocate ([`PixelFormat::RgbaF32Premul`] and [`PixelFormat::MonoF32`]).
     UnsupportedFormat {
         /// Human-readable detail.
         detail: String,
@@ -108,16 +108,13 @@ impl std::error::Error for RasterError {}
 /// Largest element count a `Vec<f32>` may hold without a capacity panic.
 const MAX_ELEMS: u64 = isize::MAX as u64;
 
-/// Floats per pixel in the working format.
-const WORKING_CHANNELS: u64 = 4;
-
 /// An owned working-format frame: buffer plus extent plus format.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Frame {
     buf: Vec<f32>,
     extent: FrameExtent,
     format: PixelFormat,
-    /// Floats per row (`width * 4`); fixed at allocation so accessors divide
+    /// Floats per row (`width × channels`); fixed at allocation so accessors divide
     /// without re-checking.
     stride: usize,
 }
@@ -127,21 +124,22 @@ impl Frame {
     ///
     /// # Errors
     ///
-    /// [`RasterError::UnsupportedFormat`] for anything but
-    /// [`PixelFormat::RgbaF32Premul`]; [`RasterError::TooLarge`] when
-    /// `width * height * 4` overflows `u64` or exceeds addressable memory.
+    /// [`RasterError::UnsupportedFormat`] for non-float formats;
+    /// [`RasterError::TooLarge`] when `width * height * channels` overflows
+    /// `u64` or exceeds addressable memory.
     pub fn alloc(extent: FrameExtent, format: PixelFormat) -> Result<Self, RasterError> {
         if !format.is_allocatable() {
             return Err(RasterError::UnsupportedFormat {
-                detail: format!("{format:?} is named only; B1 allocates RgbaF32Premul"),
+                detail: format!("{format:?} is named only; only float formats allocate"),
             });
         }
+        let channels = u64::from(format.channel_count());
         let elems = extent
             .area_u64()
-            .checked_mul(WORKING_CHANNELS)
+            .checked_mul(channels)
             .filter(|elems| *elems <= MAX_ELEMS)
             .ok_or(RasterError::TooLarge { elems: u64::MAX })?;
-        let stride = usize::try_from(u64::from(extent.width) * WORKING_CHANNELS)
+        let stride = usize::try_from(u64::from(extent.width) * channels)
             .map_err(|_| RasterError::TooLarge { elems })?;
         let len = usize::try_from(elems).map_err(|_| RasterError::TooLarge { elems })?;
         Ok(Self {
@@ -165,17 +163,17 @@ impl Frame {
     ) -> Result<Self, RasterError> {
         if !format.is_allocatable() {
             return Err(RasterError::UnsupportedFormat {
-                detail: format!("{format:?} is named only; B1 allocates RgbaF32Premul"),
+                detail: format!("{format:?} is named only; only float formats allocate"),
             });
         }
-        let want = extent.area_u64().saturating_mul(WORKING_CHANNELS);
+        let channels = u64::from(format.channel_count());
+        let want = extent.area_u64().saturating_mul(channels);
         if u64::try_from(buf.len()).is_ok_and(|len| len == want) {
-            let stride =
-                usize::try_from(u64::from(extent.width) * WORKING_CHANNELS).map_err(|_| {
-                    RasterError::ShapeMismatch {
-                        detail: format!("width {} overflows row stride", extent.width),
-                    }
-                })?;
+            let stride = usize::try_from(u64::from(extent.width) * channels).map_err(|_| {
+                RasterError::ShapeMismatch {
+                    detail: format!("width {} overflows row stride", extent.width),
+                }
+            })?;
             Ok(Self {
                 buf,
                 extent,
@@ -303,8 +301,9 @@ impl Frame {
         Ok(FrameView {
             data: &self.buf,
             rect,
-            base: oy * self.stride as u64 + ox * WORKING_CHANNELS,
+            base: oy * self.stride as u64 + ox * u64::from(self.format.channel_count()),
             stride: self.stride,
+            channels: self.format.channel_count(),
         })
     }
 
@@ -332,8 +331,9 @@ impl Frame {
         Ok(FrameViewMut {
             data: &mut self.buf,
             rect,
-            base: oy * self.stride as u64 + ox * WORKING_CHANNELS,
+            base: oy * self.stride as u64 + ox * u64::from(self.format.channel_count()),
             stride: self.stride,
+            channels: self.format.channel_count(),
         })
     }
     /// Copies `src` over `self` wholesale.
@@ -376,6 +376,7 @@ pub struct FrameView<'a> {
     rect: FrameExtent,
     base: u64,
     stride: usize,
+    channels: u32,
 }
 
 impl FrameView<'_> {
@@ -397,7 +398,7 @@ impl FrameView<'_> {
             });
         }
         let start = self.base + u64::from(y) * self.stride as u64;
-        let len = u64::from(self.rect.width) * WORKING_CHANNELS;
+        let len = u64::from(self.rect.width) * u64::from(self.channels);
         let (start, len) = (
             usize::try_from(start).map_err(|_| RasterError::OutOfBounds {
                 detail: format!("view row {y} address overflows"),
@@ -420,6 +421,7 @@ pub struct FrameViewMut<'a> {
     rect: FrameExtent,
     base: u64,
     stride: usize,
+    channels: u32,
 }
 
 impl FrameViewMut<'_> {
@@ -441,7 +443,7 @@ impl FrameViewMut<'_> {
             });
         }
         let start = self.base + u64::from(y) * self.stride as u64;
-        let len = u64::from(self.rect.width) * WORKING_CHANNELS;
+        let len = u64::from(self.rect.width) * u64::from(self.channels);
         let (start, len) = (
             usize::try_from(start).map_err(|_| RasterError::OutOfBounds {
                 detail: format!("view row {y} address overflows"),
@@ -608,5 +610,45 @@ mod tests {
         );
         let boxed: Box<dyn std::error::Error> = Box::new(RasterError::TooLarge { elems: 1 });
         assert!(boxed.to_string().contains("addressable memory"));
+    }
+    #[test]
+    fn mono_alloc_sizes_rows_and_views_by_one_channel() {
+        let mut frame = Frame::alloc(extent(3, 2), PixelFormat::MonoF32).unwrap();
+        assert_eq!(frame.format(), PixelFormat::MonoF32);
+        assert_eq!(frame.row_stride(), 3);
+        assert_eq!(frame.as_slice().len(), 3 * 2);
+        assert_eq!(frame.row(1).unwrap().len(), 3);
+        frame.row_mut(0).unwrap().fill(5.0);
+        let rect = FrameExtent::new(1, 0, 2, 2);
+        let view = frame.view(rect).unwrap();
+        assert_eq!(view.row(0).unwrap().len(), 2);
+        assert!(
+            view.row(0)
+                .unwrap()
+                .iter()
+                .all(|v| v.to_bits() == 5.0f32.to_bits())
+        );
+        assert!(
+            view.row(1)
+                .unwrap()
+                .iter()
+                .all(|v| v.to_bits() == 0.0f32.to_bits())
+        );
+    }
+
+    #[test]
+    fn mono_from_parts_checks_single_channel_length() {
+        let good = vec![1.0f32; 2 * 2];
+        let frame = Frame::from_parts(good, extent(2, 2), PixelFormat::MonoF32).unwrap();
+        assert_eq!(frame.row_stride(), 2);
+        let rgba_len = vec![1.0f32; 2 * 2 * 4];
+        assert!(Frame::from_parts(rgba_len, extent(2, 2), PixelFormat::MonoF32).is_err());
+    }
+
+    #[test]
+    fn whole_copy_refuses_across_formats() {
+        let mut dst = Frame::alloc(extent(2, 2), PixelFormat::MonoF32).unwrap();
+        let src = Frame::alloc(extent(2, 2), PixelFormat::RgbaF32Premul).unwrap();
+        assert!(dst.copy_from(&src).is_err());
     }
 }

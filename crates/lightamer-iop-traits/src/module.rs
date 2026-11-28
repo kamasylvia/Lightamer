@@ -7,7 +7,8 @@ use std::sync::Arc;
 use serde_json::{Map, Value};
 
 use super::{
-    ColorSpace, ImageInfo, ModuleDesc, ModuleFlags, PipeError, Plane, PlaneMut, Roi, TilingReq,
+    ColorSpace, ImageInfo, ModuleDesc, ModuleFlags, PipeError, PixelFormat, Plane, PlaneMut, Roi,
+    TilingReq,
 };
 
 /// Opaque per-instance commit product: `commit` seals it, only the module
@@ -19,6 +20,9 @@ pub type CommitData = Arc<dyn Any + Send + Sync>;
 /// One discovered module behind a shared pointer: the registry table holds
 /// these, mixing every module kind in a single `Vec`.
 pub type SharedModule = Arc<dyn IopModule>;
+
+/// One implemented module behind its id: what domain `IMPLEMENTED` tables hold.
+pub type ImplementedModule = (&'static str, fn() -> SharedModule);
 
 /// What every pipeline module implements.
 ///
@@ -33,6 +37,8 @@ pub type SharedModule = Arc<dyn IopModule>;
 /// `desc` → `op`/`flags()`; `colorspaces` → `default/input/output_colorspace`
 /// (`iop_api.h:97-110`, defaulting to `default_colorspace` per
 /// `src/develop/format.c:81-93`); `commit` → `commit_params` (`:199`);
+/// `output_format` → no upstream counterpart (our declaration: per-node
+/// plane formats, like `stats` below);
 /// `roi_out`/`roi_in` → `modify_roi_out`/`modify_roi_in` (`:213-243`,
 /// identity by default per `src/develop/imageop.c:108-125`); `tiling` →
 /// `tiling_callback` (`:119-124`, default per `src/develop/tiling.c:1903-1921`);
@@ -78,6 +84,15 @@ pub trait IopModule: Send + Sync {
         params: &Map<String, Value>,
         image: &ImageInfo,
     ) -> Result<CommitData, PipeError>;
+
+    /// Pixel format this module outputs for `input`.
+    ///
+    /// Identity by default: most modules keep the format they are given.
+    /// The pipe threads this from the input frame to size every node plane;
+    /// a module that changes format (mosaic in, RGBA out) overrides it.
+    fn output_format(&self, input: PixelFormat) -> PixelFormat {
+        input
+    }
 
     /// Output region this module produces for input region `rin`.
     /// Identity by default.
@@ -322,5 +337,19 @@ mod tests {
         };
         assert_eq!(doubler.colorspaces(), (ColorSpace::Rgb, ColorSpace::Rgb));
         assert_eq!(doubler.flags(), crate::ModuleFlags::empty());
+    }
+    #[test]
+    fn default_output_format_is_identity() {
+        let doubler = Doubler {
+            desc: stub_desc("test_doubler"),
+        };
+        assert_eq!(
+            doubler.output_format(crate::PixelFormat::RgbaF32Premul),
+            crate::PixelFormat::RgbaF32Premul
+        );
+        assert_eq!(
+            doubler.output_format(crate::PixelFormat::MonoF32),
+            crate::PixelFormat::MonoF32
+        );
     }
 }

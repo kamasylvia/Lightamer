@@ -48,7 +48,7 @@ use lightamer_iop_traits::{ImageInfo, SharedModule};
 use lightamer_pipeline::{
     MappedFrame, ModuleLookup, NodeReport, Pipe, RenderError, StreamSink, StreamedOutput,
 };
-use lightamer_raster::{Frame, FrameExtent, PixelFormat};
+use lightamer_raster::{Frame, FrameExtent};
 use serde_json::{Map, Value, json};
 
 use crate::command::{self, CommandSpec, Outcome, ParamKind, ParamSpec, RunCtx, text_req};
@@ -238,12 +238,12 @@ pub trait InputSource: Send + Sync {
     /// over-limit frames to streaming on the probed size alone; preview,
     /// thumbnail, and empty-chain jobs never probe.
     ///
-    /// Sources must report the true frame size: the direct-stream path
-    /// trusts the probed extent for planning and output without ever
-    /// comparing it against real pixels. A probe larger than the truth
-    /// overruns the default region reader into a typed refusal; a probe
-    /// smaller than the truth plans small and delivers a frame the size
-    /// of the probe, silently dropping the rest.
+    /// Sources must report the true frame size and the true buffer format:
+    /// the direct-stream path trusts the probed extent and format for
+    /// planning and output without ever comparing them against real pixels.
+    /// A probe larger than the truth overruns the default region reader
+    /// into a typed refusal; a probe smaller than the truth plans small and
+    /// delivers a frame the size of the probe, silently dropping the rest.
     ///
     /// The default fetches the whole frame and keeps its facts (exactly what
     /// B1d-b always fetched first); sources serving frames that never fit
@@ -288,8 +288,8 @@ fn crop_region(whole: &Frame, region: FrameExtent) -> Result<Frame, InputError> 
     let view = whole
         .view(region)
         .map_err(|err| InputError::new(err.to_string()))?;
-    let mut frame = Frame::alloc(region, PixelFormat::RgbaF32Premul)
-        .map_err(|err| InputError::new(err.to_string()))?;
+    let mut frame =
+        Frame::alloc(region, whole.format()).map_err(|err| InputError::new(err.to_string()))?;
     for row in 0..region.height {
         let src = view
             .row(row)
@@ -399,7 +399,7 @@ pub struct RenderedImage {
 /// Where a [`RenderedImage`]'s pixels live.
 #[derive(Debug, Clone)]
 pub enum RenderedStore {
-    /// Row-major working-format floats (`width * height * 4`).
+    /// Row-major working-format floats (`width * height * channels`).
     Memory(Vec<f32>),
     /// A memory-mapped spill file, shared: evicting the retention drops
     /// only its own handle, so a caller still holding the image keeps
@@ -408,13 +408,19 @@ pub enum RenderedStore {
 }
 
 impl RenderedImage {
-    /// Working-format bytes this image counts in retention (`width *
-    /// height * 16`, saturating on absurd extents).
+    /// Bytes this image counts in retention: actual pixel bytes (RAM vec
+    /// length times 4) or mapped bytes (spill file length), saturating on
+    /// absurd extents. No format assumption: mono counts a quarter of RGBA.
     #[must_use]
     pub fn byte_len(&self) -> u64 {
-        u64::from(self.width)
-            .saturating_mul(u64::from(self.height))
-            .saturating_mul(16)
+        match &self.store {
+            RenderedStore::Memory(pixels) => u64::try_from(pixels.len())
+                .unwrap_or(u64::MAX)
+                .saturating_mul(4),
+            RenderedStore::Mapped(mapped) => {
+                u64::try_from(mapped.as_bytes().len()).unwrap_or(u64::MAX)
+            }
+        }
     }
 
     /// Whether these pixels live in a mapped spill file.
@@ -741,14 +747,30 @@ fn run_cancel(
     }))
 }
 
-/// Orders instances into execution order: registry-known ids by the
-/// non-raw default chain, unknown ids after them sorted by
-/// (module, multi). B1 has no raw-ness signal (no decode yet), so every
-/// photo takes the non-raw chain; B2 routes raw photos to the raw chain.
+/// Orders instances into execution order on the non-raw default chain:
+/// registry-known ids by the chain, unknown ids after them sorted by
+/// (module, multi). RAW captures sort through [`execution_order_for`] once
+/// the job knows their facts (probe for streaming candidates, fetch for
+/// everything else).
+#[cfg(test)]
 pub(crate) fn execution_order<'a>(
     instances: impl Iterator<Item = &'a ModuleInstance>,
 ) -> Vec<&'a ModuleInstance> {
-    let chain = lightamer_registry::jpg_chain();
+    execution_order_for(instances, false)
+}
+
+/// Orders instances into execution order: registry-known ids by the raw
+/// chain for RAW (mosaic) captures or the non-raw chain otherwise, unknown
+/// ids after them sorted by (module, multi).
+pub(crate) fn execution_order_for<'a>(
+    instances: impl Iterator<Item = &'a ModuleInstance>,
+    raw: bool,
+) -> Vec<&'a ModuleInstance> {
+    let chain = if raw {
+        lightamer_registry::raw_chain()
+    } else {
+        lightamer_registry::jpg_chain()
+    };
     let position = |id: &str| chain.iter().position(|desc| desc.id == id);
     let mut known: Vec<(usize, &ModuleInstance)> = Vec::new();
     let mut unknown: Vec<&ModuleInstance> = Vec::new();
@@ -815,13 +837,15 @@ pub(crate) fn final_roi_for(extent: FrameExtent) -> Result<lightamer_geom::Roi, 
 
 /// Sorts the snapshot's instances into pipe nodes plus skips: disabled
 /// instances and ids the module source does not know never reach the pipe.
-fn sort_chain(
+/// `raw` selects the default chain (RAW captures take the raw chain).
+fn sort_chain_for(
     settings: &lightamer_history::PhotoSettings,
     modules: Option<&SharedModuleSource>,
+    raw: bool,
 ) -> (Vec<lightamer_pipeline::PipeNode>, Vec<SkippedModule>) {
     let mut skipped = Vec::new();
     let mut nodes = Vec::new();
-    for instance in execution_order(settings.instances.iter()) {
+    for instance in execution_order_for(settings.instances.iter(), raw) {
         if !instance.enabled {
             skipped.push(SkippedModule {
                 id: instance.module.clone(),
@@ -905,19 +929,22 @@ fn failed_delivery(
 /// Runs one render on a pool thread and sends its delivery. Never touches
 /// the engine: the outcome travels through `tx` to [`Engine::collect`].
 ///
-/// Order: sort skips from nodes (needs only the snapshot) → refuse early
-/// when already superseded → probe the input size on streaming candidates
-/// only (no pixels) → hold the
+/// Order: sort skips from nodes on the non-raw chain (needs only the
+/// snapshot) → refuse early when already superseded → probe the input size
+/// on streaming candidates only (no pixels) and re-sort on the raw chain
+/// when the probed facts say RAW → hold the
 /// kind lock and compare against the pipe's own largest frame: full and
 /// export kinds over it stream directly (regions arrive per planned piece;
 /// the whole input is never fetched) → otherwise drop the lock, fetch the
 /// input whole (outside the kind lock, since a future decode may be slow),
-/// and hold the lock for one pipe run → copy the pixels out and send them.
+/// re-sort on the fetched facts, and hold the lock for one pipe run → copy
+/// the pixels out and send them.
 /// The pipe lock releases before the send; the channel is unbounded, so the
 /// send never blocks the lock. A whole attempt that still refuses as too
 /// large (a chain whose nodes disagree in size) drops its input and streams
 /// too; every other error, and every preview/thumbnail refusal, fails typed
-/// as before.
+/// as before. Raw-ness is learned from the probe or the fetch alone: the
+/// job never decodes just to learn it.
 #[expect(clippy::too_many_arguments)] // one job launch with its context, input, and pipe; a params struct would just rename the args
 #[expect(clippy::too_many_lines)] // a linear job script (sort, fetch, whole attempt, stream handoff); splitting would scatter the delivery sends
 pub(crate) fn run_render_job(
@@ -933,7 +960,7 @@ pub(crate) fn run_render_job(
     config: &EngineConfig,
 ) {
     let job = ctx.id();
-    let (nodes, skipped) = sort_chain(settings, modules);
+    let (mut nodes, mut skipped) = sort_chain_for(settings, modules, false);
     if ctx.is_cancelled() {
         let _ = tx.send(cancelled_delivery(photo, kind, generation, job, skipped));
         return;
@@ -960,6 +987,11 @@ pub(crate) fn run_render_job(
     } else {
         None
     };
+    // The probe carries the first raw-ness signal: a RAW capture re-sorts
+    // onto the raw chain before anything else runs.
+    if facts.as_ref().is_some_and(|facts| facts.image.is_raw()) {
+        (nodes, skipped) = sort_chain_for(settings, modules, true);
+    }
     let guard = pipe
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -974,7 +1006,7 @@ pub(crate) fn run_render_job(
     if let Some(facts) = facts
         && u64::from(facts.extent.width)
             .saturating_mul(u64::from(facts.extent.height))
-            .saturating_mul(16)
+            .saturating_mul(facts.image.format.bytes_per_pixel())
             > guard.max_frame_bytes()
     {
         let final_out = match final_roi_for(facts.extent) {
@@ -1025,6 +1057,12 @@ pub(crate) fn run_render_job(
             return;
         }
     };
+    // The fetch carries the whole-path raw-ness signal (preview, thumbnail,
+    // and empty chains never probe): a RAW capture re-sorts onto the raw
+    // chain before the pipe runs.
+    if fetched.image.is_raw() {
+        (nodes, skipped) = sort_chain_for(settings, modules, true);
+    }
     let final_out = match final_roi_for(fetched.frame.extent()) {
         Ok(final_out) => final_out,
         Err(reason) => {
@@ -1224,8 +1262,10 @@ fn run_stream_fallback(job: StreamFallback<'_>) {
             return;
         }
     };
-    let mut sink = match StreamSink::new(
+    let chain_format = lightamer_pipeline::chain_output_format(&adapter, &nodes, image.format);
+    let mut sink = match StreamSink::new_with_format(
         full,
+        chain_format,
         config.spill_memory_threshold,
         config.spill_byte_limit,
         config.spill_dir.as_deref(),
@@ -1854,6 +1894,8 @@ mod tests {
         probes: Arc<AtomicUsize>,
         fail_fetch: bool,
         cancel_on_call: Option<(Arc<std::sync::atomic::AtomicBool>, usize)>,
+        format: PixelFormat,
+        raw: Option<lightamer_iop_traits::RawFacts>,
     }
 
     impl CountingInput {
@@ -1866,8 +1908,98 @@ mod tests {
                 probes: Arc::new(AtomicUsize::new(0)),
                 fail_fetch: false,
                 cancel_on_call: None,
+                format: PixelFormat::RgbaF32Premul,
+                raw: None,
             }
         }
+
+        /// Serves a mono RAW capture instead of the RGBA gradient.
+        fn mono_raw(mut self) -> Self {
+            self.format = PixelFormat::MonoF32;
+            self.raw = Some(sample_raw_facts());
+            self
+        }
+
+        /// Whether this source serves mono pixels.
+        fn is_mono(&self) -> bool {
+            self.format == PixelFormat::MonoF32
+        }
+
+        /// Image facts matching what this source serves.
+        fn facts(&self) -> ImageInfo {
+            let space = if self.raw.is_some() {
+                ColorSpace::Raw
+            } else {
+                ColorSpace::Rgb
+            };
+            let format = if self.is_mono() {
+                lightamer_iop_traits::PixelFormat::MonoF32
+            } else {
+                lightamer_iop_traits::PixelFormat::RgbaF32Premul
+            };
+            let info = ImageInfo::new(self.width, self.height, space).with_format(format);
+            self.raw.map_or(info, |raw| info.with_raw(raw))
+        }
+    }
+
+    /// One mono RAW sensor fact set: any value marks the capture RAW.
+    fn sample_raw_facts() -> lightamer_iop_traits::RawFacts {
+        lightamer_iop_traits::RawFacts {
+            black: [512, 512, 512, 512],
+            white: 15360,
+            wb: [2.0, 1.0, 1.5, 1.0],
+            xyz_to_cam_d65: None,
+            cam_to_xyz_d65: None,
+            cfa: lightamer_iop_traits::CfaPattern::Bayer([
+                lightamer_iop_traits::CfaColor::Red,
+                lightamer_iop_traits::CfaColor::Green,
+                lightamer_iop_traits::CfaColor::Green,
+                lightamer_iop_traits::CfaColor::Blue,
+            ]),
+            crop_x: 0,
+            crop_y: 0,
+            p_width: 64,
+            p_height: 64,
+            linear_response_limit: 1.0,
+            hdr: false,
+            four_bayer: false,
+            s_raw: false,
+            monochrome: false,
+            monochrome_bayer: false,
+            load_ok: true,
+            camera_missing_sample: false,
+        }
+    }
+
+    /// Mono gradient matching [`gradient_pixels`] (`x + y` per pixel).
+    fn mono_gradient_pixels(width: u32, height: u32) -> Vec<f32> {
+        let mut out = Vec::with_capacity(width as usize * height as usize);
+        for y in 0..height {
+            for x in 0..width {
+                #[expect(clippy::cast_precision_loss)]
+                // test pixels are small; the conversion is exact
+                let (x, y) = (x as f32, y as f32);
+                out.push(x + y);
+            }
+        }
+        out
+    }
+
+    /// Mono region pixels matching [`region_pixels`] on absolute coordinates.
+    fn mono_region_pixels(region: FrameExtent) -> Vec<f32> {
+        let cells = u64::from(region.width).saturating_mul(u64::from(region.height));
+        let mut out = Vec::with_capacity(usize::try_from(cells).unwrap_or(0));
+        for row in 0..region.height {
+            for col in 0..region.width {
+                let x = region.x.saturating_add_unsigned(col);
+                let y = region.y.saturating_add_unsigned(row);
+                #[expect(clippy::cast_precision_loss)]
+                // test pixels are small; the conversion is exact
+                let (x, y) = (x as f32, y as f32);
+                out.push(x + y);
+            }
+        }
+        out
     }
 
     impl InputSource for CountingInput {
@@ -1878,15 +2010,20 @@ mod tests {
                     "whole fetch refused: the probe and the region reader serve this photo",
                 ));
             }
+            let pixels = if self.is_mono() {
+                mono_gradient_pixels(self.width, self.height)
+            } else {
+                gradient_pixels(self.width, self.height)
+            };
             let frame = Frame::from_parts(
-                gradient_pixels(self.width, self.height),
+                pixels,
                 FrameExtent::new(0, 0, self.width, self.height),
-                PixelFormat::RgbaF32Premul,
+                self.format,
             )
             .map_err(|err| InputError::new(err.to_string()))?;
             Ok(super::RenderInput {
                 frame,
-                image: ImageInfo::new(self.width, self.height, ColorSpace::Rgb),
+                image: self.facts(),
                 input_id: 11,
             })
         }
@@ -1905,12 +2042,16 @@ mod tests {
             {
                 flag.store(true, Ordering::SeqCst);
             }
-            let frame =
-                Frame::from_parts(region_pixels(region), region, PixelFormat::RgbaF32Premul)
-                    .map_err(|err| InputError::new(err.to_string()))?;
+            let pixels = if self.is_mono() {
+                mono_region_pixels(region)
+            } else {
+                region_pixels(region)
+            };
+            let frame = Frame::from_parts(pixels, region, self.format)
+                .map_err(|err| InputError::new(err.to_string()))?;
             Ok(super::RenderInput {
                 frame,
-                image: ImageInfo::new(self.width, self.height, ColorSpace::Rgb),
+                image: self.facts(),
                 input_id: 11,
             })
         }
@@ -1918,7 +2059,7 @@ mod tests {
         fn probe(&self, _photo: &str) -> Result<super::RenderFacts, InputError> {
             self.probes.fetch_add(1, Ordering::SeqCst);
             Ok(super::RenderFacts {
-                image: ImageInfo::new(self.width, self.height, ColorSpace::Rgb),
+                image: self.facts(),
                 extent: FrameExtent::new(0, 0, self.width, self.height),
             })
         }
@@ -2171,7 +2312,7 @@ mod tests {
         let mut want = Vec::new();
         for row in 8usize..24 {
             let start = (row * 64 + 8) * 4;
-            want.extend_from_slice(&whole[start..start + 16 * 4]);
+            want.extend_from_slice(&whole[start..start + 4 * 16]);
         }
         assert_eq!(got.frame.as_slice(), want);
         // The whole frame back equals a plain fetch, bitwise.
@@ -2932,5 +3073,163 @@ mod tests {
         assert_eq!(fetches.load(Ordering::SeqCst), 1);
         assert_eq!(probes.load(Ordering::SeqCst), 0);
         assert!(regions.lock().unwrap().is_empty());
+    }
+    /// Two registry ids ordered oppositely by the raw and jpg chains
+    /// (first before second in raw, second before first in jpg), derived
+    /// — never spelled: core tests name no modules. The ids borrow the
+    /// static descriptors, so no allocation escapes.
+    fn flipped_pair() -> Option<(&'static str, &'static str)> {
+        let raw = lightamer_registry::raw_chain();
+        let jpg = lightamer_registry::jpg_chain();
+        let before = |chain: &[&lightamer_iop_traits::ModuleDesc], a: &str, b: &str| {
+            let pos_a = chain.iter().position(|desc| desc.id == a);
+            let pos_b = chain.iter().position(|desc| desc.id == b);
+            pos_a.zip(pos_b).is_some_and(|(x, y)| x < y)
+        };
+        for a in &raw {
+            for b in &raw {
+                if a.id != b.id && before(&raw, a.id, b.id) && !before(&jpg, a.id, b.id) {
+                    return Some((a.id, b.id));
+                }
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn raw_and_jpg_sorts_use_their_own_chains() {
+        let pair = flipped_pair();
+        assert!(
+            pair.is_some(),
+            "the default chains order some pair oppositely"
+        );
+        let (first_raw, second_raw) = pair.unwrap();
+        let settings = settings_with(&[(first_raw, 1.0), (second_raw, 1.0)]);
+        let raw_order: Vec<&str> = super::execution_order_for(settings.instances.iter(), true)
+            .iter()
+            .map(|instance| instance.module.as_str())
+            .collect();
+        let jpg_order: Vec<&str> = super::execution_order_for(settings.instances.iter(), false)
+            .iter()
+            .map(|instance| instance.module.as_str())
+            .collect();
+        assert_eq!(raw_order, vec![first_raw, second_raw]);
+        assert_eq!(jpg_order, vec![second_raw, first_raw]);
+    }
+
+    #[test]
+    fn raw_job_sorts_raw_chain_probing_once_and_fetching_once() {
+        let pair = flipped_pair();
+        assert!(
+            pair.is_some(),
+            "the default chains order some pair oppositely"
+        );
+        let (a, b) = pair.unwrap();
+        let modules = table_source(vec![
+            Arc::new(TestGain::named(a)),
+            Arc::new(TestGain::named(b)),
+        ]);
+        let settings = settings_with(&[(a, 2.0), (b, 2.0)]);
+        let input = CountingInput::new(64, 64).mono_raw();
+        let fetches = Arc::clone(&input.fetches);
+        let probes = Arc::clone(&input.probes);
+        let input: super::SharedInputSource = Arc::new(input);
+        let pipe = Mutex::new(Pipe::with_budget_and_floor(
+            PipeKind::Full,
+            64 * 1024 * 1024,
+            64 * 1024,
+        ));
+        let delivery = run_once(
+            RenderKind::Full,
+            1,
+            &settings,
+            &input,
+            Some(&modules),
+            &pipe,
+            &ram_config(),
+            &live_flag(),
+        );
+        // Sorted after the probe, from the probe alone: one probe, one fetch.
+        assert_eq!(probes.load(Ordering::SeqCst), 1);
+        assert_eq!(fetches.load(Ordering::SeqCst), 1);
+        let outcome = delivery.outcome.unwrap();
+        assert_eq!((outcome.image.width, outcome.image.height), (64, 64));
+        let ids: Vec<&str> = outcome
+            .record
+            .nodes
+            .iter()
+            .map(|report| report.id.as_str())
+            .collect();
+        assert_eq!(ids, vec![a, b]);
+    }
+
+    #[test]
+    fn mono_byte_len_counts_actual_bytes() {
+        const SIDE: u32 = 16;
+        const PIXELS: u64 = 256;
+        let rgba = kept_image(1, SIDE, SIDE);
+        assert_eq!(rgba.byte_len(), PIXELS * 16);
+        let mono = RenderedImage {
+            generation: 1,
+            width: SIDE,
+            height: SIDE,
+            store: RenderedStore::Memory(vec![0.0; SIDE as usize * SIDE as usize]),
+        };
+        assert_eq!(mono.byte_len(), PIXELS * 4);
+    }
+
+    #[test]
+    fn mono_full_streams_and_matches_whole() {
+        let input = CountingInput::new(512, 512).mono_raw();
+        let fetches = Arc::clone(&input.fetches);
+        let regions = Arc::clone(&input.regions);
+        let input: super::SharedInputSource = Arc::new(input);
+        let gain: SharedModule = Arc::new(TestGain::named("mod_gain"));
+        let modules = table_source(vec![gain]);
+        let settings = settings_with(&[("mod_gain", 2.0)]);
+        let pipe = tiny_pipe(1024 * 1024);
+        let delivery = run_once(
+            RenderKind::Full,
+            1,
+            &settings,
+            &input,
+            Some(&modules),
+            &pipe,
+            &ram_config(),
+            &live_flag(),
+        );
+        // 512x512 mono is 1 MiB over the tiny pipe's largest frame: no whole
+        // fetch, one region call per 64-row strip.
+        assert_eq!(fetches.load(Ordering::SeqCst), 0);
+        assert_eq!(regions.lock().unwrap().len(), 8);
+        let outcome = delivery.outcome.unwrap();
+        assert_eq!(
+            outcome.record.streamed,
+            Some(crate::render::StreamReport {
+                mode: StreamMode::Strip,
+                pieces: 8,
+            })
+        );
+        assert_eq!((outcome.image.width, outcome.image.height), (512, 512));
+        let engine_pixels = outcome.image.to_vec();
+        let whole_input = CountingInput::new(512, 512).mono_raw().fetch("a").unwrap();
+        let adapter = super::ModuleSourceAdapter {
+            source: Some(modules),
+        };
+        let nodes = vec![gain_node("mod_gain", 2.0)];
+        let final_out = super::final_roi_for(whole_input.frame.extent()).unwrap();
+        let mut fat = Pipe::with_budget_and_floor(PipeKind::Full, 64 * 1024 * 1024, 64 * 1024);
+        let want_whole = whole_pixels(
+            &mut fat,
+            &nodes,
+            &adapter,
+            &whole_input.image,
+            &whole_input.frame,
+            whole_input.input_id,
+            1,
+            final_out,
+        );
+        assert_eq!(engine_pixels, want_whole);
+        assert!(!outcome.image.is_mapped());
     }
 }

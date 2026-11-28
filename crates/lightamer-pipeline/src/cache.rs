@@ -23,6 +23,9 @@ use serde_json::{Map, Value};
 use super::budgeted::SharedFrame;
 use super::chain::{NodeGeometry, PipeNode};
 use super::kinds::PipeKind;
+use lightamer_iop_traits::{
+    CfaColor, CfaPattern, ColorSpace, ImageInfo, PixelFormat as WireFormat, RawFacts,
+};
 
 /// FNV-1a offset basis (64-bit).
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
@@ -118,6 +121,9 @@ fn kind_tag(kind: PipeKind) -> &'static str {
 ///
 /// The result has one key per node; a shorter geometry slice truncates (the
 /// renderer always passes matching slices, so truncation only guards).
+///
+/// Image facts fold as a fixed default here; renders pass their real facts
+/// through [`chain_keys_with_image`].
 #[must_use]
 pub fn chain_keys(
     kind: PipeKind,
@@ -126,10 +132,34 @@ pub fn chain_keys(
     nodes: &[PipeNode],
     geos: &[NodeGeometry],
 ) -> Vec<u64> {
+    chain_keys_with_image(
+        kind,
+        input_id,
+        process,
+        &ImageInfo::new(0, 0, ColorSpace::Rgb),
+        nodes,
+        geos,
+    )
+}
+
+/// Per-node cache keys with image facts folded in: same contract as
+/// [`chain_keys`], plus the decoded size, input space, buffer format, and
+/// RAW facts. Changed facts re-key the chain, repeated facts hit it;
+/// floats fold by bits.
+#[must_use]
+pub fn chain_keys_with_image(
+    kind: PipeKind,
+    input_id: u64,
+    process: u32,
+    image: &ImageInfo,
+    nodes: &[PipeNode],
+    geos: &[NodeGeometry],
+) -> Vec<u64> {
     let mut key = fnv1a(DOMAIN.as_bytes());
     key = mix(key, kind_tag(kind).as_bytes());
     key = mix(key, &input_id.to_le_bytes());
     key = mix(key, &process.to_le_bytes());
+    key = mix_image(key, image);
     let mut keys = Vec::with_capacity(nodes.len());
     for (index, (node, geo)) in nodes.iter().zip(geos.iter()).enumerate() {
         // Fixed-width positions and lengths; saturation only guards platforms
@@ -154,6 +184,123 @@ pub fn chain_keys(
         keys.push(key);
     }
     keys
+}
+
+/// Folds image facts into a running key: size, space and format tags, then
+/// the RAW facts field by field (floats by bits, options tagged).
+fn mix_image(mut key: u64, image: &ImageInfo) -> u64 {
+    key = mix(key, &image.width.to_le_bytes());
+    key = mix(key, &image.height.to_le_bytes());
+    key = mix(key, &[space_tag(image.input_space)]);
+    key = mix(key, &[format_tag(image.format)]);
+    match &image.raw {
+        None => mix(key, &[0]),
+        Some(raw) => mix_raw(key, raw),
+    }
+}
+
+/// One byte per colorspace, fixed here (never `as u8`: enum order is not
+/// a stability contract).
+fn space_tag(space: ColorSpace) -> u8 {
+    match space {
+        ColorSpace::None => 1,
+        ColorSpace::Raw => 2,
+        ColorSpace::Lab => 3,
+        ColorSpace::Rgb => 4,
+        ColorSpace::Lch => 5,
+        ColorSpace::Hsl => 6,
+        ColorSpace::Jzczhz => 7,
+    }
+}
+
+/// One byte per wire format, fixed here like [`space_tag`].
+fn format_tag(format: WireFormat) -> u8 {
+    match format {
+        WireFormat::RgbaF32Premul => 1,
+        WireFormat::RgbaU8 => 2,
+        WireFormat::RgbaU16 => 3,
+        WireFormat::MonoF32 => 4,
+    }
+}
+
+/// One byte per CFA color, fixed here like [`space_tag`].
+fn cfa_tag(color: CfaColor) -> u8 {
+    match color {
+        CfaColor::Red => 1,
+        CfaColor::Green => 2,
+        CfaColor::Blue => 3,
+        CfaColor::Cyan => 4,
+        CfaColor::Magenta => 5,
+        CfaColor::Yellow => 6,
+        CfaColor::White => 7,
+        CfaColor::FujiGreen => 8,
+        CfaColor::Unknown => 9,
+    }
+}
+
+/// Folds RAW facts field by field after a presence tag.
+fn mix_raw(mut key: u64, raw: &RawFacts) -> u64 {
+    key = mix(key, &[1]);
+    for black in raw.black {
+        key = mix(key, &black.to_le_bytes());
+    }
+    key = mix(key, &raw.white.to_le_bytes());
+    key = mix_floats(key, &raw.wb);
+    key = mix_opt_floats(key, raw.xyz_to_cam_d65.as_ref());
+    key = mix_opt_floats(key, raw.cam_to_xyz_d65.as_ref());
+    key = match &raw.cfa {
+        CfaPattern::None => mix(key, &[0]),
+        CfaPattern::Bayer(cells) => {
+            key = mix(key, &[1]);
+            for cell in cells {
+                key = mix(key, &[cfa_tag(*cell)]);
+            }
+            key
+        }
+        CfaPattern::XTrans(cells) => {
+            key = mix(key, &[2]);
+            for cell in cells {
+                key = mix(key, &[cfa_tag(*cell)]);
+            }
+            key
+        }
+    };
+    key = mix(key, &raw.crop_x.to_le_bytes());
+    key = mix(key, &raw.crop_y.to_le_bytes());
+    key = mix(key, &raw.p_width.to_le_bytes());
+    key = mix(key, &raw.p_height.to_le_bytes());
+    key = mix(key, &raw.linear_response_limit.to_bits().to_le_bytes());
+    for flag in [
+        raw.hdr,
+        raw.four_bayer,
+        raw.s_raw,
+        raw.monochrome,
+        raw.monochrome_bayer,
+        raw.load_ok,
+        raw.camera_missing_sample,
+    ] {
+        key = mix(key, &[u8::from(flag)]);
+    }
+    key
+}
+
+/// Folds floats by bits: `0.0` and `-0.0` key apart, equal bits key together.
+fn mix_floats<const N: usize>(mut key: u64, values: &[f32; N]) -> u64 {
+    for v in values {
+        key = mix(key, &v.to_bits().to_le_bytes());
+    }
+    key
+}
+
+/// Folds an optional float array after a presence tag.
+fn mix_opt_floats<const N: usize>(mut key: u64, values: Option<&[f32; N]>) -> u64 {
+    match values {
+        None => mix(key, &[0]),
+        Some(v) => {
+            key = mix(key, &[1]);
+            mix_floats(key, v)
+        }
+    }
 }
 
 /// Least-recently-used plane store, counted in bytes and slots.
@@ -539,5 +686,116 @@ mod tests {
         assert!(cache.is_empty());
         assert_eq!(cache.bytes(), 0);
         assert_eq!(budget.used(), 0);
+    }
+    fn sample_raw() -> lightamer_iop_traits::RawFacts {
+        lightamer_iop_traits::RawFacts {
+            black: [512, 512, 512, 512],
+            white: 15360,
+            wb: [2.0, 1.0, 1.5, 1.0],
+            xyz_to_cam_d65: None,
+            cam_to_xyz_d65: None,
+            cfa: lightamer_iop_traits::CfaPattern::Bayer([
+                lightamer_iop_traits::CfaColor::Red,
+                lightamer_iop_traits::CfaColor::Green,
+                lightamer_iop_traits::CfaColor::Green,
+                lightamer_iop_traits::CfaColor::Blue,
+            ]),
+            crop_x: 0,
+            crop_y: 0,
+            p_width: 9568,
+            p_height: 6376,
+            linear_response_limit: 1.0,
+            hdr: false,
+            four_bayer: false,
+            s_raw: false,
+            monochrome: false,
+            monochrome_bayer: false,
+            load_ok: true,
+            camera_missing_sample: false,
+        }
+    }
+
+    fn sample_image() -> lightamer_iop_traits::ImageInfo {
+        lightamer_iop_traits::ImageInfo::new(9568, 6376, lightamer_iop_traits::ColorSpace::Raw)
+            .with_format(lightamer_iop_traits::PixelFormat::MonoF32)
+            .with_raw(sample_raw())
+    }
+
+    #[test]
+    fn every_image_fact_flips_the_key() {
+        let nodes = vec![node("mod_a"), node("mod_b")];
+        let geos = vec![geo_pair(8), geo_pair(8)];
+        let keys = |image: &lightamer_iop_traits::ImageInfo| {
+            super::chain_keys_with_image(PipeKind::Full, 7, 1, image, &nodes, &geos)
+        };
+        let base = keys(&sample_image());
+        let mut size = sample_image();
+        size.width = 100;
+        assert_ne!(keys(&size), base);
+        let mut height = sample_image();
+        height.height = 100;
+        assert_ne!(keys(&height), base);
+        let mut space = sample_image();
+        space.input_space = lightamer_iop_traits::ColorSpace::Rgb;
+        assert_ne!(keys(&space), base);
+        let mut format = sample_image();
+        format.format = lightamer_iop_traits::PixelFormat::RgbaF32Premul;
+        assert_ne!(keys(&format), base);
+        let mut no_raw = sample_image();
+        no_raw.raw = None;
+        assert_ne!(keys(&no_raw), base);
+        let flips: [fn(&mut lightamer_iop_traits::RawFacts); 19] = [
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.black[2] = 513,
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.white = 15361,
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.wb[0] = 2.5,
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.wb[1] = -0.0,
+            |raw: &mut lightamer_iop_traits::RawFacts| {
+                raw.xyz_to_cam_d65 = Some([0.0; 9]);
+            },
+            |raw: &mut lightamer_iop_traits::RawFacts| {
+                raw.cam_to_xyz_d65 = Some([1.0; 9]);
+            },
+            |raw: &mut lightamer_iop_traits::RawFacts| {
+                raw.cfa = lightamer_iop_traits::CfaPattern::None;
+            },
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.crop_x = 8,
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.crop_y = 8,
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.p_width = 9567,
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.p_height = 6375,
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.linear_response_limit = 0.5,
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.hdr = true,
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.four_bayer = true,
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.s_raw = true,
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.monochrome = true,
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.monochrome_bayer = true,
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.load_ok = false,
+            |raw: &mut lightamer_iop_traits::RawFacts| raw.camera_missing_sample = true,
+        ];
+        for flip in flips {
+            let mut image = sample_image();
+            if let Some(raw) = image.raw.as_mut() {
+                flip(raw);
+            }
+            assert_ne!(keys(&image), base);
+        }
+    }
+
+    #[test]
+    fn repeated_facts_hit_the_key_bitwise() {
+        let nodes = vec![node("mod_a"), node("mod_b")];
+        let geos = vec![geo_pair(8), geo_pair(8)];
+        let keys = |image: &lightamer_iop_traits::ImageInfo| {
+            super::chain_keys_with_image(PipeKind::Full, 7, 1, image, &nodes, &geos)
+        };
+        assert_eq!(keys(&sample_image()), keys(&sample_image()));
+        let mut nan_a = sample_image();
+        let mut nan_b = sample_image();
+        if let Some(raw) = nan_a.raw.as_mut() {
+            raw.wb[0] = f32::from_bits(0x7fc0_0001);
+        }
+        if let Some(raw) = nan_b.raw.as_mut() {
+            raw.wb[0] = f32::from_bits(0x7fc0_0001);
+        }
+        assert_eq!(keys(&nan_a), keys(&nan_b));
     }
 }

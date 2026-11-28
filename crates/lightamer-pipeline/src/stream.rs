@@ -35,7 +35,7 @@ use std::time::Instant;
 use super::budgeted::SharedFrame;
 use super::chain::{
     ChainError, CommittedNode, ModuleLookup, NodeGeometry, PipeNode, backward_check, build_chain,
-    forward, from_wire, to_wire,
+    format_from_wire, forward, from_wire, to_wire,
 };
 use super::negotiate::negotiate as negotiate_plan;
 use super::render::{NodeReport, Pipe, RenderError, RenderRequest};
@@ -61,6 +61,10 @@ pub const BLOCK_MAX_SIDE: u64 = 8192;
 /// plus the sink plane plus the blur's separable scratch plus allocator
 /// retention. Real modules carry their own scratch, so their waves
 /// re-measure on arrival.
+///
+/// Single-channel chains reuse this figure: it overestimates their working
+/// set, which only cuts blocks smaller — safe, and re-measured when the
+/// first spatial RAW module lands.
 pub const STREAM_BYTES_PER_PIXEL: u64 = 150;
 
 /// Which streaming shape a plan uses.
@@ -92,6 +96,11 @@ pub enum StreamRefusal {
         /// The claimed overlap against the measured growth.
         detail: String,
     },
+    /// The module changes pixel format mid-chain.
+    FormatChange {
+        /// The declared input vs output formats.
+        detail: String,
+    },
 }
 
 impl fmt::Display for StreamRefusal {
@@ -112,6 +121,10 @@ impl fmt::Display for StreamRefusal {
             StreamRefusal::OverlapMismatch { detail } => {
                 write!(f, "claims an overlap its roi_in contradicts ({detail})")
             }
+            StreamRefusal::FormatChange { detail } => write!(
+                f,
+                "changes pixel format ({detail}); streaming runs every node through one scratch pair"
+            ),
         }
     }
 }
@@ -648,17 +661,18 @@ fn ensure_stream_room(
     scratch: &mut Option<StreamScratch>,
     gw: u32,
     gh: u32,
+    format: PixelFormat,
 ) -> Result<(), RenderError> {
-    let fits = scratch
-        .as_ref()
-        .is_some_and(|pair| pair.room.0 >= gw && pair.room.1 >= gh);
+    let fits = scratch.as_ref().is_some_and(|pair| {
+        pair.a.frame.format() == format && pair.room.0 >= gw && pair.room.1 >= gh
+    });
     if fits {
         return Ok(());
     }
     *scratch = None;
     let extent = FrameExtent::new(0, 0, gw, gh);
-    let a = pipe.stream_alloc(extent, "stream scratch")?;
-    let b = pipe.stream_alloc(extent, "stream scratch")?;
+    let a = pipe.stream_alloc(extent, format, "stream scratch")?;
+    let b = pipe.stream_alloc(extent, format, "stream scratch")?;
     *scratch = Some(StreamScratch {
         a,
         b,
@@ -680,14 +694,18 @@ fn stage_piece_input(
     let view = input
         .view(*g)
         .map_err(|err| fail(format!("stream input view unreadable: {err}")))?;
-    let gw4 = usize::try_from(gw)
+    let channels = scratch.frame.format().channel_count();
+    let lane_mul = usize::try_from(channels)
         .ok()
-        .and_then(|width| width.checked_mul(4))
+        .ok_or_else(|| fail("stream piece width overflows".to_owned()))?;
+    let gw_lanes = usize::try_from(gw)
+        .ok()
+        .and_then(|width| width.checked_mul(lane_mul))
         .ok_or_else(|| fail("stream piece width overflows".to_owned()))?;
     let rows = usize::try_from(gh)
         .ok()
         .ok_or_else(|| fail("stream piece".to_owned()))?;
-    let need = gw4
+    let need = gw_lanes
         .checked_mul(rows)
         .ok_or_else(|| fail("stream piece rows overflow".to_owned()))?;
     let sub = scratch
@@ -695,8 +713,8 @@ fn stage_piece_input(
         .as_mut_slice()
         .get_mut(0..need)
         .ok_or_else(|| fail("stream scratch smaller than its piece".to_owned()))?;
-    let mut staging =
-        PlaneMut::from_slice(sub, gw, gh, gw4).map_err(|err| fail(format!("{err}")))?;
+    let mut staging = PlaneMut::from_slice_channels(sub, gw, gh, gw_lanes, channels)
+        .map_err(|err| fail(format!("{err}")))?;
     for row in 0..gh {
         let src = view
             .row(row)
@@ -734,17 +752,20 @@ fn crop_piece_output(
         u32::try_from(piece.width).map_err(|_| fail("stream piece width overflows".to_owned()))?;
     let ph = u32::try_from(piece.height)
         .map_err(|_| fail("stream piece height overflows".to_owned()))?;
-    let gw4 = usize::try_from(gw)
+    let channels = usize::try_from(result.format().channel_count())
         .ok()
-        .and_then(|width| width.checked_mul(4))
+        .ok_or_else(|| fail("stream piece".to_owned()))?;
+    let gw_lanes = usize::try_from(gw)
+        .ok()
+        .and_then(|width| width.checked_mul(channels))
         .ok_or_else(|| fail("stream grown width overflows".to_owned()))?;
-    let ox4 = usize::try_from(ox)
+    let ox_lanes = usize::try_from(ox)
         .ok()
-        .and_then(|off| off.checked_mul(4))
+        .and_then(|off| off.checked_mul(channels))
         .ok_or_else(|| fail("stream piece offset overflows".to_owned()))?;
-    let pw4 = usize::try_from(pw)
+    let pw_lanes = usize::try_from(pw)
         .ok()
-        .and_then(|width| width.checked_mul(4))
+        .and_then(|width| width.checked_mul(channels))
         .ok_or_else(|| fail("stream piece width overflows".to_owned()))?;
     let oy_n = usize::try_from(oy)
         .ok()
@@ -755,11 +776,11 @@ fn crop_piece_output(
             .checked_add(usize::try_from(row).unwrap_or(usize::MAX))
             .ok_or_else(|| fail("stream piece rows overflow".to_owned()))?;
         let start = src_row
-            .checked_mul(gw4)
-            .and_then(|base| base.checked_add(ox4))
+            .checked_mul(gw_lanes)
+            .and_then(|base| base.checked_add(ox_lanes))
             .ok_or_else(|| fail("stream piece rows overflow".to_owned()))?;
         let end = start
-            .checked_add(pw4)
+            .checked_add(pw_lanes)
             .ok_or_else(|| fail("stream piece rows overflow".to_owned()))?;
         let seg = pixels
             .get(start..end)
@@ -803,6 +824,9 @@ where
     piece: &'a StreamPiecePlan,
     /// Whether the chain head needs no input.
     head_empty: bool,
+    /// Pixel format of the scratch pair and sink planes: the input format
+    /// (streaming refuses chains that change it, so one format serves all).
+    format: PixelFormat,
     /// The run's reused scratch pair.
     scratch: &'a mut Option<StreamScratch>,
     /// Per-node `process` call totals to bump.
@@ -834,7 +858,7 @@ impl StreamInput for WholeFrameInput<'_> {
             .frame
             .view(region)
             .map_err(|err| fail(format!("stream input view unreadable: {err}")))?;
-        let mut cropped = Frame::alloc(region, PixelFormat::RgbaF32Premul)
+        let mut cropped = Frame::alloc(region, self.frame.format())
             .map_err(|err| fail(format!("stream input crop would not build: {err}")))?;
         for row in 0..region.height {
             let src = view
@@ -865,6 +889,7 @@ impl Pipe {
             chain,
             piece,
             head_empty,
+            format,
             scratch,
             calls,
             millis,
@@ -876,7 +901,7 @@ impl Pipe {
         let gh = u32::try_from(piece.input.height)
             .map_err(|_| frame_fail("stream grown height overflows".to_owned()))?;
         let grown = FrameExtent::new(piece.input.x, piece.input.y, gw, gh);
-        ensure_stream_room(self, scratch, gw, gh)?;
+        ensure_stream_room(self, scratch, gw, gh, format)?;
         let Some(pair) = scratch.as_mut() else {
             return Err(frame_fail("internal: stream scratch missing".to_owned()));
         };
@@ -886,9 +911,13 @@ impl Pipe {
         }
         let grown_wire = to_wire(&piece.input);
         let empty_wire = WireRoi::new(0, 0, 0, 0, piece.input.scale);
+        let channels = format.channel_count();
+        let lane_mul = usize::try_from(channels)
+            .ok()
+            .ok_or_else(|| frame_fail("stream grown width overflows".to_owned()))?;
         let stride = usize::try_from(gw)
             .ok()
-            .and_then(|width| width.checked_mul(4))
+            .and_then(|width| width.checked_mul(lane_mul))
             .ok_or_else(|| frame_fail("stream grown width overflows".to_owned()))?;
         let rows = usize::try_from(gh)
             .ok()
@@ -906,12 +935,13 @@ impl Pipe {
                 grown_wire
             };
             let in_plane = if first_without_input {
-                Plane::from_slice(no_pixels, 0, 0, 0).map_err(|err| frame_fail(format!("{err}")))?
+                Plane::from_slice_channels(no_pixels, 0, 0, 0, channels)
+                    .map_err(|err| frame_fail(format!("{err}")))?
             } else {
                 let sub = pair.a.frame.as_slice().get(0..row_len).ok_or_else(|| {
                     frame_fail("stream scratch smaller than its piece".to_owned())
                 })?;
-                Plane::from_slice(sub, gw, gh, stride)
+                Plane::from_slice_channels(sub, gw, gh, stride, channels)
                     .map_err(|err| frame_fail(format!("{err}")))?
             };
             let out_sub = pair
@@ -920,7 +950,7 @@ impl Pipe {
                 .as_mut_slice()
                 .get_mut(0..row_len)
                 .ok_or_else(|| frame_fail("stream scratch smaller than its piece".to_owned()))?;
-            let mut out_plane = PlaneMut::from_slice(out_sub, gw, gh, stride)
+            let mut out_plane = PlaneMut::from_slice_channels(out_sub, gw, gh, stride, channels)
                 .map_err(|err| frame_fail(format!("{err}")))?;
             node.module
                 .process(&node.data, &in_plane, &mut out_plane, rin, grown_wire)
@@ -958,7 +988,7 @@ impl Pipe {
         let ph = u32::try_from(piece.output.height)
             .map_err(|_| frame_fail("stream piece height overflows".to_owned()))?;
         let out_extent = FrameExtent::new(piece.output.x, piece.output.y, pw, ph);
-        let mut sink_plane = self.stream_alloc(out_extent, "stream piece")?;
+        let mut sink_plane = self.stream_alloc(out_extent, grown.format(), "stream piece")?;
         crop_piece_output(grown, &piece.input, &piece.output, &mut sink_plane.frame)?;
         sink(StreamPiece {
             extent: out_extent,
@@ -1079,6 +1109,23 @@ impl Pipe {
             }
             geos
         };
+        // One scratch pair serves the whole chain, so every node must keep
+        // the input format; a node that changes it refuses here, before
+        // anything allocates.
+        let mut running = req.image.format;
+        for node in &chain {
+            let out = node.module.output_format(running);
+            if out != running {
+                return refused(
+                    node,
+                    StreamRefusal::FormatChange {
+                        detail: format!("{running:?} in, {out:?} out"),
+                    },
+                );
+            }
+            running = out;
+        }
+        let format = format_from_wire(req.image.format);
         let plan = plan_stream(
             &chain,
             &full_geos,
@@ -1109,6 +1156,7 @@ impl Pipe {
                 chain: &chain,
                 piece: &piece,
                 head_empty,
+                format,
                 scratch: &mut scratch,
                 calls: &mut calls,
                 millis: &mut millis,
@@ -2295,5 +2343,164 @@ mod tests {
             .render_stream(&req, |_: StreamPiece| Ok(()))
             .unwrap_err();
         assert!(matches!(err, RenderError::InputMismatch { .. }));
+    }
+    fn mono_image() -> ImageInfo {
+        ImageInfo::new(200, 150, ColorSpace::Raw)
+            .with_format(lightamer_iop_traits::PixelFormat::MonoF32)
+    }
+
+    #[expect(clippy::cast_precision_loss)] // test frames are small; the conversion is exact
+    fn mono_pattern_frame(w: u32, h: u32) -> Frame {
+        let len = w as usize * h as usize;
+        let buf: Vec<f32> = (0..len).map(|i| i as f32 * 0.125 - 3.0).collect();
+        Frame::from_parts(buf, FrameExtent::new(0, 0, w, h), PixelFormat::MonoF32).unwrap()
+    }
+
+    /// Streams `req` on `pipe`, assembling mono pieces into one mono frame.
+    fn mono_stream_assembled(
+        pipe: &mut Pipe,
+        req: &RenderRequest<'_, impl crate::chain::ModuleLookup>,
+    ) -> (super::StreamSummary, Frame) {
+        let extent = FrameExtent::new(
+            req.final_out.x,
+            req.final_out.y,
+            u32::try_from(req.final_out.width).unwrap(),
+            u32::try_from(req.final_out.height).unwrap(),
+        );
+        let mut out = Frame::alloc(extent, PixelFormat::MonoF32).unwrap();
+        let summary = pipe
+            .render_stream(req, |piece: StreamPiece| {
+                assert_eq!(piece.plane.frame.format(), PixelFormat::MonoF32);
+                let src = piece.plane.frame.as_slice();
+                let ox = usize::try_from(piece.extent.x - extent.x).unwrap();
+                let oy = usize::try_from(piece.extent.y - extent.y).unwrap();
+                for row in 0..piece.extent.height as usize {
+                    let seg = &src[row * piece.extent.width as usize
+                        ..(row + 1) * piece.extent.width as usize];
+                    let dst_row = u32::try_from(oy + row).unwrap();
+                    let dst = out.row_mut(dst_row).unwrap();
+                    dst[ox..ox + seg.len()].copy_from_slice(seg);
+                }
+                Ok(())
+            })
+            .unwrap();
+        (summary, out)
+    }
+
+    #[test]
+    fn mono_stream_matches_whole_frame_bitwise() {
+        let lookup = table(vec![
+            Arc::new(FakeCopy::new("mod_a", Arc::new(Probe::new()))),
+            Arc::new(FakeGain::new("mod_g0", Arc::new(Probe::new()))),
+            Arc::new(FakeGain::new("mod_g1", Arc::new(Probe::new()))),
+        ]);
+        let nodes = vec![
+            node("mod_a"),
+            gain_node("mod_g0", 2.0),
+            gain_node("mod_g1", 0.5),
+        ];
+        let input = mono_pattern_frame(200, 150);
+        let final_out = geom(0, 0, 200, 150);
+        let no_cancel = || false;
+        let req = RenderRequest {
+            nodes: &nodes,
+            lookup: &lookup,
+            image: &mono_image(),
+            input: &input,
+            input_id: 7,
+            process: 1,
+            final_out,
+            cancel: &no_cancel,
+        };
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, 64 * 1024 * 1024, 1024 * 1024);
+        let whole = pipe.render(&req).unwrap();
+        assert_eq!(whole.frame().format(), PixelFormat::MonoF32);
+        let (summary, streamed) = mono_stream_assembled(&mut pipe, &req);
+        assert_eq!(summary.mode, StreamMode::Strip);
+        assert_eq!(summary.pieces, 3);
+        assert_eq!(streamed.format(), PixelFormat::MonoF32);
+        assert_eq!(streamed.as_slice(), whole.frame().as_slice());
+    }
+
+    /// Test module declaring mono-in/RGBA-out: streaming must refuse it.
+    struct FormatChanger {
+        desc: lightamer_iop_traits::ModuleDesc,
+    }
+
+    struct FormatChangerCommit;
+
+    impl lightamer_iop_traits::IopModule for FormatChanger {
+        fn desc(&self) -> &lightamer_iop_traits::ModuleDesc {
+            &self.desc
+        }
+
+        fn commit(
+            &self,
+            _params: &serde_json::Map<String, serde_json::Value>,
+            _image: &ImageInfo,
+        ) -> Result<lightamer_iop_traits::CommitData, lightamer_iop_traits::PipeError> {
+            Ok(Arc::new(FormatChangerCommit))
+        }
+
+        fn output_format(
+            &self,
+            input: lightamer_iop_traits::PixelFormat,
+        ) -> lightamer_iop_traits::PixelFormat {
+            match input {
+                lightamer_iop_traits::PixelFormat::MonoF32 => {
+                    lightamer_iop_traits::PixelFormat::RgbaF32Premul
+                }
+                other => other,
+            }
+        }
+
+        fn process(
+            &self,
+            _data: &lightamer_iop_traits::CommitData,
+            input: &lightamer_iop_traits::Plane<'_>,
+            output: &mut lightamer_iop_traits::PlaneMut<'_>,
+            rin: lightamer_iop_traits::Roi,
+            rout: lightamer_iop_traits::Roi,
+        ) -> Result<(), lightamer_iop_traits::PipeError> {
+            FakeCopy::copy_planes(input, output, rin, rout)
+        }
+    }
+
+    #[test]
+    fn format_change_refuses_before_any_allocation() {
+        let key = lightamer_iop_traits::OrderKey {
+            priority: 1.0,
+            tie: 0,
+        };
+        let lookup = table(vec![Arc::new(FormatChanger {
+            desc: lightamer_iop_traits::ModuleDesc::stub("mod_expand", key, key),
+        })]);
+        let nodes = vec![node("mod_expand")];
+        let input = mono_pattern_frame(200, 150);
+        let final_out = geom(0, 0, 200, 150);
+        let no_cancel = || false;
+        let req = RenderRequest {
+            nodes: &nodes,
+            lookup: &lookup,
+            image: &mono_image(),
+            input: &input,
+            input_id: 7,
+            process: 1,
+            final_out,
+            cancel: &no_cancel,
+        };
+        let mut pipe = Pipe::with_budget_and_floor(PipeKind::Full, GIB, 1024 * 1024);
+        let err = pipe
+            .render_stream(&req, |_: StreamPiece| Ok(()))
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            RenderError::StreamRefused {
+                reason: StreamRefusal::FormatChange { .. },
+                ..
+            }
+        ));
+        assert_eq!(pipe.budget().used(), 0);
+        assert_eq!(pipe.cache_len(), 0);
     }
 }

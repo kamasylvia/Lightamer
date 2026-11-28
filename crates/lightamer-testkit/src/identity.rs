@@ -87,12 +87,19 @@ impl IopModule for IdentityModule {
                 output.height()
             )));
         }
+        if input.channels() != output.channels() {
+            return Err(PipeError::RoiMismatch(format!(
+                "identity channels differ: {} vs {}",
+                input.channels(),
+                output.channels()
+            )));
+        }
         let rows = usize::try_from(rout.height.max(0)).map_err(|_| {
             PipeError::RoiMismatch(format!("identity height {} overflows", rout.height))
         })?;
-        let row_len = usize::try_from(input.width())
-            .ok()
-            .and_then(|w| w.checked_mul(4))
+        let row_len = u64::from(input.width())
+            .checked_mul(u64::from(input.channels()))
+            .and_then(|len| usize::try_from(len).ok())
             .ok_or_else(|| {
                 PipeError::RoiMismatch(format!("identity width {} overflows", input.width()))
             })?;
@@ -155,5 +162,32 @@ mod tests {
                 .process(&data, &input, &mut plane, rin, rout)
                 .is_err()
         );
+    }
+    #[test]
+    fn copies_mono_planes_unchanged() {
+        let module = IdentityModule::new();
+        let data: Arc<dyn std::any::Any + Send + Sync> = Arc::new(IdentityCommit);
+        let backing: Vec<f32> = (0i16..8).map(f32::from).collect();
+        let input = lightamer_iop_traits::Plane::from_slice_channels(&backing, 4, 2, 4, 1).unwrap();
+        let mut out = vec![0.0f32; 4 * 2];
+        {
+            let mut plane =
+                lightamer_iop_traits::PlaneMut::from_slice_channels(&mut out, 4, 2, 4, 1).unwrap();
+            let roi = lightamer_iop_traits::Roi::new(0, 0, 4, 2, 1.0);
+            module.process(&data, &input, &mut plane, roi, roi).unwrap();
+        }
+        assert_eq!(out, backing);
+    }
+
+    #[test]
+    fn mismatched_channels_are_rejected() {
+        let module = IdentityModule::default();
+        let data: Arc<dyn std::any::Any + Send + Sync> = Arc::new(IdentityCommit);
+        let backing = vec![0.0f32; 8];
+        let input = lightamer_iop_traits::Plane::from_slice_channels(&backing, 4, 2, 4, 1).unwrap();
+        let mut out = vec![0.0f32; 4 * 2 * 4];
+        let mut plane = lightamer_iop_traits::PlaneMut::from_slice(&mut out, 4, 2, 16).unwrap();
+        let roi = lightamer_iop_traits::Roi::new(0, 0, 4, 2, 1.0);
+        assert!(module.process(&data, &input, &mut plane, roi, roi).is_err());
     }
 }

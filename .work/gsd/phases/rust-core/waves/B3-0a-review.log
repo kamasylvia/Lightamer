@@ -1,0 +1,43 @@
+Working...
+0 error + 4 minor
+范围：git diff HEAD 25改 + format.rs/REPORT.md 新文件 + PIPELINE.md/pipeline-render/engine-render 上下文。只读，未改文件，未跑写命令。
+
+minor1 crates/lightamer-engine/src/render.rs:402
+问题：RenderedStore::Memory 文档仍写 width*height*4，mono 下应为 width*height*1。
+依据：byte_len 已按实际字节（Memory vec长*4/Mapped文件长）修复，注释未同步；mono 16x16 实测 1024B vs RGBA 4096B。
+修法：改注释为 width*height*channels 或 实际float数，例 Row-major floats（mono w*h，RGBA w*h*4）。
+
+minor2 crates/lightamer-pipeline/src/cache.rs:725 every_image_fact_flips_the_key
+问题：名 every 但未翻 crop_y/p_width/height（只翻 width/crop_x/p_height），wb 仅翻[0][1]，black 仅[2]。
+依据：mix_image/mix_raw 代码已折叠全部字段（crop_y/p_width/height 均 mix），逻辑对，测试漏两维不断言。
+修法：补 flips：crop_y=8、p_width=9567、height=100，或改名 every_field_class_flips_the_key。
+
+minor3 .work/gsd/phases/rust-core/waves/B3-0a-REPORT.md:110
+问题：写 26改+3新，实测 git diff HEAD --stat 25改（engine1+四域8+iop-traits4+pipeline7+raster2+registry1+testkit1+PIPELINE1），HEAD cf1c82a3 已亲核。
+依据：git diff HEAD --name-only 25行；Cargo.lock 零diff 对；3新（format.rs/REPORT.md/review.log）对。
+修法：改 26改 为 25改，或列出第26个路径。
+
+minor4 .work/gsd/phases/rust-core/waves/B3-0a-REPORT.md:14
+问题：§0 称机械改仅 13取键+4改序，漏 test helper/import 改：engine CountingInput impl（fetch/fetch_region/probe 切 self.facts()/self.format，6 hunk）+ image.rs:39 test use 加 Cfa系 + PIPELINE.md ImageInfo 行（§2 称3 stale 实 4 hunk含 ImageInfo）。
+依据：git diff 显示上述 - 行；默认值 RGBA/Rgb/None 下行为逐值同旧，旧 #[test] fn 体仍只动允许行，故非 error。
+修法：§0 补一行 helper/import 说明：CountingInput 默认分支恒等 + import 增量，旧 test fn 体仍 13+4。
+
+§7 逐项核对（代码侧）：
+- cargo 714/0 基线676+38：38 对。新 fn 44 - helper7（sample_raw x2/sample_image/mono_image x2/sample_raw_facts/flipped_pair）=37 diff 内 + format.rs sizes_match 1 =38；§8 清单 5+9+2+13+5+4 逐名在 diff 命中。未跑 cargo（只读禁写），计数一致。
+- 六 lint/五演示/machine-guard：未跑，未读 /tmp 日志（范围禁读），不置可否。代码侧无 prod unwrap/panic/TODO 新增，#[expect] 均为 cast/too_many 既有形。
+- git grep OUTPUT_BPP|16 * 零命中：对。git grep 两模式均空；format.rs 的 16 为定义（bpp match），不在模式内。
+- 单通道整链数字：对。9568*6376=61005568*4=244022272B；Full 1240171806/4=310042951；19.7% =244M/1240M；探针已删（仓内无 b3-0a-probe，符合已删注记）。RSS 峰值未跑不验。
+- 单通道流式 file_bytes=9568*6376*4：对，与 spill mono_sink/落盘映射代码（new_with_format+4B/px+piece 格式比对）一致。
+- RAW 排序两测试 + probe1/fetch1：对。raw_and_jpg…/raw_job… 在 engine tests；run_render_job:972 probe 恰一、1045 fetch 恰一，早退 jpg 序，重排仅读 facts.image.is_raw()/fetched.image.is_raw()，无额外解码。
+- Cargo.lock 不变：对，不在 diff 名单。
+
+旧测试抽查（git diff HEAD -U0）：
+1. image.rs carries_decoded_size_and_input_space：fn 体零 diff，仅 mod tests use 行加导入（fn 外），断言未动。
+2. engine fetch_region_default_crops_the_whole_frame：仅 want.extend 16*4→4*16（值64不变），余行零 diff，属允许4之一。
+3. engine execution_order_sorts_unknown_ids_after_known…：grep diff 零命中，逐字节未动，与报告§6一致。
+4. pipeline render 13取键：- 行恰 13 chain_keys +1 total（render）+2 total（kinds）+1 want（engine）=13+4；例 nodes_failing hunk 仅 chain_keys→chain_keys_with_image 加 &image，余断言未动。
+
+其余要求核对均过：MonoF32 4B/channel1 + WORKING_CHANNELS/OUTPUT_BPP/CHANNELS 常量删尽，prod 无 *16/*4 硬编码（剩 *16/*4 全在 tests oracle/几何尺寸）；output_format 默认恒等，管线 in_wire/out_wire 命中亦推进 + cache 格式比对 + check_footprints/threading + stream FormatChange 分配前拒 + sink/engine 落盘 chain_output_format；ImageInfo format+raw Copy 保，浮点按位 Eq/Hash，cache mix_image/mix_raw 全字段显式 tag；四域 build.rs 同文 pub fn create( 检测 + IMPLEMENTED/lookup，registry or 串无中央表；不转写模块（modules/ 零 diff）。
+
+同意并入提交：是（4 minor 非阻塞，可随手修或下波带）。
+
