@@ -1175,3 +1175,20 @@
   Tag API + 持续维护）；后者未采用，不进锁。栅格三件全取锁内已有版
   本（`image 0.25.10` 经 `lightamer-gpui` 拉入），零新增。
 - `Scripts/check-licenses.sh` 实测退出 0（计数见 B2b-REPORT 验收节）。
+
+## §16 B3-1b 上游对照架采用记录（2026-11-28，lane B3-1b，append-only）
+
+- 新 crate `lightamer-oracle`（Testkit，只许开发依赖）：把上游模块源码逐字抽取
+  （`crates/lightamer-oracle/upstream/*.inc`，`tools/extract.sh` 凭 blob 哈希重抽核对）
+  编进测试对照库。首批 15 个片段：darktable `release-5.7.0` 的
+  `src/iop/rawprepare.c`（blob `b344b027`，11 段）、`src/common/image.c`
+  （`05605921`，3 谓词）、`src/imageio/imageio_rawspeed.cc`（`7f7dabe7`，裁切包装）、
+  `src/common/dng_opcode.h`（`a57d2c85`，增益图结构体）——以上 GPL-3.0-or-later，
+  与本项目同变体；另 rawspeed `ColorFilterArray::shiftDcrawFilter`
+ （`external/rawspeed @ 0c16fee7`，blob `f349c81a`）LGPL-2.1-or-later，随整体按
+  GPL-3.0-or-later 分发（§3 同构）。对照库只进测试二进制，不进产物。
+- 构建依赖只用锁内已有的 `cc 1`（`Cargo.lock` 共 11 个 `+` 行：oracle 一节 6 行 +
+  iop-raw 依赖 5 行，`rayon`/`serde_json` 复用锁内已有版，零新外部包）；
+  `Scripts/check-licenses.sh` 实测退出 0（计数见 B3-1b-REPORT 验收节）。
+- `NOTICE` 末尾有对照架条目；单测对照门（平均绝对差 < 1/65535、
+  容差内占比 > 0.9999）沿用计划 golden 门，落在 `lightamer-testkit` 的比较工具里。

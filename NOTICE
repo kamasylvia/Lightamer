@@ -534,3 +534,23 @@ Lumen RAW derivation (wave B1d-a, 2026-11-28):
   Each use site carries its upstream file-and-function anchor in a comment.
   MIT permits this use; this attribution preserves the notice. These files
   are GPL-3.0-or-later as part of Lightamer.
+
+Upstream oracle (wave B3-1b, 2026-11-28; test-only, never shipped):
+
+  Upstream: darktable release-5.7.0 (GPL-3.0-or-later, Copyright (C)
+  2009-2026 darktable developers) and rawspeed @ 0c16fee7
+  (LGPL-2.1-or-later, see the rawspeed entry above).
+  Verbatim fragments in crates/lightamer-oracle/upstream/*.inc (15 files;
+  per-file path, tag, blob hash, and line ranges in upstream/MANIFEST.md;
+  re-extractable via crates/lightamer-oracle/tools/extract.sh):
+  rawprepare.c (params/data structs, _compute_proper_crop, modify_roi
+  pair, _adjust_xtrans_filters, _BL, process, _image_is_normalized,
+  _image_set_rawcrops, _check_gain_maps, commit_params, init/cleanup_pipe,
+  reload_defaults), image.c (dt_image_is_raw, dt_image_is_mono_sraw,
+  dt_image_is_rawprepare_supported), imageio_rawspeed.cc
+  (dt_rawspeed_crop_dcraw_filters), dng_opcode.h (dt_dng_gain_map_t),
+  ColorFilterArray.cpp (shiftDcrawFilter). Unmodified; compiled into the
+  test-only oracle static libs beside Lightamer-written glue
+  (csrc/chain.c, stubs/, build.rs) and distributed as part of the
+  GPL-3.0-or-later whole, same as darktable. GUI, OpenCL, legacy-params,
+  distort, preset, and metadata functions are not extracted.

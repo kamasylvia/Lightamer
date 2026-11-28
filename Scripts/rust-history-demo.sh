@@ -64,8 +64,8 @@ echo "a=$SA b=$SB c=$SC (8-char shorts)"
 say "2. edit A twice, undo, redo; close; reopen and compare"
 {
   line "session.open" "{\"path\": \"$TMP/Shoot\"}"
-  line "develop.set" "{\"ids\": [\"$A\"], \"module\": \"rawprepare\", \"patch\": {\"p_gain\": {\"type\": \"float\", \"value\": 1.5}}}"
-  line "develop.set" "{\"ids\": [\"$A\"], \"module\": \"rawprepare\", \"patch\": {\"p_gain\": {\"type\": \"float\", \"value\": 2.5}}}"
+  line "develop.set" "{\"ids\": [\"$A\"], \"module\": \"rawprepare\", \"patch\": {\"white\": {\"type\": \"int\", \"value\": 1}}}"
+  line "develop.set" "{\"ids\": [\"$A\"], \"module\": \"rawprepare\", \"patch\": {\"white\": {\"type\": \"int\", \"value\": 2}}}"
   line "history.undo" "{\"id\": \"$A\"}"
   line "history.redo" "{\"id\": \"$A\"}"
   line "session.close" "{}"
@@ -90,11 +90,11 @@ echo "reopened states match: $SA:3:2 $SB:1:0 $SC:1:0"
 say "3. kill -9 mid-drag: committed stays, live dies"
 {
   line "session.open" "{\"path\": \"$TMP/Shoot\"}"
-  line "develop.set" "{\"ids\": [\"$B\"], \"module\": \"rawprepare\", \"patch\": {\"p_gain\": {\"type\": \"float\", \"value\": 1.0}}}"
-  line "develop.set" "{\"ids\": [\"$B\"], \"module\": \"rawprepare\", \"patch\": {\"p_gain\": {\"type\": \"float\", \"value\": 2.0}}}"
-  line "develop.set" "{\"ids\": [\"$B\"], \"module\": \"rawprepare\", \"patch\": {\"p_gain\": {\"type\": \"float\", \"value\": 3.0}}}"
+  line "develop.set" "{\"ids\": [\"$B\"], \"module\": \"rawprepare\", \"patch\": {\"white\": {\"type\": \"int\", \"value\": 1}}}"
+  line "develop.set" "{\"ids\": [\"$B\"], \"module\": \"rawprepare\", \"patch\": {\"white\": {\"type\": \"int\", \"value\": 2}}}"
+  line "develop.set" "{\"ids\": [\"$B\"], \"module\": \"rawprepare\", \"patch\": {\"white\": {\"type\": \"int\", \"value\": 3}}}"
   line "develop.beginInteraction" "{\"id\": \"$B\"}"
-  line "develop.updateInteraction" "{\"id\": \"$B\", \"module\": \"rawprepare\", \"patch\": {\"p_gain\": {\"type\": \"float\", \"value\": 99.0}}}"
+  line "develop.updateInteraction" "{\"id\": \"$B\", \"module\": \"rawprepare\", \"patch\": {\"white\": {\"type\": \"int\", \"value\": 99}}}"
 } > "$TMP/hold.jsonl"
 "$CLI" run --file "$TMP/hold.jsonl" --hold 30 > "$TMP/hold.log" 2>&1 &
 HOLDER=$!
@@ -125,16 +125,16 @@ LABELS="$(sqlite3 "$DB" "SELECT history_steps.label FROM history_steps JOIN phot
 [ "$LABELS" = "import,develop.set,develop.set,develop.set" ] || fail "labels: $LABELS"
 HASH="$(sqlite3 "$DB" "SELECT current_hash FROM photos WHERE uuid = '$B';")"
 JSON="$(sqlite3 "$DB" "SELECT json FROM snapshots WHERE hash = '$HASH';")"
-echo "$JSON" | grep -q '"value":3.0' || fail "current value is not 3.0: $JSON"
+echo "$JSON" | grep -q '"value":3' || fail "current value is not 3: $JSON"
 echo "$JSON" | grep -q '99' && fail "drag value 99 survived the kill" || true
-echo "after kill: 4 steps, cursor 3, committed 3.0 kept, live 99.0 gone"
+echo "after kill: 4 steps, cursor 3, committed 3 kept, live 99 gone"
 
 say "4. sync one module A->B; merge clipboard selection ->C"
 {
   line "session.open" "{\"path\": \"$TMP/Shoot\"}"
   line "develop.copy" "{\"id\": \"$A\"}"
   line "develop.sync" "{\"id\": \"$A\", \"ids\": [\"$B\"], \"selection\": [\"rawprepare\"]}"
-  line "develop.merge" "{\"ids\": [\"$C\"], \"selection\": [\"rawprepare.p_gain\"]}"
+  line "develop.merge" "{\"ids\": [\"$C\"], \"selection\": [\"rawprepare.white\"]}"
   line "session.close" "{}"
 } > "$TMP/sync.jsonl"
 "$CLI" run --file "$TMP/sync.jsonl" | tee "$TMP/sync.log" || fail "sync run"
@@ -146,8 +146,8 @@ CLAST="$(sqlite3 "$DB" "SELECT history_steps.label FROM history_steps JOIN photo
 [ "$CLAST" = "develop.merge" ] || fail "C last label: $CLAST"
 BHASH="$(sqlite3 "$DB" "SELECT current_hash FROM photos WHERE uuid = '$B';")"
 BJSON="$(sqlite3 "$DB" "SELECT json FROM snapshots WHERE hash = '$BHASH';")"
-echo "$BJSON" | grep -q '"value":2.5' || fail "B did not sync 2.5: $BJSON"
-echo "sync: B 5:4 develop.sync value 2.5; merge: C 2:1 develop.merge"
+echo "$BJSON" | grep -q '"value":2' || fail "B did not sync 2: $BJSON"
+echo "sync: B 5:4 develop.sync value 2; merge: C 2:1 develop.merge"
 
 say "5. ten thousand pastes on the release build"
 (cd "$ROOT" && cargo build --release -p lightamer-cli --locked -j6)

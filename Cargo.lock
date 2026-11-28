@@ -3978,6 +3978,11 @@ name = "lightamer-iop-raw"
 version = "0.1.0"
 dependencies = [
  "lightamer-iop-traits",
+ "lightamer-oracle",
+ "lightamer-raster",
+ "lightamer-testkit",
+ "rayon",
+ "serde_json",
 ]
 
 [[package]]
@@ -3999,6 +4004,13 @@ version = "0.1.0"
 [[package]]
 name = "lightamer-meta"
 version = "0.1.0"
+
+[[package]]
+name = "lightamer-oracle"
+version = "0.1.0"
+dependencies = [
+ "cc",
+]
 
 [[package]]
 name = "lightamer-pipeline"

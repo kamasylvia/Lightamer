@@ -77,6 +77,7 @@ pub const TABLE: &[(&str, Class)] = &[
     ("lightamer-gpui", Class::Layer(5)),
     ("lightamer-mcp", Class::Layer(5)),
     ("lightamer-testkit", Class::Testkit),
+    ("lightamer-oracle", Class::Testkit),
     // Binaries and tooling.
     ("lightamer-cli", Class::Exempt),
     ("xtask", Class::Exempt),

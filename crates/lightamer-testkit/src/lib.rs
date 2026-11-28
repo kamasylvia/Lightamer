@@ -41,11 +41,13 @@ use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::Path;
 
+mod compare;
 mod identity;
 mod raw_sample;
 
+pub use compare::{Comparison, IN_TOLERANCE_GATE, MEAN_ABS_GATE, TOLERANCE, compare_planes};
 pub use identity::{IdentityCommit, IdentityModule};
-pub use raw_sample::{load_raw_sample, sample_path};
+pub use raw_sample::{RawSample, load_raw_sample, sample_path};
 
 /// The environment variable naming the file skips are appended to (JSON lines).
 pub const SKIP_LOG_ENV: &str = "LIGHTAMER_SKIP_LOG";

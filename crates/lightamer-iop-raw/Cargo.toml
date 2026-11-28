@@ -8,6 +8,16 @@ publish.workspace = true
 
 [dependencies]
 lightamer-iop-traits = { path = "../lightamer-iop-traits" }
+rayon = { version = "1" }
+serde_json = { version = "1" }
+
+[dev-dependencies]
+# Test-only oracle + tooling: Testkit crates (dev use enforced by layers)
+# and the L0 raster below this layer. Decode stays behind testkit's
+# `RawSample` (same-layer dev edges would violate layering).
+lightamer-oracle = { path = "../lightamer-oracle" }
+lightamer-raster = { path = "../lightamer-raster" }
+lightamer-testkit = { path = "../lightamer-testkit" }
 
 [lints]
 workspace = true

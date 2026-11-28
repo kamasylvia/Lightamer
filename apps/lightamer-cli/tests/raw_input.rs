@@ -67,6 +67,10 @@ fn whole_path_counts_probe_once_decode_once() {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let source = RawFileSource::new();
     let photo = arw("7RM5-LosslessCompressedLarge.ARW");
+    // Warm the cameras.xml singleton before measuring: the first parse in
+    // the process lands on whichever test runs first, so without this the
+    // zero-delta assertion below flakes red when this test draws first.
+    RawImage::ensure_metadata().expect("warm cameras.xml singleton");
     let probes = RawImage::probe_count();
     let decodes = RawImage::decode_count();
     let parses = RawImage::meta_parse_count();

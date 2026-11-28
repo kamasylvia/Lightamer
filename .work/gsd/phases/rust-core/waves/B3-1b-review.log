@@ -1,0 +1,59 @@
+PASS / 0 error + 8 minor
+B3-1b 只读自审（2026-11-28）。方法：只读；`tools/extract.sh rawprepare --check` 15×OK（LIGHTAMER_DT_REF=refs/dt-master）；15 个 .inc 与上游逐字节 diff 全同；chain/转写/测试/登记逐行对照上游 `release-5.7.0`（git show）与本仓 `external/rawspeed @0c16fee7`。未构建、未跑测试（数字类结论标未亲证）。
+
+## error（无）
+
+## minor
+
+M1. crates/README.md:42（HEAD）— `lightamer-cli` 整行被 oracle 行替换删除，计数失配。
+  base（cfbc3fba:42）有 `| exempt | lightamer-cli | …` 长行；HEAD 该行消失，只剩 xtask（:43），表剩 28 行而正文写“30 个包”（base 惯例：28 行/“29 个包”）。
+  修：从 base 原样恢复 cli 行（单行），“30”保留（恢复后 29 行，正文=行数+1 与 base 惯例一致）。报告未提此改动，判误改非有意。
+
+M2. crates/lightamer-oracle/csrc/oracle_abi.h:3 — 注释 `(100/20/64)` 末值错，应 68。
+  CStateOut = 4+4+36+16+4+4 = 68；chain.c 与 lib.rs 两边静态断言皆 68。改注释一字。
+
+M3. crates/lightamer-oracle/README.md 行为替身表 — 漏列禁用片腿（csrc/chain.c:290-310）。
+  表称“Every stub that can differ observably”，但禁用分支（float memcpy 直通；rin≠rout 或 u16 输入则 rc=2）不在表内，且两角与上游真行为 diverg：
+  (a) 禁用+非零裁切：上游跳整片（含几何，pixelpipe_hb.c:1701 `_skip_piece_on_tags` 亲核）= 直通；oracle 因几何先行收缩走 rc=2（Rust 与上游一致：roi 恒等+拷贝）。
+  (b) 禁用+u16 输入：上游 u16 直通；oracle rc=2（输出恒 f32 无法表达）。
+  零裁切禁用（全部已测跑法）三方一致，故 minor。修：补表行 + 注两角未测。
+
+M4. crates/lightamer-iop-raw/src/modules/rawprepare/mod.rs:540-610（run_mosaic）— 短尾 strided plane 静默丢末行。
+  fits() 接受 len∈[(rows-1)*stride+row_len, rows*stride)（与 par_map_rows 同契约），但 `par_chunks_exact().zip().take(rows)` 此时只产 rows-1 块，末行输出不写。
+  管线内不可达（Frame stride 恒紧；render.rs tiling scratch 子切片恒 rows*stride 整行），仅手调 trait 可达。修：按行下标循环（如 par_map_rows 分块）或收紧 fits 要求整行缓冲。
+
+M5. 同上 run_mosaic row_base/col_base（rout.x/y 奇偶臂）— 实现对但零覆盖。
+  oracle 几何恒经 modify_roi_out（x=y=0），全部单测/集成测 rout 原点皆 0；非零原点只在管线内 tiled oroi（render.rs tile_output_roi 绝对坐标）出现。
+  与 _BL（`(((j+oy+top)&1)<<1)|((i+ox+left)&1)`）逐位等价已手核。修：补一个手算像素的直接单测（rout=(1,1,…)，无需 oracle）。
+
+M6. commit rawcrops 腿（p_width/p_height 重写）被丢弃且报告未披露。
+  oracle 跑逐字 _image_set_rawcrops 并经 StateOut 上报；Rust 无通道（commit 内 ImageInfo 不可变、PipeState 无该字段）且无测试比对；报告 §3 只字未提。
+  现无可观察面（读 p_width 的 crop/lens/demosaic 皆未转写）。修：报告补一句 + lib.rs StateOut 文档“must reproduce”软化（除 p_width/p_height，待通道）。
+
+M7. DESC 色彩静态 (Raw,Raw) vs 上游条件式（非 raw 回 RGB，rawprepare.c:115-120）— 未披露。
+  现无可观察面（negotiate() 无管线内调用者，转换永不执行）。jpg_chain 含 rawprepare 居首，待 negotiate 接线时非 raw 输入会多一段 Raw→Rgb。记账即可。
+
+M8. 报告/审计锁行数措辞两处：B3-1b-REPORT.md §8 “iop-raw 依赖两行”实为 5 个 + 行；docs/LICENSE-AUDIT.md §16 “仅增 oracle 一节 7 行”实为 oracle 6 + iop-raw 5（共 11 个 + 行）。
+  实质已核真：cc 1.11.3 / rayon 1.12.0 / serde_json 1.0.154 与基线同版零新增。改两数字。
+
+## 已亲核成立（抽样清单，非全量复述）
+
+- 15 .inc 与 manifest 行范围逐字节同（全量 diff + --check 15 OK）；blob 前缀 b344b027/05605921/7f7dabe7/a57d2c85/f349c81a 与 pin 一致；范围皆整函数（起止行已对：process 322-448、commit 680-740、defaults 753-777、roi 253-286、cfa 301-320、normalized 569-580、rawcrops 582-622、gainmaps 624-678、pipe 742-751、predicates、crop 包装、dng 结构、shift 143-170）。
+- §5 四项成立：① rawspeed 子模块 gitlink（.gitmodules 亲核 src/external/rawspeed）；② 非 HDR 浮点半 commit 不可见（PipeState.datatype 恒 Float，存类型已擦除）；③ 非归一 HDR 白点：Rust resolve_level 越界判 InvalidParams，上游 reload_defaults u32→u16 隐式截断（亲核赋值行）；④ 过裁：Rust saturating→空 vs 上游负宽。
+- 转写：commit 两式与 :693-716 同序同式（含 HDR/65535 normalizer 取 image flags）；黑均值 f32 同序累加 + round 半远离零；mosaic 判 state.cfa ⟺ dsc.filters 位；roi 对同式（x=y=0、round((l+r)*scale)、iscale≡1）；像素 `(in-sub)/div` 同序无 FMA；id 奇偶与 _BL 等价；Bayer 移位手算核对 (1,0)→[G,R,B,G]、(0,1)→[G,B,R,G] 与 shiftDcrawFilter 位运算一致，四奇偶皆有测；X-Trans 下标逐字。
+- 适用判定：`raw.is_some && !normalized(HDR 半)` ⟺ 上游 `supported && !normalized` 在范围内一致；禁片=输出抄输入+状态不动 ⟺ 上游跳片（含几何恒等，pixelpipe_hb:1701 亲核）。
+- 错误路：UnsupportedFormat 两处（多通道腿、CfaPattern::None）皆手调可达、信息准；InvalidParams（黑/白/裁切越界、形态错、flat_field=true+applies）可达；空瓦片发状态不跑核；越界 fits 双检；外来 commit：roi 静默恒等、process 报 Backend。
+- 替身表其余行皆实：cache 落工作图同值；signal/log 静默；scharr 中止（want_detail_mask=0 钉死，唯一调用点 process）；gtk 中止（widget 恒 NULL + if 守卫）；glib 含 NULL 同语义；MIN/MAX/CLAMP 调用点全纯参且位于死增益腿；DT_OMP 串行=无 OpenMP 上游；dng_gain_maps=NULL → _check_gain_maps FALSE。
+- 法务：mod.rs 有上游 Copyright 行 + Modified 行 + SPDX；NOTICE/audit §16 条目在；check-licenses.sh 只查 cargo 元数据（.inc 无头合规）；xtask layers 登记 Testkit；iop-raw dev 依赖 oracle/raster/testkit + 正常依赖 rayon/serde_json。
+- 报告：§7 24=3+7+4+10 点数吻合；§10 demo 改动与 diff 一致（white 真参、断言 "value":3/2、selection 改名）；§2 G_BEGIN_DECLS 在 imageio_rawspeed.h:21/35 亲核。
+
+## 未亲证（只读未跑，需塔台信报告或重跑）
+
+- §4 全 0 max_abs / 773 passed / clippy-doc-fmt-lint 全绿：理论支撑逐位等价（u16→f32 精确、同序、无 FMA、两边 -ffp-contract=off、roundf≡f32::round），但数值本身未跑。
+- 样张事实（黑 512×4、白 15360、RGGB 0x94949494、loader 裁切 0）：9568×6376 见单测断言；余下采信 decode --dump。
+
+## 洗脱嫌疑（曾疑后证伪，不计数）
+
+- lib.rs:174-177/321-324 数组下标 vs deny(indexing_slicing)：证伪——decode/image.rs:321-329 invert_3x3 同形态已合绿，lint 不打固定数组常量下标。
+- flat_field=EMBEDDED 无图时 Rust 判错 vs 上游静默走通：报告 §3 已披露，属未转写 DNG 图的刻意 loud 拒，不报。
+- crates/README “30”计数：待 M1 恢复 cli 行后即自洽。
